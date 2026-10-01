@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Smash Lot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" />
   <style>
     :root {
       --hud-bg: rgba(12, 14, 18, 0.62);
@@ -39,6 +42,94 @@
     #rpm-fill.red { background: var(--accent); }
     #dash .smash { margin-top: 8px; font-size: 12px; color: var(--hud-dim); letter-spacing: 0.06em; text-transform: uppercase; display: flex; justify-content: space-between; }
     #dash .smash b { color: #ffd23f; font: 700 14px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    /* --- Menus --- */
+    #menu {
+      --menu-panel: rgba(12, 14, 19, 0.86);
+      --menu-line: rgba(255, 255, 255, 0.12);
+      --menu-hover: rgba(255, 255, 255, 0.1);
+      --hazard: #ffd23f;
+      --hazard-ink: #1b1d22;
+      --font-display: "Russo One", "Arial Black", Impact, system-ui, sans-serif;
+      position: fixed; inset: 0; z-index: 20; overflow-y: auto;
+      background: linear-gradient(90deg, rgba(8, 10, 14, 0.82) 0%, rgba(8, 10, 14, 0.55) 38%, rgba(8, 10, 14, 0) 70%);
+      padding-block: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-bottom, 0px));
+      padding-inline: max(16px, 5vw);
+    }
+    #menu[hidden] { display: none; }
+    body.in-menu #badges, body.in-menu #dash, body.in-menu #touch, body.in-menu #help,
+    body.in-menu #prompt, body.in-menu #drift, body.in-menu #telemetry, body.in-menu #toast { display: none !important; }
+    .screen { display: flex; flex-direction: column; gap: 10px; width: min(380px, 100%); }
+    .screen.wide { width: min(640px, 100%); background: var(--menu-panel); padding: 20px; border-radius: 14px; backdrop-filter: blur(8px); }
+    .screen[hidden] { display: none; }
+    .logo { margin: 0; font: 400 clamp(46px, 9vw, 84px)/0.9 var(--font-display); letter-spacing: 0.02em; text-transform: uppercase; text-wrap: balance; text-shadow: 0 4px 24px rgba(0,0,0,0.35); }
+    .logo span { display: block; width: max-content; margin-top: 8px; padding: 2px 14px 6px; color: var(--hazard-ink);
+      background: repeating-linear-gradient(-45deg, var(--hazard) 0 16px, #f0b400 16px 32px); }
+    .tagline { margin: 4px 0 14px; font-size: 15px; color: var(--hud-dim); letter-spacing: 0.02em; }
+    .screen-title { margin: 0 0 6px; font: 400 30px/1.1 var(--font-display); text-transform: uppercase; letter-spacing: 0.03em; }
+    #menu button { font: 600 15px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--hud-fg); background: var(--menu-panel);
+      border: 1px solid var(--menu-line); border-radius: 10px; padding: 14px 18px; text-align: left; cursor: pointer; transition: background 0.15s, transform 0.15s; }
+    #menu button:hover { background: #20242c; }
+    #menu button:active { transform: translateY(1px); }
+    #menu button:focus-visible { outline: 3px solid var(--hazard); outline-offset: 2px; }
+    #menu button.primary { background: var(--hazard); color: var(--hazard-ink); border-color: transparent; font: 400 24px/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.06em; padding: 16px 18px; }
+    #menu button.primary:hover { background: #ffdc5e; }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    #menu button.back { align-self: flex-start; margin-top: 6px; }
+    .fineprint { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--hud-dim); max-width: 46ch; }
+
+    .vehicle-card { background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; padding: 12px 10px 14px; backdrop-filter: blur(8px); }
+    .card-label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--hud-dim); padding: 0 6px 8px; }
+    .vehicle-row { display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; gap: 6px; }
+    #menu .arrow { padding: 0; height: 64px; font-size: 28px; text-align: center; background: transparent; }
+    #menu .arrow:hover { background: var(--menu-hover); }
+    .vehicle-info { min-width: 0; }
+    .vehicle-title { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700; }
+    #vehicle-swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+    #vehicle-blurb { margin: 4px 0 8px; font-size: 13px; line-height: 1.4; color: var(--hud-dim); min-height: 2.8em; }
+    .stats { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--hud-dim); font-variant-numeric: tabular-nums; }
+    .stats b { color: var(--hud-fg); font-size: 14px; }
+
+    .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--menu-line); padding-bottom: 10px; overflow-x: auto; }
+    #menu .tabs button { padding: 9px 14px; border-radius: 999px; background: transparent; }
+    #menu .tabs button[aria-selected="true"] { background: var(--hazard); color: var(--hazard-ink); }
+    .option-list { display: flex; flex-direction: column; }
+    .opt { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; padding: 12px 0; border-bottom: 1px solid var(--menu-line); }
+    .opt-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 180px; }
+    .opt-label { font-size: 14px; font-weight: 600; }
+    .opt-hint { font-size: 12px; color: var(--hud-dim); }
+    .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+    #menu .seg button { padding: 8px 11px; font-size: 13px; border-radius: 8px; background: rgba(255,255,255,0.05); }
+    #menu .seg button[aria-checked="true"] { background: var(--hud-fg); color: var(--hazard-ink); border-color: transparent; }
+
+    table.controls { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .controls th { text-align: left; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hud-dim); padding: 6px 8px 8px 0; border-bottom: 1px solid var(--menu-line); }
+    .controls td { padding: 9px 8px 9px 0; border-bottom: 1px solid var(--menu-line); vertical-align: top; }
+    .controls td:first-child { font-weight: 600; }
+    #menu kbd { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 4px; background: rgba(255,255,255,0.14); font: 600 12px/20px ui-monospace, monospace; text-align: center; }
+    .screen.wide:has(table) { overflow-x: auto; }
+    #fps { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 30; padding: 4px 10px; border-radius: 999px; background: var(--hud-bg); font: 600 12px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    @media (max-width: 560px) {
+      #menu { background: rgba(8, 10, 14, 0.7); }
+      .controls th:last-child, .controls td:last-child { display: none; }
+    }
+    /* Short landscape screens (phones): logo left, card and buttons right. */
+    @media (max-height: 520px) and (min-width: 600px) {
+      #menu { background: linear-gradient(90deg, rgba(8, 10, 14, 0.85), rgba(8, 10, 14, 0.4)); }
+      .screen[data-screen="main"] { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); column-gap: 24px; row-gap: 8px; width: min(820px, 100%); align-items: start; }
+      .screen[data-screen="main"] > .logo, .screen[data-screen="main"] > .tagline, .screen[data-screen="main"] > .fineprint { grid-column: 1; }
+      .screen[data-screen="main"] > .vehicle-card, .screen[data-screen="main"] > #btn-play, .screen[data-screen="main"] > .btn-row { grid-column: 2; }
+      .screen[data-screen="main"] > .logo { grid-row: 1; }
+      .screen[data-screen="main"] > .tagline { grid-row: 2; }
+      .screen[data-screen="main"] > .fineprint { grid-row: 3 / span 2; }
+      .screen[data-screen="main"] > .vehicle-card { grid-row: 1 / span 2; }
+      .logo { font-size: clamp(36px, 7vw, 64px); }
+      #vehicle-blurb { min-height: 0; }
+      #menu button { padding: 11px 16px; }
+      #menu button.primary { padding: 13px 16px; font-size: 20px; }
+      .screen.wide { padding: 14px 16px; }
+      .opt { padding: 8px 0; }
+    }
+    @media (prefers-reduced-motion: reduce) { #menu button { transition: none; } }
     #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font: 600 16px system-ui, sans-serif; color: #1d2733; letter-spacing: 0.04em; }
 
     #drift { position: fixed; top: 18%; left: 50%; transform: translateX(-50%) scale(0.9); opacity: 0; transition: opacity 0.2s, transform 0.2s; font: 800 26px/1.1 system-ui, sans-serif; letter-spacing: 0.08em; text-shadow: 0 2px 10px rgba(0,0,0,0.5); text-align: center; pointer-events: none; }
@@ -72,12 +163,13 @@
     #t-hb { right: 60px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
     #touch-cam { left: 16px; top: 16px; }
     #touch-reset { left: 76px; top: 16px; }
-    #touch-rebuild { left: 136px; top: 16px; }
+    #touch-pause { left: 136px; top: 16px; }
     #touch-enter { left: 196px; top: 16px; }
   </style>
   <script type="importmap">
     { "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
       "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js"
     } }
   </script>
@@ -86,14 +178,14 @@
   <div id="app"></div>
   <div id="loading">Loading physics…</div>
 
-  <div id="help" class="panel">
+  <div id="help" class="panel hidden">
     <h1>SMASH LOT</h1>
     <div class="row"><kbd>W</kbd><kbd>S</kbd> <b>throttle / brake</b> (hold S to reverse)</div>
     <div class="row"><kbd>A</kbd><kbd>D</kbd> <b>steer</b> &nbsp;<kbd>Space</kbd> <b>handbrake</b></div>
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
     <div class="row"><kbd>E</kbd> <b>drive a nearby vehicle</b> (4 to try)</div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
-    <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
+    <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>Esc</kbd> <b>pause</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
   </div>
 
@@ -116,6 +208,71 @@
   <div id="toast"></div>
   <div id="prompt"></div>
   <pre id="telemetry" class="panel hidden"></pre>
+  <div id="fps" hidden></div>
+
+  <div id="menu" hidden>
+    <section class="screen" data-screen="main" aria-labelledby="logo">
+      <h1 id="logo" class="logo">Smash<span>Lot</span></h1>
+      <p class="tagline">Drive anything. Break everything.</p>
+
+      <div class="vehicle-card" aria-live="polite">
+        <div class="card-label">Your ride</div>
+        <div class="vehicle-row">
+          <button type="button" class="arrow" id="btn-prev-vehicle" aria-label="Previous vehicle">‹</button>
+          <div class="vehicle-info">
+            <div class="vehicle-title"><i id="vehicle-swatch"></i><span id="vehicle-name"></span></div>
+            <p id="vehicle-blurb"></p>
+            <div id="vehicle-stats" class="stats"></div>
+          </div>
+          <button type="button" class="arrow" id="btn-next-vehicle" aria-label="Next vehicle">›</button>
+        </div>
+      </div>
+
+      <button type="button" class="primary" id="btn-play">Play</button>
+      <div class="btn-row">
+        <button type="button" id="btn-options">Options</button>
+        <button type="button" id="btn-controls">Controls</button>
+      </div>
+      <p class="fineprint">Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it.</p>
+    </section>
+
+    <section class="screen" data-screen="pause" hidden aria-labelledby="pause-title">
+      <h2 id="pause-title" class="screen-title">Paused</h2>
+      <button type="button" class="primary" id="btn-resume">Resume</button>
+      <button type="button" id="btn-pause-options">Options</button>
+      <button type="button" id="btn-pause-controls">Controls</button>
+      <button type="button" id="btn-rebuild">Rebuild arena</button>
+      <button type="button" id="btn-quit">Main menu</button>
+    </section>
+
+    <section class="screen wide" data-screen="options" hidden aria-labelledby="options-title">
+      <h2 id="options-title" class="screen-title">Options</h2>
+      <div id="option-tabs" class="tabs" role="tablist"></div>
+      <div id="option-list" class="option-list"></div>
+      <button type="button" class="back" data-back>Back</button>
+    </section>
+
+    <section class="screen wide" data-screen="controls" hidden aria-labelledby="controls-title">
+      <h2 id="controls-title" class="screen-title">Controls</h2>
+      <table class="controls">
+        <thead><tr><th>Action</th><th>Keyboard</th><th>Gamepad</th></tr></thead>
+        <tbody>
+          <tr><td>Throttle / brake</td><td><kbd>W</kbd> <kbd>S</kbd> or arrows</td><td>RT / LT</td></tr>
+          <tr><td>Steer</td><td><kbd>A</kbd> <kbd>D</kbd> or arrows</td><td>Left stick</td></tr>
+          <tr><td>Reverse</td><td>Hold <kbd>S</kbd> when stopped</td><td>Hold LT</td></tr>
+          <tr><td>Handbrake</td><td><kbd>Space</kbd></td><td>A / RB</td></tr>
+          <tr><td>Drive a nearby vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
+          <tr><td>Camera (chase, far, hood)</td><td><kbd>C</kbd></td><td>X</td></tr>
+          <tr><td>Reset car</td><td><kbd>R</kbd></td><td>Y</td></tr>
+          <tr><td>Rebuild arena</td><td><kbd>B</kbd></td><td>Pause menu</td></tr>
+          <tr><td>Driving assists</td><td><kbd>T</kbd></td><td>B</td></tr>
+          <tr><td>Pause</td><td><kbd>Esc</kbd> or <kbd>P</kbd></td><td>Start</td></tr>
+          <tr><td>Sound / telemetry</td><td><kbd>M</kbd> / <kbd>F</kbd></td><td></td></tr>
+        </tbody>
+      </table>
+      <button type="button" class="back" data-back>Back</button>
+    </section>
+  </div>
 
   <div id="touch">
     <div class="tbtn" id="t-left" data-touch="left">◀</div>
@@ -125,7 +282,7 @@
     <div class="tbtn" id="t-hb" data-touch="handbrake">HB</div>
     <div class="tbtn small" id="touch-cam">CAM</div>
     <div class="tbtn small" id="touch-reset">RST</div>
-    <div class="tbtn small" id="touch-rebuild">NEW</div>
+    <div class="tbtn small" id="touch-pause" aria-label="Pause">II</div>
     <div class="tbtn small" id="touch-enter">IN</div>
   </div>
 

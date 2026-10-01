@@ -80,7 +80,7 @@ export class Input {
 
   padButtons(pad) {
     // Edge-detect a few buttons mapped to keyboard actions.
-    const map = { 3: 'KeyR', 2: 'KeyC', 1: 'KeyT' };
+    const map = { 3: 'KeyR', 2: 'KeyC', 1: 'KeyT', 9: 'Escape' };
     this.prevPad ||= {};
     for (const [idx, code] of Object.entries(map)) {
       const pressed = !!pad.buttons[idx]?.pressed;

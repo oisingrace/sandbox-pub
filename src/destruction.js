@@ -10,10 +10,8 @@ export async function initRapier() {
   await RAPIER.init();
 }
 
-const MAX_BODIES = 1700;
 const FRACTURES_PER_STEP = 10;
 const MAX_DEBRIS_SPEED = 32;
-const SOLVER_ITERATIONS = 4;
 // Rapier treats the kinematic car as infinitely heavy; scaling the reaction
 // makes hits feel weighty without making the car bounce off bricks.
 const REACTION_SCALE = 1.6;
@@ -194,12 +192,14 @@ const _p = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3(1, 1, 1);
 const _v = new THREE.Vector3();
+const _sv = new THREE.Vector3();
 
 export class Destruction {
   constructor(scene, groundHalfSize) {
     this.scene = scene;
     this.groundHalfSize = groundHalfSize;
     this.recycleRange = 110;
+    this.options = { debrisLimit: 600, breakage: 'detailed', debrisLifetime: 60, physicsQuality: 4 };
     this.pools = {};
     for (const [name, kind] of Object.entries(KINDS)) {
       kind.name = name;
@@ -207,6 +207,13 @@ export class Destruction {
     }
     this.listeners = { impact: [], fracture: [] };
     this.createWorld();
+  }
+
+  /** Apply the player's destruction settings (see settings.js). */
+  configure(opts) {
+    Object.assign(this.options, opts);
+    if (this.world) this.world.numSolverIterations = this.options.physicsQuality;
+    this.enforceBudget();
   }
 
   on(event, fn) {
@@ -221,12 +228,13 @@ export class Destruction {
     if (this.world) this.world.free();
     this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
     this.world.timestep = STEP;
-    this.world.numSolverIterations = SOLVER_ITERATIONS;
+    this.world.numSolverIterations = this.options.physicsQuality;
     this.eventQueue = new RAPIER.EventQueue(true);
     this.byCollider = new Map();
     this.fragments = [];
     this.breakQueue = [];
     this.bodyCount = 0;
+    this.debrisCount = 0;
     this.time = 0;
     for (const pool of Object.values(this.pools)) pool.clear();
 
@@ -348,10 +356,11 @@ export class Destruction {
     }
 
     const color = opts.color ?? new THREE.Color(kind.colors[(Math.random() * kind.colors.length) | 0]);
-    const entity = { kind, body, colliders, color, dirty: true, born: this.time, alive: true };
+    const entity = { kind, body, colliders, color, dirty: true, born: this.time, alive: true, fragment: !!opts.fragment };
     pool.add(entity, color);
     for (const c of colliders) this.byCollider.set(c.handle, entity);
     this.bodyCount++;
+    if (entity.fragment) this.debrisCount++;
     if (opts.fragment) this.fragments.push(entity);
     return entity;
   }
@@ -363,6 +372,7 @@ export class Destruction {
     this.world.removeRigidBody(entity.body);
     this.pools[entity.kind.name].remove(entity);
     this.bodyCount--;
+    if (entity.fragment) this.debrisCount--;
   }
 
   fracture(entity) {
@@ -467,7 +477,7 @@ export class Destruction {
       const b = this.byCollider.get(ev.collider2());
       for (const e of [a, b]) {
         if (!e || !e.alive) continue;
-        if (!settling && e.kind.fracture && force * STEP > breakImpulse(e.kind)) toBreak.add(e);
+        if (!settling && this.canBreak(e) && force * STEP > breakImpulse(e.kind)) toBreak.add(e);
         const dv = (force * STEP) / e.kind.mass;
         if (dv > 2.5) {
           const t = e.body.translation();
@@ -498,19 +508,32 @@ export class Destruction {
     return { jx, jz, torque, total };
   }
 
-  /** Remove the oldest debris when the body budget is exceeded. */
+  /** Breakage setting: "simple" lets intact objects break once but not their pieces. */
+  canBreak(e) {
+    const mode = this.options.breakage;
+    if (!e.kind.fracture || mode === 'off') return false;
+    return mode === 'detailed' || !e.fragment;
+  }
+
+  /** Remove the oldest debris pieces when there are more than the limit. */
   enforceBudget() {
-    if (this.bodyCount <= MAX_BODIES) return;
+    const max = this.options.debrisLimit;
+    if (this.debrisCount <= max) return;
     this.fragments = this.fragments.filter((e) => e.alive);
     // Prefer debris that is already asleep, so removing it disturbs nothing.
-    for (let i = 0; i < this.fragments.length && this.bodyCount > MAX_BODIES; i++) {
+    for (let i = 0; i < this.fragments.length && this.debrisCount > max; i++) {
       const e = this.fragments[i];
       if (e.body.isSleeping()) this.despawn(e);
     }
-    while (this.bodyCount > MAX_BODIES && this.fragments.length) {
+    while (this.debrisCount > max && this.fragments.length) {
       const e = this.fragments.shift();
       if (e.alive) this.despawn(e);
     }
+  }
+
+  lifetimeOf(e) {
+    if (e.kind.lifetime) return e.kind.lifetime;
+    return e.fragment ? this.options.debrisLifetime : 0;
   }
 
   /** Copy body transforms into the instance buffers. */
@@ -518,17 +541,22 @@ export class Destruction {
     for (const pool of Object.values(this.pools)) {
       let changed = false;
       for (const e of pool.entities) {
-        if (!e.dirty && e.body.isSleeping()) continue;
+        const life = this.lifetimeOf(e);
+        const left = life ? life - (this.time - e.born) : Infinity;
+        if (!e.dirty && left >= 1 && e.body.isSleeping()) continue;
         e.dirty = false;
         const t = e.body.translation();
         const r = e.body.rotation();
         _p.set(t.x, t.y, t.z);
         _q.set(r.x, r.y, r.z, r.w);
-        _m.compose(_p, _q, _s);
+        // Debris past its lifetime shrinks away over its last second.
+        const k = left < 1 ? Math.max(0.01, left) : 1;
+        _m.compose(_p, _q, _sv.set(k, k, k));
+        if (left < 1) e.dirty = true; // keep animating even if it fell asleep
         pool.mesh.setMatrixAt(e.slot, _m);
         changed = true;
         // Debris that leaves the arena (or outlives its kind's lifetime) is recycled.
-        if ((e.kind.lifetime && this.time - e.born > e.kind.lifetime) || t.y < -20 || Math.abs(t.x) > this.recycleRange || Math.abs(t.z) > this.recycleRange) {
+        if (left <= 0 || t.y < -20 || Math.abs(t.x) > this.recycleRange || Math.abs(t.z) > this.recycleRange) {
           this.despawn(e);
           continue;
         }

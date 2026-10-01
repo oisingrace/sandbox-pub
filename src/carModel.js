@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // Renders any vehicle from `vehicles.js`. The root sits on the ground under
 // the CG and faces +Z; the body is a child so it can pitch and roll on its
@@ -18,11 +19,42 @@ export function taperedBox(w, h, d, topW, topD, topOffsetZ = 0) {
   return geo;
 }
 
+/**
+ * Collapse a group's direct child meshes into one mesh per material.
+ * Vehicles are built from dozens of boxes; merging them cuts draw calls
+ * (and shadow-pass draw calls) by roughly 10x.
+ */
+export function mergeByMaterial(group) {
+  const byMat = new Map();
+  for (const child of [...group.children]) {
+    if (!child.isMesh || child.children.length) continue;
+    child.updateMatrix();
+    const geo = child.geometry.clone();
+    geo.applyMatrix4(child.matrix);
+    if (!byMat.has(child.material)) byMat.set(child.material, []);
+    byMat.get(child.material).push(geo);
+    group.remove(child);
+    child.geometry.dispose();
+  }
+  for (const [mat, geos] of byMat) {
+    const mesh = new THREE.Mesh(mergeGeometries(geos), mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    for (const g of geos) g.dispose();
+  }
+}
+
+let WHEEL_MATS = null;
+
 function makeWheel(radius, width) {
   const wheel = new THREE.Group();
-  const tireMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
-  const rimMat = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, metalness: 0.85, roughness: 0.3 });
-  const hubMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6, roughness: 0.4 });
+  WHEEL_MATS ||= {
+    tire: new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 }),
+    rim: new THREE.MeshStandardMaterial({ color: 0xc9ccd1, metalness: 0.85, roughness: 0.3 }),
+    hub: new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6, roughness: 0.4 }),
+  };
+  const { tire: tireMat, rim: rimMat, hub: hubMat } = WHEEL_MATS;
 
   const tire = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, width, 28, 1), tireMat);
   tire.rotation.z = Math.PI / 2;
@@ -46,6 +78,7 @@ function makeWheel(radius, width) {
     hub.position.x = side * (width / 2 + 0.03);
     wheel.add(hub);
   }
+  mergeByMaterial(wheel);
   return wheel;
 }
 
@@ -97,6 +130,7 @@ export class CarModel {
       },
     };
     def.build(kit);
+    mergeByMaterial(this.body);
 
     // Wheels: front ones live under a steering pivot.
     this.wheels = [];

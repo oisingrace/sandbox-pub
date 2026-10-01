@@ -122,6 +122,16 @@ export class CarAudio {
     return this._noise;
   }
 
+  /** Silence everything while a menu is open. */
+  suspend() {
+    this.ctx?.suspend();
+  }
+
+  setMuted(muted) {
+    this.muted = muted;
+    if (this.master) this.master.gain.value = muted ? 0 : 0.5;
+  }
+
   toggleMute() {
     this.muted = !this.muted;
     if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;

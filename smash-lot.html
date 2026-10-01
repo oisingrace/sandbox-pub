@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Smash Lot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" />
   <style>
     :root {
       --hud-bg: rgba(12, 14, 18, 0.62);
@@ -39,6 +42,94 @@
     #rpm-fill.red { background: var(--accent); }
     #dash .smash { margin-top: 8px; font-size: 12px; color: var(--hud-dim); letter-spacing: 0.06em; text-transform: uppercase; display: flex; justify-content: space-between; }
     #dash .smash b { color: #ffd23f; font: 700 14px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    /* --- Menus --- */
+    #menu {
+      --menu-panel: rgba(12, 14, 19, 0.86);
+      --menu-line: rgba(255, 255, 255, 0.12);
+      --menu-hover: rgba(255, 255, 255, 0.1);
+      --hazard: #ffd23f;
+      --hazard-ink: #1b1d22;
+      --font-display: "Russo One", "Arial Black", Impact, system-ui, sans-serif;
+      position: fixed; inset: 0; z-index: 20; overflow-y: auto;
+      background: linear-gradient(90deg, rgba(8, 10, 14, 0.82) 0%, rgba(8, 10, 14, 0.55) 38%, rgba(8, 10, 14, 0) 70%);
+      padding-block: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-bottom, 0px));
+      padding-inline: max(16px, 5vw);
+    }
+    #menu[hidden] { display: none; }
+    body.in-menu #badges, body.in-menu #dash, body.in-menu #touch, body.in-menu #help,
+    body.in-menu #prompt, body.in-menu #drift, body.in-menu #telemetry, body.in-menu #toast { display: none !important; }
+    .screen { display: flex; flex-direction: column; gap: 10px; width: min(380px, 100%); }
+    .screen.wide { width: min(640px, 100%); background: var(--menu-panel); padding: 20px; border-radius: 14px; backdrop-filter: blur(8px); }
+    .screen[hidden] { display: none; }
+    .logo { margin: 0; font: 400 clamp(46px, 9vw, 84px)/0.9 var(--font-display); letter-spacing: 0.02em; text-transform: uppercase; text-wrap: balance; text-shadow: 0 4px 24px rgba(0,0,0,0.35); }
+    .logo span { display: block; width: max-content; margin-top: 8px; padding: 2px 14px 6px; color: var(--hazard-ink);
+      background: repeating-linear-gradient(-45deg, var(--hazard) 0 16px, #f0b400 16px 32px); }
+    .tagline { margin: 4px 0 14px; font-size: 15px; color: var(--hud-dim); letter-spacing: 0.02em; }
+    .screen-title { margin: 0 0 6px; font: 400 30px/1.1 var(--font-display); text-transform: uppercase; letter-spacing: 0.03em; }
+    #menu button { font: 600 15px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--hud-fg); background: var(--menu-panel);
+      border: 1px solid var(--menu-line); border-radius: 10px; padding: 14px 18px; text-align: left; cursor: pointer; transition: background 0.15s, transform 0.15s; }
+    #menu button:hover { background: #20242c; }
+    #menu button:active { transform: translateY(1px); }
+    #menu button:focus-visible { outline: 3px solid var(--hazard); outline-offset: 2px; }
+    #menu button.primary { background: var(--hazard); color: var(--hazard-ink); border-color: transparent; font: 400 24px/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.06em; padding: 16px 18px; }
+    #menu button.primary:hover { background: #ffdc5e; }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    #menu button.back { align-self: flex-start; margin-top: 6px; }
+    .fineprint { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--hud-dim); max-width: 46ch; }
+
+    .vehicle-card { background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; padding: 12px 10px 14px; backdrop-filter: blur(8px); }
+    .card-label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--hud-dim); padding: 0 6px 8px; }
+    .vehicle-row { display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; gap: 6px; }
+    #menu .arrow { padding: 0; height: 64px; font-size: 28px; text-align: center; background: transparent; }
+    #menu .arrow:hover { background: var(--menu-hover); }
+    .vehicle-info { min-width: 0; }
+    .vehicle-title { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700; }
+    #vehicle-swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+    #vehicle-blurb { margin: 4px 0 8px; font-size: 13px; line-height: 1.4; color: var(--hud-dim); min-height: 2.8em; }
+    .stats { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--hud-dim); font-variant-numeric: tabular-nums; }
+    .stats b { color: var(--hud-fg); font-size: 14px; }
+
+    .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--menu-line); padding-bottom: 10px; overflow-x: auto; }
+    #menu .tabs button { padding: 9px 14px; border-radius: 999px; background: transparent; }
+    #menu .tabs button[aria-selected="true"] { background: var(--hazard); color: var(--hazard-ink); }
+    .option-list { display: flex; flex-direction: column; }
+    .opt { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; padding: 12px 0; border-bottom: 1px solid var(--menu-line); }
+    .opt-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 180px; }
+    .opt-label { font-size: 14px; font-weight: 600; }
+    .opt-hint { font-size: 12px; color: var(--hud-dim); }
+    .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+    #menu .seg button { padding: 8px 11px; font-size: 13px; border-radius: 8px; background: rgba(255,255,255,0.05); }
+    #menu .seg button[aria-checked="true"] { background: var(--hud-fg); color: var(--hazard-ink); border-color: transparent; }
+
+    table.controls { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .controls th { text-align: left; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hud-dim); padding: 6px 8px 8px 0; border-bottom: 1px solid var(--menu-line); }
+    .controls td { padding: 9px 8px 9px 0; border-bottom: 1px solid var(--menu-line); vertical-align: top; }
+    .controls td:first-child { font-weight: 600; }
+    #menu kbd { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 4px; background: rgba(255,255,255,0.14); font: 600 12px/20px ui-monospace, monospace; text-align: center; }
+    .screen.wide:has(table) { overflow-x: auto; }
+    #fps { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 30; padding: 4px 10px; border-radius: 999px; background: var(--hud-bg); font: 600 12px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    @media (max-width: 560px) {
+      #menu { background: rgba(8, 10, 14, 0.7); }
+      .controls th:last-child, .controls td:last-child { display: none; }
+    }
+    /* Short landscape screens (phones): logo left, card and buttons right. */
+    @media (max-height: 520px) and (min-width: 600px) {
+      #menu { background: linear-gradient(90deg, rgba(8, 10, 14, 0.85), rgba(8, 10, 14, 0.4)); }
+      .screen[data-screen="main"] { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); column-gap: 24px; row-gap: 8px; width: min(820px, 100%); align-items: start; }
+      .screen[data-screen="main"] > .logo, .screen[data-screen="main"] > .tagline, .screen[data-screen="main"] > .fineprint { grid-column: 1; }
+      .screen[data-screen="main"] > .vehicle-card, .screen[data-screen="main"] > #btn-play, .screen[data-screen="main"] > .btn-row { grid-column: 2; }
+      .screen[data-screen="main"] > .logo { grid-row: 1; }
+      .screen[data-screen="main"] > .tagline { grid-row: 2; }
+      .screen[data-screen="main"] > .fineprint { grid-row: 3 / span 2; }
+      .screen[data-screen="main"] > .vehicle-card { grid-row: 1 / span 2; }
+      .logo { font-size: clamp(36px, 7vw, 64px); }
+      #vehicle-blurb { min-height: 0; }
+      #menu button { padding: 11px 16px; }
+      #menu button.primary { padding: 13px 16px; font-size: 20px; }
+      .screen.wide { padding: 14px 16px; }
+      .opt { padding: 8px 0; }
+    }
+    @media (prefers-reduced-motion: reduce) { #menu button { transition: none; } }
     #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font: 600 16px system-ui, sans-serif; color: #1d2733; letter-spacing: 0.04em; }
 
     #drift { position: fixed; top: 18%; left: 50%; transform: translateX(-50%) scale(0.9); opacity: 0; transition: opacity 0.2s, transform 0.2s; font: 800 26px/1.1 system-ui, sans-serif; letter-spacing: 0.08em; text-shadow: 0 2px 10px rgba(0,0,0,0.5); text-align: center; pointer-events: none; }
@@ -72,12 +163,13 @@
     #t-hb { right: 60px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
     #touch-cam { left: 16px; top: 16px; }
     #touch-reset { left: 76px; top: 16px; }
-    #touch-rebuild { left: 136px; top: 16px; }
+    #touch-pause { left: 136px; top: 16px; }
     #touch-enter { left: 196px; top: 16px; }
   </style>
   <script type="importmap">
     { "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
       "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js"
     } }
   </script>
@@ -86,14 +178,14 @@
   <div id="app"></div>
   <div id="loading">Loading physics…</div>
 
-  <div id="help" class="panel">
+  <div id="help" class="panel hidden">
     <h1>SMASH LOT</h1>
     <div class="row"><kbd>W</kbd><kbd>S</kbd> <b>throttle / brake</b> (hold S to reverse)</div>
     <div class="row"><kbd>A</kbd><kbd>D</kbd> <b>steer</b> &nbsp;<kbd>Space</kbd> <b>handbrake</b></div>
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
     <div class="row"><kbd>E</kbd> <b>drive a nearby vehicle</b> (4 to try)</div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
-    <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
+    <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>Esc</kbd> <b>pause</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
   </div>
 
@@ -116,6 +208,71 @@
   <div id="toast"></div>
   <div id="prompt"></div>
   <pre id="telemetry" class="panel hidden"></pre>
+  <div id="fps" hidden></div>
+
+  <div id="menu" hidden>
+    <section class="screen" data-screen="main" aria-labelledby="logo">
+      <h1 id="logo" class="logo">Smash<span>Lot</span></h1>
+      <p class="tagline">Drive anything. Break everything.</p>
+
+      <div class="vehicle-card" aria-live="polite">
+        <div class="card-label">Your ride</div>
+        <div class="vehicle-row">
+          <button type="button" class="arrow" id="btn-prev-vehicle" aria-label="Previous vehicle">‹</button>
+          <div class="vehicle-info">
+            <div class="vehicle-title"><i id="vehicle-swatch"></i><span id="vehicle-name"></span></div>
+            <p id="vehicle-blurb"></p>
+            <div id="vehicle-stats" class="stats"></div>
+          </div>
+          <button type="button" class="arrow" id="btn-next-vehicle" aria-label="Next vehicle">›</button>
+        </div>
+      </div>
+
+      <button type="button" class="primary" id="btn-play">Play</button>
+      <div class="btn-row">
+        <button type="button" id="btn-options">Options</button>
+        <button type="button" id="btn-controls">Controls</button>
+      </div>
+      <p class="fineprint">Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it.</p>
+    </section>
+
+    <section class="screen" data-screen="pause" hidden aria-labelledby="pause-title">
+      <h2 id="pause-title" class="screen-title">Paused</h2>
+      <button type="button" class="primary" id="btn-resume">Resume</button>
+      <button type="button" id="btn-pause-options">Options</button>
+      <button type="button" id="btn-pause-controls">Controls</button>
+      <button type="button" id="btn-rebuild">Rebuild arena</button>
+      <button type="button" id="btn-quit">Main menu</button>
+    </section>
+
+    <section class="screen wide" data-screen="options" hidden aria-labelledby="options-title">
+      <h2 id="options-title" class="screen-title">Options</h2>
+      <div id="option-tabs" class="tabs" role="tablist"></div>
+      <div id="option-list" class="option-list"></div>
+      <button type="button" class="back" data-back>Back</button>
+    </section>
+
+    <section class="screen wide" data-screen="controls" hidden aria-labelledby="controls-title">
+      <h2 id="controls-title" class="screen-title">Controls</h2>
+      <table class="controls">
+        <thead><tr><th>Action</th><th>Keyboard</th><th>Gamepad</th></tr></thead>
+        <tbody>
+          <tr><td>Throttle / brake</td><td><kbd>W</kbd> <kbd>S</kbd> or arrows</td><td>RT / LT</td></tr>
+          <tr><td>Steer</td><td><kbd>A</kbd> <kbd>D</kbd> or arrows</td><td>Left stick</td></tr>
+          <tr><td>Reverse</td><td>Hold <kbd>S</kbd> when stopped</td><td>Hold LT</td></tr>
+          <tr><td>Handbrake</td><td><kbd>Space</kbd></td><td>A / RB</td></tr>
+          <tr><td>Drive a nearby vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
+          <tr><td>Camera (chase, far, hood)</td><td><kbd>C</kbd></td><td>X</td></tr>
+          <tr><td>Reset car</td><td><kbd>R</kbd></td><td>Y</td></tr>
+          <tr><td>Rebuild arena</td><td><kbd>B</kbd></td><td>Pause menu</td></tr>
+          <tr><td>Driving assists</td><td><kbd>T</kbd></td><td>B</td></tr>
+          <tr><td>Pause</td><td><kbd>Esc</kbd> or <kbd>P</kbd></td><td>Start</td></tr>
+          <tr><td>Sound / telemetry</td><td><kbd>M</kbd> / <kbd>F</kbd></td><td></td></tr>
+        </tbody>
+      </table>
+      <button type="button" class="back" data-back>Back</button>
+    </section>
+  </div>
 
   <div id="touch">
     <div class="tbtn" id="t-left" data-touch="left">◀</div>
@@ -125,12 +282,13 @@
     <div class="tbtn" id="t-hb" data-touch="handbrake">HB</div>
     <div class="tbtn small" id="touch-cam">CAM</div>
     <div class="tbtn small" id="touch-reset">RST</div>
-    <div class="tbtn small" id="touch-rebuild">NEW</div>
+    <div class="tbtn small" id="touch-pause" aria-label="Pause">II</div>
     <div class="tbtn small" id="touch-enter">IN</div>
   </div>
 
   <script type="module">
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 
 // ===== physics.js =====
@@ -473,11 +631,42 @@ function taperedBox(w, h, d, topW, topD, topOffsetZ = 0) {
   return geo;
 }
 
+/**
+ * Collapse a group's direct child meshes into one mesh per material.
+ * Vehicles are built from dozens of boxes; merging them cuts draw calls
+ * (and shadow-pass draw calls) by roughly 10x.
+ */
+function mergeByMaterial(group) {
+  const byMat = new Map();
+  for (const child of [...group.children]) {
+    if (!child.isMesh || child.children.length) continue;
+    child.updateMatrix();
+    const geo = child.geometry.clone();
+    geo.applyMatrix4(child.matrix);
+    if (!byMat.has(child.material)) byMat.set(child.material, []);
+    byMat.get(child.material).push(geo);
+    group.remove(child);
+    child.geometry.dispose();
+  }
+  for (const [mat, geos] of byMat) {
+    const mesh = new THREE.Mesh(mergeGeometries(geos), mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    for (const g of geos) g.dispose();
+  }
+}
+
+let WHEEL_MATS = null;
+
 function makeWheel(radius, width) {
   const wheel = new THREE.Group();
-  const tireMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
-  const rimMat = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, metalness: 0.85, roughness: 0.3 });
-  const hubMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6, roughness: 0.4 });
+  WHEEL_MATS ||= {
+    tire: new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 }),
+    rim: new THREE.MeshStandardMaterial({ color: 0xc9ccd1, metalness: 0.85, roughness: 0.3 }),
+    hub: new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6, roughness: 0.4 }),
+  };
+  const { tire: tireMat, rim: rimMat, hub: hubMat } = WHEEL_MATS;
 
   const tire = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, width, 28, 1), tireMat);
   tire.rotation.z = Math.PI / 2;
@@ -501,6 +690,7 @@ function makeWheel(radius, width) {
     hub.position.x = side * (width / 2 + 0.03);
     wheel.add(hub);
   }
+  mergeByMaterial(wheel);
   return wheel;
 }
 
@@ -552,6 +742,7 @@ class CarModel {
       },
     };
     def.build(kit);
+    mergeByMaterial(this.body);
 
     // Wheels: front ones live under a steering pivot.
     this.wheels = [];
@@ -676,6 +867,8 @@ function blobTexture() {
 const sports = {
   id: 'sports',
   name: 'Sports coupe',
+  blurb: 'Quick, grippy and happy to drift.',
+  stats: { top: 245, accel: 5.1 },
   color: 0xd7263d,
   length: 4.3,
   width: 1.8,
@@ -713,6 +906,8 @@ const sports = {
 const hatch = {
   id: 'hatch',
   name: 'Hatchback',
+  blurb: 'Light and nimble. Tail-happy with assists off.',
+  stats: { top: 178, accel: 7.2 },
   color: 0x2f7bd6,
   length: 3.85,
   width: 1.72,
@@ -749,6 +944,8 @@ const hatch = {
 const pickup = {
   id: 'pickup',
   name: 'Pickup truck',
+  blurb: 'Torquey and heavy. Hits harder than it looks.',
+  stats: { top: 197, accel: 6.4 },
   color: 0x2d6a4f,
   length: 5.5,
   width: 1.96,
@@ -795,6 +992,8 @@ const pickup = {
 const bus = {
   id: 'bus',
   name: 'School bus',
+  blurb: 'Slow to start, impossible to stop. Built for buildings.',
+  stats: { top: 133, accel: 18 },
   color: 0xf2b705,
   trim: 0xf5f1e6,
   length: 10.6,
@@ -844,10 +1043,8 @@ async function initRapier() {
   await RAPIER.init();
 }
 
-const MAX_BODIES = 1700;
 const FRACTURES_PER_STEP = 10;
 const MAX_DEBRIS_SPEED = 32;
-const SOLVER_ITERATIONS = 4;
 // Rapier treats the kinematic car as infinitely heavy; scaling the reaction
 // makes hits feel weighty without making the car bounce off bricks.
 const REACTION_SCALE = 1.6;
@@ -1028,12 +1225,14 @@ const _p = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3(1, 1, 1);
 const _v = new THREE.Vector3();
+const _sv = new THREE.Vector3();
 
 class Destruction {
   constructor(scene, groundHalfSize) {
     this.scene = scene;
     this.groundHalfSize = groundHalfSize;
     this.recycleRange = 110;
+    this.options = { debrisLimit: 600, breakage: 'detailed', debrisLifetime: 60, physicsQuality: 4 };
     this.pools = {};
     for (const [name, kind] of Object.entries(KINDS)) {
       kind.name = name;
@@ -1041,6 +1240,13 @@ class Destruction {
     }
     this.listeners = { impact: [], fracture: [] };
     this.createWorld();
+  }
+
+  /** Apply the player's destruction settings (see settings.js). */
+  configure(opts) {
+    Object.assign(this.options, opts);
+    if (this.world) this.world.numSolverIterations = this.options.physicsQuality;
+    this.enforceBudget();
   }
 
   on(event, fn) {
@@ -1055,12 +1261,13 @@ class Destruction {
     if (this.world) this.world.free();
     this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
     this.world.timestep = STEP;
-    this.world.numSolverIterations = SOLVER_ITERATIONS;
+    this.world.numSolverIterations = this.options.physicsQuality;
     this.eventQueue = new RAPIER.EventQueue(true);
     this.byCollider = new Map();
     this.fragments = [];
     this.breakQueue = [];
     this.bodyCount = 0;
+    this.debrisCount = 0;
     this.time = 0;
     for (const pool of Object.values(this.pools)) pool.clear();
 
@@ -1182,10 +1389,11 @@ class Destruction {
     }
 
     const color = opts.color ?? new THREE.Color(kind.colors[(Math.random() * kind.colors.length) | 0]);
-    const entity = { kind, body, colliders, color, dirty: true, born: this.time, alive: true };
+    const entity = { kind, body, colliders, color, dirty: true, born: this.time, alive: true, fragment: !!opts.fragment };
     pool.add(entity, color);
     for (const c of colliders) this.byCollider.set(c.handle, entity);
     this.bodyCount++;
+    if (entity.fragment) this.debrisCount++;
     if (opts.fragment) this.fragments.push(entity);
     return entity;
   }
@@ -1197,6 +1405,7 @@ class Destruction {
     this.world.removeRigidBody(entity.body);
     this.pools[entity.kind.name].remove(entity);
     this.bodyCount--;
+    if (entity.fragment) this.debrisCount--;
   }
 
   fracture(entity) {
@@ -1301,7 +1510,7 @@ class Destruction {
       const b = this.byCollider.get(ev.collider2());
       for (const e of [a, b]) {
         if (!e || !e.alive) continue;
-        if (!settling && e.kind.fracture && force * STEP > breakImpulse(e.kind)) toBreak.add(e);
+        if (!settling && this.canBreak(e) && force * STEP > breakImpulse(e.kind)) toBreak.add(e);
         const dv = (force * STEP) / e.kind.mass;
         if (dv > 2.5) {
           const t = e.body.translation();
@@ -1332,19 +1541,32 @@ class Destruction {
     return { jx, jz, torque, total };
   }
 
-  /** Remove the oldest debris when the body budget is exceeded. */
+  /** Breakage setting: "simple" lets intact objects break once but not their pieces. */
+  canBreak(e) {
+    const mode = this.options.breakage;
+    if (!e.kind.fracture || mode === 'off') return false;
+    return mode === 'detailed' || !e.fragment;
+  }
+
+  /** Remove the oldest debris pieces when there are more than the limit. */
   enforceBudget() {
-    if (this.bodyCount <= MAX_BODIES) return;
+    const max = this.options.debrisLimit;
+    if (this.debrisCount <= max) return;
     this.fragments = this.fragments.filter((e) => e.alive);
     // Prefer debris that is already asleep, so removing it disturbs nothing.
-    for (let i = 0; i < this.fragments.length && this.bodyCount > MAX_BODIES; i++) {
+    for (let i = 0; i < this.fragments.length && this.debrisCount > max; i++) {
       const e = this.fragments[i];
       if (e.body.isSleeping()) this.despawn(e);
     }
-    while (this.bodyCount > MAX_BODIES && this.fragments.length) {
+    while (this.debrisCount > max && this.fragments.length) {
       const e = this.fragments.shift();
       if (e.alive) this.despawn(e);
     }
+  }
+
+  lifetimeOf(e) {
+    if (e.kind.lifetime) return e.kind.lifetime;
+    return e.fragment ? this.options.debrisLifetime : 0;
   }
 
   /** Copy body transforms into the instance buffers. */
@@ -1352,17 +1574,22 @@ class Destruction {
     for (const pool of Object.values(this.pools)) {
       let changed = false;
       for (const e of pool.entities) {
-        if (!e.dirty && e.body.isSleeping()) continue;
+        const life = this.lifetimeOf(e);
+        const left = life ? life - (this.time - e.born) : Infinity;
+        if (!e.dirty && left >= 1 && e.body.isSleeping()) continue;
         e.dirty = false;
         const t = e.body.translation();
         const r = e.body.rotation();
         _p.set(t.x, t.y, t.z);
         _q.set(r.x, r.y, r.z, r.w);
-        _m.compose(_p, _q, _s);
+        // Debris past its lifetime shrinks away over its last second.
+        const k = left < 1 ? Math.max(0.01, left) : 1;
+        _m.compose(_p, _q, _sv.set(k, k, k));
+        if (left < 1) e.dirty = true; // keep animating even if it fell asleep
         pool.mesh.setMatrixAt(e.slot, _m);
         changed = true;
         // Debris that leaves the arena (or outlives its kind's lifetime) is recycled.
-        if ((e.kind.lifetime && this.time - e.born > e.kind.lifetime) || t.y < -20 || Math.abs(t.x) > this.recycleRange || Math.abs(t.z) > this.recycleRange) {
+        if (left <= 0 || t.y < -20 || Math.abs(t.x) > this.recycleRange || Math.abs(t.z) > this.recycleRange) {
           this.despawn(e);
           continue;
         }
@@ -1465,19 +1692,40 @@ function createWorld(scene, renderer) {
   // Distant hills for a horizon.
   const hillMat = new THREE.MeshStandardMaterial({ color: 0x6a8a55, roughness: 1, flatShading: true });
   const rng = mulberry32(3);
+  const hills = [];
   for (let i = 0; i < 22; i++) {
     const a = (i / 22) * Math.PI * 2 + rng() * 0.2;
     const d = 260 + rng() * 60;
     const h = 30 + rng() * 50;
-    const hill = new THREE.Mesh(new THREE.ConeGeometry(55 + rng() * 45, h, 7), hillMat);
-    hill.position.set(Math.cos(a) * d, h / 2 - 2, Math.sin(a) * d);
-    scene.add(hill);
+    const hill = new THREE.ConeGeometry(55 + rng() * 45, h, 7);
+    hill.translate(Math.cos(a) * d, h / 2 - 2, Math.sin(a) * d);
+    hills.push(hill);
   }
+  scene.add(new THREE.Mesh(mergeGeometries(hills), hillMat));
 
+  const VIEW = { near: [70, 200], medium: [110, 380], far: [150, 650] };
   return {
     followSun(target) {
       sun.position.copy(target).add(sunOffset);
       sun.target.position.copy(target);
+    },
+    /** Apply graphics settings: shadows ('off' | 'low' | 'high') and view distance. */
+    setGraphics({ shadows, viewDistance }, camera) {
+      sun.castShadow = shadows !== 'off';
+      const size = shadows === 'high' ? 2048 : 1024;
+      if (sun.shadow.mapSize.x !== size) {
+        sun.shadow.mapSize.set(size, size);
+        sun.shadow.map?.dispose();
+        sun.shadow.map = null;
+      }
+      const half = shadows === 'high' ? 40 : 30;
+      Object.assign(sun.shadow.camera, { left: -half, right: half, top: half, bottom: -half });
+      sun.shadow.camera.updateProjectionMatrix();
+      const [near, far] = VIEW[viewDistance] || VIEW.medium;
+      scene.fog.near = near;
+      scene.fog.far = far;
+      camera.far = far + 50;
+      camera.updateProjectionMatrix();
     },
   };
 }
@@ -2040,7 +2288,7 @@ class Input {
 
   padButtons(pad) {
     // Edge-detect a few buttons mapped to keyboard actions.
-    const map = { 3: 'KeyR', 2: 'KeyC', 1: 'KeyT' };
+    const map = { 3: 'KeyR', 2: 'KeyC', 1: 'KeyT', 9: 'Escape' };
     this.prevPad ||= {};
     for (const [idx, code] of Object.entries(map)) {
       const pressed = !!pad.buttons[idx]?.pressed;
@@ -2180,6 +2428,16 @@ class CarAudio {
     return this._noise;
   }
 
+  /** Silence everything while a menu is open. */
+  suspend() {
+    this.ctx?.suspend();
+  }
+
+  setMuted(muted) {
+    this.muted = muted;
+    if (this.master) this.master.gain.value = muted ? 0 : 0.5;
+  }
+
   toggleMute() {
     this.muted = !this.muted;
     if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
@@ -2199,8 +2457,262 @@ class CarAudio {
   }
 }
 
+// ===== settings.js =====
+// Player options, saved per browser. Graphics presets fill in the
+// individual graphics values; changing any one of them switches the
+// preset to "custom".
+
+const KEY = 'smash-lot-settings-v1';
+
+const GRAPHICS_PRESETS = {
+  low: { resolution: 0.6, shadows: 'off', viewDistance: 'near', effects: 'low', antialias: false },
+  medium: { resolution: 0.85, shadows: 'low', viewDistance: 'medium', effects: 'high', antialias: false },
+  high: { resolution: 1, shadows: 'high', viewDistance: 'far', effects: 'high', antialias: true },
+};
+
+const OPTIONS = {
+  graphics: {
+    preset: { label: 'Quality preset', choices: [['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['custom', 'Custom']] },
+    resolution: { label: 'Resolution', choices: [[0.5, '50%'], [0.6, '60%'], [0.75, '75%'], [0.85, '85%'], [1, '100%'], [1.5, 'Sharp (HiDPI)']] },
+    dynamicResolution: { label: 'Dynamic resolution', hint: 'Lowers resolution when the frame rate drops', choices: [[true, 'On'], [false, 'Off']] },
+    shadows: { label: 'Shadows', choices: [['off', 'Off'], ['low', 'Low'], ['high', 'High']] },
+    viewDistance: { label: 'View distance', choices: [['near', 'Near'], ['medium', 'Medium'], ['far', 'Far']] },
+    effects: { label: 'Smoke and dust', choices: [['low', 'Low'], ['high', 'High']] },
+    antialias: { label: 'Anti-aliasing', choices: [[true, 'On'], [false, 'Off']] },
+    showFps: { label: 'Show FPS', choices: [[true, 'On'], [false, 'Off']] },
+  },
+  destruction: {
+    breakage: { label: 'Breakage', hint: 'Detailed breaks shatter pieces again into smaller ones', choices: [['detailed', 'Detailed'], ['simple', 'Simple'], ['off', 'Off']] },
+    debrisLimit: { label: 'Max debris pieces', hint: 'Oldest settled debris is removed past this', choices: [[250, '250'], [500, '500'], [800, '800'], [1300, '1,300']] },
+    debrisLifetime: { label: 'Debris cleanup', hint: 'Small pieces fade out after this long', choices: [[0, 'Never'], [60, '60 s'], [20, '20 s']] },
+    physicsQuality: { label: 'Physics accuracy', hint: 'Higher keeps tall stacks steadier, costs CPU', choices: [[2, 'Low'], [4, 'Normal'], [6, 'High']] },
+  },
+  game: {
+    assists: { label: 'Driving assists', hint: 'Traction control and countersteer', choices: [[true, 'On'], [false, 'Off']] },
+    sound: { label: 'Sound', choices: [[true, 'On'], [false, 'Off']] },
+    startVehicle: { label: 'Vehicle', choices: [] },
+  },
+};
+
+const DEFAULTS = {
+  preset: 'medium',
+  ...GRAPHICS_PRESETS.medium,
+  dynamicResolution: true,
+  showFps: false,
+  breakage: 'detailed',
+  debrisLimit: 500,
+  debrisLifetime: 60,
+  physicsQuality: 4,
+  assists: true,
+  sound: true,
+  startVehicle: 'sports',
+};
+
+/** A sensible first-run preset from what the device reports. */
+function detectPreset() {
+  const touch = matchMedia('(pointer: coarse)').matches;
+  const cores = navigator.hardwareConcurrency || 4;
+  if (touch || cores <= 4) return 'low';
+  if (cores >= 8 && devicePixelRatio <= 2) return 'high';
+  return 'medium';
+}
+
+function loadSettings() {
+  let saved = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+  } catch {
+    saved = null;
+  }
+  if (saved) return { ...DEFAULTS, ...saved };
+  const preset = detectPreset();
+  const s = { ...DEFAULTS, preset, ...GRAPHICS_PRESETS[preset] };
+  if (preset === 'low') { s.debrisLimit = 250; s.debrisLifetime = 20; }
+  if (preset === 'high') { s.debrisLimit = 800; }
+  return s;
+}
+
+function saveSettings(s) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(s));
+  } catch {
+    // Storage can be blocked (private mode); settings then last for this visit only.
+  }
+}
+
+/** Apply one change, keeping the graphics preset consistent. */
+function changeSetting(s, key, value) {
+  const next = { ...s, [key]: value };
+  if (key === 'preset' && GRAPHICS_PRESETS[value]) Object.assign(next, GRAPHICS_PRESETS[value]);
+  else if (key in GRAPHICS_PRESETS.low) next.preset = matchingPreset(next);
+  return next;
+}
+
+function matchingPreset(s) {
+  for (const [name, p] of Object.entries(GRAPHICS_PRESETS)) {
+    if (Object.entries(p).every(([k, v]) => s[k] === v)) return name;
+  }
+  return 'custom';
+}
+
+// ===== menu.js =====
+// Main menu, pause menu, options and controls screens. The menu only
+// renders UI and reports choices; main.js owns game state.
+
+const TABS = [
+  ['graphics', 'Graphics'],
+  ['destruction', 'Destruction'],
+  ['game', 'Game'],
+];
+
+class Menu {
+  /**
+   * @param {object} opts
+   * @param {Array} opts.vehicles  vehicle definitions
+   * @param {() => object} opts.getSettings
+   * @param {(key: string, value: any) => void} opts.onSetting
+   * @param {() => void} opts.onPlay
+   * @param {() => void} opts.onResume
+   * @param {() => void} opts.onRebuild
+   * @param {() => void} opts.onQuit
+   */
+  constructor(opts) {
+    this.opts = opts;
+    this.root = document.getElementById('menu');
+    this.screens = {};
+    for (const el of this.root.querySelectorAll('.screen')) this.screens[el.dataset.screen] = el;
+    this.tab = 'graphics';
+    this.backTo = 'main';
+    this.vehicleIndex = Math.max(0, opts.vehicles.findIndex((v) => v.id === opts.getSettings().startVehicle));
+
+    const on = (id, fn) => document.getElementById(id).addEventListener('click', fn);
+    on('btn-play', () => opts.onPlay(this.vehicle));
+    on('btn-options', () => this.show('options', 'main'));
+    on('btn-controls', () => this.show('controls', 'main'));
+    on('btn-resume', () => opts.onResume());
+    on('btn-pause-options', () => this.show('options', 'pause'));
+    on('btn-pause-controls', () => this.show('controls', 'pause'));
+    on('btn-rebuild', () => opts.onRebuild());
+    on('btn-quit', () => opts.onQuit());
+    on('btn-prev-vehicle', () => this.pickVehicle(-1));
+    on('btn-next-vehicle', () => this.pickVehicle(1));
+    for (const el of this.root.querySelectorAll('[data-back]')) el.addEventListener('click', () => this.back());
+
+    this.renderVehicle();
+    this.renderTabs();
+  }
+
+  get vehicle() {
+    return this.opts.vehicles[this.vehicleIndex];
+  }
+
+  get isOpen() {
+    return !this.root.hidden;
+  }
+
+  get current() {
+    return this.screen;
+  }
+
+  /** Show a screen; `from` is where its Back button returns to. */
+  show(name, from) {
+    this.root.hidden = false;
+    document.body.classList.add('in-menu');
+    if (from) this.backTo = from;
+    for (const [key, el] of Object.entries(this.screens)) el.hidden = key !== name;
+    this.screen = name;
+    if (name === 'options') this.renderOptions();
+    const first = this.screens[name].querySelector('.primary') || this.screens[name].querySelector('button');
+    first?.focus({ preventScroll: true });
+  }
+
+  hide() {
+    this.root.hidden = true;
+    document.body.classList.remove('in-menu');
+    this.screen = null;
+  }
+
+  back() {
+    this.show(this.backTo);
+  }
+
+  pickVehicle(dir) {
+    const n = this.opts.vehicles.length;
+    this.vehicleIndex = (this.vehicleIndex + dir + n) % n;
+    this.renderVehicle();
+    this.opts.onSetting('startVehicle', this.vehicle.id);
+  }
+
+  renderVehicle() {
+    const v = this.vehicle;
+    document.getElementById('vehicle-name').textContent = v.name;
+    document.getElementById('vehicle-blurb').textContent = v.blurb;
+    const mass = v.spec.mass.toLocaleString('en-US');
+    document.getElementById('vehicle-stats').innerHTML =
+      `<span><b>${v.stats.top}</b> km/h</span><span><b>${v.stats.accel}</b> s 0–100</span><span><b>${mass}</b> kg</span>`;
+    document.getElementById('vehicle-swatch').style.background = `#${v.color.toString(16).padStart(6, '0')}`;
+  }
+
+  renderTabs() {
+    const bar = document.getElementById('option-tabs');
+    bar.innerHTML = '';
+    for (const [id, label] of TABS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.setAttribute('role', 'tab');
+      b.addEventListener('click', () => { this.tab = id; this.renderOptions(); });
+      b.dataset.tab = id;
+      bar.appendChild(b);
+    }
+  }
+
+  renderOptions() {
+    const settings = this.opts.getSettings();
+    for (const b of document.querySelectorAll('#option-tabs button')) {
+      b.setAttribute('aria-selected', String(b.dataset.tab === this.tab));
+    }
+    const list = document.getElementById('option-list');
+    list.innerHTML = '';
+    for (const [key, def] of Object.entries(OPTIONS[this.tab])) {
+      if (!def.choices.length) continue;
+      const row = document.createElement('div');
+      row.className = 'opt';
+      const text = document.createElement('div');
+      text.className = 'opt-text';
+      text.innerHTML = `<span class="opt-label"></span>${def.hint ? '<span class="opt-hint"></span>' : ''}`;
+      text.querySelector('.opt-label').textContent = def.label;
+      if (def.hint) text.querySelector('.opt-hint').textContent = def.hint;
+      const seg = document.createElement('div');
+      seg.className = 'seg';
+      seg.setAttribute('role', 'radiogroup');
+      seg.setAttribute('aria-label', def.label);
+      for (const [value, label] of def.choices) {
+        if (key === 'preset' && value === 'custom' && settings.preset !== 'custom') continue;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = label;
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', String(settings[key] === value));
+        b.addEventListener('click', () => {
+          this.opts.onSetting(key, value);
+          this.renderOptions();
+          list.querySelector(`[data-key="${key}"] [aria-checked="true"]`)?.focus({ preventScroll: true });
+        });
+        seg.appendChild(b);
+      }
+      row.dataset.key = key;
+      row.append(text, seg);
+      list.appendChild(row);
+    }
+  }
+}
+
 // ===== main.js =====
 const PHYSICS_DT = 1 / 120;
+// At most this many car steps per frame (2 debris-world steps). A slow
+// frame drops time instead of trying to catch up and getting slower.
+const MAX_STEPS_PER_FRAME = 4;
 const $ = (id) => document.getElementById(id);
 
 try {
@@ -2211,18 +2723,36 @@ try {
 }
 $('loading').remove();
 
+let settings = loadSettings();
+
 // --- Renderer / scene ------------------------------------------------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-$('app').appendChild(renderer.domElement);
+let renderer = null;
+let dynScale = 1; // dynamic-resolution multiplier, 0.5..1
+
+function createRenderer() {
+  const old = renderer;
+  renderer = new THREE.WebGLRenderer({ antialias: settings.antialias, powerPreference: 'high-performance' });
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setSize(innerWidth, innerHeight);
+  if (old) {
+    old.domElement.replaceWith(renderer.domElement);
+    old.dispose();
+  } else {
+    $('app').appendChild(renderer.domElement);
+  }
+}
+
+function pixelRatio() {
+  const base = settings.resolution > 1 ? Math.min(devicePixelRatio, 2) : settings.resolution;
+  return base * (settings.dynamicResolution ? dynScale : 1);
+}
+
+createRenderer();
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 1200);
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 700);
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -2237,9 +2767,8 @@ const fleet = VEHICLES.map((def) => {
   scene.add(model.root);
   return { def, model, parked: null };
 });
-let active = fleet[0];
-let car = new CarPhysics(active.def.spec);
-let assists = true;
+let active = fleet.find((v) => v.def.id === settings.startVehicle) || fleet[0];
+let car = new CarPhysics({ ...active.def.spec, assists: settings.assists });
 const destruction = new Destruction(scene, 300);
 const skids = new SkidMarks(scene);
 const smoke = new Smoke(scene);
@@ -2250,20 +2779,63 @@ const audio = new CarAudio();
 
 let smashed = 0;
 let shake = 0;
+let state = 'menu'; // 'menu' | 'playing' | 'paused'
+let arenaDirty = false; // has the arena been played in since it was built?
 
 destruction.on('fracture', (pos, kind) => {
   smashed++;
-  const n = Math.min(6, 2 + Math.round(kind.mass / 60));
+  const base = settings.effects === 'high' ? 2 + Math.round(kind.mass / 60) : 1;
+  const n = Math.min(6, base);
   for (let i = 0; i < n; i++) dust.emit(pos, { x: 0, z: 0 }, 0.6 + Math.random() * 0.4, pos.y);
   audio.impact(kind.material, 1);
 });
 destruction.on('impact', (material, strength) => audio.impact(material, strength));
 
+// --- Settings ----------------------------------------------------------
+let shadowsWere = null;
+
+function applySettings({ rebuildRenderer = false } = {}) {
+  if (rebuildRenderer) {
+    createRenderer();
+    shadowsWere = null;
+  }
+  renderer.setPixelRatio(pixelRatio());
+  const shadowsOn = settings.shadows !== 'off';
+  renderer.shadowMap.enabled = shadowsOn;
+  renderer.shadowMap.type = settings.shadows === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+  if (shadowsWere !== null && shadowsWere !== settings.shadows) {
+    // Materials compile shadow support in; recompile after toggling.
+    scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
+  }
+  shadowsWere = settings.shadows;
+  world.setGraphics(settings, camera);
+  destruction.configure({
+    debrisLimit: settings.debrisLimit,
+    breakage: settings.breakage,
+    debrisLifetime: settings.debrisLifetime,
+    physicsQuality: settings.physicsQuality,
+  });
+  car.spec.assists = settings.assists;
+  audio.setMuted(!settings.sound);
+  $('fps').hidden = !settings.showFps;
+  refreshBadges();
+}
+
+function setSetting(key, value) {
+  const prev = settings;
+  settings = changeSetting(settings, key, value);
+  saveSettings(settings);
+  if (key === 'startVehicle') return;
+  applySettings({ rebuildRenderer: prev.antialias !== settings.antialias });
+}
+
+// --- Arena and vehicles --------------------------------------------------
 function buildArena() {
   destruction.createWorld();
   destruction.createCar(active.def);
   populateArena(destruction);
   for (const v of fleet) v.parked = v === active ? null : destruction.spawnVehicle(v.def, v.def.home);
+  arenaDirty = false;
 }
 
 function resetCar() {
@@ -2273,6 +2845,12 @@ function resetCar() {
   skids.clear();
   chase.setVehicle(active.def);
   chase.snap();
+}
+
+function resetAll() {
+  buildArena();
+  smashed = 0;
+  resetCar();
 }
 
 /** The parked vehicle closest to the driver, if it's near enough to hop into. */
@@ -2305,7 +2883,7 @@ function switchTo(target) {
   target.parked = null;
 
   active = target;
-  car = new CarPhysics({ ...target.def.spec, assists });
+  car = new CarPhysics({ ...target.def.spec, assists: settings.assists });
   car.reset(t.x, t.z, heading);
   destruction.createCar(target.def);
   destruction.teleportCar(car);
@@ -2316,19 +2894,11 @@ function switchTo(target) {
   toast(`Driving: ${target.def.name}`);
 }
 
-function resetAll() {
-  buildArena();
-  smashed = 0;
-  resetCar();
-}
-
-resetAll();
-
 // --- HUD -------------------------------------------------------------
 const hud = {
   speed: $('speed'), gear: $('gear'), rpmFill: $('rpm-fill'), drift: $('drift'),
   toast: $('toast'), telemetry: $('telemetry'), assists: $('assists'), cam: $('cam'), smashed: $('smashed'),
-  vehicle: $('vehicle'), prompt: $('prompt'),
+  vehicle: $('vehicle'), prompt: $('prompt'), fps: $('fps'),
 };
 let toastTimer = 0;
 function toast(msg) {
@@ -2337,30 +2907,87 @@ function toast(msg) {
   toastTimer = 1.6;
 }
 function refreshBadges() {
-  hud.assists.textContent = `Assists: ${car.spec.assists ? 'ON' : 'OFF'}`;
-  hud.assists.classList.toggle('off', !car.spec.assists);
+  hud.assists.textContent = `Assists: ${settings.assists ? 'ON' : 'OFF'}`;
+  hud.assists.classList.toggle('off', !settings.assists);
   hud.cam.textContent = `Camera: ${chase.modeName}`;
   hud.vehicle.textContent = active.def.name;
 }
+
+// --- Menus and game state -------------------------------------------------
+const menu = new Menu({
+  vehicles: VEHICLES,
+  getSettings: () => settings,
+  onSetting: setSetting,
+  onPlay: (def) => play(def),
+  onResume: () => resume(),
+  onRebuild: () => { resetAll(); resume(); toast('Arena rebuilt'); },
+  onQuit: () => openMainMenu(),
+});
+
+function play(def) {
+  audio.start();
+  const chosen = fleet.find((v) => v.def === def) || active;
+  if (chosen !== active || arenaDirty) {
+    active = chosen;
+    car = new CarPhysics({ ...active.def.spec, assists: settings.assists });
+    resetAll();
+  } else {
+    resetCar();
+  }
+  arenaDirty = true;
+  refreshBadges();
+  menu.hide();
+  state = 'playing';
+  clock.getDelta();
+  accumulator = 0;
+}
+
+function pause() {
+  if (state !== 'playing') return;
+  state = 'paused';
+  audio.suspend();
+  menu.show('pause');
+}
+
+function resume() {
+  menu.hide();
+  state = 'playing';
+  audio.start();
+  clock.getDelta(); // don't count the time spent paused
+  accumulator = 0;
+}
+
+function openMainMenu() {
+  state = 'menu';
+  audio.suspend();
+  menu.show('main');
+}
+
+/** Gameplay keys only act while driving. */
+const playing = (fn) => () => { if (state === 'playing') fn(); };
+
+input.onPress('Escape', () => {
+  if (state === 'playing') pause();
+  else if (state === 'paused' && menu.current === 'pause') resume();
+  else if (menu.current === 'options' || menu.current === 'controls') menu.back();
+});
+input.onPress('KeyP', () => { if (state === 'playing') pause(); else if (state === 'paused' && menu.current === 'pause') resume(); });
+input.onPress('KeyR', playing(() => { resetCar(); toast('Car reset'); }));
+input.onPress('KeyB', playing(() => { resetAll(); arenaDirty = true; toast('Arena rebuilt'); }));
+input.onPress('KeyC', playing(() => { chase.cycle(); refreshBadges(); toast(`Camera: ${chase.modeName}`); }));
+input.onPress('KeyE', playing(enterNearby));
+input.onPress('KeyT', playing(() => {
+  setSetting('assists', !settings.assists);
+  toast(settings.assists ? 'Assists ON (traction + countersteer)' : 'Assists OFF: full drift mode');
+}));
+input.onPress('KeyM', () => { setSetting('sound', !settings.sound); toast(settings.sound ? 'Sound on' : 'Sound off'); });
+input.onPress('KeyF', playing(() => hud.telemetry.classList.toggle('hidden')));
+input.onPress('KeyH', playing(() => $('help').classList.toggle('hidden')));
 
 function enterNearby() {
   const v = nearbyVehicle();
   if (v) switchTo(v);
 }
-
-input.onPress('KeyR', () => { resetCar(); toast('Car reset'); });
-input.onPress('KeyB', () => { resetAll(); toast('Arena rebuilt'); });
-input.onPress('KeyC', () => { chase.cycle(); refreshBadges(); toast(`Camera: ${chase.modeName}`); });
-input.onPress('KeyE', enterNearby);
-input.onPress('KeyT', () => {
-  assists = !assists;
-  car.spec.assists = assists;
-  refreshBadges();
-  toast(car.spec.assists ? 'Assists ON (traction + countersteer)' : 'Assists OFF: full drift mode');
-});
-input.onPress('KeyM', () => toast(audio.toggleMute() ? 'Sound off' : 'Sound on'));
-input.onPress('KeyF', () => hud.telemetry.classList.toggle('hidden'));
-input.onPress('KeyH', () => $('help').classList.toggle('hidden'));
 
 const isTouch = matchMedia('(pointer: coarse)').matches;
 if (isTouch) {
@@ -2368,15 +2995,12 @@ if (isTouch) {
   for (const el of document.querySelectorAll('[data-touch]')) input.bindTouchButton(el, el.dataset.touch);
   $('touch-cam').addEventListener('click', () => { chase.cycle(); refreshBadges(); });
   $('touch-reset').addEventListener('click', resetCar);
-  $('touch-rebuild').addEventListener('click', resetAll);
+  $('touch-pause').addEventListener('click', pause);
   $('touch-enter').addEventListener('click', enterNearby);
 }
 
-const startAudio = () => audio.start();
-addEventListener('keydown', startAudio);
-addEventListener('pointerdown', startAudio);
-
-refreshBadges();
+// Pause when the tab is hidden (also where an ad break would hook in).
+document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
 // Keep the car on the lot: a soft wall just outside the barrier ring.
 function containCar() {
@@ -2401,29 +3025,85 @@ let driftScore = 0;
 let driftTimer = 0;
 let crashCooldown = 0;
 let worldClock = 0;
+let menuOrbit = 0;
+let pausedRedraw = 0;
 const contacts = [];
+const perf = { avg: 1 / 60, slowFor: 0, fastFor: 0, fpsTimer: 0, frames: 0 };
 
 function frame() {
   requestAnimationFrame(frame);
-  const dt = Math.min(clock.getDelta(), 0.1);
-  const controls = input.read(dt);
+  const raw = clock.getDelta();
+  const dt = Math.min(raw, 0.1);
+  trackPerformance(raw);
+  const controls = input.read(dt); // polled every frame so the gamepad can pause/resume
 
-  accumulator += dt;
-  let steps = 0;
-  while (accumulator >= PHYSICS_DT && steps < 8) {
-    car.step(PHYSICS_DT, controls);
-    containCar();
-    // The debris world runs at a lower rate than the car's handling.
-    worldClock += PHYSICS_DT;
-    if (worldClock >= WORLD_STEP - 1e-9) {
-      worldClock -= WORLD_STEP;
-      stepWorld();
+  if (state === 'playing') {
+    accumulator += dt;
+    let steps = 0;
+    while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
+      car.step(PHYSICS_DT, controls);
+      containCar();
+      // The debris world runs at a lower rate than the car's handling.
+      worldClock += PHYSICS_DT;
+      if (worldClock >= WORLD_STEP - 1e-9) {
+        worldClock -= WORLD_STEP;
+        stepWorld();
+      }
+      accumulator -= PHYSICS_DT;
+      steps++;
     }
-    accumulator -= PHYSICS_DT;
-    steps++;
+    if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
+    updateScene(dt);
+  } else if (state === 'menu') {
+    // Slow orbit over the arena behind the main menu.
+    menuOrbit += dt * 0.06;
+    camera.position.set(Math.sin(menuOrbit) * 58, 26, Math.cos(menuOrbit) * 58);
+    camera.lookAt(0, 2, 0);
+    destruction.sync();
+    for (const v of fleet) if (v.parked) v.model.updateParked(v.parked.body, dt);
+    active.model.update(car, 0);
+    world.followSun(new THREE.Vector3(0, 0, 0));
   }
-  if (steps === 8) accumulator = 0; // can't keep up: drop time rather than spiral
-  frameTail(dt);
+  // Paused: redraw the frozen frame only a few times a second (enough to
+  // show settings changes behind the menu) to save battery.
+  if (state === 'paused') {
+    pausedRedraw -= raw;
+    if (pausedRedraw > 0) return;
+    pausedRedraw = 0.25;
+  }
+  renderer.render(scene, camera);
+}
+
+/** FPS readout and dynamic resolution. */
+function trackPerformance(raw) {
+  perf.avg += (Math.min(raw, 0.25) - perf.avg) * 0.05;
+  perf.frames++;
+  perf.fpsTimer += raw;
+  if (perf.fpsTimer >= 0.5) {
+    if (settings.showFps) hud.fps.textContent = `${Math.round(perf.frames / perf.fpsTimer)} FPS`;
+    perf.frames = 0;
+    perf.fpsTimer = 0;
+  }
+  if (!settings.dynamicResolution || state !== 'playing') return;
+  if (perf.avg > 1 / 45) {
+    perf.slowFor += raw;
+    perf.fastFor = 0;
+    if (perf.slowFor > 1.5 && dynScale > 0.5) {
+      dynScale = Math.max(0.5, dynScale - 0.1);
+      renderer.setPixelRatio(pixelRatio());
+      perf.slowFor = 0;
+    }
+  } else if (perf.avg < 1 / 57) {
+    perf.fastFor += raw;
+    perf.slowFor = 0;
+    if (perf.fastFor > 4 && dynScale < 1) {
+      dynScale = Math.min(1, dynScale + 0.05);
+      renderer.setPixelRatio(pixelRatio());
+      perf.fastFor = 0;
+    }
+  } else {
+    perf.slowFor = perf.fastFor = 0;
+  }
 }
 
 function stepWorld() {
@@ -2439,7 +3119,7 @@ function stepWorld() {
   crashCooldown -= WORLD_STEP;
 }
 
-function frameTail(dt) {
+function updateScene(dt) {
   destruction.sync();
   active.model.update(car, dt);
   for (const v of fleet) if (v.parked) v.model.updateParked(v.parked.body, dt);
@@ -2457,12 +3137,13 @@ function frameTail(dt) {
   const speedGate = Math.min(1, speed / 6);
   const frontSkid = Math.max(0, latSlipF - 0.17) * 3 + lockF;
   const rearSkid = Math.max(Math.max(0, latSlipR - 0.14) * 3, car.wheelspin * 1.5, lockR);
+  const smokeRate = settings.effects === 'high' ? 0.9 : 0.35;
   let squeal = 0;
   contacts.forEach((p, i) => {
     const front = i < 2;
     const s = Math.min(1, (front ? frontSkid : rearSkid) * (front ? speedGate : Math.max(speedGate, car.wheelspin)));
     skids.add(i, p, s);
-    if (!front && s > 0.35 && Math.random() < s * 0.9) smoke.emit(p, { x: car.velX, z: car.velZ }, s);
+    if (!front && s > 0.35 && Math.random() < s * smokeRate) smoke.emit(p, { x: car.velX, z: car.velZ }, s);
     squeal = Math.max(squeal, s);
   });
   smoke.update(dt);
@@ -2516,14 +3197,20 @@ function frameTail(dt) {
       `yaw rate   ${deg(car.yawRate)}°/s\n` +
       `lat G      ${(car.accelLat / 9.81).toFixed(2).padStart(6)}\n` +
       `rpm        ${(car.rpm | 0).toString().padStart(6)}\n` +
-      `bodies     ${destruction.bodyCount.toString().padStart(6)}`;
+      `bodies     ${destruction.bodyCount.toString().padStart(6)}\n` +
+      `res scale  ${pixelRatio().toFixed(2).padStart(6)}`;
   }
-
-  renderer.render(scene, camera);
 }
 
+buildArena();
+resetCar();
+applySettings();
+openMainMenu();
+
 window.game = {
-  get car() { return car; }, get active() { return active; }, fleet, chase, scene, destruction, switchTo, nearbyVehicle,
+  get car() { return car; }, get active() { return active; }, get state() { return state; },
+  get renderer() { return renderer; }, get settings() { return settings; },
+  fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu,
 };
 requestAnimationFrame(frame);
 </script>

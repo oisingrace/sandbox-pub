@@ -6,6 +6,26 @@ can be smashed: a three-storey office building with glass windows, brick walls, 
 block tower, crate pyramids, barrels, a domino run, light poles, trees, cones, and the barrier ring
 itself.
 
+## Menus and options
+
+The game opens on a main menu: pick a vehicle, then Play. Esc (or P, or Start on a gamepad) pauses,
+and the game also pauses automatically when the tab is hidden. Options are saved per browser:
+
+- **Graphics:** quality preset (picked on first visit from the device), resolution, dynamic
+  resolution, shadows, view distance, smoke and dust, anti-aliasing, FPS counter.
+- **Destruction:** breakage (detailed, simple or off), max debris pieces, debris cleanup time, and
+  physics accuracy.
+- **Game:** driving assists and sound.
+
+## Performance notes
+
+- Vehicle parts are merged into one mesh per material, which halves draw calls.
+- At most two debris-world steps run per frame, so slow frames drop time instead of piling up work.
+- Dynamic resolution lowers the render scale when the frame rate stays under 45 FPS and raises it
+  again once there's headroom.
+- The kinematic car body only updates when the car moves, so parked-on debris can fall asleep.
+- Debris pieces are capped and fade out after the chosen cleanup time.
+
 ## Vehicles
 
 | Vehicle | Mass | 0–100 km/h | Top speed | Character |
@@ -102,4 +122,6 @@ All of it is in `src/destruction.js`.
 - `src/effects.js`: skid marks and tire smoke
 - `src/input.js`: keyboard, gamepad and touch input
 - `src/audio.js`: synthesized engine, tire squeal, and per-material impact sounds
-- `src/main.js`: game loop and HUD
+- `src/settings.js`: options, presets, and saving them
+- `src/menu.js`: main, pause, options and controls screens
+- `src/main.js`: game loop, game state and HUD

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // A compact walled arena packed with things to smash. Static scenery here
 // is only the ground and the far-off backdrop; everything inside the
@@ -75,19 +76,40 @@ export function createWorld(scene, renderer) {
   // Distant hills for a horizon.
   const hillMat = new THREE.MeshStandardMaterial({ color: 0x6a8a55, roughness: 1, flatShading: true });
   const rng = mulberry32(3);
+  const hills = [];
   for (let i = 0; i < 22; i++) {
     const a = (i / 22) * Math.PI * 2 + rng() * 0.2;
     const d = 260 + rng() * 60;
     const h = 30 + rng() * 50;
-    const hill = new THREE.Mesh(new THREE.ConeGeometry(55 + rng() * 45, h, 7), hillMat);
-    hill.position.set(Math.cos(a) * d, h / 2 - 2, Math.sin(a) * d);
-    scene.add(hill);
+    const hill = new THREE.ConeGeometry(55 + rng() * 45, h, 7);
+    hill.translate(Math.cos(a) * d, h / 2 - 2, Math.sin(a) * d);
+    hills.push(hill);
   }
+  scene.add(new THREE.Mesh(mergeGeometries(hills), hillMat));
 
+  const VIEW = { near: [70, 200], medium: [110, 380], far: [150, 650] };
   return {
     followSun(target) {
       sun.position.copy(target).add(sunOffset);
       sun.target.position.copy(target);
+    },
+    /** Apply graphics settings: shadows ('off' | 'low' | 'high') and view distance. */
+    setGraphics({ shadows, viewDistance }, camera) {
+      sun.castShadow = shadows !== 'off';
+      const size = shadows === 'high' ? 2048 : 1024;
+      if (sun.shadow.mapSize.x !== size) {
+        sun.shadow.mapSize.set(size, size);
+        sun.shadow.map?.dispose();
+        sun.shadow.map = null;
+      }
+      const half = shadows === 'high' ? 40 : 30;
+      Object.assign(sun.shadow.camera, { left: -half, right: half, top: half, bottom: -half });
+      sun.shadow.camera.updateProjectionMatrix();
+      const [near, far] = VIEW[viewDistance] || VIEW.medium;
+      scene.fog.near = near;
+      scene.fog.far = far;
+      camera.far = far + 50;
+      camera.updateProjectionMatrix();
     },
   };
 }
