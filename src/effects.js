@@ -84,11 +84,11 @@ export class SkidMarks {
 
 // Tire smoke: pooled billboard sprites.
 export class Smoke {
-  constructor(scene, count = 140) {
+  constructor(scene, count = 140, color = 0xe8e8e8) {
     const tex = makePuffTexture();
     this.pool = [];
     for (let i = 0; i < count; i++) {
-      const mat = new THREE.SpriteMaterial({ map: tex, color: 0xe8e8e8, transparent: true, depthWrite: false, opacity: 0 });
+      const mat = new THREE.SpriteMaterial({ map: tex, color, transparent: true, depthWrite: false, opacity: 0 });
       const s = new THREE.Sprite(mat);
       s.visible = false;
       scene.add(s);
@@ -97,10 +97,10 @@ export class Smoke {
     this.next = 0;
   }
 
-  emit(pos, carVel, strength) {
+  emit(pos, carVel, strength, y = 0.3) {
     const p = this.pool[this.next];
     this.next = (this.next + 1) % this.pool.length;
-    p.sprite.position.set(pos.x + (Math.random() - 0.5) * 0.3, 0.3, pos.z + (Math.random() - 0.5) * 0.3);
+    p.sprite.position.set(pos.x + (Math.random() - 0.5) * 0.3, y, pos.z + (Math.random() - 0.5) * 0.3);
     p.vel.set(carVel.x * 0.25 + (Math.random() - 0.5), 0.6 + Math.random() * 0.8, carVel.z * 0.25 + (Math.random() - 0.5));
     p.maxLife = p.life = 1.2 + Math.random() * 1.2;
     p.size = 0.8 + strength * 0.8;

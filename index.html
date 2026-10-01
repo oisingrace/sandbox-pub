@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Drift Lot</title>
+  <title>Smash Lot</title>
   <style>
     :root {
       --hud-bg: rgba(12, 14, 18, 0.62);
@@ -37,6 +37,9 @@
     #rpm { margin-top: 10px; height: 8px; background: rgba(255,255,255,0.12); border-radius: 4px; overflow: hidden; }
     #rpm-fill { height: 100%; width: 0; background: linear-gradient(90deg, #4fd18b, #f2c230); transition: background 0.1s; }
     #rpm-fill.red { background: var(--accent); }
+    #dash .smash { margin-top: 8px; font-size: 12px; color: var(--hud-dim); letter-spacing: 0.06em; text-transform: uppercase; display: flex; justify-content: space-between; }
+    #dash .smash b { color: #ffd23f; font: 700 14px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font: 600 16px system-ui, sans-serif; color: #1d2733; letter-spacing: 0.04em; }
 
     #drift { position: fixed; top: 18%; left: 50%; transform: translateX(-50%) scale(0.9); opacity: 0; transition: opacity 0.2s, transform 0.2s; font: 800 26px/1.1 system-ui, sans-serif; letter-spacing: 0.08em; text-shadow: 0 2px 10px rgba(0,0,0,0.5); text-align: center; pointer-events: none; }
     #drift.show { opacity: 1; transform: translateX(-50%) scale(1); }
@@ -65,19 +68,25 @@
     #t-hb { right: 60px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
     #touch-cam { left: 16px; top: 16px; }
     #touch-reset { left: 76px; top: 16px; }
+    #touch-rebuild { left: 136px; top: 16px; }
   </style>
   <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js"
+    } }
   </script>
 </head>
 <body>
   <div id="app"></div>
+  <div id="loading">Loading physics…</div>
 
   <div id="help" class="panel">
-    <h1>DRIFT LOT</h1>
+    <h1>SMASH LOT</h1>
     <div class="row"><kbd>W</kbd><kbd>S</kbd> <b>throttle / brake</b> (hold S to reverse)</div>
     <div class="row"><kbd>A</kbd><kbd>D</kbd> <b>steer</b> &nbsp;<kbd>Space</kbd> <b>handbrake</b></div>
-    <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset</b></div>
+    <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
+    <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
   </div>
@@ -93,6 +102,7 @@
       <div id="gear">N</div>
     </div>
     <div id="rpm"><div id="rpm-fill"></div></div>
+    <div class="smash">Smashed <b id="smashed">0</b></div>
   </div>
 
   <div id="drift"></div>
@@ -107,6 +117,7 @@
     <div class="tbtn" id="t-hb" data-touch="handbrake">HB</div>
     <div class="tbtn small" id="touch-cam">CAM</div>
     <div class="tbtn small" id="touch-reset">RST</div>
+    <div class="tbtn small" id="touch-rebuild">NEW</div>
   </div>
 
   <script type="module" src="./src/main.js"></script>

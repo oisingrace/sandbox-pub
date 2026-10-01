@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Drift Lot</title>
+  <title>Smash Lot</title>
   <style>
     :root {
       --hud-bg: rgba(12, 14, 18, 0.62);
@@ -37,6 +37,9 @@
     #rpm { margin-top: 10px; height: 8px; background: rgba(255,255,255,0.12); border-radius: 4px; overflow: hidden; }
     #rpm-fill { height: 100%; width: 0; background: linear-gradient(90deg, #4fd18b, #f2c230); transition: background 0.1s; }
     #rpm-fill.red { background: var(--accent); }
+    #dash .smash { margin-top: 8px; font-size: 12px; color: var(--hud-dim); letter-spacing: 0.06em; text-transform: uppercase; display: flex; justify-content: space-between; }
+    #dash .smash b { color: #ffd23f; font: 700 14px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font: 600 16px system-ui, sans-serif; color: #1d2733; letter-spacing: 0.04em; }
 
     #drift { position: fixed; top: 18%; left: 50%; transform: translateX(-50%) scale(0.9); opacity: 0; transition: opacity 0.2s, transform 0.2s; font: 800 26px/1.1 system-ui, sans-serif; letter-spacing: 0.08em; text-shadow: 0 2px 10px rgba(0,0,0,0.5); text-align: center; pointer-events: none; }
     #drift.show { opacity: 1; transform: translateX(-50%) scale(1); }
@@ -65,19 +68,25 @@
     #t-hb { right: 60px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
     #touch-cam { left: 16px; top: 16px; }
     #touch-reset { left: 76px; top: 16px; }
+    #touch-rebuild { left: 136px; top: 16px; }
   </style>
   <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js"
+    } }
   </script>
 </head>
 <body>
   <div id="app"></div>
+  <div id="loading">Loading physics…</div>
 
   <div id="help" class="panel">
-    <h1>DRIFT LOT</h1>
+    <h1>SMASH LOT</h1>
     <div class="row"><kbd>W</kbd><kbd>S</kbd> <b>throttle / brake</b> (hold S to reverse)</div>
     <div class="row"><kbd>A</kbd><kbd>D</kbd> <b>steer</b> &nbsp;<kbd>Space</kbd> <b>handbrake</b></div>
-    <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset</b></div>
+    <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
+    <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
   </div>
@@ -93,6 +102,7 @@
       <div id="gear">N</div>
     </div>
     <div id="rpm"><div id="rpm-fill"></div></div>
+    <div class="smash">Smashed <b id="smashed">0</b></div>
   </div>
 
   <div id="drift"></div>
@@ -107,10 +117,12 @@
     <div class="tbtn" id="t-hb" data-touch="handbrake">HB</div>
     <div class="tbtn small" id="touch-cam">CAM</div>
     <div class="tbtn small" id="touch-reset">RST</div>
+    <div class="tbtn small" id="touch-rebuild">NEW</div>
   </div>
 
   <script type="module">
 import * as THREE from 'three';
+import RAPIER from '@dimforge/rapier3d-compat';
 
 // ===== physics.js =====
 // Vehicle dynamics: a planar "bicycle" model with per-axle tire forces.
@@ -400,6 +412,26 @@ class CarPhysics {
     this.rpm += (targetRpm - this.rpm) * (1 - Math.exp(-dt * 12));
   }
 
+  /**
+   * Apply a collision impulse (N·s, world X/Z) and yaw torque impulse.
+   * Per-step limits keep a car wedged against a pile from being launched.
+   */
+  applyImpulse(jx, jz, torque) {
+    const s = this.spec;
+    let dvx = jx / s.mass;
+    let dvz = jz / s.mass;
+    const dv = Math.hypot(dvx, dvz);
+    const maxDv = 4;
+    if (dv > maxDv) {
+      dvx *= maxDv / dv;
+      dvz *= maxDv / dv;
+    }
+    this.velX += dvx;
+    this.velZ += dvz;
+    this.yawRate += clamp(torque / (s.mass * s.inertiaScale), -0.8, 0.8);
+    return Math.min(dv, maxDv);
+  }
+
   tireCurve(slip) {
     const { tireB: B, tireC: C } = this.spec;
     return Math.sin(C * Math.atan(B * slip));
@@ -610,47 +642,548 @@ function makeBlobTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+// ===== destruction.js =====
+// Rigid-body world for everything the car can smash. Each object kind is
+// drawn with one InstancedMesh, so hundreds of pieces stay cheap. Objects
+// with a `fracture` rule shatter into a grid of smaller kinds when a
+// contact force exceeds their `breakForce`.
+
+async function initRapier() {
+  await RAPIER.init();
+}
+
+const MAX_BODIES = 1700;
+const FRACTURES_PER_STEP = 10;
+const MAX_DEBRIS_SPEED = 32;
+const SOLVER_ITERATIONS = 4;
+// Rapier treats the kinematic car as infinitely heavy; scaling the reaction
+// makes hits feel weighty without making the car bounce off bricks.
+const REACTION_SCALE = 1.6;
+// Momentum the car loses per kg of material it shatters (N·s per kg),
+// standing in for mortar and joints that a loose stack doesn't have.
+const BREAK_DRAG = 7;
+const WORLD_STEP = 1 / 60;
+const STEP = WORLD_STEP;
+// breakForce values are tuned as force over a 1/120 s step; convert to impulse.
+const breakImpulse = (kind) => (kind.breakForce || Infinity) / 120;
+
+// --- Geometry helpers --------------------------------------------------
+
+function colored(geo, hex) {
+  geo = geo.index ? geo.toNonIndexed() : geo;
+  const c = new THREE.Color(hex);
+  const n = geo.attributes.position.count;
+  const arr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+  geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+  geo.deleteAttribute('uv');
+  return geo;
+}
+
+function merge(geos) {
+  let total = 0;
+  for (const g of geos) total += g.attributes.position.count;
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'color']) {
+    const arr = new Float32Array(total * 3);
+    let o = 0;
+    for (const g of geos) { arr.set(g.attributes[name].array, o); o += g.attributes[name].array.length; }
+    out.setAttribute(name, new THREE.BufferAttribute(arr, 3));
+  }
+  return out;
+}
+
+function barrierProfile(w, h, d, topW) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 0) pos.setX(i, pos.getX(i) * (topW / w));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function coneGeo() {
+  const parts = [];
+  const add = (g, hex) => parts.push(colored(g, hex));
+  const base = new THREE.BoxGeometry(0.5, 0.05, 0.5); base.translate(0, -0.275, 0); add(base, 0xff5a1f);
+  const lower = new THREE.CylinderGeometry(0.13, 0.2, 0.25, 14); lower.translate(0, -0.125, 0); add(lower, 0xff5a1f);
+  const band = new THREE.CylinderGeometry(0.09, 0.13, 0.17, 14); band.translate(0, 0.085, 0); add(band, 0xf5f5f5);
+  const tip = new THREE.CylinderGeometry(0.02, 0.09, 0.2, 14); tip.translate(0, 0.27, 0); add(tip, 0xff5a1f);
+  return merge(parts);
+}
+
+function poleGeo() {
+  const pole = colored(new THREE.CylinderGeometry(0.1, 0.14, 7, 10), 0x9a9da3);
+  const arm = new THREE.BoxGeometry(1.0, 0.1, 0.12); arm.translate(0.45, 3.35, 0);
+  const lamp = new THREE.BoxGeometry(0.5, 0.14, 0.3); lamp.translate(0.85, 3.28, 0);
+  return merge([pole, colored(arm, 0x8a8d93), colored(lamp, 0xfff2c4)]);
+}
+
+function treeGeo() {
+  const trunk = colored(new THREE.CylinderGeometry(0.16, 0.24, 3, 8), 0x6b4a2f);
+  const f1 = new THREE.ConeGeometry(1.6, 2.6, 8); f1.translate(0, 2.0, 0);
+  const f2 = new THREE.ConeGeometry(1.15, 2.0, 8); f2.translate(0, 3.0, 0);
+  return merge([trunk, colored(f1, 0x3f7a3a), colored(f2, 0x4f8f45)]);
+}
+
+// --- Object kinds ------------------------------------------------------
+// size = full extents of the collider box (or [radius, height] for cylinders).
+
+const BRICK_COLORS = [0xa34a32, 0xb2553a, 0x93412c, 0xa85b42, 0x8e3e2b];
+const CONCRETE = [0xb8b5ad, 0xaeaba3, 0xc2bfb7];
+const WOOD = [0xb58a52, 0xa77d48, 0xc0965c];
+
+const KINDS = {
+  brick: { size: [0.6, 0.3, 0.3], mass: 12, colors: BRICK_COLORS, material: 'brick', breakForce: 14000, fracture: { into: 'brickHalf', grid: [2, 1, 1] }, cap: 600 },
+  brickHalf: { size: [0.3, 0.3, 0.3], mass: 6, colors: BRICK_COLORS, material: 'brick', cap: 900 },
+
+  crate: { size: [1, 1, 1], mass: 40, colors: WOOD, material: 'wood', breakForce: 26000, fracture: { into: 'crateChunk', grid: [2, 2, 2] }, cap: 60 },
+  crateChunk: { size: [0.5, 0.5, 0.5], mass: 5, colors: WOOD, material: 'wood', cap: 500 },
+
+  block: { size: [1, 1, 1], mass: 220, colors: CONCRETE, material: 'concrete', breakForce: 150000, fracture: { into: 'blockChunk', grid: [2, 2, 2] }, cap: 200 },
+  blockChunk: { size: [0.5, 0.5, 0.5], mass: 27, colors: CONCRETE, material: 'concrete', cap: 900 },
+
+  plank: { size: [4.4, 0.2, 1], mass: 60, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankHalf', grid: [2, 1, 1] }, cap: 20 },
+  plankHalf: { size: [2.2, 0.2, 1], mass: 30, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankBit', grid: [2, 1, 1] }, cap: 40 },
+  plankBit: { size: [1.1, 0.2, 1], mass: 15, colors: WOOD, material: 'wood', cap: 80 },
+
+  slab: { size: [0.3, 2.2, 1.2], mass: 90, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', breakForce: 70000, fracture: { into: 'slabHalf', grid: [1, 2, 1] }, cap: 50 },
+  slabHalf: { size: [0.3, 1.1, 1.2], mass: 45, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', cap: 100 },
+
+  barrier: { size: [0.6, 0.9, 3], mass: 700, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', breakForce: 420000, fracture: { into: 'barrierChunk', grid: [1, 1, 3] }, geo: () => barrierProfile(0.6, 0.9, 3, 0.26), cap: 180 },
+  barrierChunk: { size: [0.6, 0.9, 1], mass: 233, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', geo: () => barrierProfile(0.6, 0.9, 1, 0.26), cap: 300 },
+
+  barrel: { shape: 'cyl', size: [0.32, 0.95], mass: 22, colors: [0xc8342b, 0x2f6fb3, 0xe0a526, 0x4c8c3a], material: 'metal', restitution: 0.25, cap: 60 },
+  cone: { shape: 'cyl', size: [0.2, 0.6], mass: 3, colors: [0xffffff], material: 'plastic', geo: coneGeo, restitution: 0.3, cap: 60 },
+
+  pole: { shape: 'cyl', size: [0.13, 7], mass: 150, colors: [0xffffff], material: 'metal', breakForce: 90000, fracture: { into: 'poleHalf', grid: [1, 2, 1] }, geo: poleGeo, cap: 40 },
+  poleHalf: { shape: 'cyl', size: [0.13, 3.5], mass: 75, colors: [0x9a9da3], material: 'metal', cap: 80 },
+
+  tree: { shape: 'tree', size: [0.22, 3], mass: 320, colors: [0xffffff], material: 'wood', geo: treeGeo, cap: 30 },
+};
+
+// --- Instanced rendering pool -------------------------------------------
+
+class Pool {
+  constructor(scene, kind) {
+    this.kind = kind;
+    let geo;
+    if (kind.geo) geo = kind.geo();
+    else if (kind.shape === 'cyl') geo = new THREE.CylinderGeometry(kind.size[0], kind.size[0], kind.size[1], 16);
+    else geo = new THREE.BoxGeometry(...kind.size);
+    const mat = new THREE.MeshStandardMaterial({
+      roughness: kind.material === 'metal' ? 0.45 : 0.85,
+      metalness: kind.material === 'metal' ? 0.35 : 0,
+      vertexColors: !!geo.attributes.color,
+    });
+    this.mesh = new THREE.InstancedMesh(geo, mat, kind.cap);
+    this.mesh.count = 0;
+    this.mesh.castShadow = true;
+    this.mesh.receiveShadow = true;
+    this.mesh.frustumCulled = false;
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.setColorAt(0, new THREE.Color()); // allocate instanceColor
+    this.entities = [];
+    scene.add(this.mesh);
+  }
+
+  get full() {
+    return this.entities.length >= this.kind.cap;
+  }
+
+  add(entity, color) {
+    entity.slot = this.entities.length;
+    this.entities.push(entity);
+    this.mesh.setColorAt(entity.slot, color);
+    this.mesh.instanceColor.needsUpdate = true;
+    this.mesh.count = this.entities.length;
+  }
+
+  remove(entity) {
+    const last = this.entities.pop();
+    if (last !== entity) {
+      this.entities[entity.slot] = last;
+      last.slot = entity.slot;
+      this.mesh.setColorAt(last.slot, last.color);
+      this.mesh.instanceColor.needsUpdate = true;
+      last.dirty = true;
+    }
+    this.mesh.count = this.entities.length;
+  }
+
+  clear() {
+    this.entities.length = 0;
+    this.mesh.count = 0;
+  }
+}
+
+// --- The destructible world -------------------------------------------
+
+const _m = new THREE.Matrix4();
+const _p = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+const _s = new THREE.Vector3(1, 1, 1);
+const _v = new THREE.Vector3();
+
+class Destruction {
+  constructor(scene, groundHalfSize) {
+    this.scene = scene;
+    this.groundHalfSize = groundHalfSize;
+    this.recycleRange = 110;
+    this.pools = {};
+    for (const [name, kind] of Object.entries(KINDS)) {
+      kind.name = name;
+      this.pools[name] = new Pool(scene, kind);
+    }
+    this.listeners = { impact: [], fracture: [] };
+    this.createWorld();
+  }
+
+  on(event, fn) {
+    this.listeners[event].push(fn);
+  }
+
+  emit(event, ...args) {
+    for (const fn of this.listeners[event]) fn(...args);
+  }
+
+  createWorld() {
+    if (this.world) this.world.free();
+    this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+    this.world.timestep = STEP;
+    this.world.numSolverIterations = SOLVER_ITERATIONS;
+    this.eventQueue = new RAPIER.EventQueue(true);
+    this.byCollider = new Map();
+    this.fragments = [];
+    this.breakQueue = [];
+    this.bodyCount = 0;
+    this.time = 0;
+    for (const pool of Object.values(this.pools)) pool.clear();
+
+    const ground = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.5, 0));
+    this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(this.groundHalfSize, 0.5, this.groundHalfSize).setFriction(0.8),
+      ground,
+    );
+    this.carBody = null;
+  }
+
+  /** Kinematic stand-in for the player's car (it pushes; we read reactions). */
+  createCar(spec) {
+    const desc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, 0, 0);
+    this.carBody = this.world.createRigidBody(desc);
+    const midZ = (spec.cgToFront - spec.cgToRear) / 2 + 0.05;
+    this.carColliders = [
+      this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.92, 0.33, 2.2).setTranslation(0, 0.58, midZ).setFriction(0.4), this.carBody),
+      this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.7, 0.26, 1.0).setTranslation(0, 1.15, midZ - 0.3).setFriction(0.4), this.carBody),
+    ];
+    this.carMass = spec.mass;
+    this.carInertia = spec.mass * spec.inertiaScale;
+  }
+
+  teleportCar(car) {
+    const h = car.heading;
+    this.carBody.setTranslation({ x: car.x, y: 0, z: car.z }, true);
+    this.carBody.setRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) }, true);
+  }
+
+  /**
+   * Spawn one object.
+   * @param {string} kindName
+   * @param {{x,y,z}} pos  centre of the collider
+   * @param {number|THREE.Quaternion} rot  yaw in radians, or a quaternion
+   */
+  spawn(kindName, pos, rot = 0, opts = {}) {
+    const kind = KINDS[kindName];
+    const pool = this.pools[kindName];
+    if (pool.full) return null;
+    const q = typeof rot === 'number' ? _q.setFromAxisAngle(_v.set(0, 1, 0), rot) : rot;
+
+    const desc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(pos.x, pos.y, pos.z)
+      .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
+      .setLinearDamping(opts.fragment ? 0.25 : 0.05)
+      .setAngularDamping(opts.fragment ? 0.8 : 0.15)
+      .setSleeping(!!opts.sleep);
+    if (opts.vel) desc.setLinvel(opts.vel.x, opts.vel.y, opts.vel.z);
+    if (opts.angvel) desc.setAngvel(opts.angvel);
+    if (kind.mass < 15) desc.setCcdEnabled(true);
+    const body = this.world.createRigidBody(desc);
+
+    const colliders = [];
+    const events = RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS;
+    const threshold = Math.min(breakImpulse(kind), kind.mass * 2.5) / STEP;
+    const finish = (cd, mass) => {
+      cd.setMass(mass)
+        .setFriction(kind.friction ?? 0.7)
+        .setRestitution(kind.restitution ?? 0.08)
+        .setActiveEvents(events)
+        .setContactForceEventThreshold(threshold);
+      colliders.push(this.world.createCollider(cd, body));
+    };
+    if (kind.shape === 'cyl') {
+      finish(RAPIER.ColliderDesc.cylinder(kind.size[1] / 2, kind.size[0]), kind.mass);
+    } else if (kind.shape === 'tree') {
+      finish(RAPIER.ColliderDesc.cylinder(1.5, kind.size[0]), kind.mass * 0.75);
+      finish(RAPIER.ColliderDesc.ball(1.25).setTranslation(0, 2.3, 0), kind.mass * 0.25);
+    } else {
+      finish(RAPIER.ColliderDesc.cuboid(kind.size[0] / 2, kind.size[1] / 2, kind.size[2] / 2), kind.mass);
+    }
+
+    const color = opts.color ?? new THREE.Color(kind.colors[(Math.random() * kind.colors.length) | 0]);
+    const entity = { kind, body, colliders, color, dirty: true, born: this.time, alive: true };
+    pool.add(entity, color);
+    for (const c of colliders) this.byCollider.set(c.handle, entity);
+    this.bodyCount++;
+    if (opts.fragment) this.fragments.push(entity);
+    return entity;
+  }
+
+  despawn(entity) {
+    if (!entity.alive) return;
+    entity.alive = false;
+    for (const c of entity.colliders) this.byCollider.delete(c.handle);
+    this.world.removeRigidBody(entity.body);
+    this.pools[entity.kind.name].remove(entity);
+    this.bodyCount--;
+  }
+
+  fracture(entity) {
+    const { kind } = entity;
+    const into = KINDS[kind.fracture.into];
+    const [nx, ny, nz] = kind.fracture.grid;
+    const t = entity.body.translation();
+    const r = entity.body.rotation();
+    const lv = entity.body.linvel();
+    const av = entity.body.angvel();
+    const color = entity.color;
+    this.despawn(entity);
+
+    const q = _q.set(r.x, r.y, r.z, r.w).clone();
+    const centre = new THREE.Vector3(t.x, t.y, t.z);
+    const angular = new THREE.Vector3(av.x, av.y, av.z);
+    const size = kind.shape === 'cyl' ? [kind.size[0] * 2, kind.size[1], kind.size[0] * 2] : kind.size;
+    const step = [size[0] / nx, size[1] / ny, size[2] / nz];
+    // Pieces burst outward a little; harder hits come in faster already.
+    const burst = 1.2 + Math.random() * 1.5;
+    for (let ix = 0; ix < nx; ix++) {
+      for (let iy = 0; iy < ny; iy++) {
+        for (let iz = 0; iz < nz; iz++) {
+          const local = new THREE.Vector3(
+            (ix + 0.5) * step[0] - size[0] / 2,
+            (iy + 0.5) * step[1] - size[1] / 2,
+            (iz + 0.5) * step[2] - size[2] / 2,
+          );
+          const world = local.clone().applyQuaternion(q);
+          const pos = world.clone().add(centre);
+          const spin = new THREE.Vector3().crossVectors(angular, world);
+          const dir = world.lengthSq() > 1e-6 ? world.clone().normalize() : new THREE.Vector3(0, 1, 0);
+          const vel = {
+            x: lv.x + spin.x + dir.x * burst + (Math.random() - 0.5),
+            y: lv.y + spin.y + Math.abs(dir.y) * burst + Math.random() * 1.5,
+            z: lv.z + spin.z + dir.z * burst + (Math.random() - 0.5),
+          };
+          const av2 = { x: av.x + (Math.random() - 0.5) * 8, y: av.y + (Math.random() - 0.5) * 8, z: av.z + (Math.random() - 0.5) * 8 };
+          this.spawn(into.name, pos, q, { vel, angvel: av2, color, fragment: true });
+        }
+      }
+    }
+    // Smashing through something costs the car momentum.
+    if (this.car && Math.hypot(centre.x - this.car.x, centre.z - this.car.z) < 4) {
+      this.breakDrag += kind.mass * BREAK_DRAG;
+    }
+    this.emit('fracture', centre, kind);
+  }
+
+  /**
+   * Advance one fixed step. The car's kinematic body is moved to the car's
+   * pose, the world is stepped, and the contact impulses on the car are
+   * returned so the caller can feed them back into the car's own physics.
+   */
+  step(car) {
+    this.time += STEP;
+    this.car = car;
+    this.breakDrag = 0;
+    const h = car.heading;
+    this.carBody.setNextKinematicTranslation({ x: car.x, y: 0, z: car.z });
+    this.carBody.setNextKinematicRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) });
+
+    this.world.step(this.eventQueue);
+
+    // Reaction on the car (read before fractures remove any colliders).
+    let jx = 0, jz = 0, torque = 0, total = 0;
+    for (const col of this.carColliders) {
+      this.world.contactPairsWith(col, (other) => {
+        const entity = this.byCollider.get(other.handle);
+        if (!entity) return;
+        this.world.contactPair(col, other, (manifold, flipped) => {
+          let imp = 0;
+          for (let i = 0; i < manifold.numContacts(); i++) imp += manifold.contactImpulse(i);
+          if (imp <= 0) return;
+          const n = manifold.normal();
+          const s = flipped ? 1 : -1; // impulse on the car points away from the other body
+          const ix = n.x * imp * s;
+          const iz = n.z * imp * s;
+          const t = entity.body.translation();
+          const rx = t.x - car.x;
+          const rz = t.z - car.z;
+          jx += ix;
+          jz += iz;
+          torque += rz * ix - rx * iz;
+          total += imp;
+        });
+      });
+    }
+
+    // Breakage and impact sounds.
+    const toBreak = new Set(this.breakQueue);
+    const settling = this.time < 0.6;
+    this.eventQueue.drainContactForceEvents((ev) => {
+      const force = ev.totalForceMagnitude();
+      const a = this.byCollider.get(ev.collider1());
+      const b = this.byCollider.get(ev.collider2());
+      for (const e of [a, b]) {
+        if (!e || !e.alive) continue;
+        if (!settling && e.kind.fracture && force * STEP > breakImpulse(e.kind)) toBreak.add(e);
+        const dv = (force * STEP) / e.kind.mass;
+        if (dv > 2.5) {
+          const t = e.body.translation();
+          this.emit('impact', e.kind.material, Math.min(1, dv / 14), t);
+        }
+      }
+    });
+    // Spread big collapses over several steps to avoid frame spikes.
+    this.breakQueue = [];
+    let budget = FRACTURES_PER_STEP;
+    for (const e of toBreak) {
+      if (!e.alive) continue;
+      if (budget-- > 0) this.fracture(e);
+      else this.breakQueue.push(e);
+    }
+    this.enforceBudget();
+
+    const k = REACTION_SCALE;
+    jx *= k;
+    jz *= k;
+    torque *= k;
+    const speed = Math.hypot(car.velX, car.velZ);
+    if (this.breakDrag > 0 && speed > 0.5) {
+      jx -= (car.velX / speed) * this.breakDrag;
+      jz -= (car.velZ / speed) * this.breakDrag;
+      total += this.breakDrag;
+    }
+    return { jx, jz, torque, total };
+  }
+
+  /** Remove the oldest debris when the body budget is exceeded. */
+  enforceBudget() {
+    if (this.bodyCount <= MAX_BODIES) return;
+    this.fragments = this.fragments.filter((e) => e.alive);
+    // Prefer debris that is already asleep, so removing it disturbs nothing.
+    for (let i = 0; i < this.fragments.length && this.bodyCount > MAX_BODIES; i++) {
+      const e = this.fragments[i];
+      if (e.body.isSleeping()) this.despawn(e);
+    }
+    while (this.bodyCount > MAX_BODIES && this.fragments.length) {
+      const e = this.fragments.shift();
+      if (e.alive) this.despawn(e);
+    }
+  }
+
+  /** Copy body transforms into the instance buffers. */
+  sync() {
+    for (const pool of Object.values(this.pools)) {
+      let changed = false;
+      for (const e of pool.entities) {
+        if (!e.dirty && e.body.isSleeping()) continue;
+        e.dirty = false;
+        const t = e.body.translation();
+        const r = e.body.rotation();
+        _p.set(t.x, t.y, t.z);
+        _q.set(r.x, r.y, r.z, r.w);
+        _m.compose(_p, _q, _s);
+        pool.mesh.setMatrixAt(e.slot, _m);
+        changed = true;
+        // Debris that leaves the arena is recycled.
+        if (t.y < -20 || Math.abs(t.x) > this.recycleRange || Math.abs(t.z) > this.recycleRange) {
+          this.despawn(e);
+          continue;
+        }
+        // Pieces squeezed between the car and a pile can be launched
+        // absurdly fast; cap them so nothing rockets off the map.
+        const v = e.body.linvel();
+        const sp = Math.hypot(v.x, v.y, v.z);
+        if (sp > MAX_DEBRIS_SPEED) {
+          const k = MAX_DEBRIS_SPEED / sp;
+          e.body.setLinvel({ x: v.x * k, y: v.y * k, z: v.z * k }, true);
+        }
+        // Rapier only sleeps a whole pile at once; put individual pieces
+        // to sleep once they've been nearly still for a moment.
+        const w = e.body.angvel();
+        if (sp < 0.12 && Math.hypot(w.x, w.y, w.z) < 0.25) {
+          if (e.stillSince === undefined) e.stillSince = this.time;
+          else if (this.time - e.stillSince > 0.7) { e.body.sleep(); e.stillSince = undefined; }
+        } else {
+          e.stillSince = undefined;
+        }
+      }
+      if (changed) pool.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+}
+
 // ===== world.js =====
-// An open lot to drive around: textured asphalt, painted markings,
-// a cone slalom + skidpad, and distant scenery for a sense of speed.
+// A compact walled arena packed with things to smash. Static scenery here
+// is only the ground and the far-off backdrop; everything inside the
+// barrier ring is a physics object spawned by `populateArena`.
 
 const SKY = 0x9fc6e8;
+const ARENA_HALF = 64;      // barrier ring sits here
+const DRIVE_LIMIT = 68;     // the car is kept inside this square
+const START = { x: 0, z: -52, heading: 0 };
 
 function createWorld(scene, renderer) {
   scene.background = new THREE.Color(SKY);
-  scene.fog = new THREE.Fog(SKY, 150, 650);
+  scene.fog = new THREE.Fog(SKY, 110, 380);
 
-  const hemi = new THREE.HemisphereLight(0xdcecff, 0x4a4237, 0.9);
-  scene.add(hemi);
+  scene.add(new THREE.HemisphereLight(0xdcecff, 0x4a4237, 0.9));
 
   const sun = new THREE.DirectionalLight(0xfff1dc, 2.2);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera;
-  sc.left = -30; sc.right = 30; sc.top = 30; sc.bottom = -30;
-  sc.near = 1; sc.far = 200;
+  sc.left = -40; sc.right = 40; sc.top = 40; sc.bottom = -40;
+  sc.near = 1; sc.far = 220;
   sun.shadow.bias = -0.0005;
-  sun.shadow.normalBias = 0.02;
+  sun.shadow.normalBias = 0.03;
   scene.add(sun, sun.target);
   const sunOffset = new THREE.Vector3(-40, 70, -25);
 
-  // --- Ground ---------------------------------------------------------
+  // Grass beyond the lot.
+  const grass = new THREE.Mesh(
+    new THREE.PlaneGeometry(900, 900),
+    new THREE.MeshStandardMaterial({ color: 0x6f8f4e, roughness: 1 }),
+  );
+  grass.rotation.x = -Math.PI / 2;
+  grass.position.y = -0.02;
+  grass.receiveShadow = true;
+  scene.add(grass);
+
+  // Asphalt lot.
+  const lotSize = ARENA_HALF * 2 + 16;
   const asphalt = makeAsphaltTexture(renderer);
-  const groundSize = 2400;
-  asphalt.repeat.set(groundSize / 16, groundSize / 16);
+  asphalt.repeat.set(lotSize / 16, lotSize / 16);
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(groundSize, groundSize),
-    new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.95, metalness: 0 }),
+    new THREE.PlaneGeometry(lotSize, lotSize),
+    new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.95 }),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // Large grid lines every 20 m so motion is always readable.
-  const grid = new THREE.GridHelper(groundSize, groundSize / 20, 0x5b5b60, 0x5b5b60);
+  const grid = new THREE.GridHelper(lotSize, lotSize / 8, 0x5b5b60, 0x5b5b60);
   grid.position.y = 0.01;
   grid.material.transparent = true;
-  grid.material.opacity = 0.35;
+  grid.material.opacity = 0.25;
   grid.material.depthWrite = false;
   scene.add(grid);
 
@@ -662,75 +1195,28 @@ function createWorld(scene, renderer) {
     m.position.set(x, 0.02, z);
     m.renderOrder = 1;
     scene.add(m);
-    return m;
   };
-
   // Start box.
-  flat(new THREE.PlaneGeometry(3.2, 0.25), paint, 0, -3.2);
-  flat(new THREE.PlaneGeometry(0.2, 7), paint, -1.6, 0.3);
-  flat(new THREE.PlaneGeometry(0.2, 7), paint, 1.6, 0.3);
+  flat(new THREE.PlaneGeometry(3.2, 0.25), paint, START.x, START.z - 3.2);
+  flat(new THREE.PlaneGeometry(0.2, 7), paint, START.x - 1.6, START.z + 0.3);
+  flat(new THREE.PlaneGeometry(0.2, 7), paint, START.x + 1.6, START.z + 0.3);
+  // Centre circle and hazard stripes in front of the big wall.
+  flat(new THREE.RingGeometry(9.8, 10.2, 96), paint, 0, 5);
+  for (let x = -9; x <= 9; x += 2) flat(new THREE.PlaneGeometry(0.6, 3), yellow, x, -24, 0.6);
 
-  // Long straight with dashed centre line heading +Z.
-  for (let z = 10; z < 600; z += 12) flat(new THREE.PlaneGeometry(0.25, 6), yellow, 0, z);
-  for (const x of [-7, 7]) flat(new THREE.PlaneGeometry(0.25, 590), paint, x, 305);
-
-  // Skidpad rings.
-  const skid = { x: -70, z: 60 };
-  flat(new THREE.RingGeometry(29.8, 30.2, 128), paint, skid.x, skid.z);
-  flat(new THREE.RingGeometry(17.8, 18.2, 96), paint, skid.x, skid.z);
-
-  // Distant scenery: low hills and blocky buildings.
-  const hillMat = new THREE.MeshStandardMaterial({ color: 0x6f8f5a, roughness: 1, flatShading: true });
-  for (let i = 0; i < 26; i++) {
-    const a = (i / 26) * Math.PI * 2 + Math.random() * 0.2;
-    const d = 520 + Math.random() * 120;
-    const h = 40 + Math.random() * 70;
-    const hill = new THREE.Mesh(new THREE.ConeGeometry(70 + Math.random() * 60, h, 7), hillMat);
+  // Distant hills for a horizon.
+  const hillMat = new THREE.MeshStandardMaterial({ color: 0x6a8a55, roughness: 1, flatShading: true });
+  const rng = mulberry32(3);
+  for (let i = 0; i < 22; i++) {
+    const a = (i / 22) * Math.PI * 2 + rng() * 0.2;
+    const d = 260 + rng() * 60;
+    const h = 30 + rng() * 50;
+    const hill = new THREE.Mesh(new THREE.ConeGeometry(55 + rng() * 45, h, 7), hillMat);
     hill.position.set(Math.cos(a) * d, h / 2 - 2, Math.sin(a) * d);
     scene.add(hill);
   }
-  const bldMats = [0xb9b4aa, 0x8f9aa6, 0xc9b79c, 0x7d8590].map(
-    (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }),
-  );
-  const rng = mulberry32(7);
-  for (let i = 0; i < 60; i++) {
-    const a = rng() * Math.PI * 2;
-    const d = 160 + rng() * 260;
-    const w = 10 + rng() * 25;
-    const h = 8 + rng() * 45;
-    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 10 + rng() * 25), bldMats[i % bldMats.length]);
-    b.position.set(Math.cos(a) * d, h / 2, Math.sin(a) * d);
-    if (Math.abs(b.position.x) < 30 && b.position.z > 0) b.position.x += 80; // keep the straight clear
-    b.rotation.y = rng() * Math.PI;
-    b.castShadow = false;
-    b.receiveShadow = true;
-    scene.add(b);
-  }
-  // Light poles along the straight for speed reference.
-  const poleMat = new THREE.MeshStandardMaterial({ color: 0x9a9da3, metalness: 0.6, roughness: 0.4 });
-  const poleGeo = new THREE.CylinderGeometry(0.1, 0.14, 8, 8);
-  for (let z = 20; z < 600; z += 40) {
-    for (const x of [-10, 10]) {
-      const p = new THREE.Mesh(poleGeo, poleMat);
-      p.position.set(x, 4, z);
-      p.castShadow = true;
-      scene.add(p);
-    }
-  }
-
-  const cones = new Cones(scene);
-  // Slalom off to the right of the start.
-  for (let i = 0; i < 10; i++) cones.add(40, 20 + i * 14);
-  // Skidpad perimeter.
-  for (let i = 0; i < 24; i++) {
-    const a = (i / 24) * Math.PI * 2;
-    cones.add(skid.x + Math.cos(a) * 18, skid.z + Math.sin(a) * 18);
-  }
-  // Gate at the end of the straight.
-  for (let x = -6; x <= 6; x += 2) cones.add(x, 600);
 
   return {
-    cones,
     followSun(target) {
       sun.position.copy(target).add(sunOffset);
       sun.target.position.copy(target);
@@ -738,145 +1224,134 @@ function createWorld(scene, renderer) {
   };
 }
 
-// --- Knockable cones ---------------------------------------------------
+// --- Arena contents -------------------------------------------------------
 
-class Cones {
-  constructor(scene) {
-    this.scene = scene;
-    this.items = [];
-    this.geo = buildConeGeometry();
-    this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 });
-  }
+function populateArena(d) {
+  const rng = mulberry32(11);
+  const opts = { sleep: true };
+  const gap = 0.002;
 
-  add(x, z) {
-    const mesh = new THREE.Mesh(this.geo, this.mat);
-    mesh.castShadow = true;
-    mesh.position.set(x, 0, z);
-    this.scene.add(mesh);
-    this.items.push({
-      mesh, home: new THREE.Vector3(x, 0, z),
-      vel: new THREE.Vector3(), spin: new THREE.Vector3(), awake: false,
-    });
-  }
-
-  reset() {
-    for (const c of this.items) {
-      c.mesh.position.copy(c.home);
-      c.mesh.rotation.set(0, 0, 0);
-      c.vel.set(0, 0, 0);
-      c.spin.set(0, 0, 0);
-      c.awake = false;
+  // Running-bond brick wall: `len` metres long, `rows` high, centred at (x, z).
+  const brickWall = (x, z, yaw, len, rows) => {
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    const place = (u, y, kind) => d.spawn(kind, { x: x + u * c, y, z: z - u * s }, yaw, opts);
+    for (let r = 0; r < rows; r++) {
+      const y = 0.15 + r * (0.3 + gap);
+      let u = -len / 2;
+      if (r % 2) { place(u + 0.15, y, 'brickHalf'); u += 0.3; }
+      while (u + 0.6 <= len / 2 + 1e-6) { place(u + 0.3, y, 'brick'); u += 0.6; }
+      if (u < len / 2 - 1e-6) place(u + 0.15, y, 'brickHalf');
     }
-  }
-
-  /** Hit-test against the car's footprint and integrate loose cones. */
-  update(dt, car) {
-    const sinH = Math.sin(car.heading);
-    const cosH = Math.cos(car.heading);
-    const halfLen = 2.3;
-    const halfWid = 1.0;
-    const offsetZ = (car.spec.cgToFront - car.spec.cgToRear) / 2;
-    let hits = 0;
-
-    for (const c of this.items) {
-      const p = c.mesh.position;
-      const dx = p.x - car.x;
-      const dz = p.z - car.z;
-      if (dx * dx + dz * dz < 16 && p.y < 1) {
-        const fwd = dx * sinH + dz * cosH - offsetZ;
-        const lat = dx * cosH - dz * sinH;
-        if (Math.abs(fwd) < halfLen + 0.2 && Math.abs(lat) < halfWid + 0.2 && car.speed > 0.5) {
-          const v = car.speed;
-          const side = Math.sign(lat) || 1;
-          c.vel.set(car.velX * 1.15, 1.5 + v * 0.12, car.velZ * 1.15);
-          // Shove sideways out of the car's path.
-          c.vel.x += cosH * side * (1.5 + v * 0.25);
-          c.vel.z += -sinH * side * (1.5 + v * 0.25);
-          c.spin.set((Math.random() - 0.5) * v, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * v);
-          p.y = Math.max(p.y, 0.05);
-          c.awake = true;
-          hits++;
-        }
-      }
-
-      if (!c.awake) continue;
-      c.vel.y -= 9.81 * dt;
-      p.addScaledVector(c.vel, dt);
-      c.mesh.rotation.x += c.spin.x * dt;
-      c.mesh.rotation.y += c.spin.y * dt;
-      c.mesh.rotation.z += c.spin.z * dt;
-      if (p.y <= 0) {
-        p.y = 0;
-        if (c.vel.y < -1) {
-          c.vel.y *= -0.35;
-        } else {
-          c.vel.y = 0;
-        }
-        const f = Math.exp(-dt * 4);
-        c.vel.x *= f;
-        c.vel.z *= f;
-        c.spin.multiplyScalar(f);
-        if (c.vel.lengthSq() < 0.01 && c.spin.lengthSq() < 0.01) {
-          c.awake = false;
-          // Settle lying on its side if it was tipped over.
-          const tipped = Math.abs(Math.cos(c.mesh.rotation.x) * Math.cos(c.mesh.rotation.z)) < 0.7;
-          if (tipped) {
-            c.mesh.rotation.set(Math.PI / 2, c.mesh.rotation.y, 0, 'YXZ');
-            p.y = 0.15;
-          } else {
-            c.mesh.rotation.x = 0;
-            c.mesh.rotation.z = 0;
-          }
-        }
-      }
-    }
-    return hits;
-  }
-}
-
-function buildConeGeometry() {
-  const parts = [];
-  const color = (geo, hex) => {
-    const c = new THREE.Color(hex);
-    const arr = new Float32Array(geo.attributes.position.count * 3);
-    for (let i = 0; i < arr.length; i += 3) { arr[i] = c.r; arr[i + 1] = c.g; arr[i + 2] = c.b; }
-    geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
-    return geo.toNonIndexed ? geo.toNonIndexed() : geo;
   };
-  const base = new THREE.BoxGeometry(0.5, 0.05, 0.5);
-  base.translate(0, 0.025, 0);
-  parts.push(color(base, 0xff5a1f));
-  const lower = new THREE.CylinderGeometry(0.13, 0.2, 0.25, 16, 1, true);
-  lower.translate(0, 0.175, 0);
-  parts.push(color(lower, 0xff5a1f));
-  const band = new THREE.CylinderGeometry(0.09, 0.13, 0.17, 16, 1, true);
-  band.translate(0, 0.385, 0);
-  parts.push(color(band, 0xf5f5f5));
-  const tip = new THREE.CylinderGeometry(0.02, 0.09, 0.2, 16);
-  tip.translate(0, 0.57, 0);
-  parts.push(color(tip, 0xff5a1f));
-  return mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)));
-}
 
-function mergeGeometries(geos) {
-  let total = 0;
-  for (const g of geos) total += g.attributes.position.count;
-  const pos = new Float32Array(total * 3);
-  const nor = new Float32Array(total * 3);
-  const col = new Float32Array(total * 3);
-  let o = 0;
-  for (const g of geos) {
-    g.computeVertexNormals();
-    pos.set(g.attributes.position.array, o);
-    nor.set(g.attributes.normal.array, o);
-    col.set(g.attributes.color.array, o);
-    o += g.attributes.position.count * 3;
+  // Hollow building of concrete blocks with a plank roof.
+  const shed = (x, z, w, depth, h) => {
+    for (let y = 0; y < h; y++) {
+      for (let i = 0; i < w; i++) {
+        for (let j = 0; j < depth; j++) {
+          const edge = i === 0 || j === 0 || i === w - 1 || j === depth - 1;
+          if (!edge) continue;
+          const door = j === 0 && y < 2 && (i === Math.floor(w / 2) || i === Math.floor(w / 2) - 1);
+          if (door) continue;
+          d.spawn('block', { x: x + i - (w - 1) / 2, y: 0.5 + y * (1 + gap), z: z + j - (depth - 1) / 2 }, 0, opts);
+        }
+      }
+    }
+    for (let i = 0; i < w; i++) {
+      d.spawn('plank', { x: x + i - (w - 1) / 2, y: h + 0.1 + gap, z }, Math.PI / 2, opts);
+    }
+  };
+
+  const cratePyramid = (x, z, base) => {
+    for (let level = 0; level < base; level++) {
+      const n = base - level;
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          d.spawn('crate', { x: x + i - (n - 1) / 2, y: 0.5 + level * (1 + gap), z: z + j - (n - 1) / 2 }, 0, opts);
+        }
+      }
+    }
+  };
+
+  const tower = (x, z, size, h) => {
+    for (let y = 0; y < h; y++)
+      for (let i = 0; i < size; i++)
+        for (let j = 0; j < size; j++)
+          d.spawn('block', { x: x + i - (size - 1) / 2, y: 0.5 + y * (1 + gap), z: z + j - (size - 1) / 2 }, 0, opts);
+  };
+
+  // Random points in a box, at least `minDist` apart.
+  const scatter = (cx, cz, half, n, minDist) => {
+    const pts = [];
+    for (let tries = 0; pts.length < n && tries < n * 60; tries++) {
+      const p = { x: cx + (rng() * 2 - 1) * half, z: cz + (rng() * 2 - 1) * half };
+      if (pts.every((q) => Math.hypot(p.x - q.x, p.z - q.z) >= minDist)) pts.push(p);
+    }
+    return pts;
+  };
+
+  const barrels = (x, z, n) => {
+    for (const p of scatter(x, z, 2.2, n, 0.75)) d.spawn('barrel', { x: p.x, y: 0.475 + gap, z: p.z }, 0, opts);
+  };
+
+  // The big wall straight ahead of the start.
+  brickWall(0, -20, 0, 18, 8);
+  // A second, lower wall to the right.
+  brickWall(36, 6, Math.PI / 2, 15, 6);
+  // A third wall angled across the north-west.
+  brickWall(-20, 44, 0.5, 12, 7);
+
+  cratePyramid(-24, -12, 3);
+  cratePyramid(26, -34, 3);
+  cratePyramid(14, 34, 2);
+
+  tower(0, 26, 3, 6);
+  shed(-36, 22, 6, 4, 3);
+  shed(42, 40, 6, 4, 3);
+
+  barrels(14, -6, 10);
+  barrels(-14, 52, 8);
+  barrels(48, -12, 8);
+
+  // Domino arc.
+  const dominoCentre = { x: -46, z: -14 };
+  const dominoR = 14;
+  for (let a = -1.75; a <= 1.75; a += 0.08) {
+    const x = dominoCentre.x + Math.cos(a) * dominoR;
+    const z = dominoCentre.z + Math.sin(a) * dominoR;
+    // Slab thickness runs along the arc so each one tips into the next.
+    d.spawn('slab', { x, y: 1.1 + gap, z }, -a - Math.PI / 2, opts);
   }
-  const out = new THREE.BufferGeometry();
-  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  return out;
+
+  // Cone slalom from the start line.
+  for (let i = 0; i < 6; i++) d.spawn('cone', { x: (i % 2 ? 1.6 : -1.6), y: 0.3 + gap, z: -44 + i * 3.4 }, 0, opts);
+  // Ring of cones around the centre circle.
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    d.spawn('cone', { x: Math.cos(a) * 10, y: 0.3 + gap, z: 5 + Math.sin(a) * 10 }, 0, opts);
+  }
+
+  // Light poles in two rows.
+  for (let z = -40; z <= 50; z += 18) {
+    d.spawn('pole', { x: -56, y: 3.5 + gap, z }, 0, opts);
+    d.spawn('pole', { x: 56, y: 3.5 + gap, z }, Math.PI, opts);
+  }
+
+  // Trees in two corners.
+  const grove = (cx, cz, n) => {
+    for (const p of scatter(cx, cz, 7, n, 3.4)) d.spawn('tree', { x: p.x, y: 1.5 + gap, z: p.z }, rng() * Math.PI, opts);
+  };
+  grove(44, -52, 7);
+  grove(-42, 52, 7);
+
+  // Ring of heavy jersey barriers.
+  const seg = 3.15;
+  for (let u = -ARENA_HALF + 1.6; u <= ARENA_HALF - 1.6; u += seg) {
+    d.spawn('barrier', { x: u, y: 0.45 + gap, z: ARENA_HALF }, Math.PI / 2, opts);
+    d.spawn('barrier', { x: u, y: 0.45 + gap, z: -ARENA_HALF }, Math.PI / 2, opts);
+    d.spawn('barrier', { x: ARENA_HALF, y: 0.45 + gap, z: u }, 0, opts);
+    d.spawn('barrier', { x: -ARENA_HALF, y: 0.45 + gap, z: u }, 0, opts);
+  }
 }
 
 function makeAsphaltTexture(renderer) {
@@ -895,7 +1370,6 @@ function makeAsphaltTexture(renderer) {
     img.data[i + 2] += n;
   }
   g.putImageData(img, 0, 0);
-  // Patches and cracks for variety.
   for (let i = 0; i < 18; i++) {
     g.fillStyle = `rgba(${rng() < 0.5 ? '30,30,32' : '120,120,125'},${0.05 + rng() * 0.08})`;
     g.beginPath();
@@ -1012,11 +1486,11 @@ class SkidMarks {
 
 // Tire smoke: pooled billboard sprites.
 class Smoke {
-  constructor(scene, count = 140) {
+  constructor(scene, count = 140, color = 0xe8e8e8) {
     const tex = makePuffTexture();
     this.pool = [];
     for (let i = 0; i < count; i++) {
-      const mat = new THREE.SpriteMaterial({ map: tex, color: 0xe8e8e8, transparent: true, depthWrite: false, opacity: 0 });
+      const mat = new THREE.SpriteMaterial({ map: tex, color, transparent: true, depthWrite: false, opacity: 0 });
       const s = new THREE.Sprite(mat);
       s.visible = false;
       scene.add(s);
@@ -1025,10 +1499,10 @@ class Smoke {
     this.next = 0;
   }
 
-  emit(pos, carVel, strength) {
+  emit(pos, carVel, strength, y = 0.3) {
     const p = this.pool[this.next];
     this.next = (this.next + 1) % this.pool.length;
-    p.sprite.position.set(pos.x + (Math.random() - 0.5) * 0.3, 0.3, pos.z + (Math.random() - 0.5) * 0.3);
+    p.sprite.position.set(pos.x + (Math.random() - 0.5) * 0.3, y, pos.z + (Math.random() - 0.5) * 0.3);
     p.vel.set(carVel.x * 0.25 + (Math.random() - 0.5), 0.6 + Math.random() * 0.8, carVel.z * 0.25 + (Math.random() - 0.5));
     p.maxLife = p.life = 1.2 + Math.random() * 1.2;
     p.size = 0.8 + strength * 0.8;
@@ -1273,6 +1747,15 @@ function approach(v, target, maxDelta) {
 // Synthesised engine + tire squeal. Created lazily on first user gesture
 // because browsers block audio until then.
 
+const IMPACTS = {
+  brick: { filter: 'lowpass', freq: 1100, q: 0.8, decay: 0.2, gain: 0.5, tones: [90], toneGain: 0.5, toneDecay: 0.6 },
+  concrete: { filter: 'lowpass', freq: 600, q: 0.7, decay: 0.32, gain: 0.7, tones: [60], toneGain: 0.9, toneDecay: 0.8 },
+  wood: { filter: 'bandpass', freq: 750, q: 1.4, decay: 0.16, gain: 0.7, tones: [210, 330], toneGain: 0.35, toneDecay: 0.5 },
+  metal: { filter: 'bandpass', freq: 2200, q: 9, decay: 0.55, gain: 0.45, tones: [420, 1130], toneGain: 0.35, toneDecay: 1 },
+  plastic: { filter: 'highpass', freq: 1400, q: 0.7, decay: 0.08, gain: 0.35, tones: [], toneGain: 0, toneDecay: 0 },
+  crash: { filter: 'lowpass', freq: 420, q: 1, decay: 0.45, gain: 0.9, tones: [48], toneGain: 1, toneDecay: 0.9 },
+};
+
 class CarAudio {
   constructor() {
     this.ctx = null;
@@ -1327,6 +1810,63 @@ class CarAudio {
     noise.start();
   }
 
+  /**
+   * One-shot collision sound. `strength` is 0..1. Calls are rate limited
+   * so a collapsing wall doesn't stack hundreds of voices.
+   */
+  impact(material, strength) {
+    if (!this.ctx || this.muted || strength < 0.05) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    this.voices = (this.voices || []).filter((t) => t > now);
+    if (this.voices.length > 10) return;
+    const preset = IMPACTS[material] || IMPACTS.concrete;
+    const dur = preset.decay * (0.6 + strength);
+    this.voices.push(now + dur);
+
+    const gain = ctx.createGain();
+    const peak = Math.min(0.9, preset.gain * (0.25 + strength));
+    gain.gain.setValueAtTime(peak, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    gain.connect(this.master);
+
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuffer();
+    src.playbackRate.value = 0.7 + Math.random() * 0.6;
+    const filter = ctx.createBiquadFilter();
+    filter.type = preset.filter;
+    filter.frequency.value = preset.freq * (0.85 + Math.random() * 0.3);
+    filter.Q.value = preset.q;
+    src.connect(filter).connect(gain);
+    src.start(now, Math.random());
+    src.stop(now + dur);
+
+    // Tonal body: a thump for heavy things, a ring for metal.
+    for (const tone of preset.tones) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      const f = tone * (0.9 + Math.random() * 0.2);
+      osc.frequency.setValueAtTime(f * 1.4, now);
+      osc.frequency.exponentialRampToValueAtTime(f, now + 0.05);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(peak * preset.toneGain, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur * preset.toneDecay);
+      osc.connect(g).connect(this.master);
+      osc.start(now);
+      osc.stop(now + dur * preset.toneDecay);
+    }
+  }
+
+  noiseBuffer() {
+    if (!this._noise) {
+      const len = this.ctx.sampleRate * 2;
+      this._noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const data = this._noise.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    }
+    return this._noise;
+  }
+
   toggleMute() {
     this.muted = !this.muted;
     if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
@@ -1348,6 +1888,15 @@ class CarAudio {
 
 // ===== main.js =====
 const PHYSICS_DT = 1 / 120;
+const $ = (id) => document.getElementById(id);
+
+try {
+  await initRapier();
+} catch (err) {
+  $('loading').textContent = 'Could not load the physics engine. Check your connection and reload.';
+  throw err;
+}
+$('loading').remove();
 
 // --- Renderer / scene ------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -1357,10 +1906,10 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-document.getElementById('app').appendChild(renderer.domElement);
+$('app').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 1500);
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 1200);
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -1371,17 +1920,50 @@ const world = createWorld(scene, renderer);
 const car = new CarPhysics();
 const model = new CarModel(car.spec);
 scene.add(model.root);
+const destruction = new Destruction(scene, 300);
 const skids = new SkidMarks(scene);
 const smoke = new Smoke(scene);
+const dust = new Smoke(scene, 160, 0xb9ad98);
 const chase = new ChaseCamera(camera);
 const input = new Input();
 const audio = new CarAudio();
 
+let smashed = 0;
+let shake = 0;
+
+destruction.on('fracture', (pos, kind) => {
+  smashed++;
+  const n = Math.min(6, 2 + Math.round(kind.mass / 60));
+  for (let i = 0; i < n; i++) dust.emit(pos, { x: 0, z: 0 }, 0.6 + Math.random() * 0.4, pos.y);
+  audio.impact(kind.material, 1);
+});
+destruction.on('impact', (material, strength) => audio.impact(material, strength));
+
+function buildArena() {
+  destruction.createWorld();
+  destruction.createCar(car.spec);
+  populateArena(destruction);
+}
+
+function resetCar() {
+  car.reset(START.x, START.z, START.heading);
+  destruction.teleportCar(car);
+  skids.clear();
+  chase.snap();
+}
+
+function resetAll() {
+  buildArena();
+  smashed = 0;
+  resetCar();
+}
+
+resetAll();
+
 // --- HUD -------------------------------------------------------------
-const $ = (id) => document.getElementById(id);
 const hud = {
   speed: $('speed'), gear: $('gear'), rpmFill: $('rpm-fill'), drift: $('drift'),
-  toast: $('toast'), telemetry: $('telemetry'), assists: $('assists'), cam: $('cam'),
+  toast: $('toast'), telemetry: $('telemetry'), assists: $('assists'), cam: $('cam'), smashed: $('smashed'),
 };
 let toastTimer = 0;
 function toast(msg) {
@@ -1395,14 +1977,8 @@ function refreshBadges() {
   hud.cam.textContent = `Camera: ${chase.modeName}`;
 }
 
-function resetCar() {
-  car.reset(0, 0, 0);
-  world.cones.reset();
-  skids.clear();
-  chase.snap();
-}
-
-input.onPress('KeyR', () => { resetCar(); toast('Reset'); });
+input.onPress('KeyR', () => { resetCar(); toast('Car reset'); });
+input.onPress('KeyB', () => { resetAll(); toast('Arena rebuilt'); });
 input.onPress('KeyC', () => { chase.cycle(); refreshBadges(); toast(`Camera: ${chase.modeName}`); });
 input.onPress('KeyT', () => {
   car.spec.assists = !car.spec.assists;
@@ -1413,13 +1989,13 @@ input.onPress('KeyM', () => toast(audio.toggleMute() ? 'Sound off' : 'Sound on')
 input.onPress('KeyF', () => hud.telemetry.classList.toggle('hidden'));
 input.onPress('KeyH', () => $('help').classList.toggle('hidden'));
 
-// Touch controls.
 const isTouch = matchMedia('(pointer: coarse)').matches;
 if (isTouch) {
   document.body.classList.add('touch');
   for (const el of document.querySelectorAll('[data-touch]')) input.bindTouchButton(el, el.dataset.touch);
   $('touch-cam').addEventListener('click', () => { chase.cycle(); refreshBadges(); });
   $('touch-reset').addEventListener('click', resetCar);
+  $('touch-rebuild').addEventListener('click', resetAll);
 }
 
 const startAudio = () => audio.start();
@@ -1428,27 +2004,72 @@ addEventListener('pointerdown', startAudio);
 
 refreshBadges();
 
+// Keep the car on the lot: a soft wall just outside the barrier ring.
+function containCar() {
+  for (const axis of ['x', 'z']) {
+    const vel = axis === 'x' ? 'velX' : 'velZ';
+    if (Math.abs(car[axis]) > DRIVE_LIMIT) {
+      car[axis] = Math.sign(car[axis]) * DRIVE_LIMIT;
+      if (Math.sign(car[vel]) === Math.sign(car[axis])) {
+        const hit = Math.abs(car[vel]);
+        car[vel] *= -0.3;
+        car.yawRate *= 0.5;
+        if (hit > 3) { shake = Math.min(1, shake + hit * 0.03); audio.impact('crash', Math.min(1, hit / 20)); }
+      }
+    }
+  }
+}
+
 // --- Main loop ------------------------------------------------------
 const clock = new THREE.Clock();
 let accumulator = 0;
 let driftScore = 0;
 let driftTimer = 0;
+let crashCooldown = 0;
+let worldClock = 0;
 const contacts = [];
 
 function frame() {
+  requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.1);
   const controls = input.read(dt);
 
   accumulator += dt;
-  while (accumulator >= PHYSICS_DT) {
+  let steps = 0;
+  while (accumulator >= PHYSICS_DT && steps < 8) {
     car.step(PHYSICS_DT, controls);
+    containCar();
+    // The debris world runs at a lower rate than the car's handling.
+    worldClock += PHYSICS_DT;
+    if (worldClock >= WORLD_STEP - 1e-9) {
+      worldClock -= WORLD_STEP;
+      stepWorld();
+    }
     accumulator -= PHYSICS_DT;
+    steps++;
   }
+  if (steps === 8) accumulator = 0; // can't keep up: drop time rather than spiral
+  frameTail(dt);
+}
 
+function stepWorld() {
+  const r = destruction.step(car);
+  if (r.total > 0) {
+    const dv = car.applyImpulse(r.jx, r.jz, r.torque);
+    shake = Math.min(1, shake + dv * 0.12);
+    if (dv > 0.6 && crashCooldown <= 0) {
+      audio.impact('crash', Math.min(1, dv / 3));
+      crashCooldown = 0.12;
+    }
+  }
+  crashCooldown -= WORLD_STEP;
+}
+
+function frameTail(dt) {
+  destruction.sync();
   model.update(car, dt);
-  world.cones.update(dt, car);
 
-  // Tire effects: per-wheel slip intensity drives marks, smoke and squeal.
+  // Tire effects.
   model.contactPoints(contacts);
   const speed = car.speed;
   const latSlipF = Math.abs(Math.sin(car.slipFront));
@@ -1467,14 +2088,23 @@ function frame() {
     squeal = Math.max(squeal, s);
   });
   smoke.update(dt);
+  dust.update(dt);
   audio.update(car, squeal);
 
   chase.update(car, dt);
+  if (shake > 0.001) {
+    const a = shake * shake * 0.35;
+    camera.position.x += (Math.random() - 0.5) * a;
+    camera.position.y += (Math.random() - 0.5) * a;
+    camera.position.z += (Math.random() - 0.5) * a;
+    shake *= Math.exp(-dt * 6);
+  }
   world.followSun(model.root.position);
 
   // HUD.
   hud.speed.textContent = Math.round(speed * 3.6);
   hud.gear.textContent = car.gearLabel;
+  hud.smashed.textContent = smashed;
   const rpmT = (car.rpm - car.spec.idleRpm) / (car.spec.redline - car.spec.idleRpm);
   hud.rpmFill.style.width = `${Math.max(0, Math.min(1, rpmT)) * 100}%`;
   hud.rpmFill.classList.toggle('red', car.rpm > car.spec.shiftUpRpm - 300);
@@ -1506,19 +2136,15 @@ function frame() {
       `slip R     ${deg(car.slipRear)}°\n` +
       `body slip  ${deg(Math.atan2(car.vLat, Math.abs(car.vLong) + 1e-3))}°\n` +
       `yaw rate   ${deg(car.yawRate)}°/s\n` +
-      `load F/R   ${(car.loadFront | 0).toString().padStart(5)} / ${car.loadRear | 0} N\n` +
-      `long G     ${(car.accelLong / 9.81).toFixed(2).padStart(6)}\n` +
       `lat G      ${(car.accelLat / 9.81).toFixed(2).padStart(6)}\n` +
-      `wheelspin  ${car.wheelspin.toFixed(2).padStart(6)}\n` +
-      `rpm        ${(car.rpm | 0).toString().padStart(6)}`;
+      `rpm        ${(car.rpm | 0).toString().padStart(6)}\n` +
+      `bodies     ${destruction.bodyCount.toString().padStart(6)}`;
   }
 
   renderer.render(scene, camera);
-  requestAnimationFrame(frame);
 }
 
-// Expose for debugging from the console.
-window.game = { car, model, chase, scene };
+window.game = { car, model, chase, scene, destruction };
 requestAnimationFrame(frame);
 </script>
 </body>

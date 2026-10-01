@@ -285,6 +285,26 @@ export class CarPhysics {
     this.rpm += (targetRpm - this.rpm) * (1 - Math.exp(-dt * 12));
   }
 
+  /**
+   * Apply a collision impulse (N·s, world X/Z) and yaw torque impulse.
+   * Per-step limits keep a car wedged against a pile from being launched.
+   */
+  applyImpulse(jx, jz, torque) {
+    const s = this.spec;
+    let dvx = jx / s.mass;
+    let dvz = jz / s.mass;
+    const dv = Math.hypot(dvx, dvz);
+    const maxDv = 4;
+    if (dv > maxDv) {
+      dvx *= maxDv / dv;
+      dvz *= maxDv / dv;
+    }
+    this.velX += dvx;
+    this.velZ += dvz;
+    this.yawRate += clamp(torque / (s.mass * s.inertiaScale), -0.8, 0.8);
+    return Math.min(dv, maxDv);
+  }
+
   tireCurve(slip) {
     const { tireB: B, tireC: C } = this.spec;
     return Math.sin(C * Math.atan(B * slip));

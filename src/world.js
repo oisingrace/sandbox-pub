@@ -1,45 +1,57 @@
 import * as THREE from 'three';
 
-// An open lot to drive around: textured asphalt, painted markings,
-// a cone slalom + skidpad, and distant scenery for a sense of speed.
+// A compact walled arena packed with things to smash. Static scenery here
+// is only the ground and the far-off backdrop; everything inside the
+// barrier ring is a physics object spawned by `populateArena`.
 
 const SKY = 0x9fc6e8;
+export const ARENA_HALF = 64;      // barrier ring sits here
+export const DRIVE_LIMIT = 68;     // the car is kept inside this square
+export const START = { x: 0, z: -52, heading: 0 };
 
 export function createWorld(scene, renderer) {
   scene.background = new THREE.Color(SKY);
-  scene.fog = new THREE.Fog(SKY, 150, 650);
+  scene.fog = new THREE.Fog(SKY, 110, 380);
 
-  const hemi = new THREE.HemisphereLight(0xdcecff, 0x4a4237, 0.9);
-  scene.add(hemi);
+  scene.add(new THREE.HemisphereLight(0xdcecff, 0x4a4237, 0.9));
 
   const sun = new THREE.DirectionalLight(0xfff1dc, 2.2);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera;
-  sc.left = -30; sc.right = 30; sc.top = 30; sc.bottom = -30;
-  sc.near = 1; sc.far = 200;
+  sc.left = -40; sc.right = 40; sc.top = 40; sc.bottom = -40;
+  sc.near = 1; sc.far = 220;
   sun.shadow.bias = -0.0005;
-  sun.shadow.normalBias = 0.02;
+  sun.shadow.normalBias = 0.03;
   scene.add(sun, sun.target);
   const sunOffset = new THREE.Vector3(-40, 70, -25);
 
-  // --- Ground ---------------------------------------------------------
+  // Grass beyond the lot.
+  const grass = new THREE.Mesh(
+    new THREE.PlaneGeometry(900, 900),
+    new THREE.MeshStandardMaterial({ color: 0x6f8f4e, roughness: 1 }),
+  );
+  grass.rotation.x = -Math.PI / 2;
+  grass.position.y = -0.02;
+  grass.receiveShadow = true;
+  scene.add(grass);
+
+  // Asphalt lot.
+  const lotSize = ARENA_HALF * 2 + 16;
   const asphalt = makeAsphaltTexture(renderer);
-  const groundSize = 2400;
-  asphalt.repeat.set(groundSize / 16, groundSize / 16);
+  asphalt.repeat.set(lotSize / 16, lotSize / 16);
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(groundSize, groundSize),
-    new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.95, metalness: 0 }),
+    new THREE.PlaneGeometry(lotSize, lotSize),
+    new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.95 }),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // Large grid lines every 20 m so motion is always readable.
-  const grid = new THREE.GridHelper(groundSize, groundSize / 20, 0x5b5b60, 0x5b5b60);
+  const grid = new THREE.GridHelper(lotSize, lotSize / 8, 0x5b5b60, 0x5b5b60);
   grid.position.y = 0.01;
   grid.material.transparent = true;
-  grid.material.opacity = 0.35;
+  grid.material.opacity = 0.25;
   grid.material.depthWrite = false;
   scene.add(grid);
 
@@ -51,75 +63,28 @@ export function createWorld(scene, renderer) {
     m.position.set(x, 0.02, z);
     m.renderOrder = 1;
     scene.add(m);
-    return m;
   };
-
   // Start box.
-  flat(new THREE.PlaneGeometry(3.2, 0.25), paint, 0, -3.2);
-  flat(new THREE.PlaneGeometry(0.2, 7), paint, -1.6, 0.3);
-  flat(new THREE.PlaneGeometry(0.2, 7), paint, 1.6, 0.3);
+  flat(new THREE.PlaneGeometry(3.2, 0.25), paint, START.x, START.z - 3.2);
+  flat(new THREE.PlaneGeometry(0.2, 7), paint, START.x - 1.6, START.z + 0.3);
+  flat(new THREE.PlaneGeometry(0.2, 7), paint, START.x + 1.6, START.z + 0.3);
+  // Centre circle and hazard stripes in front of the big wall.
+  flat(new THREE.RingGeometry(9.8, 10.2, 96), paint, 0, 5);
+  for (let x = -9; x <= 9; x += 2) flat(new THREE.PlaneGeometry(0.6, 3), yellow, x, -24, 0.6);
 
-  // Long straight with dashed centre line heading +Z.
-  for (let z = 10; z < 600; z += 12) flat(new THREE.PlaneGeometry(0.25, 6), yellow, 0, z);
-  for (const x of [-7, 7]) flat(new THREE.PlaneGeometry(0.25, 590), paint, x, 305);
-
-  // Skidpad rings.
-  const skid = { x: -70, z: 60 };
-  flat(new THREE.RingGeometry(29.8, 30.2, 128), paint, skid.x, skid.z);
-  flat(new THREE.RingGeometry(17.8, 18.2, 96), paint, skid.x, skid.z);
-
-  // Distant scenery: low hills and blocky buildings.
-  const hillMat = new THREE.MeshStandardMaterial({ color: 0x6f8f5a, roughness: 1, flatShading: true });
-  for (let i = 0; i < 26; i++) {
-    const a = (i / 26) * Math.PI * 2 + Math.random() * 0.2;
-    const d = 520 + Math.random() * 120;
-    const h = 40 + Math.random() * 70;
-    const hill = new THREE.Mesh(new THREE.ConeGeometry(70 + Math.random() * 60, h, 7), hillMat);
+  // Distant hills for a horizon.
+  const hillMat = new THREE.MeshStandardMaterial({ color: 0x6a8a55, roughness: 1, flatShading: true });
+  const rng = mulberry32(3);
+  for (let i = 0; i < 22; i++) {
+    const a = (i / 22) * Math.PI * 2 + rng() * 0.2;
+    const d = 260 + rng() * 60;
+    const h = 30 + rng() * 50;
+    const hill = new THREE.Mesh(new THREE.ConeGeometry(55 + rng() * 45, h, 7), hillMat);
     hill.position.set(Math.cos(a) * d, h / 2 - 2, Math.sin(a) * d);
     scene.add(hill);
   }
-  const bldMats = [0xb9b4aa, 0x8f9aa6, 0xc9b79c, 0x7d8590].map(
-    (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }),
-  );
-  const rng = mulberry32(7);
-  for (let i = 0; i < 60; i++) {
-    const a = rng() * Math.PI * 2;
-    const d = 160 + rng() * 260;
-    const w = 10 + rng() * 25;
-    const h = 8 + rng() * 45;
-    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 10 + rng() * 25), bldMats[i % bldMats.length]);
-    b.position.set(Math.cos(a) * d, h / 2, Math.sin(a) * d);
-    if (Math.abs(b.position.x) < 30 && b.position.z > 0) b.position.x += 80; // keep the straight clear
-    b.rotation.y = rng() * Math.PI;
-    b.castShadow = false;
-    b.receiveShadow = true;
-    scene.add(b);
-  }
-  // Light poles along the straight for speed reference.
-  const poleMat = new THREE.MeshStandardMaterial({ color: 0x9a9da3, metalness: 0.6, roughness: 0.4 });
-  const poleGeo = new THREE.CylinderGeometry(0.1, 0.14, 8, 8);
-  for (let z = 20; z < 600; z += 40) {
-    for (const x of [-10, 10]) {
-      const p = new THREE.Mesh(poleGeo, poleMat);
-      p.position.set(x, 4, z);
-      p.castShadow = true;
-      scene.add(p);
-    }
-  }
-
-  const cones = new Cones(scene);
-  // Slalom off to the right of the start.
-  for (let i = 0; i < 10; i++) cones.add(40, 20 + i * 14);
-  // Skidpad perimeter.
-  for (let i = 0; i < 24; i++) {
-    const a = (i / 24) * Math.PI * 2;
-    cones.add(skid.x + Math.cos(a) * 18, skid.z + Math.sin(a) * 18);
-  }
-  // Gate at the end of the straight.
-  for (let x = -6; x <= 6; x += 2) cones.add(x, 600);
 
   return {
-    cones,
     followSun(target) {
       sun.position.copy(target).add(sunOffset);
       sun.target.position.copy(target);
@@ -127,145 +92,134 @@ export function createWorld(scene, renderer) {
   };
 }
 
-// --- Knockable cones ---------------------------------------------------
+// --- Arena contents -------------------------------------------------------
 
-class Cones {
-  constructor(scene) {
-    this.scene = scene;
-    this.items = [];
-    this.geo = buildConeGeometry();
-    this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 });
-  }
+export function populateArena(d) {
+  const rng = mulberry32(11);
+  const opts = { sleep: true };
+  const gap = 0.002;
 
-  add(x, z) {
-    const mesh = new THREE.Mesh(this.geo, this.mat);
-    mesh.castShadow = true;
-    mesh.position.set(x, 0, z);
-    this.scene.add(mesh);
-    this.items.push({
-      mesh, home: new THREE.Vector3(x, 0, z),
-      vel: new THREE.Vector3(), spin: new THREE.Vector3(), awake: false,
-    });
-  }
-
-  reset() {
-    for (const c of this.items) {
-      c.mesh.position.copy(c.home);
-      c.mesh.rotation.set(0, 0, 0);
-      c.vel.set(0, 0, 0);
-      c.spin.set(0, 0, 0);
-      c.awake = false;
+  // Running-bond brick wall: `len` metres long, `rows` high, centred at (x, z).
+  const brickWall = (x, z, yaw, len, rows) => {
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    const place = (u, y, kind) => d.spawn(kind, { x: x + u * c, y, z: z - u * s }, yaw, opts);
+    for (let r = 0; r < rows; r++) {
+      const y = 0.15 + r * (0.3 + gap);
+      let u = -len / 2;
+      if (r % 2) { place(u + 0.15, y, 'brickHalf'); u += 0.3; }
+      while (u + 0.6 <= len / 2 + 1e-6) { place(u + 0.3, y, 'brick'); u += 0.6; }
+      if (u < len / 2 - 1e-6) place(u + 0.15, y, 'brickHalf');
     }
-  }
-
-  /** Hit-test against the car's footprint and integrate loose cones. */
-  update(dt, car) {
-    const sinH = Math.sin(car.heading);
-    const cosH = Math.cos(car.heading);
-    const halfLen = 2.3;
-    const halfWid = 1.0;
-    const offsetZ = (car.spec.cgToFront - car.spec.cgToRear) / 2;
-    let hits = 0;
-
-    for (const c of this.items) {
-      const p = c.mesh.position;
-      const dx = p.x - car.x;
-      const dz = p.z - car.z;
-      if (dx * dx + dz * dz < 16 && p.y < 1) {
-        const fwd = dx * sinH + dz * cosH - offsetZ;
-        const lat = dx * cosH - dz * sinH;
-        if (Math.abs(fwd) < halfLen + 0.2 && Math.abs(lat) < halfWid + 0.2 && car.speed > 0.5) {
-          const v = car.speed;
-          const side = Math.sign(lat) || 1;
-          c.vel.set(car.velX * 1.15, 1.5 + v * 0.12, car.velZ * 1.15);
-          // Shove sideways out of the car's path.
-          c.vel.x += cosH * side * (1.5 + v * 0.25);
-          c.vel.z += -sinH * side * (1.5 + v * 0.25);
-          c.spin.set((Math.random() - 0.5) * v, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * v);
-          p.y = Math.max(p.y, 0.05);
-          c.awake = true;
-          hits++;
-        }
-      }
-
-      if (!c.awake) continue;
-      c.vel.y -= 9.81 * dt;
-      p.addScaledVector(c.vel, dt);
-      c.mesh.rotation.x += c.spin.x * dt;
-      c.mesh.rotation.y += c.spin.y * dt;
-      c.mesh.rotation.z += c.spin.z * dt;
-      if (p.y <= 0) {
-        p.y = 0;
-        if (c.vel.y < -1) {
-          c.vel.y *= -0.35;
-        } else {
-          c.vel.y = 0;
-        }
-        const f = Math.exp(-dt * 4);
-        c.vel.x *= f;
-        c.vel.z *= f;
-        c.spin.multiplyScalar(f);
-        if (c.vel.lengthSq() < 0.01 && c.spin.lengthSq() < 0.01) {
-          c.awake = false;
-          // Settle lying on its side if it was tipped over.
-          const tipped = Math.abs(Math.cos(c.mesh.rotation.x) * Math.cos(c.mesh.rotation.z)) < 0.7;
-          if (tipped) {
-            c.mesh.rotation.set(Math.PI / 2, c.mesh.rotation.y, 0, 'YXZ');
-            p.y = 0.15;
-          } else {
-            c.mesh.rotation.x = 0;
-            c.mesh.rotation.z = 0;
-          }
-        }
-      }
-    }
-    return hits;
-  }
-}
-
-function buildConeGeometry() {
-  const parts = [];
-  const color = (geo, hex) => {
-    const c = new THREE.Color(hex);
-    const arr = new Float32Array(geo.attributes.position.count * 3);
-    for (let i = 0; i < arr.length; i += 3) { arr[i] = c.r; arr[i + 1] = c.g; arr[i + 2] = c.b; }
-    geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
-    return geo.toNonIndexed ? geo.toNonIndexed() : geo;
   };
-  const base = new THREE.BoxGeometry(0.5, 0.05, 0.5);
-  base.translate(0, 0.025, 0);
-  parts.push(color(base, 0xff5a1f));
-  const lower = new THREE.CylinderGeometry(0.13, 0.2, 0.25, 16, 1, true);
-  lower.translate(0, 0.175, 0);
-  parts.push(color(lower, 0xff5a1f));
-  const band = new THREE.CylinderGeometry(0.09, 0.13, 0.17, 16, 1, true);
-  band.translate(0, 0.385, 0);
-  parts.push(color(band, 0xf5f5f5));
-  const tip = new THREE.CylinderGeometry(0.02, 0.09, 0.2, 16);
-  tip.translate(0, 0.57, 0);
-  parts.push(color(tip, 0xff5a1f));
-  return mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)));
-}
 
-function mergeGeometries(geos) {
-  let total = 0;
-  for (const g of geos) total += g.attributes.position.count;
-  const pos = new Float32Array(total * 3);
-  const nor = new Float32Array(total * 3);
-  const col = new Float32Array(total * 3);
-  let o = 0;
-  for (const g of geos) {
-    g.computeVertexNormals();
-    pos.set(g.attributes.position.array, o);
-    nor.set(g.attributes.normal.array, o);
-    col.set(g.attributes.color.array, o);
-    o += g.attributes.position.count * 3;
+  // Hollow building of concrete blocks with a plank roof.
+  const shed = (x, z, w, depth, h) => {
+    for (let y = 0; y < h; y++) {
+      for (let i = 0; i < w; i++) {
+        for (let j = 0; j < depth; j++) {
+          const edge = i === 0 || j === 0 || i === w - 1 || j === depth - 1;
+          if (!edge) continue;
+          const door = j === 0 && y < 2 && (i === Math.floor(w / 2) || i === Math.floor(w / 2) - 1);
+          if (door) continue;
+          d.spawn('block', { x: x + i - (w - 1) / 2, y: 0.5 + y * (1 + gap), z: z + j - (depth - 1) / 2 }, 0, opts);
+        }
+      }
+    }
+    for (let i = 0; i < w; i++) {
+      d.spawn('plank', { x: x + i - (w - 1) / 2, y: h + 0.1 + gap, z }, Math.PI / 2, opts);
+    }
+  };
+
+  const cratePyramid = (x, z, base) => {
+    for (let level = 0; level < base; level++) {
+      const n = base - level;
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          d.spawn('crate', { x: x + i - (n - 1) / 2, y: 0.5 + level * (1 + gap), z: z + j - (n - 1) / 2 }, 0, opts);
+        }
+      }
+    }
+  };
+
+  const tower = (x, z, size, h) => {
+    for (let y = 0; y < h; y++)
+      for (let i = 0; i < size; i++)
+        for (let j = 0; j < size; j++)
+          d.spawn('block', { x: x + i - (size - 1) / 2, y: 0.5 + y * (1 + gap), z: z + j - (size - 1) / 2 }, 0, opts);
+  };
+
+  // Random points in a box, at least `minDist` apart.
+  const scatter = (cx, cz, half, n, minDist) => {
+    const pts = [];
+    for (let tries = 0; pts.length < n && tries < n * 60; tries++) {
+      const p = { x: cx + (rng() * 2 - 1) * half, z: cz + (rng() * 2 - 1) * half };
+      if (pts.every((q) => Math.hypot(p.x - q.x, p.z - q.z) >= minDist)) pts.push(p);
+    }
+    return pts;
+  };
+
+  const barrels = (x, z, n) => {
+    for (const p of scatter(x, z, 2.2, n, 0.75)) d.spawn('barrel', { x: p.x, y: 0.475 + gap, z: p.z }, 0, opts);
+  };
+
+  // The big wall straight ahead of the start.
+  brickWall(0, -20, 0, 18, 8);
+  // A second, lower wall to the right.
+  brickWall(36, 6, Math.PI / 2, 15, 6);
+  // A third wall angled across the north-west.
+  brickWall(-20, 44, 0.5, 12, 7);
+
+  cratePyramid(-24, -12, 3);
+  cratePyramid(26, -34, 3);
+  cratePyramid(14, 34, 2);
+
+  tower(0, 26, 3, 6);
+  shed(-36, 22, 6, 4, 3);
+  shed(42, 40, 6, 4, 3);
+
+  barrels(14, -6, 10);
+  barrels(-14, 52, 8);
+  barrels(48, -12, 8);
+
+  // Domino arc.
+  const dominoCentre = { x: -46, z: -14 };
+  const dominoR = 14;
+  for (let a = -1.75; a <= 1.75; a += 0.08) {
+    const x = dominoCentre.x + Math.cos(a) * dominoR;
+    const z = dominoCentre.z + Math.sin(a) * dominoR;
+    // Slab thickness runs along the arc so each one tips into the next.
+    d.spawn('slab', { x, y: 1.1 + gap, z }, -a - Math.PI / 2, opts);
   }
-  const out = new THREE.BufferGeometry();
-  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  return out;
+
+  // Cone slalom from the start line.
+  for (let i = 0; i < 6; i++) d.spawn('cone', { x: (i % 2 ? 1.6 : -1.6), y: 0.3 + gap, z: -44 + i * 3.4 }, 0, opts);
+  // Ring of cones around the centre circle.
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    d.spawn('cone', { x: Math.cos(a) * 10, y: 0.3 + gap, z: 5 + Math.sin(a) * 10 }, 0, opts);
+  }
+
+  // Light poles in two rows.
+  for (let z = -40; z <= 50; z += 18) {
+    d.spawn('pole', { x: -56, y: 3.5 + gap, z }, 0, opts);
+    d.spawn('pole', { x: 56, y: 3.5 + gap, z }, Math.PI, opts);
+  }
+
+  // Trees in two corners.
+  const grove = (cx, cz, n) => {
+    for (const p of scatter(cx, cz, 7, n, 3.4)) d.spawn('tree', { x: p.x, y: 1.5 + gap, z: p.z }, rng() * Math.PI, opts);
+  };
+  grove(44, -52, 7);
+  grove(-42, 52, 7);
+
+  // Ring of heavy jersey barriers.
+  const seg = 3.15;
+  for (let u = -ARENA_HALF + 1.6; u <= ARENA_HALF - 1.6; u += seg) {
+    d.spawn('barrier', { x: u, y: 0.45 + gap, z: ARENA_HALF }, Math.PI / 2, opts);
+    d.spawn('barrier', { x: u, y: 0.45 + gap, z: -ARENA_HALF }, Math.PI / 2, opts);
+    d.spawn('barrier', { x: ARENA_HALF, y: 0.45 + gap, z: u }, 0, opts);
+    d.spawn('barrier', { x: -ARENA_HALF, y: 0.45 + gap, z: u }, 0, opts);
+  }
 }
 
 function makeAsphaltTexture(renderer) {
@@ -284,7 +238,6 @@ function makeAsphaltTexture(renderer) {
     img.data[i + 2] += n;
   }
   g.putImageData(img, 0, 0);
-  // Patches and cracks for variety.
   for (let i = 0; i < 18; i++) {
     g.fillStyle = `rgba(${rng() < 0.5 ? '30,30,32' : '120,120,125'},${0.05 + rng() * 0.08})`;
     g.beginPath();
