@@ -5,7 +5,10 @@ build step. For now it covers the car and its handling, driven around an open 3D
 
 ## Run
 
-Serve the folder with any static server and open it:
+The quickest way: open **`drift-lot.html`** directly in a browser. It's a single self-contained file
+(three.js still loads from a CDN, so you need an internet connection).
+
+To work on the source in `src/`, serve the folder with any static server and open it:
 
 ```sh
 python3 -m http.server 8000
