@@ -34,6 +34,17 @@ and the game also pauses automatically when the tab is hidden. Options are saved
 | Hatchback | 1050 kg | 7.2 s | 178 km/h | Light and nimble, tail-happy with assists off |
 | Pickup truck | 2100 kg | 6.4 s | 197 km/h | Torquey, leans more, heavier hits |
 | School bus | 9000 kg | 18 s | 133 km/h | Slow, and plows through almost anything |
+| Ember GT | 1400 kg | 5.4 s | 255 km/h | Burns through objects instead of hitting them |
+
+**Boost** (Shift, gamepad LB, or BST on touch) adds rocket thrust on top of the engine for up to 3 s.
+The meter refills over about 9 s, and a little faster every time you smash or burn something.
+
+**The Ember GT** never pushes anything. Each physics step it checks a box around itself, stretched
+ahead by its speed, and anything inside burns away before the solver can push it. A burned object is
+replaced by glowing voxels that fill its shape (see `src/burn.js`). The burn starts where it was touched
+and spreads across the object: each voxel flares white-hot, cools through orange and red to ash, and
+drifts up as an ember, with soot and a brief light flash. Burn out the bottom of a building and the
+floors above collapse.
 
 The vehicles you aren't driving are parked around the start as physics objects that can be pushed, spun
 and flipped. Drive up to one and press **E** to take it over; the vehicle you leave stays parked where
@@ -62,6 +73,7 @@ python3 -m http.server 8000
 | Throttle / brake | W / S (hold S at a standstill to reverse) | RT / LT |
 | Steer | A / D | Left stick |
 | Handbrake | Space | A / RB |
+| Boost | Shift | LB |
 | Toggle assists | T | B |
 | Cycle camera (chase / far / hood) | C | X |
 | Reset car | R | Y |
@@ -120,6 +132,7 @@ All of it is in `src/destruction.js`.
 - `src/world.js`: ground, backdrop, and the arena layout
 - `src/destruction.js`: rigid-body world, fracturing, and instanced rendering
 - `src/effects.js`: skid marks and tire smoke
+- `src/burn.js`: the Ember GT's voxel burn effect
 - `src/input.js`: keyboard, gamepad and touch input
 - `src/audio.js`: synthesized engine, tire squeal, and per-material impact sounds
 - `src/settings.js`: options, presets, and saving them

@@ -19,6 +19,7 @@ export class ChaseCamera {
     this.target = new THREE.Vector3();
     this.initialised = false;
     this.vehicleCam = { scale: 1, hoodY: 1.42, hoodZ: 0.9 };
+    this.boostFov = 0;
   }
 
   /** Fit the camera to a vehicle's size (see `cam` in vehicles.js). */
@@ -57,7 +58,8 @@ export class ChaseCamera {
       this.yaw += wrap(targetYaw - this.yaw) * (1 - Math.exp(-dt * (m.lag || 8)));
     }
 
-    const fov = 62 + Math.min(18, speed * 0.28);
+    this.boostFov += ((car.boosting ? 9 : 0) - this.boostFov) * (1 - Math.exp(-dt * 6));
+    const fov = 62 + Math.min(18, speed * 0.28) + this.boostFov;
     if (Math.abs(cam.fov - fov) > 0.01) {
       cam.fov += (fov - cam.fov) * (1 - Math.exp(-dt * 3));
       cam.updateProjectionMatrix();

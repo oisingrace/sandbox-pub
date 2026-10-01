@@ -63,6 +63,15 @@ export class CarAudio {
     this.squealGain.gain.value = 0;
     noise.connect(this.squealFilter).connect(this.squealGain).connect(this.master);
     noise.start();
+
+    // Boost: a roaring, band-passed noise bed.
+    this.boostFilter = ctx.createBiquadFilter();
+    this.boostFilter.type = 'bandpass';
+    this.boostFilter.frequency.value = 500;
+    this.boostFilter.Q.value = 0.8;
+    this.boostGain = ctx.createGain();
+    this.boostGain.gain.value = 0;
+    noise.connect(this.boostFilter).connect(this.boostGain).connect(this.master);
   }
 
   /**
@@ -112,6 +121,45 @@ export class CarAudio {
     }
   }
 
+  /** Whoosh and crackle of something catching fire. */
+  burn(strength = 1) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    if (this.lastBurn && now - this.lastBurn < 0.05) return;
+    this.lastBurn = now;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuffer();
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.value = 0.9;
+    filter.frequency.setValueAtTime(350, now);
+    filter.frequency.exponentialRampToValueAtTime(2400, now + 0.18);
+    filter.frequency.exponentialRampToValueAtTime(600, now + 0.9);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.5 * strength, now + 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+    src.connect(filter).connect(gain).connect(this.master);
+    src.start(now, Math.random());
+    src.stop(now + 1);
+    // A few crackles.
+    for (let i = 0; i < 4; i++) {
+      const t0 = now + 0.1 + Math.random() * 0.6;
+      const c = ctx.createBufferSource();
+      c.buffer = this.noiseBuffer();
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 2500;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.25 * strength, t0);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.03);
+      c.connect(hp).connect(g).connect(this.master);
+      c.start(t0, Math.random());
+      c.stop(t0 + 0.04);
+    }
+  }
+
   noiseBuffer() {
     if (!this._noise) {
       const len = this.ctx.sampleRate * 2;
@@ -148,5 +196,7 @@ export class CarAudio {
     this.engineGain.gain.setTargetAtTime(0.12 + car.throttle * 0.16, t, 0.05);
     this.squealGain.gain.setTargetAtTime(Math.min(0.35, skid * 0.4), t, 0.05);
     this.squealFilter.frequency.setTargetAtTime(700 + skid * 500, t, 0.1);
+    this.boostGain.gain.setTargetAtTime(car.boosting ? 0.32 : 0, t, car.boosting ? 0.05 : 0.15);
+    this.boostFilter.frequency.setTargetAtTime(car.boosting ? 380 + car.speed * 14 : 300, t, 0.2);
   }
 }

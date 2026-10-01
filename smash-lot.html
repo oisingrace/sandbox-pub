@@ -40,6 +40,10 @@
     #rpm { margin-top: 10px; height: 8px; background: rgba(255,255,255,0.12); border-radius: 4px; overflow: hidden; }
     #rpm-fill { height: 100%; width: 0; background: linear-gradient(90deg, #4fd18b, #f2c230); transition: background 0.1s; }
     #rpm-fill.red { background: var(--accent); }
+    #dash .boost { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hud-dim); }
+    #boost-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; }
+    #boost-fill { height: 100%; width: 100%; background: #5ab8ff; transition: background 0.15s; }
+    #boost-fill.on { background: #ffffff; box-shadow: 0 0 10px #5ab8ff; }
     #dash .smash { margin-top: 8px; font-size: 12px; color: var(--hud-dim); letter-spacing: 0.06em; text-transform: uppercase; display: flex; justify-content: space-between; }
     #dash .smash b { color: #ffd23f; font: 700 14px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
     /* --- Menus --- */
@@ -165,6 +169,7 @@
     #touch-reset { left: 76px; top: 16px; }
     #touch-pause { left: 136px; top: 16px; }
     #touch-enter { left: 196px; top: 16px; }
+    #t-boost { right: 140px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
   </style>
   <script type="importmap">
     { "imports": {
@@ -181,7 +186,7 @@
   <div id="help" class="panel hidden">
     <h1>SMASH LOT</h1>
     <div class="row"><kbd>W</kbd><kbd>S</kbd> <b>throttle / brake</b> (hold S to reverse)</div>
-    <div class="row"><kbd>A</kbd><kbd>D</kbd> <b>steer</b> &nbsp;<kbd>Space</kbd> <b>handbrake</b></div>
+    <div class="row"><kbd>A</kbd><kbd>D</kbd> <b>steer</b> &nbsp;<kbd>Space</kbd> <b>handbrake</b> &nbsp;<kbd>Shift</kbd> <b>boost</b></div>
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
     <div class="row"><kbd>E</kbd> <b>drive a nearby vehicle</b> (4 to try)</div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
@@ -201,6 +206,7 @@
       <div id="gear">N</div>
     </div>
     <div id="rpm"><div id="rpm-fill"></div></div>
+    <div class="boost"><span>Boost</span><div id="boost-bar"><div id="boost-fill"></div></div></div>
     <div class="smash">Smashed <b id="smashed">0</b></div>
   </div>
 
@@ -233,7 +239,7 @@
         <button type="button" id="btn-options">Options</button>
         <button type="button" id="btn-controls">Controls</button>
       </div>
-      <p class="fineprint">Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it.</p>
+      <p class="fineprint">Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.</p>
     </section>
 
     <section class="screen" data-screen="pause" hidden aria-labelledby="pause-title">
@@ -261,6 +267,7 @@
           <tr><td>Steer</td><td><kbd>A</kbd> <kbd>D</kbd> or arrows</td><td>Left stick</td></tr>
           <tr><td>Reverse</td><td>Hold <kbd>S</kbd> when stopped</td><td>Hold LT</td></tr>
           <tr><td>Handbrake</td><td><kbd>Space</kbd></td><td>A / RB</td></tr>
+          <tr><td>Boost (refills over time and when you smash things)</td><td><kbd>Shift</kbd></td><td>LB</td></tr>
           <tr><td>Drive a nearby vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
           <tr><td>Camera (chase, far, hood)</td><td><kbd>C</kbd></td><td>X</td></tr>
           <tr><td>Reset car</td><td><kbd>R</kbd></td><td>Y</td></tr>
@@ -284,6 +291,7 @@
     <div class="tbtn small" id="touch-reset">RST</div>
     <div class="tbtn small" id="touch-pause" aria-label="Pause">II</div>
     <div class="tbtn small" id="touch-enter">IN</div>
+    <div class="tbtn" id="t-boost" data-touch="boost">BST</div>
   </div>
 
   <script type="module">
@@ -335,6 +343,9 @@ const DEFAULT_SPEC = {
   shiftDownRpm: 3000,
   shiftTime: 0.18,
   assists: true,           // traction control + counter-steer help
+  boostAccel: 7,           // m/s^2 of rocket thrust while boosting
+  boostDuration: 3,        // seconds from a full meter to empty
+  boostRecharge: 9,        // seconds to refill from empty when not boosting
   tractionLimit: 0.72,     // fraction of rear grip TC allows for drive
 };
 
@@ -380,6 +391,8 @@ class CarPhysics {
     this.throttle = 0;
     this.braking = 0;
     this.handbrake = false;
+    this.boost = 1;         // boost meter, 0..1
+    this.boosting = false;
     // Per-frame telemetry used by visuals/audio.
     this.vLong = 0;
     this.vLat = 0;
@@ -434,6 +447,11 @@ class CarPhysics {
     this.throttle = drive;
     this.braking = brakePedal;
     this.handbrake = !!input.handbrake;
+
+    // --- Boost: rocket thrust on top of the drivetrain (ignores traction).
+    this.boosting = !!input.boost && this.boost > 0.02;
+    if (this.boosting) this.boost = Math.max(0, this.boost - dt / s.boostDuration);
+    else if (!input.boost) this.boost = Math.min(1, this.boost + dt / s.boostRecharge);
 
     // --- Steering ------------------------------------------------------
     // Less lock at speed keeps the front tires near their peak slip angle.
@@ -539,6 +557,7 @@ class CarPhysics {
     let Fy = FxF * ss + FyF * cs + FyR + drag * vy;
     const torque = a * (FxF * ss + FyF * cs) - b * FyR;
 
+    if (this.boosting) Fx += s.mass * s.boostAccel;
     const ax = Fx / s.mass;
     const ay = Fy / s.mass;
 
@@ -714,7 +733,9 @@ class CarModel {
       dark: new THREE.MeshStandardMaterial({ color: 0x1b1b1f, roughness: 0.7 }),
       glass: new THREE.MeshStandardMaterial({ color: 0x0e1622, metalness: 0.9, roughness: 0.1 }),
       chrome: new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 1, roughness: 0.25 }),
+      glow: new THREE.MeshStandardMaterial({ color: 0x2a0d00, emissive: 0xff6a10, emissiveIntensity: 2.2 }),
     };
+    this.glowMat = mats.glow;
     this.headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4d6, emissiveIntensity: 1.2 });
     this.tailMat = new THREE.MeshStandardMaterial({ color: 0x550000, emissive: 0xff1a1a, emissiveIntensity: 0.4 });
     this.reverseMat = new THREE.MeshStandardMaterial({ color: 0x777777, emissive: 0xffffff, emissiveIntensity: 0 });
@@ -743,6 +764,28 @@ class CarModel {
     };
     def.build(kit);
     mergeByMaterial(this.body);
+
+    // Boost flames: additive cones out of each exhaust, hidden until used.
+    this.flames = [];
+    const flameColor = def.burns ? new THREE.Color(3.2, 1.2, 0.25) : new THREE.Color(0.6, 1.4, 3.2);
+    const flameGeo = new THREE.ConeGeometry(0.11, 1, 10, 1, true);
+    flameGeo.translate(0, 0.5, 0); // base at the exhaust, tip 1 m up...
+    flameGeo.rotateX(-Math.PI / 2); // ...then laid back along -Z
+    for (const [x, y, z] of def.exhaust || []) {
+      for (const [scale, opacity] of [[1, 0.55], [0.55, 0.9]]) {
+        const mat = new THREE.MeshBasicMaterial({
+          color: scale < 1 ? new THREE.Color(3, 3, 3) : flameColor,
+          transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+        });
+        const flame = new THREE.Mesh(flameGeo, mat);
+        flame.position.set(x, y, z);
+        flame.visible = false;
+        flame.userData.base = scale;
+        this.body.add(flame);
+        this.flames.push(flame);
+      }
+    }
+    this.boostLevel = 0;
 
     // Wheels: front ones live under a steering pivot.
     this.wheels = [];
@@ -800,10 +843,27 @@ class CarModel {
 
     this.tailMat.emissiveIntensity = car.braking > 0.05 || car.handbrake ? 3 : 0.5;
     this.reverseMat.emissiveIntensity = car.gear < 0 ? 2.5 : 0;
+
+    // Boost flames flicker and stretch while boosting.
+    const target = car.boosting ? 1 : 0;
+    this.boostLevel += (target - this.boostLevel) * (1 - Math.exp(-dt * (target ? 18 : 10)));
+    this.time = (this.time || 0) + dt;
+    for (const f of this.flames) {
+      f.visible = this.boostLevel > 0.03;
+      if (!f.visible) continue;
+      const flicker = 0.75 + Math.random() * 0.5;
+      const len = (0.6 + 1.4 * this.boostLevel) * flicker * f.userData.base;
+      const w = (0.7 + 0.5 * this.boostLevel) * f.userData.base;
+      f.scale.set(w, w, len);
+    }
+    // The Ember's accents breathe, and flare while boosting.
+    this.glowMat.emissiveIntensity = 1.8 + Math.sin(this.time * 5) * 0.5 + this.boostLevel * 2.5;
   }
 
   /** Sync visuals to a parked vehicle's rigid body. */
   updateParked(body, dt) {
+    for (const f of this.flames) f.visible = false;
+    this.boostLevel = 0;
     const t = body.translation();
     const q = body.rotation();
     this.root.position.set(t.x, t.y, t.z);
@@ -879,6 +939,7 @@ const sports = {
   ],
   home: { x: 0, z: -52, heading: 0 },
   cam: { scale: 1, hoodY: 1.42, hoodZ: 0.9 },
+  exhaust: [[0.45, 0.4, -2.24], [-0.45, 0.4, -2.24]],
   build({ THREE, box, tapered, add, front, rear, lights }) {
     const len = 4.3;
     const cz = (front + rear) / 2 + 0.05;
@@ -916,7 +977,7 @@ const hatch = {
     mass: 1050, inertiaScale: 1.25, cgToFront: 1.1, cgToRear: 1.35, cgHeight: 0.5,
     trackWidth: 1.5, wheelRadius: 0.3, tireGrip: 1.05, maxSteer: 0.62,
     brakeForce: 11500, dragCoef: 0.55, engineBrake: 250,
-    torqueScale: 0.5, gearRatios: [3.5, 2.1, 1.45, 1.1, 0.9], finalDrive: 3.9, engineTone: 1.25,
+    boostAccel: 6, torqueScale: 0.5, gearRatios: [3.5, 2.1, 1.45, 1.1, 0.9], finalDrive: 3.9, engineTone: 1.25,
   },
   hitbox: [
     { half: [0.86, 0.28, 1.92], at: [0, 0.6, -0.125] },
@@ -924,6 +985,7 @@ const hatch = {
   ],
   home: { x: -7, z: -52, heading: 0 },
   cam: { scale: 0.95, hoodY: 1.42, hoodZ: 0.5 },
+  exhaust: [[0.5, 0.36, -2.13]],
   wheelWidth: 0.22,
   build({ box, tapered, lights }) {
     const len = 3.85;
@@ -954,7 +1016,7 @@ const pickup = {
     mass: 2100, inertiaScale: 2.3, cgToFront: 1.6, cgToRear: 1.75, cgHeight: 0.7,
     trackWidth: 1.76, wheelRadius: 0.42, tireGrip: 0.98, maxSteer: 0.56, steerSpeed: 2.0,
     brakeForce: 23000, dragCoef: 1.1, rollingResistance: 20, engineBrake: 600,
-    torqueScale: 1.3, gearRatios: [3.5, 2.2, 1.5, 1.15, 0.9], finalDrive: 3.9, engineTone: 0.7,
+    boostAccel: 6, torqueScale: 1.3, gearRatios: [3.5, 2.2, 1.5, 1.15, 0.9], finalDrive: 3.9, engineTone: 0.7,
   },
   hitbox: [
     { half: [0.98, 0.35, 2.75], at: [0, 0.95, -0.075] },
@@ -962,6 +1024,7 @@ const pickup = {
   ],
   home: { x: 7, z: -52, heading: 0 },
   cam: { scale: 1.25, hoodY: 2.05, hoodZ: 0.9 },
+  exhaust: [[0.6, 0.62, -2.95], [-0.6, 0.62, -2.95]],
   wheelWidth: 0.32,
   build({ box, tapered, lights }) {
     const cz = -0.075;
@@ -1005,11 +1068,12 @@ const bus = {
     steerSpeed: 1.5, steerReturn: 2.5, steerSpeedScale: 500,
     brakeForce: 70000, dragCoef: 4, rollingResistance: 90, engineBrake: 2200,
     torqueScale: 1.8, gearRatios: [3.0, 2.0, 1.45, 1.15, 1.0], finalDrive: 7,
-    shiftUpRpm: 6000, engineTone: 0.45,
+    shiftUpRpm: 6000, engineTone: 0.45, boostAccel: 2.8,
   },
   hitbox: [{ half: [1.27, 1.2, 5.3], at: [0, 1.85, -0.3] }],
   home: { x: 22, z: -50, heading: Math.PI / 2 },
   cam: { scale: 1.9, hoodY: 2.7, hoodZ: 4.6 },
+  exhaust: [[0.8, 0.7, -5.72], [-0.8, 0.7, -5.72]],
   wheelWidth: 0.36,
   build({ box, lights }) {
     const cz = -0.3;
@@ -1030,8 +1094,55 @@ const bus = {
   },
 };
 
+// The burner: anything it touches ignites and burns away as glowing voxels
+// instead of being knocked over (see `burns` in destruction.js).
+const ember = {
+  id: 'ember',
+  name: 'Ember GT',
+  blurb: 'Does not crash into things. Burns straight through them.',
+  stats: { top: 255, accel: 5.4 },
+  burns: true,
+  color: 0x1d1f24,
+  length: 4.5,
+  width: 1.9,
+  spec: {
+    mass: 1400, inertiaScale: 1.4, cgToFront: 1.3, cgToRear: 1.4, cgHeight: 0.42,
+    trackWidth: 1.72, wheelRadius: 0.35, tireGrip: 1.12, torqueScale: 1.12, boostAccel: 8,
+    engineTone: 0.85,
+  },
+  hitbox: [
+    { half: [0.95, 0.3, 2.25], at: [0, 0.52, -0.05] },
+    { half: [0.7, 0.22, 1.1], at: [0, 0.98, -0.25] },
+  ],
+  home: { x: -14, z: -52, heading: 0 },
+  cam: { scale: 1, hoodY: 1.3, hoodZ: 0.9 },
+  exhaust: [[0.32, 0.42, -2.36], [-0.32, 0.42, -2.36]],
+  wheelWidth: 0.3,
+  build({ box, tapered, lights }) {
+    const len = 4.5;
+    const cz = -0.05;
+    const front = cz + len / 2;
+    const rear = cz - len / 2;
+    // Low wedge body that rises toward the rear.
+    box(1.9, 0.3, len, 'paint', 0, 0.48, cz);
+    tapered(1.9, 0.2, len - 0.15, 1.6, len - 0.9, -0.3, 'paint', 0, 0.73, cz);
+    tapered(1.5, 0.42, 2.0, 1.1, 1.2, -0.25, 'glass', 0, 1.0, cz - 0.15);
+    box(1.94, 0.12, 0.6, 'paint', 0, 0.86, rear + 0.3); // rear deck
+    // Glowing accents: side blades, front splitter edge, rear light bar.
+    for (const sx of [-1, 1]) {
+      box(0.03, 0.05, len - 0.9, 'glow', sx * 0.96, 0.5, cz - 0.1);
+      box(0.06, 0.22, 0.5, 'glow', sx * 0.94, 0.62, cz - 0.6); // side intake
+    }
+    box(1.7, 0.03, 0.04, 'glow', 0, 0.36, front + 0.02);
+    box(1.6, 0.06, 0.03, 'glow', 0, 0.78, rear - 0.01);
+    box(1.92, 0.08, 0.2, 'dark', 0, 0.3, front - 0.05);
+    box(1.92, 0.16, 0.18, 'dark', 0, 0.36, rear + 0.05);
+    lights({ frontZ: front, rearZ: rear, y: 0.58, headX: 0.68, tailX: 0.62, headW: 0.36, tailW: 0.4, h: 0.06 });
+  },
+};
+
 // Fill in every handling value so models and parked bodies can read them too.
-const VEHICLES = [sports, hatch, pickup, bus].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec } }));
+const VEHICLES = [sports, hatch, pickup, bus, ember].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec } }));
 
 // ===== destruction.js =====
 // Rigid-body world for everything the car can smash. Each object kind is
@@ -1044,6 +1155,7 @@ async function initRapier() {
 }
 
 const FRACTURES_PER_STEP = 10;
+const BURNS_PER_STEP = 24;
 const MAX_DEBRIS_SPEED = 32;
 // Rapier treats the kinematic car as infinitely heavy; scaling the reaction
 // makes hits feel weighty without making the car bounce off bricks.
@@ -1238,7 +1350,7 @@ class Destruction {
       kind.name = name;
       this.pools[name] = new Pool(scene, kind);
     }
-    this.listeners = { impact: [], fracture: [] };
+    this.listeners = { impact: [], fracture: [], burn: [] };
     this.createWorld();
   }
 
@@ -1284,6 +1396,17 @@ class Destruction {
     if (this.carBody) this.world.removeRigidBody(this.carBody);
     this.lastCarPose = null;
     this.carBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
+    this.burner = !!def.burns;
+    // Bounds of the hitbox in the car frame, for the burn query.
+    const lo = [Infinity, Infinity, Infinity];
+    const hi = [-Infinity, -Infinity, -Infinity];
+    for (const h of def.hitbox) {
+      for (let i = 0; i < 3; i++) {
+        lo[i] = Math.min(lo[i], h.at[i] - h.half[i]);
+        hi[i] = Math.max(hi[i], h.at[i] + h.half[i]);
+      }
+    }
+    this.carBounds = { lo, hi };
     this.carColliders = def.hitbox.map((h) => this.world.createCollider(
       RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4),
       this.carBody,
@@ -1474,6 +1597,7 @@ class Destruction {
       this.lastCarPose = { x: car.x, z: car.z, h };
     }
 
+    if (this.burner) this.burnAround(car);
     this.world.step(this.eventQueue);
 
     // Reaction on the car (read before fractures remove any colliders).
@@ -1539,6 +1663,52 @@ class Destruction {
       total += this.breakDrag;
     }
     return { jx, jz, torque, total };
+  }
+
+  /**
+   * The burner car: everything inside a box around it (stretched ahead by
+   * the distance it covers this step) burns away before the solver can
+   * push it, so the car slices through instead of bulldozing.
+   */
+  burnAround(car) {
+    const { lo, hi } = this.carBounds;
+    const ahead = Math.abs(car.vLong) * STEP * 2 + 0.3;
+    const dir = car.vLong >= 0 ? 1 : -1;
+    const half = { x: (hi[0] - lo[0]) / 2 + 0.25, y: (hi[1] - lo[1]) / 2 + 0.2, z: (hi[2] - lo[2]) / 2 + 0.25 + ahead / 2 };
+    const localZ = (hi[2] + lo[2]) / 2 + (dir * ahead) / 2;
+    const sinH = Math.sin(car.heading);
+    const cosH = Math.cos(car.heading);
+    const centre = { x: car.x + sinH * localZ, y: (hi[1] + lo[1]) / 2, z: car.z + cosH * localZ };
+    const rot = { x: 0, y: Math.sin(car.heading / 2), z: 0, w: Math.cos(car.heading / 2) };
+    const found = new Set();
+    this.world.intersectionsWithShape(centre, rot, new RAPIER.Cuboid(half.x, half.y, half.z), (collider) => {
+      const e = this.byCollider.get(collider.handle);
+      if (e && e.alive && !e.vehicle) found.add(e);
+      return found.size < BURNS_PER_STEP;
+    });
+    for (const e of found) this.burn(e, car);
+  }
+
+  burn(entity, car) {
+    const t = entity.body.translation();
+    const r = entity.body.rotation();
+    const info = {
+      kind: entity.kind,
+      color: entity.color,
+      pos: new THREE.Vector3(t.x, t.y, t.z),
+      quat: new THREE.Quaternion(r.x, r.y, r.z, r.w),
+      from: new THREE.Vector3(car.x, t.y, car.z),
+    };
+    const size = entity.kind.shape === 'cyl' || entity.kind.shape === 'tree'
+      ? Math.max(entity.kind.size[0] * 2, entity.kind.size[1]) : Math.max(...entity.kind.size);
+    this.despawn(entity);
+    // Wake whatever was resting on it so it falls.
+    const r2 = size / 2 + 0.4;
+    this.world.collidersWithAabbIntersectingAabb(t, { x: r2, y: r2, z: r2 }, (c) => {
+      c.parent()?.wakeUp();
+      return true;
+    });
+    this.emit('burn', info);
   }
 
   /** Breakage setting: "simple" lets intact objects break once but not their pieces. */
@@ -2114,6 +2284,7 @@ class ChaseCamera {
     this.target = new THREE.Vector3();
     this.initialised = false;
     this.vehicleCam = { scale: 1, hoodY: 1.42, hoodZ: 0.9 };
+    this.boostFov = 0;
   }
 
   /** Fit the camera to a vehicle's size (see `cam` in vehicles.js). */
@@ -2152,7 +2323,8 @@ class ChaseCamera {
       this.yaw += wrap(targetYaw - this.yaw) * (1 - Math.exp(-dt * (m.lag || 8)));
     }
 
-    const fov = 62 + Math.min(18, speed * 0.28);
+    this.boostFov += ((car.boosting ? 9 : 0) - this.boostFov) * (1 - Math.exp(-dt * 6));
+    const fov = 62 + Math.min(18, speed * 0.28) + this.boostFov;
     if (Math.abs(cam.fov - fov) > 0.01) {
       cam.fov += (fov - cam.fov) * (1 - Math.exp(-dt * 3));
       cam.updateProjectionMatrix();
@@ -2215,12 +2387,13 @@ const KEYS = {
   up: ['KeyW', 'ArrowUp'],
   down: ['KeyS', 'ArrowDown'],
   handbrake: ['Space'],
+  boost: ['ShiftLeft', 'ShiftRight'],
 };
 
 class Input {
   constructor() {
     this.down = new Set();
-    this.touch = { left: false, right: false, up: false, down: false, handbrake: false };
+    this.touch = { left: false, right: false, up: false, down: false, handbrake: false, boost: false };
     this.pressedHandlers = new Map();
     this.kbSteer = 0;
     this.kbThrottle = 0;
@@ -2269,6 +2442,7 @@ class Input {
       throttle: this.kbThrottle,
       brake: this.kbBrake,
       handbrake: this.held('handbrake'),
+      boost: this.held('boost'),
     };
 
     const pad = navigator.getGamepads?.().find((p) => p && p.connected);
@@ -2281,6 +2455,7 @@ class Input {
       if (rt > 0.02) out.throttle = rt;
       if (lt > 0.02) out.brake = lt;
       if (pad.buttons[0]?.pressed || pad.buttons[5]?.pressed) out.handbrake = true;
+      if (pad.buttons[4]?.pressed) out.boost = true;
       this.padButtons(pad);
     }
     return out;
@@ -2369,6 +2544,15 @@ class CarAudio {
     this.squealGain.gain.value = 0;
     noise.connect(this.squealFilter).connect(this.squealGain).connect(this.master);
     noise.start();
+
+    // Boost: a roaring, band-passed noise bed.
+    this.boostFilter = ctx.createBiquadFilter();
+    this.boostFilter.type = 'bandpass';
+    this.boostFilter.frequency.value = 500;
+    this.boostFilter.Q.value = 0.8;
+    this.boostGain = ctx.createGain();
+    this.boostGain.gain.value = 0;
+    noise.connect(this.boostFilter).connect(this.boostGain).connect(this.master);
   }
 
   /**
@@ -2418,6 +2602,45 @@ class CarAudio {
     }
   }
 
+  /** Whoosh and crackle of something catching fire. */
+  burn(strength = 1) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    if (this.lastBurn && now - this.lastBurn < 0.05) return;
+    this.lastBurn = now;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuffer();
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.value = 0.9;
+    filter.frequency.setValueAtTime(350, now);
+    filter.frequency.exponentialRampToValueAtTime(2400, now + 0.18);
+    filter.frequency.exponentialRampToValueAtTime(600, now + 0.9);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.5 * strength, now + 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+    src.connect(filter).connect(gain).connect(this.master);
+    src.start(now, Math.random());
+    src.stop(now + 1);
+    // A few crackles.
+    for (let i = 0; i < 4; i++) {
+      const t0 = now + 0.1 + Math.random() * 0.6;
+      const c = ctx.createBufferSource();
+      c.buffer = this.noiseBuffer();
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 2500;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.25 * strength, t0);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.03);
+      c.connect(hp).connect(g).connect(this.master);
+      c.start(t0, Math.random());
+      c.stop(t0 + 0.04);
+    }
+  }
+
   noiseBuffer() {
     if (!this._noise) {
       const len = this.ctx.sampleRate * 2;
@@ -2454,6 +2677,8 @@ class CarAudio {
     this.engineGain.gain.setTargetAtTime(0.12 + car.throttle * 0.16, t, 0.05);
     this.squealGain.gain.setTargetAtTime(Math.min(0.35, skid * 0.4), t, 0.05);
     this.squealFilter.frequency.setTargetAtTime(700 + skid * 500, t, 0.1);
+    this.boostGain.gain.setTargetAtTime(car.boosting ? 0.32 : 0, t, car.boosting ? 0.05 : 0.15);
+    this.boostFilter.frequency.setTargetAtTime(car.boosting ? 380 + car.speed * 14 : 300, t, 0.2);
   }
 }
 
@@ -2708,6 +2933,289 @@ class Menu {
   }
 }
 
+// ===== burn.js =====
+// Burn effect for the Ember GT. A burned object is replaced by voxels that
+// fill its shape. Ignition spreads out from the side the car touched: each
+// voxel flares white-hot, cools through orange and red to dark ash, and
+// shrinks away while drifting upward as an ember. Everything is one
+// InstancedMesh with an unlit, non-tone-mapped material so the hot colours
+// read as genuinely bright.
+
+const SPREAD_SPEED = 9; // m/s the burn front travels across an object
+const HEAT_TIME = 0.14; // seconds to flare up
+const HOT = [4.0, 3.2, 2.2]; // white-hot (HDR, clips to near white)
+const COOL = [
+  [3.0, 1.15, 0.2], // bright orange
+  [1.4, 0.25, 0.04], // red
+  [0.12, 0.04, 0.03], // ash
+];
+
+const _burnQ = new THREE.Quaternion();
+const _burnV = new THREE.Vector3();
+const _burnC = new THREE.Color();
+
+class BurnEffect {
+  constructor(scene, capacity = 6000) {
+    this.capacity = capacity;
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+    const mat = new THREE.MeshBasicMaterial({ toneMapped: false });
+    this.mesh = new THREE.InstancedMesh(geo, mat, capacity);
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.setColorAt(0, _burnC.set(0, 0, 0));
+    this.mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.frustumCulled = false;
+    this.mesh.count = 0;
+    scene.add(this.mesh);
+
+    const n = capacity;
+    this.pos = new Float32Array(n * 3);
+    this.vel = new Float32Array(n * 3);
+    this.base = new Float32Array(n * 3);
+    this.start = new Float32Array(n); // ignition time
+    this.life = new Float32Array(n); // seconds after ignition
+    this.size = new Float32Array(n);
+    this.alive = new Uint8Array(n);
+    this.next = 0;
+    this.high = 0; // one past the highest slot ever used
+    this.active = 0;
+    this.time = 0;
+    this.maxPerObject = 150;
+    this.shapes = new Map();
+
+    // Two pooled lights flash where things ignite. Point lights cost shading
+    // time on every lit pixel even at zero intensity, so they're only in
+    // the scene at the high effects setting.
+    this.scene = scene;
+    this.lights = [0, 1].map(() => ({ light: new THREE.PointLight(0xff7a2a, 0, 14, 2), t: 0 }));
+    this.lightIndex = 0;
+    this.lightsOn = false;
+  }
+
+  setDetail(maxPerObject, lights) {
+    this.maxPerObject = maxPerObject;
+    if (lights !== this.lightsOn) {
+      for (const l of this.lights) {
+        if (lights) this.scene.add(l.light);
+        else this.scene.remove(l.light);
+      }
+      this.lightsOn = lights;
+    }
+  }
+
+  /** Replace a burned object with voxels. `info` comes from Destruction's burn event. */
+  ignite(info) {
+    const { cells, size } = this.shapeFor(info.kind);
+    const color = info.color ? info.color : _burnC.set(0xffffff);
+    const centre = info.pos;
+    _burnQ.copy(info.quat);
+    // The burn starts at the point nearest the car and spreads from there.
+    let nearest = Infinity;
+    for (const cell of cells) {
+      _burnV.set(cell.x, cell.y, cell.z).applyQuaternion(_burnQ).add(centre);
+      nearest = Math.min(nearest, _burnV.distanceTo(info.from));
+    }
+    for (const cell of cells) {
+      const i = this.next;
+      this.next = (this.next + 1) % this.capacity;
+      if (!this.alive[i]) this.active++;
+      this.alive[i] = 1;
+      this.high = Math.max(this.high, i + 1);
+      _burnV.set(cell.x, cell.y, cell.z).applyQuaternion(_burnQ).add(centre);
+      this.pos.set([_burnV.x, _burnV.y, _burnV.z], i * 3);
+      const dist = Math.hypot(_burnV.x - info.from.x, _burnV.y - info.from.y, _burnV.z - info.from.z);
+      this.start[i] = this.time + (dist - nearest) / SPREAD_SPEED + Math.random() * 0.06;
+      this.life[i] = 0.9 + Math.random() * 0.9;
+      this.size[i] = size * (0.85 + Math.random() * 0.2);
+      // Embers rise and scatter a little.
+      this.vel.set([(Math.random() - 0.5) * 0.8, 0.4 + Math.random() * 1.4, (Math.random() - 0.5) * 0.8], i * 3);
+      const c = cell.color ?? color;
+      this.base.set([c.r, c.g, c.b], i * 3);
+    }
+    this.mesh.count = this.high;
+
+    const flash = this.lights[this.lightIndex];
+    this.lightIndex = (this.lightIndex + 1) % this.lights.length;
+    flash.light.position.copy(centre).setY(centre.y + 0.8);
+    flash.t = 0.7;
+  }
+
+  /** Voxel cells filling a kind's shape, cached per kind and detail level. */
+  shapeFor(kind) {
+    const key = `${kind.name}:${this.maxPerObject}`;
+    if (this.shapes.has(key)) return this.shapes.get(key);
+    const result = voxelize(kind, this.maxPerObject);
+    this.shapes.set(key, result);
+    return result;
+  }
+
+  update(dt) {
+    this.time += dt;
+    for (const f of this.lights) {
+      f.t = Math.max(0, f.t - dt);
+      f.light.intensity = f.t > 0 ? 40 * (f.t / 0.7) ** 2 : 0;
+    }
+    if (!this.active) {
+      this.mesh.visible = false;
+      return;
+    }
+    this.mesh.visible = true;
+    const m = this.mesh.instanceMatrix.array;
+    const col = this.mesh.instanceColor.array;
+    const now = this.time;
+    let highest = 0;
+    for (let i = 0; i < this.high; i++) {
+      const o = i * 16;
+      if (!this.alive[i]) {
+        m[o] = m[o + 5] = m[o + 10] = 0;
+        continue;
+      }
+      highest = i + 1;
+      const age = now - this.start[i];
+      const p = i * 3;
+      let s = this.size[i];
+      let r = this.base[p], g = this.base[p + 1], b = this.base[p + 2];
+      if (age > 0) {
+        const life = this.life[i];
+        if (age >= HEAT_TIME + life) {
+          this.alive[i] = 0;
+          this.active--;
+          m[o] = m[o + 5] = m[o + 10] = 0;
+          continue;
+        }
+        if (age < HEAT_TIME) {
+          const k = age / HEAT_TIME;
+          r += (HOT[0] - r) * k; g += (HOT[1] - g) * k; b += (HOT[2] - b) * k;
+        } else {
+          // Cool along HOT -> orange -> red -> ash.
+          const k = (age - HEAT_TIME) / life;
+          const stops = [HOT, ...COOL];
+          const x = Math.min(0.999, k) * (stops.length - 1);
+          const a = stops[Math.floor(x)];
+          const c = stops[Math.floor(x) + 1];
+          const f = x - Math.floor(x);
+          r = a[0] + (c[0] - a[0]) * f; g = a[1] + (c[1] - a[1]) * f; b = a[2] + (c[2] - a[2]) * f;
+          // Drift up and shrink over the second half of its life.
+          this.pos[p] += this.vel[p] * dt;
+          this.pos[p + 1] += this.vel[p + 1] * dt;
+          this.pos[p + 2] += this.vel[p + 2] * dt;
+          if (k > 0.45) s *= 1 - (k - 0.45) / 0.55;
+        }
+      }
+      m[o] = s; m[o + 1] = 0; m[o + 2] = 0; m[o + 3] = 0;
+      m[o + 4] = 0; m[o + 5] = s; m[o + 6] = 0; m[o + 7] = 0;
+      m[o + 8] = 0; m[o + 9] = 0; m[o + 10] = s; m[o + 11] = 0;
+      m[o + 12] = this.pos[p]; m[o + 13] = this.pos[p + 1]; m[o + 14] = this.pos[p + 2]; m[o + 15] = 1;
+      col[p] = r; col[p + 1] = g; col[p + 2] = b;
+    }
+    // Shrink the draw range as the oldest voxels finish.
+    if (highest < this.high && this.next <= highest) this.high = highest;
+    if (!this.active) { this.high = 0; this.next = 0; }
+    this.mesh.count = this.high;
+    this.mesh.instanceMatrix.needsUpdate = true;
+    this.mesh.instanceColor.needsUpdate = true;
+  }
+
+  clear() {
+    this.alive.fill(0);
+    this.active = 0;
+    this.high = 0;
+    this.next = 0;
+    this.mesh.count = 0;
+  }
+}
+
+// --- Voxelizing object kinds ----------------------------------------------
+
+const BROWN = new THREE.Color(0x6b4a2f);
+const LEAF = new THREE.Color(0x4a8a42);
+const CONE_ORANGE = new THREE.Color(0xff5a1f);
+const CONE_WHITE = new THREE.Color(0xf5f5f5);
+const STEEL = new THREE.Color(0x9a9da3);
+const LAMP = new THREE.Color(0xfff2c4);
+
+/**
+ * Fill a kind's shape with at most `max` cubic cells. Returns cell centres
+ * in the object's local frame (optionally with their own colour) and the
+ * cube size.
+ */
+function voxelize(kind, max) {
+  const inside = shapeTest(kind);
+  const [sx, sy, sz] = bounds(kind);
+  // Pick a cell size so the filled volume lands near `max` cells.
+  let size = Math.cbrt((sx * sy * sz * inside.fill) / max);
+  size = Math.max(size, 0.12);
+  let cells;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    cells = [];
+    const nx = Math.max(1, Math.round(sx / size));
+    const ny = Math.max(1, Math.round(sy / size));
+    const nz = Math.max(1, Math.round(sz / size));
+    for (let ix = 0; ix < nx; ix++) {
+      for (let iy = 0; iy < ny; iy++) {
+        for (let iz = 0; iz < nz; iz++) {
+          const x = ((ix + 0.5) / nx - 0.5) * sx;
+          const y = ((iy + 0.5) / ny - 0.5) * sy;
+          const z = ((iz + 0.5) / nz - 0.5) * sz;
+          const hit = inside.test(x, y, z);
+          if (hit) cells.push({ x, y: y + (inside.offsetY || 0), z, color: hit === true ? undefined : hit });
+        }
+      }
+    }
+    if (cells.length <= max) break;
+    size *= 1.15;
+  }
+  return { cells, size };
+}
+
+function bounds(kind) {
+  if (kind.shape === 'cyl') return [kind.size[0] * 2, kind.size[1], kind.size[0] * 2];
+  if (kind.shape === 'tree') return [3.2, 5.6, 3.2];
+  return kind.size;
+}
+
+/** Point-in-shape tests; may return a colour to override the object's. */
+function shapeTest(kind) {
+  if (kind.name === 'tree') {
+    // Trunk from y=-1.5..1.5 (body centre), foliage cone from ~0.7 to 4.0.
+    return {
+      fill: 0.3,
+      offsetY: 1.2, // the body origin is mid-trunk; the canopy sits above it
+      test(x, y, z) {
+        const yy = y + 1.2; // bounds are centred; shift into body space
+        const r = Math.hypot(x, z);
+        if (yy >= 0.7 && yy <= 4.1 && r <= 1.6 * (1 - (yy - 0.7) / 3.4)) return LEAF;
+        if (yy >= -1.5 && yy <= 1.5 && r <= 0.24) return BROWN;
+        return false;
+      },
+    };
+  }
+  if (kind.name === 'cone') {
+    return {
+      fill: 0.4,
+      test(x, y, z) {
+        const r = Math.hypot(x, z);
+        const t = (y + 0.3) / 0.6; // 0 at base, 1 at tip
+        if (r > 0.2 * (1 - t) + 0.03) return false;
+        return t > 0.45 && t < 0.72 ? CONE_WHITE : CONE_ORANGE;
+      },
+    };
+  }
+  if (kind.name === 'pole') {
+    return {
+      fill: 0.8,
+      test(x, y, z) {
+        if (Math.hypot(x, z) <= kind.size[0] + 0.02) return y > 3.1 ? LAMP : STEEL;
+        return false;
+      },
+    };
+  }
+  if (kind.shape === 'cyl') {
+    const r = kind.size[0];
+    return { fill: 0.785, test: (x, y, z) => Math.hypot(x, z) <= r + 1e-6 };
+  }
+  return { fill: 1, test: () => true };
+}
+
 // ===== main.js =====
 const PHYSICS_DT = 1 / 120;
 // At most this many car steps per frame (2 debris-world steps). A slow
@@ -2773,6 +3281,8 @@ const destruction = new Destruction(scene, 300);
 const skids = new SkidMarks(scene);
 const smoke = new Smoke(scene);
 const dust = new Smoke(scene, 160, 0xb9ad98);
+const soot = new Smoke(scene, 120, 0x2e2a28);
+const burnFx = new BurnEffect(scene);
 const chase = new ChaseCamera(camera);
 const input = new Input();
 const audio = new CarAudio();
@@ -2788,6 +3298,15 @@ destruction.on('fracture', (pos, kind) => {
   const n = Math.min(6, base);
   for (let i = 0; i < n; i++) dust.emit(pos, { x: 0, z: 0 }, 0.6 + Math.random() * 0.4, pos.y);
   audio.impact(kind.material, 1);
+  car.boost = Math.min(1, car.boost + 0.015); // smashing refills boost
+});
+destruction.on('burn', (info) => {
+  smashed++;
+  burnFx.ignite(info);
+  const puffs = settings.effects === 'high' ? 3 : 1;
+  for (let i = 0; i < puffs; i++) soot.emit(info.pos, { x: 0, z: 0 }, 0.8, info.pos.y + 0.5);
+  audio.burn(Math.min(1, 0.4 + info.kind.mass / 300));
+  car.boost = Math.min(1, car.boost + 0.012);
 });
 destruction.on('impact', (material, strength) => audio.impact(material, strength));
 
@@ -2817,6 +3336,7 @@ function applySettings({ rebuildRenderer = false } = {}) {
   });
   car.spec.assists = settings.assists;
   audio.setMuted(!settings.sound);
+  burnFx.setDetail(settings.effects === 'high' ? 150 : 60, settings.effects === 'high');
   $('fps').hidden = !settings.showFps;
   refreshBadges();
 }
@@ -2848,6 +3368,7 @@ function resetCar() {
 }
 
 function resetAll() {
+  burnFx.clear();
   buildArena();
   smashed = 0;
   resetCar();
@@ -2898,7 +3419,7 @@ function switchTo(target) {
 const hud = {
   speed: $('speed'), gear: $('gear'), rpmFill: $('rpm-fill'), drift: $('drift'),
   toast: $('toast'), telemetry: $('telemetry'), assists: $('assists'), cam: $('cam'), smashed: $('smashed'),
-  vehicle: $('vehicle'), prompt: $('prompt'), fps: $('fps'),
+  vehicle: $('vehicle'), prompt: $('prompt'), fps: $('fps'), boostFill: $('boost-fill'),
 };
 let toastTimer = 0;
 function toast(msg) {
@@ -3148,7 +3669,12 @@ function updateScene(dt) {
   });
   smoke.update(dt);
   dust.update(dt);
+  soot.update(dt);
+  burnFx.update(dt);
   audio.update(car, squeal);
+  if (car.boosting) shake = Math.max(shake, 0.18);
+  hud.boostFill.style.width = `${car.boost * 100}%`;
+  hud.boostFill.classList.toggle('on', car.boosting);
 
   chase.update(car, dt);
   if (shake > 0.001) {

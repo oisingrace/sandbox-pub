@@ -40,6 +40,10 @@
     #rpm { margin-top: 10px; height: 8px; background: rgba(255,255,255,0.12); border-radius: 4px; overflow: hidden; }
     #rpm-fill { height: 100%; width: 0; background: linear-gradient(90deg, #4fd18b, #f2c230); transition: background 0.1s; }
     #rpm-fill.red { background: var(--accent); }
+    #dash .boost { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hud-dim); }
+    #boost-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; }
+    #boost-fill { height: 100%; width: 100%; background: #5ab8ff; transition: background 0.15s; }
+    #boost-fill.on { background: #ffffff; box-shadow: 0 0 10px #5ab8ff; }
     #dash .smash { margin-top: 8px; font-size: 12px; color: var(--hud-dim); letter-spacing: 0.06em; text-transform: uppercase; display: flex; justify-content: space-between; }
     #dash .smash b { color: #ffd23f; font: 700 14px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
     /* --- Menus --- */
@@ -165,6 +169,7 @@
     #touch-reset { left: 76px; top: 16px; }
     #touch-pause { left: 136px; top: 16px; }
     #touch-enter { left: 196px; top: 16px; }
+    #t-boost { right: 140px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
   </style>
   <script type="importmap">
     { "imports": {
@@ -181,7 +186,7 @@
   <div id="help" class="panel hidden">
     <h1>SMASH LOT</h1>
     <div class="row"><kbd>W</kbd><kbd>S</kbd> <b>throttle / brake</b> (hold S to reverse)</div>
-    <div class="row"><kbd>A</kbd><kbd>D</kbd> <b>steer</b> &nbsp;<kbd>Space</kbd> <b>handbrake</b></div>
+    <div class="row"><kbd>A</kbd><kbd>D</kbd> <b>steer</b> &nbsp;<kbd>Space</kbd> <b>handbrake</b> &nbsp;<kbd>Shift</kbd> <b>boost</b></div>
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
     <div class="row"><kbd>E</kbd> <b>drive a nearby vehicle</b> (4 to try)</div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
@@ -201,6 +206,7 @@
       <div id="gear">N</div>
     </div>
     <div id="rpm"><div id="rpm-fill"></div></div>
+    <div class="boost"><span>Boost</span><div id="boost-bar"><div id="boost-fill"></div></div></div>
     <div class="smash">Smashed <b id="smashed">0</b></div>
   </div>
 
@@ -233,7 +239,7 @@
         <button type="button" id="btn-options">Options</button>
         <button type="button" id="btn-controls">Controls</button>
       </div>
-      <p class="fineprint">Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it.</p>
+      <p class="fineprint">Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.</p>
     </section>
 
     <section class="screen" data-screen="pause" hidden aria-labelledby="pause-title">
@@ -261,6 +267,7 @@
           <tr><td>Steer</td><td><kbd>A</kbd> <kbd>D</kbd> or arrows</td><td>Left stick</td></tr>
           <tr><td>Reverse</td><td>Hold <kbd>S</kbd> when stopped</td><td>Hold LT</td></tr>
           <tr><td>Handbrake</td><td><kbd>Space</kbd></td><td>A / RB</td></tr>
+          <tr><td>Boost (refills over time and when you smash things)</td><td><kbd>Shift</kbd></td><td>LB</td></tr>
           <tr><td>Drive a nearby vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
           <tr><td>Camera (chase, far, hood)</td><td><kbd>C</kbd></td><td>X</td></tr>
           <tr><td>Reset car</td><td><kbd>R</kbd></td><td>Y</td></tr>
@@ -284,6 +291,7 @@
     <div class="tbtn small" id="touch-reset">RST</div>
     <div class="tbtn small" id="touch-pause" aria-label="Pause">II</div>
     <div class="tbtn small" id="touch-enter">IN</div>
+    <div class="tbtn" id="t-boost" data-touch="boost">BST</div>
   </div>
 
   <script type="module" src="./src/main.js"></script>

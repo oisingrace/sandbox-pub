@@ -11,6 +11,7 @@ export async function initRapier() {
 }
 
 const FRACTURES_PER_STEP = 10;
+const BURNS_PER_STEP = 24;
 const MAX_DEBRIS_SPEED = 32;
 // Rapier treats the kinematic car as infinitely heavy; scaling the reaction
 // makes hits feel weighty without making the car bounce off bricks.
@@ -205,7 +206,7 @@ export class Destruction {
       kind.name = name;
       this.pools[name] = new Pool(scene, kind);
     }
-    this.listeners = { impact: [], fracture: [] };
+    this.listeners = { impact: [], fracture: [], burn: [] };
     this.createWorld();
   }
 
@@ -251,6 +252,17 @@ export class Destruction {
     if (this.carBody) this.world.removeRigidBody(this.carBody);
     this.lastCarPose = null;
     this.carBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
+    this.burner = !!def.burns;
+    // Bounds of the hitbox in the car frame, for the burn query.
+    const lo = [Infinity, Infinity, Infinity];
+    const hi = [-Infinity, -Infinity, -Infinity];
+    for (const h of def.hitbox) {
+      for (let i = 0; i < 3; i++) {
+        lo[i] = Math.min(lo[i], h.at[i] - h.half[i]);
+        hi[i] = Math.max(hi[i], h.at[i] + h.half[i]);
+      }
+    }
+    this.carBounds = { lo, hi };
     this.carColliders = def.hitbox.map((h) => this.world.createCollider(
       RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4),
       this.carBody,
@@ -441,6 +453,7 @@ export class Destruction {
       this.lastCarPose = { x: car.x, z: car.z, h };
     }
 
+    if (this.burner) this.burnAround(car);
     this.world.step(this.eventQueue);
 
     // Reaction on the car (read before fractures remove any colliders).
@@ -506,6 +519,52 @@ export class Destruction {
       total += this.breakDrag;
     }
     return { jx, jz, torque, total };
+  }
+
+  /**
+   * The burner car: everything inside a box around it (stretched ahead by
+   * the distance it covers this step) burns away before the solver can
+   * push it, so the car slices through instead of bulldozing.
+   */
+  burnAround(car) {
+    const { lo, hi } = this.carBounds;
+    const ahead = Math.abs(car.vLong) * STEP * 2 + 0.3;
+    const dir = car.vLong >= 0 ? 1 : -1;
+    const half = { x: (hi[0] - lo[0]) / 2 + 0.25, y: (hi[1] - lo[1]) / 2 + 0.2, z: (hi[2] - lo[2]) / 2 + 0.25 + ahead / 2 };
+    const localZ = (hi[2] + lo[2]) / 2 + (dir * ahead) / 2;
+    const sinH = Math.sin(car.heading);
+    const cosH = Math.cos(car.heading);
+    const centre = { x: car.x + sinH * localZ, y: (hi[1] + lo[1]) / 2, z: car.z + cosH * localZ };
+    const rot = { x: 0, y: Math.sin(car.heading / 2), z: 0, w: Math.cos(car.heading / 2) };
+    const found = new Set();
+    this.world.intersectionsWithShape(centre, rot, new RAPIER.Cuboid(half.x, half.y, half.z), (collider) => {
+      const e = this.byCollider.get(collider.handle);
+      if (e && e.alive && !e.vehicle) found.add(e);
+      return found.size < BURNS_PER_STEP;
+    });
+    for (const e of found) this.burn(e, car);
+  }
+
+  burn(entity, car) {
+    const t = entity.body.translation();
+    const r = entity.body.rotation();
+    const info = {
+      kind: entity.kind,
+      color: entity.color,
+      pos: new THREE.Vector3(t.x, t.y, t.z),
+      quat: new THREE.Quaternion(r.x, r.y, r.z, r.w),
+      from: new THREE.Vector3(car.x, t.y, car.z),
+    };
+    const size = entity.kind.shape === 'cyl' || entity.kind.shape === 'tree'
+      ? Math.max(entity.kind.size[0] * 2, entity.kind.size[1]) : Math.max(...entity.kind.size);
+    this.despawn(entity);
+    // Wake whatever was resting on it so it falls.
+    const r2 = size / 2 + 0.4;
+    this.world.collidersWithAabbIntersectingAabb(t, { x: r2, y: r2, z: r2 }, (c) => {
+      c.parent()?.wakeUp();
+      return true;
+    });
+    this.emit('burn', info);
   }
 
   /** Breakage setting: "simple" lets intact objects break once but not their pieces. */

@@ -41,6 +41,9 @@ export const DEFAULT_SPEC = {
   shiftDownRpm: 3000,
   shiftTime: 0.18,
   assists: true,           // traction control + counter-steer help
+  boostAccel: 7,           // m/s^2 of rocket thrust while boosting
+  boostDuration: 3,        // seconds from a full meter to empty
+  boostRecharge: 9,        // seconds to refill from empty when not boosting
   tractionLimit: 0.72,     // fraction of rear grip TC allows for drive
 };
 
@@ -86,6 +89,8 @@ export class CarPhysics {
     this.throttle = 0;
     this.braking = 0;
     this.handbrake = false;
+    this.boost = 1;         // boost meter, 0..1
+    this.boosting = false;
     // Per-frame telemetry used by visuals/audio.
     this.vLong = 0;
     this.vLat = 0;
@@ -140,6 +145,11 @@ export class CarPhysics {
     this.throttle = drive;
     this.braking = brakePedal;
     this.handbrake = !!input.handbrake;
+
+    // --- Boost: rocket thrust on top of the drivetrain (ignores traction).
+    this.boosting = !!input.boost && this.boost > 0.02;
+    if (this.boosting) this.boost = Math.max(0, this.boost - dt / s.boostDuration);
+    else if (!input.boost) this.boost = Math.min(1, this.boost + dt / s.boostRecharge);
 
     // --- Steering ------------------------------------------------------
     // Less lock at speed keeps the front tires near their peak slip angle.
@@ -245,6 +255,7 @@ export class CarPhysics {
     let Fy = FxF * ss + FyF * cs + FyR + drag * vy;
     const torque = a * (FxF * ss + FyF * cs) - b * FyR;
 
+    if (this.boosting) Fx += s.mass * s.boostAccel;
     const ax = Fx / s.mass;
     const ay = Fy / s.mass;
 

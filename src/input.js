@@ -7,12 +7,13 @@ const KEYS = {
   up: ['KeyW', 'ArrowUp'],
   down: ['KeyS', 'ArrowDown'],
   handbrake: ['Space'],
+  boost: ['ShiftLeft', 'ShiftRight'],
 };
 
 export class Input {
   constructor() {
     this.down = new Set();
-    this.touch = { left: false, right: false, up: false, down: false, handbrake: false };
+    this.touch = { left: false, right: false, up: false, down: false, handbrake: false, boost: false };
     this.pressedHandlers = new Map();
     this.kbSteer = 0;
     this.kbThrottle = 0;
@@ -61,6 +62,7 @@ export class Input {
       throttle: this.kbThrottle,
       brake: this.kbBrake,
       handbrake: this.held('handbrake'),
+      boost: this.held('boost'),
     };
 
     const pad = navigator.getGamepads?.().find((p) => p && p.connected);
@@ -73,6 +75,7 @@ export class Input {
       if (rt > 0.02) out.throttle = rt;
       if (lt > 0.02) out.brake = lt;
       if (pad.buttons[0]?.pressed || pad.buttons[5]?.pressed) out.handbrake = true;
+      if (pad.buttons[4]?.pressed) out.boost = true;
       this.padButtons(pad);
     }
     return out;

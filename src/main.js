@@ -10,6 +10,7 @@ import { Input } from './input.js';
 import { CarAudio } from './audio.js';
 import { loadSettings, saveSettings, changeSetting } from './settings.js';
 import { Menu } from './menu.js';
+import { BurnEffect } from './burn.js';
 
 const PHYSICS_DT = 1 / 120;
 // At most this many car steps per frame (2 debris-world steps). A slow
@@ -75,6 +76,8 @@ const destruction = new Destruction(scene, 300);
 const skids = new SkidMarks(scene);
 const smoke = new Smoke(scene);
 const dust = new Smoke(scene, 160, 0xb9ad98);
+const soot = new Smoke(scene, 120, 0x2e2a28);
+const burnFx = new BurnEffect(scene);
 const chase = new ChaseCamera(camera);
 const input = new Input();
 const audio = new CarAudio();
@@ -90,6 +93,15 @@ destruction.on('fracture', (pos, kind) => {
   const n = Math.min(6, base);
   for (let i = 0; i < n; i++) dust.emit(pos, { x: 0, z: 0 }, 0.6 + Math.random() * 0.4, pos.y);
   audio.impact(kind.material, 1);
+  car.boost = Math.min(1, car.boost + 0.015); // smashing refills boost
+});
+destruction.on('burn', (info) => {
+  smashed++;
+  burnFx.ignite(info);
+  const puffs = settings.effects === 'high' ? 3 : 1;
+  for (let i = 0; i < puffs; i++) soot.emit(info.pos, { x: 0, z: 0 }, 0.8, info.pos.y + 0.5);
+  audio.burn(Math.min(1, 0.4 + info.kind.mass / 300));
+  car.boost = Math.min(1, car.boost + 0.012);
 });
 destruction.on('impact', (material, strength) => audio.impact(material, strength));
 
@@ -119,6 +131,7 @@ function applySettings({ rebuildRenderer = false } = {}) {
   });
   car.spec.assists = settings.assists;
   audio.setMuted(!settings.sound);
+  burnFx.setDetail(settings.effects === 'high' ? 150 : 60, settings.effects === 'high');
   $('fps').hidden = !settings.showFps;
   refreshBadges();
 }
@@ -150,6 +163,7 @@ function resetCar() {
 }
 
 function resetAll() {
+  burnFx.clear();
   buildArena();
   smashed = 0;
   resetCar();
@@ -200,7 +214,7 @@ function switchTo(target) {
 const hud = {
   speed: $('speed'), gear: $('gear'), rpmFill: $('rpm-fill'), drift: $('drift'),
   toast: $('toast'), telemetry: $('telemetry'), assists: $('assists'), cam: $('cam'), smashed: $('smashed'),
-  vehicle: $('vehicle'), prompt: $('prompt'), fps: $('fps'),
+  vehicle: $('vehicle'), prompt: $('prompt'), fps: $('fps'), boostFill: $('boost-fill'),
 };
 let toastTimer = 0;
 function toast(msg) {
@@ -450,7 +464,12 @@ function updateScene(dt) {
   });
   smoke.update(dt);
   dust.update(dt);
+  soot.update(dt);
+  burnFx.update(dt);
   audio.update(car, squeal);
+  if (car.boosting) shake = Math.max(shake, 0.18);
+  hud.boostFill.style.width = `${car.boost * 100}%`;
+  hud.boostFill.classList.toggle('on', car.boosting);
 
   chase.update(car, dt);
   if (shake > 0.001) {

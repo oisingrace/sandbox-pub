@@ -23,6 +23,7 @@ const sports = {
   ],
   home: { x: 0, z: -52, heading: 0 },
   cam: { scale: 1, hoodY: 1.42, hoodZ: 0.9 },
+  exhaust: [[0.45, 0.4, -2.24], [-0.45, 0.4, -2.24]],
   build({ THREE, box, tapered, add, front, rear, lights }) {
     const len = 4.3;
     const cz = (front + rear) / 2 + 0.05;
@@ -60,7 +61,7 @@ const hatch = {
     mass: 1050, inertiaScale: 1.25, cgToFront: 1.1, cgToRear: 1.35, cgHeight: 0.5,
     trackWidth: 1.5, wheelRadius: 0.3, tireGrip: 1.05, maxSteer: 0.62,
     brakeForce: 11500, dragCoef: 0.55, engineBrake: 250,
-    torqueScale: 0.5, gearRatios: [3.5, 2.1, 1.45, 1.1, 0.9], finalDrive: 3.9, engineTone: 1.25,
+    boostAccel: 6, torqueScale: 0.5, gearRatios: [3.5, 2.1, 1.45, 1.1, 0.9], finalDrive: 3.9, engineTone: 1.25,
   },
   hitbox: [
     { half: [0.86, 0.28, 1.92], at: [0, 0.6, -0.125] },
@@ -68,6 +69,7 @@ const hatch = {
   ],
   home: { x: -7, z: -52, heading: 0 },
   cam: { scale: 0.95, hoodY: 1.42, hoodZ: 0.5 },
+  exhaust: [[0.5, 0.36, -2.13]],
   wheelWidth: 0.22,
   build({ box, tapered, lights }) {
     const len = 3.85;
@@ -98,7 +100,7 @@ const pickup = {
     mass: 2100, inertiaScale: 2.3, cgToFront: 1.6, cgToRear: 1.75, cgHeight: 0.7,
     trackWidth: 1.76, wheelRadius: 0.42, tireGrip: 0.98, maxSteer: 0.56, steerSpeed: 2.0,
     brakeForce: 23000, dragCoef: 1.1, rollingResistance: 20, engineBrake: 600,
-    torqueScale: 1.3, gearRatios: [3.5, 2.2, 1.5, 1.15, 0.9], finalDrive: 3.9, engineTone: 0.7,
+    boostAccel: 6, torqueScale: 1.3, gearRatios: [3.5, 2.2, 1.5, 1.15, 0.9], finalDrive: 3.9, engineTone: 0.7,
   },
   hitbox: [
     { half: [0.98, 0.35, 2.75], at: [0, 0.95, -0.075] },
@@ -106,6 +108,7 @@ const pickup = {
   ],
   home: { x: 7, z: -52, heading: 0 },
   cam: { scale: 1.25, hoodY: 2.05, hoodZ: 0.9 },
+  exhaust: [[0.6, 0.62, -2.95], [-0.6, 0.62, -2.95]],
   wheelWidth: 0.32,
   build({ box, tapered, lights }) {
     const cz = -0.075;
@@ -149,11 +152,12 @@ const bus = {
     steerSpeed: 1.5, steerReturn: 2.5, steerSpeedScale: 500,
     brakeForce: 70000, dragCoef: 4, rollingResistance: 90, engineBrake: 2200,
     torqueScale: 1.8, gearRatios: [3.0, 2.0, 1.45, 1.15, 1.0], finalDrive: 7,
-    shiftUpRpm: 6000, engineTone: 0.45,
+    shiftUpRpm: 6000, engineTone: 0.45, boostAccel: 2.8,
   },
   hitbox: [{ half: [1.27, 1.2, 5.3], at: [0, 1.85, -0.3] }],
   home: { x: 22, z: -50, heading: Math.PI / 2 },
   cam: { scale: 1.9, hoodY: 2.7, hoodZ: 4.6 },
+  exhaust: [[0.8, 0.7, -5.72], [-0.8, 0.7, -5.72]],
   wheelWidth: 0.36,
   build({ box, lights }) {
     const cz = -0.3;
@@ -174,5 +178,52 @@ const bus = {
   },
 };
 
+// The burner: anything it touches ignites and burns away as glowing voxels
+// instead of being knocked over (see `burns` in destruction.js).
+const ember = {
+  id: 'ember',
+  name: 'Ember GT',
+  blurb: 'Does not crash into things. Burns straight through them.',
+  stats: { top: 255, accel: 5.4 },
+  burns: true,
+  color: 0x1d1f24,
+  length: 4.5,
+  width: 1.9,
+  spec: {
+    mass: 1400, inertiaScale: 1.4, cgToFront: 1.3, cgToRear: 1.4, cgHeight: 0.42,
+    trackWidth: 1.72, wheelRadius: 0.35, tireGrip: 1.12, torqueScale: 1.12, boostAccel: 8,
+    engineTone: 0.85,
+  },
+  hitbox: [
+    { half: [0.95, 0.3, 2.25], at: [0, 0.52, -0.05] },
+    { half: [0.7, 0.22, 1.1], at: [0, 0.98, -0.25] },
+  ],
+  home: { x: -14, z: -52, heading: 0 },
+  cam: { scale: 1, hoodY: 1.3, hoodZ: 0.9 },
+  exhaust: [[0.32, 0.42, -2.36], [-0.32, 0.42, -2.36]],
+  wheelWidth: 0.3,
+  build({ box, tapered, lights }) {
+    const len = 4.5;
+    const cz = -0.05;
+    const front = cz + len / 2;
+    const rear = cz - len / 2;
+    // Low wedge body that rises toward the rear.
+    box(1.9, 0.3, len, 'paint', 0, 0.48, cz);
+    tapered(1.9, 0.2, len - 0.15, 1.6, len - 0.9, -0.3, 'paint', 0, 0.73, cz);
+    tapered(1.5, 0.42, 2.0, 1.1, 1.2, -0.25, 'glass', 0, 1.0, cz - 0.15);
+    box(1.94, 0.12, 0.6, 'paint', 0, 0.86, rear + 0.3); // rear deck
+    // Glowing accents: side blades, front splitter edge, rear light bar.
+    for (const sx of [-1, 1]) {
+      box(0.03, 0.05, len - 0.9, 'glow', sx * 0.96, 0.5, cz - 0.1);
+      box(0.06, 0.22, 0.5, 'glow', sx * 0.94, 0.62, cz - 0.6); // side intake
+    }
+    box(1.7, 0.03, 0.04, 'glow', 0, 0.36, front + 0.02);
+    box(1.6, 0.06, 0.03, 'glow', 0, 0.78, rear - 0.01);
+    box(1.92, 0.08, 0.2, 'dark', 0, 0.3, front - 0.05);
+    box(1.92, 0.16, 0.18, 'dark', 0, 0.36, rear + 0.05);
+    lights({ frontZ: front, rearZ: rear, y: 0.58, headX: 0.68, tailX: 0.62, headW: 0.36, tailW: 0.4, h: 0.06 });
+  },
+};
+
 // Fill in every handling value so models and parked bodies can read them too.
-export const VEHICLES = [sports, hatch, pickup, bus].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec } }));
+export const VEHICLES = [sports, hatch, pickup, bus, ember].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec } }));

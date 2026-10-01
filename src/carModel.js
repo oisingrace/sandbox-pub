@@ -102,7 +102,9 @@ export class CarModel {
       dark: new THREE.MeshStandardMaterial({ color: 0x1b1b1f, roughness: 0.7 }),
       glass: new THREE.MeshStandardMaterial({ color: 0x0e1622, metalness: 0.9, roughness: 0.1 }),
       chrome: new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 1, roughness: 0.25 }),
+      glow: new THREE.MeshStandardMaterial({ color: 0x2a0d00, emissive: 0xff6a10, emissiveIntensity: 2.2 }),
     };
+    this.glowMat = mats.glow;
     this.headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4d6, emissiveIntensity: 1.2 });
     this.tailMat = new THREE.MeshStandardMaterial({ color: 0x550000, emissive: 0xff1a1a, emissiveIntensity: 0.4 });
     this.reverseMat = new THREE.MeshStandardMaterial({ color: 0x777777, emissive: 0xffffff, emissiveIntensity: 0 });
@@ -131,6 +133,28 @@ export class CarModel {
     };
     def.build(kit);
     mergeByMaterial(this.body);
+
+    // Boost flames: additive cones out of each exhaust, hidden until used.
+    this.flames = [];
+    const flameColor = def.burns ? new THREE.Color(3.2, 1.2, 0.25) : new THREE.Color(0.6, 1.4, 3.2);
+    const flameGeo = new THREE.ConeGeometry(0.11, 1, 10, 1, true);
+    flameGeo.translate(0, 0.5, 0); // base at the exhaust, tip 1 m up...
+    flameGeo.rotateX(-Math.PI / 2); // ...then laid back along -Z
+    for (const [x, y, z] of def.exhaust || []) {
+      for (const [scale, opacity] of [[1, 0.55], [0.55, 0.9]]) {
+        const mat = new THREE.MeshBasicMaterial({
+          color: scale < 1 ? new THREE.Color(3, 3, 3) : flameColor,
+          transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+        });
+        const flame = new THREE.Mesh(flameGeo, mat);
+        flame.position.set(x, y, z);
+        flame.visible = false;
+        flame.userData.base = scale;
+        this.body.add(flame);
+        this.flames.push(flame);
+      }
+    }
+    this.boostLevel = 0;
 
     // Wheels: front ones live under a steering pivot.
     this.wheels = [];
@@ -188,10 +212,27 @@ export class CarModel {
 
     this.tailMat.emissiveIntensity = car.braking > 0.05 || car.handbrake ? 3 : 0.5;
     this.reverseMat.emissiveIntensity = car.gear < 0 ? 2.5 : 0;
+
+    // Boost flames flicker and stretch while boosting.
+    const target = car.boosting ? 1 : 0;
+    this.boostLevel += (target - this.boostLevel) * (1 - Math.exp(-dt * (target ? 18 : 10)));
+    this.time = (this.time || 0) + dt;
+    for (const f of this.flames) {
+      f.visible = this.boostLevel > 0.03;
+      if (!f.visible) continue;
+      const flicker = 0.75 + Math.random() * 0.5;
+      const len = (0.6 + 1.4 * this.boostLevel) * flicker * f.userData.base;
+      const w = (0.7 + 0.5 * this.boostLevel) * f.userData.base;
+      f.scale.set(w, w, len);
+    }
+    // The Ember's accents breathe, and flare while boosting.
+    this.glowMat.emissiveIntensity = 1.8 + Math.sin(this.time * 5) * 0.5 + this.boostLevel * 2.5;
   }
 
   /** Sync visuals to a parked vehicle's rigid body. */
   updateParked(body, dt) {
+    for (const f of this.flames) f.visible = false;
+    this.boostLevel = 0;
     const t = body.translation();
     const q = body.rotation();
     this.root.position.set(t.x, t.y, t.z);
