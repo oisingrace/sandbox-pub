@@ -1,9 +1,24 @@
 # Smash Lot
 
 A third-person driving sandbox for the browser, built with three.js and the Rapier physics engine,
-with no build step. Drive a tuned rear-wheel-drive car around a compact walled arena where everything
-can be smashed: brick walls, concrete sheds, a block tower, crate pyramids, barrels, a domino run,
-light poles, trees, cones, and the barrier ring itself.
+with no build step. Pick from four vehicles and drive around a compact walled arena where everything
+can be smashed: a three-storey office building with glass windows, brick walls, concrete sheds, a
+block tower, crate pyramids, barrels, a domino run, light poles, trees, cones, and the barrier ring
+itself.
+
+## Vehicles
+
+| Vehicle | Mass | 0–100 km/h | Top speed | Character |
+| --- | --- | --- | --- | --- |
+| Sports coupe | 1250 kg | 5.1 s | 245 km/h | Quick, grippy, easy to drift |
+| Hatchback | 1050 kg | 7.2 s | 178 km/h | Light and nimble, tail-happy with assists off |
+| Pickup truck | 2100 kg | 6.4 s | 197 km/h | Torquey, leans more, heavier hits |
+| School bus | 9000 kg | 18 s | 133 km/h | Slow, and plows through almost anything |
+
+The vehicles you aren't driving are parked around the start as physics objects that can be pushed, spun
+and flipped. Drive up to one and press **E** to take it over; the vehicle you leave stays parked where
+you stopped. Vehicles are defined in `src/vehicles.js`, each with handling overrides, a collision
+hitbox, a parking spot, camera settings, and a body builder.
 
 ## Run
 
@@ -30,6 +45,7 @@ python3 -m http.server 8000
 | Toggle assists | T | B |
 | Cycle camera (chase / far / hood) | C | X |
 | Reset car | R | Y |
+| Drive a nearby vehicle | E | |
 | Rebuild arena | B | |
 | Telemetry overlay | F | |
 | Mute / help | M / H | |
@@ -70,12 +86,16 @@ All of it is in `src/destruction.js`.
   - There's a debris budget, and the oldest pieces that are already asleep get evicted first.
   - Debris speed is capped, and pieces that leave the arena are recycled.
   - Each piece is put to sleep once it has been still for 0.7 s.
+- The office building is stacked from wall panels, window pillars, glass panes and floor slabs.
+  The pillars sit under the centre of each slab so the building stands until you hit it, and glass
+  shards fade out after a few seconds.
 - The debris world steps at 60 Hz; the car's handling still runs at 120 Hz.
 
 ## Files
 
 - `src/physics.js`: vehicle dynamics
-- `src/carModel.js`: procedural car mesh, suspension roll/pitch, wheel spin and steer
+- `src/vehicles.js`: the four vehicles (handling, hitbox, body builder)
+- `src/carModel.js`: renders any vehicle, with suspension roll/pitch, wheel spin and steer
 - `src/camera.js`: chase / far / hood cameras
 - `src/world.js`: ground, backdrop, and the arena layout
 - `src/destruction.js`: rigid-body world, fracturing, and instanced rendering

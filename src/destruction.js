@@ -89,6 +89,7 @@ function treeGeo() {
 const BRICK_COLORS = [0xa34a32, 0xb2553a, 0x93412c, 0xa85b42, 0x8e3e2b];
 const CONCRETE = [0xb8b5ad, 0xaeaba3, 0xc2bfb7];
 const WOOD = [0xb58a52, 0xa77d48, 0xc0965c];
+const FACADE = [0xd9cbb3, 0xcfc0a6, 0xe0d3bd];
 
 export const KINDS = {
   brick: { size: [0.6, 0.3, 0.3], mass: 12, colors: BRICK_COLORS, material: 'brick', breakForce: 14000, fracture: { into: 'brickHalf', grid: [2, 1, 1] }, cap: 600 },
@@ -116,6 +117,16 @@ export const KINDS = {
   pole: { shape: 'cyl', size: [0.13, 7], mass: 150, colors: [0xffffff], material: 'metal', breakForce: 90000, fracture: { into: 'poleHalf', grid: [1, 2, 1] }, geo: poleGeo, cap: 40 },
   poleHalf: { shape: 'cyl', size: [0.13, 3.5], mass: 75, colors: [0x9a9da3], material: 'metal', cap: 80 },
 
+  // Office building pieces.
+  panel: { size: [2, 1.2, 0.4], mass: 500, colors: FACADE, material: 'concrete', breakForce: 250000, fracture: { into: 'panelChunk', grid: [2, 2, 1] }, cap: 60 },
+  panelChunk: { size: [1, 0.6, 0.4], mass: 125, colors: FACADE, material: 'concrete', cap: 240 },
+  pillar: { size: [0.5, 1.5, 0.4], mass: 180, colors: FACADE, material: 'concrete', breakForce: 90000, fracture: { into: 'pillarChunk', grid: [1, 2, 1] }, cap: 60 },
+  pillarChunk: { size: [0.5, 0.75, 0.4], mass: 90, colors: FACADE, material: 'concrete', cap: 120 },
+  floorSlab: { size: [2, 0.3, 6.8], mass: 900, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', breakForce: 400000, fracture: { into: 'floorChunk', grid: [2, 1, 2] }, cap: 20 },
+  floorChunk: { size: [1, 0.3, 3.4], mass: 225, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', cap: 80 },
+  glass: { size: [0.75, 1.44, 0.06], mass: 6, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, breakForce: 1500, fracture: { into: 'shard', grid: [2, 2, 1] }, cap: 100 },
+  shard: { size: [0.375, 0.72, 0.06], mass: 1.5, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, noCcd: true, lifetime: 6, cap: 420 },
+
   tree: { shape: 'tree', size: [0.22, 3], mass: 320, colors: [0xffffff], material: 'wood', geo: treeGeo, cap: 30 },
 };
 
@@ -128,14 +139,16 @@ class Pool {
     if (kind.geo) geo = kind.geo();
     else if (kind.shape === 'cyl') geo = new THREE.CylinderGeometry(kind.size[0], kind.size[0], kind.size[1], 16);
     else geo = new THREE.BoxGeometry(...kind.size);
-    const mat = new THREE.MeshStandardMaterial({
-      roughness: kind.material === 'metal' ? 0.45 : 0.85,
-      metalness: kind.material === 'metal' ? 0.35 : 0,
-      vertexColors: !!geo.attributes.color,
-    });
+    const mat = kind.glass
+      ? new THREE.MeshStandardMaterial({ roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.45, depthWrite: false })
+      : new THREE.MeshStandardMaterial({
+        roughness: kind.material === 'metal' ? 0.45 : 0.85,
+        metalness: kind.material === 'metal' ? 0.35 : 0,
+        vertexColors: !!geo.attributes.color,
+      });
     this.mesh = new THREE.InstancedMesh(geo, mat, kind.cap);
     this.mesh.count = 0;
-    this.mesh.castShadow = true;
+    this.mesh.castShadow = !kind.glass;
     this.mesh.receiveShadow = true;
     this.mesh.frustumCulled = false;
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -225,21 +238,68 @@ export class Destruction {
     this.carBody = null;
   }
 
-  /** Kinematic stand-in for the player's car (it pushes; we read reactions). */
-  createCar(spec) {
-    const desc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, 0, 0);
-    this.carBody = this.world.createRigidBody(desc);
-    const midZ = (spec.cgToFront - spec.cgToRear) / 2 + 0.05;
-    this.carColliders = [
-      this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.92, 0.33, 2.2).setTranslation(0, 0.58, midZ).setFriction(0.4), this.carBody),
-      this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.7, 0.26, 1.0).setTranslation(0, 1.15, midZ - 0.3).setFriction(0.4), this.carBody),
-    ];
-    this.carMass = spec.mass;
-    this.carInertia = spec.mass * spec.inertiaScale;
+  /** Kinematic stand-in for the vehicle being driven (it pushes; we read reactions). */
+  createCar(def) {
+    if (this.carBody) this.world.removeRigidBody(this.carBody);
+    this.lastCarPose = null;
+    this.carBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
+    this.carColliders = def.hitbox.map((h) => this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4),
+      this.carBody,
+    ));
+  }
+
+  /**
+   * A parked vehicle: a dynamic body that rests on four wheel spheres, so
+   * it can be shoved, spun and flipped like everything else.
+   */
+  spawnVehicle(def, pose, vel = null) {
+    const { spec } = def;
+    const h = pose.heading;
+    const desc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(pose.x, pose.y ?? 0, pose.z)
+      .setRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) })
+      .setLinearDamping(0.15)
+      .setAngularDamping(0.4)
+      .setSleeping(!vel);
+    if (vel) {
+      desc.setLinvel(vel.x, 0, vel.z);
+      desc.setAngvel({ x: 0, y: vel.yaw, z: 0 });
+    }
+    const body = this.world.createRigidBody(desc);
+    const volume = (b) => b.half[0] * b.half[1] * b.half[2];
+    const totalVol = def.hitbox.reduce((sum, b) => sum + volume(b), 0);
+    const events = RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS;
+    const colliders = def.hitbox.map((b) => this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(...b.half).setTranslation(...b.at)
+        .setMass(spec.mass * 0.96 * volume(b) / totalVol)
+        .setFriction(0.5).setRestitution(0.1)
+        .setActiveEvents(events).setContactForceEventThreshold(spec.mass * 2.5 / STEP),
+      body,
+    ));
+    const r = spec.wheelRadius;
+    const ht = spec.trackWidth / 2;
+    for (const [x, z] of [[ht, spec.cgToFront], [-ht, spec.cgToFront], [ht, -spec.cgToRear], [-ht, -spec.cgToRear]]) {
+      colliders.push(this.world.createCollider(
+        RAPIER.ColliderDesc.ball(r).setTranslation(x, r, z).setMass(spec.mass * 0.01).setFriction(0.9),
+        body,
+      ));
+    }
+    const entity = { kind: { name: 'vehicle', mass: spec.mass, material: 'metal' }, body, colliders, alive: true, vehicle: def };
+    for (const c of colliders) this.byCollider.set(c.handle, entity);
+    return entity;
+  }
+
+  removeVehicle(entity) {
+    if (!entity.alive) return;
+    entity.alive = false;
+    for (const c of entity.colliders) this.byCollider.delete(c.handle);
+    this.world.removeRigidBody(entity.body);
   }
 
   teleportCar(car) {
     const h = car.heading;
+    this.lastCarPose = { x: car.x, z: car.z, h };
     this.carBody.setTranslation({ x: car.x, y: 0, z: car.z }, true);
     this.carBody.setRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) }, true);
   }
@@ -264,7 +324,7 @@ export class Destruction {
       .setSleeping(!!opts.sleep);
     if (opts.vel) desc.setLinvel(opts.vel.x, opts.vel.y, opts.vel.z);
     if (opts.angvel) desc.setAngvel(opts.angvel);
-    if (kind.mass < 15) desc.setCcdEnabled(true);
+    if (kind.mass < 15 && !kind.noCcd) desc.setCcdEnabled(true);
     const body = this.world.createRigidBody(desc);
 
     const colliders = [];
@@ -361,9 +421,15 @@ export class Destruction {
     this.time += STEP;
     this.car = car;
     this.breakDrag = 0;
+    // Only move the kinematic body when the car actually moved: Rapier
+    // treats every kinematic update as motion and wakes whatever touches it.
     const h = car.heading;
-    this.carBody.setNextKinematicTranslation({ x: car.x, y: 0, z: car.z });
-    this.carBody.setNextKinematicRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) });
+    const last = this.lastCarPose;
+    if (!last || Math.abs(car.x - last.x) > 1e-4 || Math.abs(car.z - last.z) > 1e-4 || Math.abs(h - last.h) > 1e-5) {
+      this.carBody.setNextKinematicTranslation({ x: car.x, y: 0, z: car.z });
+      this.carBody.setNextKinematicRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) });
+      this.lastCarPose = { x: car.x, z: car.z, h };
+    }
 
     this.world.step(this.eventQueue);
 
@@ -461,8 +527,8 @@ export class Destruction {
         _m.compose(_p, _q, _s);
         pool.mesh.setMatrixAt(e.slot, _m);
         changed = true;
-        // Debris that leaves the arena is recycled.
-        if (t.y < -20 || Math.abs(t.x) > this.recycleRange || Math.abs(t.z) > this.recycleRange) {
+        // Debris that leaves the arena (or outlives its kind's lifetime) is recycled.
+        if ((e.kind.lifetime && this.time - e.born > e.kind.lifetime) || t.y < -20 || Math.abs(t.x) > this.recycleRange || Math.abs(t.z) > this.recycleRange) {
           this.despawn(e);
           continue;
         }

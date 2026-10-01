@@ -25,7 +25,7 @@
     #help .row { color: var(--hud-dim); }
     #help .row b { color: var(--hud-fg); font-weight: 500; }
 
-    #badges { position: fixed; top: 16px; right: 16px; display: flex; gap: 8px; }
+    #badges { position: fixed; top: 16px; right: 16px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: calc(100vw - 32px); }
     .badge { background: var(--hud-bg); padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
     .badge.off { color: var(--accent); }
 
@@ -48,6 +48,10 @@
 
     #toast { position: fixed; bottom: 18%; left: 50%; transform: translateX(-50%); padding: 8px 14px; border-radius: 8px; background: var(--hud-bg); font-size: 14px; opacity: 0; transition: opacity 0.25s; pointer-events: none; white-space: nowrap; }
     #toast.show { opacity: 1; }
+    #prompt { position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%) translateY(6px); padding: 9px 16px; border-radius: 999px; background: var(--hud-bg); font-size: 15px; font-weight: 600; opacity: 0; transition: opacity 0.2s, transform 0.2s; pointer-events: none; white-space: nowrap; }
+    #prompt.show { opacity: 1; transform: translateX(-50%); }
+    #prompt kbd { display: inline-block; min-width: 22px; padding: 0 6px; margin-right: 6px; border-radius: 4px; background: #ffd23f; color: #1d2733; font: 700 12px/20px ui-monospace, monospace; text-align: center; }
+    .badge.vehicle { color: #ffd23f; }
 
     #telemetry { left: 16px; bottom: 16px; padding: 10px 12px; margin: 0; font: 12px/1.5 ui-monospace, Menlo, monospace; white-space: pre; }
 
@@ -69,6 +73,7 @@
     #touch-cam { left: 16px; top: 16px; }
     #touch-reset { left: 76px; top: 16px; }
     #touch-rebuild { left: 136px; top: 16px; }
+    #touch-enter { left: 196px; top: 16px; }
   </style>
   <script type="importmap">
     { "imports": {
@@ -86,12 +91,14 @@
     <div class="row"><kbd>W</kbd><kbd>S</kbd> <b>throttle / brake</b> (hold S to reverse)</div>
     <div class="row"><kbd>A</kbd><kbd>D</kbd> <b>steer</b> &nbsp;<kbd>Space</kbd> <b>handbrake</b></div>
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
+    <div class="row"><kbd>E</kbd> <b>drive a nearby vehicle</b> (4 to try)</div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
   </div>
 
   <div id="badges">
+    <span id="vehicle" class="badge vehicle"></span>
     <span id="assists" class="badge"></span>
     <span id="cam" class="badge"></span>
   </div>
@@ -107,6 +114,7 @@
 
   <div id="drift"></div>
   <div id="toast"></div>
+  <div id="prompt"></div>
   <pre id="telemetry" class="panel hidden"></pre>
 
   <div id="touch">
@@ -118,6 +126,7 @@
     <div class="tbtn small" id="touch-cam">CAM</div>
     <div class="tbtn small" id="touch-reset">RST</div>
     <div class="tbtn small" id="touch-rebuild">NEW</div>
+    <div class="tbtn small" id="touch-enter">IN</div>
   </div>
 
   <script type="module" src="./src/main.js"></script>

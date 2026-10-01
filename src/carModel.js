@@ -1,12 +1,11 @@
 import * as THREE from 'three';
 
-// Procedural low-poly sports car. The root sits on the ground under the
-// CG and faces +Z; the body is a child so it can pitch and roll on its
-// "suspension" while the wheels stay planted.
+// Renders any vehicle from `vehicles.js`. The root sits on the ground under
+// the CG and faces +Z; the body is a child so it can pitch and roll on its
+// "suspension" while the wheels stay planted. Each vehicle supplies a
+// `build(kit)` function that adds its bodywork through the kit helpers.
 
-const PAINT = 0xd7263d;
-
-function taperedBox(w, h, d, topW, topD, topOffsetZ = 0) {
+export function taperedBox(w, h, d, topW, topD, topOffsetZ = 0) {
   const geo = new THREE.BoxGeometry(w, h, d);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
@@ -51,7 +50,9 @@ function makeWheel(radius, width) {
 }
 
 export class CarModel {
-  constructor(spec) {
+  constructor(def) {
+    const spec = def.spec;
+    this.def = def;
     this.spec = spec;
     this.root = new THREE.Group();
     this.body = new THREE.Group();
@@ -62,66 +63,49 @@ export class CarModel {
     const front = spec.cgToFront;
     const rear = -spec.cgToRear;
 
-    const paint = new THREE.MeshStandardMaterial({ color: PAINT, metalness: 0.45, roughness: 0.35 });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x1b1b1f, roughness: 0.7 });
-    const glass = new THREE.MeshStandardMaterial({ color: 0x0e1622, metalness: 0.9, roughness: 0.1 });
-    const chrome = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 1, roughness: 0.25 });
-
-    const add = (geo, mat, x, y, z, parent = this.body) => {
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set(x, y, z);
-      m.castShadow = true;
-      m.receiveShadow = true;
-      parent.add(m);
-      return m;
+    const mats = {
+      paint: new THREE.MeshStandardMaterial({ color: def.color, metalness: 0.45, roughness: 0.35 }),
+      trim: new THREE.MeshStandardMaterial({ color: def.trim ?? 0xf2f2f2, metalness: 0.2, roughness: 0.5 }),
+      dark: new THREE.MeshStandardMaterial({ color: 0x1b1b1f, roughness: 0.7 }),
+      glass: new THREE.MeshStandardMaterial({ color: 0x0e1622, metalness: 0.9, roughness: 0.1 }),
+      chrome: new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 1, roughness: 0.25 }),
     };
-
-    // Main hull: lower skirt + shoulder line.
-    const bodyLen = 4.3;
-    const bodyCenterZ = (front + rear) / 2 + 0.05;
-    add(new THREE.BoxGeometry(1.8, 0.38, bodyLen), paint, 0, 0.55, bodyCenterZ);
-    add(taperedBox(1.8, 0.16, bodyLen - 0.1, 1.68, bodyLen - 0.5, -0.05), paint, 0, 0.82, bodyCenterZ);
-    // Hood bulge.
-    add(taperedBox(1.0, 0.06, 1.3, 0.8, 1.1), paint, 0, 0.92, front + 0.25);
-    // Cabin + glasshouse.
-    add(taperedBox(1.62, 0.5, 2.0, 1.26, 1.05, -0.12), glass, 0, 1.13, bodyCenterZ - 0.25);
-    add(taperedBox(1.3, 0.04, 1.08, 1.24, 1.0), paint, 0, 1.38, bodyCenterZ - 0.37);
-    // Bumpers / splitter / diffuser.
-    add(new THREE.BoxGeometry(1.84, 0.16, 0.18), dark, 0, 0.42, bodyCenterZ + bodyLen / 2);
-    add(new THREE.BoxGeometry(1.84, 0.18, 0.18), dark, 0, 0.43, bodyCenterZ - bodyLen / 2);
-    add(new THREE.BoxGeometry(1.5, 0.03, bodyLen - 0.4), dark, 0, 0.35, bodyCenterZ);
-    // Grille.
-    add(new THREE.BoxGeometry(0.9, 0.16, 0.02), dark, 0, 0.56, bodyCenterZ + bodyLen / 2 + 0.005);
-    // Rear wing.
-    const wingZ = bodyCenterZ - bodyLen / 2 + 0.22;
-    add(new THREE.BoxGeometry(1.7, 0.04, 0.32), dark, 0, 1.14, wingZ);
-    for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.05, 0.24, 0.12), dark, s * 0.6, 1.02, wingZ);
-    // Mirrors.
-    for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.18, 0.1, 0.12), paint, s * 0.93, 1.0, bodyCenterZ + 0.55);
-    // Exhaust tips.
-    for (const s of [-1, 1]) {
-      const tip = add(new THREE.CylinderGeometry(0.05, 0.05, 0.16, 12), chrome, s * 0.45, 0.4, bodyCenterZ - bodyLen / 2 - 0.08);
-      tip.rotation.x = Math.PI / 2;
-    }
-
-    // Lights.
     this.headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4d6, emissiveIntensity: 1.2 });
     this.tailMat = new THREE.MeshStandardMaterial({ color: 0x550000, emissive: 0xff1a1a, emissiveIntensity: 0.4 });
     this.reverseMat = new THREE.MeshStandardMaterial({ color: 0x777777, emissive: 0xffffff, emissiveIntensity: 0 });
-    for (const s of [-1, 1]) {
-      add(new THREE.BoxGeometry(0.42, 0.1, 0.04), this.headMat, s * 0.62, 0.68, bodyCenterZ + bodyLen / 2 + 0.005);
-      add(new THREE.BoxGeometry(0.5, 0.1, 0.04), this.tailMat, s * 0.6, 0.68, bodyCenterZ - bodyLen / 2 - 0.005);
-      add(new THREE.BoxGeometry(0.12, 0.08, 0.04), this.reverseMat, s * 0.22, 0.68, bodyCenterZ - bodyLen / 2 - 0.005);
-    }
+
+    const add = (geo, mat, x, y, z) => {
+      const m = new THREE.Mesh(geo, typeof mat === 'string' ? mats[mat] : mat);
+      m.position.set(x, y, z);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      this.body.add(m);
+      return m;
+    };
+    const kit = {
+      THREE, spec, mats, front, rear, r,
+      add,
+      box: (w, h, d, mat, x, y, z) => add(new THREE.BoxGeometry(w, h, d), mat, x, y, z),
+      tapered: (w, h, d, topW, topD, off, mat, x, y, z) => add(taperedBox(w, h, d, topW, topD, off), mat, x, y, z),
+      /** Head, tail and reverse lights at the given body ends. */
+      lights: ({ frontZ, rearZ, y, headX, tailX, headW = 0.42, tailW = 0.5, h = 0.1, rearY = y }) => {
+        for (const s of [-1, 1]) {
+          add(new THREE.BoxGeometry(headW, h, 0.04), this.headMat, s * headX, y, frontZ + 0.005);
+          add(new THREE.BoxGeometry(tailW, h, 0.04), this.tailMat, s * tailX, rearY, rearZ - 0.005);
+          add(new THREE.BoxGeometry(0.12, h * 0.8, 0.04), this.reverseMat, s * (tailX - tailW / 2 - 0.12), rearY, rearZ - 0.005);
+        }
+      },
+    };
+    def.build(kit);
 
     // Wheels: front ones live under a steering pivot.
     this.wheels = [];
-    const wheelW = 0.26;
+    const wheelW = def.wheelWidth ?? 0.26;
     const placements = [
-      { x: halfTrack, z: front, front: true, left: true },
-      { x: -halfTrack, z: front, front: true, left: false },
-      { x: halfTrack, z: rear, front: false, left: true },
-      { x: -halfTrack, z: rear, front: false, left: false },
+      { x: halfTrack, z: front, front: true },
+      { x: -halfTrack, z: front, front: true },
+      { x: halfTrack, z: rear, front: false },
+      { x: -halfTrack, z: rear, front: false },
     ];
     for (const p of placements) {
       const pivot = new THREE.Group();
@@ -133,13 +117,12 @@ export class CarModel {
     }
 
     // Soft blob shadow helps ground the car even outside the shadow map.
-    const blobTex = makeBlobTexture();
     const blob = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.6, 5.2),
-      new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false, opacity: 0.55 }),
+      new THREE.PlaneGeometry(def.width * 1.4, def.length * 1.2),
+      new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false, opacity: 0.55 }),
     );
     blob.rotation.x = -Math.PI / 2;
-    blob.position.set(0, 0.015, bodyCenterZ);
+    blob.position.set(0, 0.015, (front + rear) / 2);
     blob.renderOrder = 1;
     this.root.add(blob);
 
@@ -147,14 +130,15 @@ export class CarModel {
     this.pitch = 0;
   }
 
-  /** Sync visuals to the physics state. */
+  /** Sync visuals to the physics state of the car being driven. */
   update(car, dt) {
     this.root.position.set(car.x, 0, car.z);
-    this.root.rotation.y = car.heading;
+    this.root.quaternion.setFromAxisAngle(UP, car.heading);
 
     // Body roll/pitch from smoothed accelerations (a cheap suspension).
-    const targetRoll = THREE.MathUtils.clamp(car.accelLat * 0.012, -0.08, 0.08);
-    const targetPitch = THREE.MathUtils.clamp(-car.accelLong * 0.008, -0.06, 0.06);
+    const soft = this.def.suspension ?? 1;
+    const targetRoll = THREE.MathUtils.clamp(car.accelLat * 0.012 * soft, -0.08, 0.08);
+    const targetPitch = THREE.MathUtils.clamp(-car.accelLong * 0.008 * soft, -0.06, 0.06);
     const k = 1 - Math.exp(-dt * 8);
     this.roll += (targetRoll - this.roll) * k;
     this.pitch += (targetPitch - this.pitch) * k;
@@ -172,6 +156,28 @@ export class CarModel {
     this.reverseMat.emissiveIntensity = car.gear < 0 ? 2.5 : 0;
   }
 
+  /** Sync visuals to a parked vehicle's rigid body. */
+  updateParked(body, dt) {
+    const t = body.translation();
+    const q = body.rotation();
+    this.root.position.set(t.x, t.y, t.z);
+    this.root.quaternion.set(q.x, q.y, q.z, q.w);
+    this.body.rotation.set(0, 0, 0);
+    this.body.position.y = 0;
+    this.roll = this.pitch = 0;
+    // Let the wheels roll along with the body's motion.
+    const v = body.linvel();
+    const fwd = _fwd.set(0, 0, 1).applyQuaternion(this.root.quaternion);
+    const along = v.x * fwd.x + v.z * fwd.z;
+    for (const w of this.wheels) {
+      w.spin += (along / this.spec.wheelRadius) * dt;
+      w.mesh.rotation.x = w.spin;
+      w.pivot.rotation.y = 0;
+    }
+    this.tailMat.emissiveIntensity = 0.2;
+    this.reverseMat.emissiveIntensity = 0;
+  }
+
   /** World-space contact points of each wheel, for skid marks and smoke. */
   contactPoints(out = []) {
     this.root.updateMatrixWorld();
@@ -184,7 +190,12 @@ export class CarModel {
   }
 }
 
-function makeBlobTexture() {
+const UP = new THREE.Vector3(0, 1, 0);
+const _fwd = new THREE.Vector3();
+
+let _blob;
+function blobTexture() {
+  if (_blob) return _blob;
   const c = document.createElement('canvas');
   c.width = 64;
   c.height = 128;
@@ -195,5 +206,5 @@ function makeBlobTexture() {
   g.setTransform(1, 0, 0, 2, 0, -64);
   g.fillStyle = grad;
   g.fillRect(0, 0, 64, 128);
-  return new THREE.CanvasTexture(c);
+  return (_blob = new THREE.CanvasTexture(c));
 }

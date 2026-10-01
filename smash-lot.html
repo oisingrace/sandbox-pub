@@ -25,7 +25,7 @@
     #help .row { color: var(--hud-dim); }
     #help .row b { color: var(--hud-fg); font-weight: 500; }
 
-    #badges { position: fixed; top: 16px; right: 16px; display: flex; gap: 8px; }
+    #badges { position: fixed; top: 16px; right: 16px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: calc(100vw - 32px); }
     .badge { background: var(--hud-bg); padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
     .badge.off { color: var(--accent); }
 
@@ -48,6 +48,10 @@
 
     #toast { position: fixed; bottom: 18%; left: 50%; transform: translateX(-50%); padding: 8px 14px; border-radius: 8px; background: var(--hud-bg); font-size: 14px; opacity: 0; transition: opacity 0.25s; pointer-events: none; white-space: nowrap; }
     #toast.show { opacity: 1; }
+    #prompt { position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%) translateY(6px); padding: 9px 16px; border-radius: 999px; background: var(--hud-bg); font-size: 15px; font-weight: 600; opacity: 0; transition: opacity 0.2s, transform 0.2s; pointer-events: none; white-space: nowrap; }
+    #prompt.show { opacity: 1; transform: translateX(-50%); }
+    #prompt kbd { display: inline-block; min-width: 22px; padding: 0 6px; margin-right: 6px; border-radius: 4px; background: #ffd23f; color: #1d2733; font: 700 12px/20px ui-monospace, monospace; text-align: center; }
+    .badge.vehicle { color: #ffd23f; }
 
     #telemetry { left: 16px; bottom: 16px; padding: 10px 12px; margin: 0; font: 12px/1.5 ui-monospace, Menlo, monospace; white-space: pre; }
 
@@ -69,6 +73,7 @@
     #touch-cam { left: 16px; top: 16px; }
     #touch-reset { left: 76px; top: 16px; }
     #touch-rebuild { left: 136px; top: 16px; }
+    #touch-enter { left: 196px; top: 16px; }
   </style>
   <script type="importmap">
     { "imports": {
@@ -86,12 +91,14 @@
     <div class="row"><kbd>W</kbd><kbd>S</kbd> <b>throttle / brake</b> (hold S to reverse)</div>
     <div class="row"><kbd>A</kbd><kbd>D</kbd> <b>steer</b> &nbsp;<kbd>Space</kbd> <b>handbrake</b></div>
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
+    <div class="row"><kbd>E</kbd> <b>drive a nearby vehicle</b> (4 to try)</div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
   </div>
 
   <div id="badges">
+    <span id="vehicle" class="badge vehicle"></span>
     <span id="assists" class="badge"></span>
     <span id="cam" class="badge"></span>
   </div>
@@ -107,6 +114,7 @@
 
   <div id="drift"></div>
   <div id="toast"></div>
+  <div id="prompt"></div>
   <pre id="telemetry" class="panel hidden"></pre>
 
   <div id="touch">
@@ -118,6 +126,7 @@
     <div class="tbtn small" id="touch-cam">CAM</div>
     <div class="tbtn small" id="touch-reset">RST</div>
     <div class="tbtn small" id="touch-rebuild">NEW</div>
+    <div class="tbtn small" id="touch-enter">IN</div>
   </div>
 
   <script type="module">
@@ -160,6 +169,8 @@ const DEFAULT_SPEC = {
   reverseRatio: 3.2,
   finalDrive: 3.7,
   drivetrainEfficiency: 0.82,
+  torqueScale: 1,         // multiplies the shared torque curve
+  engineTone: 1,          // engine sound pitch multiplier
   idleRpm: 900,
   redline: 7200,
   shiftUpRpm: 6800,
@@ -317,7 +328,7 @@ class CarPhysics {
     const engineRpm = Math.max(rpm, drive > 0.05 ? 2400 + drive * 1500 : s.idleRpm);
     let driveForce = 0;
     if (this.shiftTimer === 0 && engineRpm < s.redline) {
-      const torque = engineTorque(engineRpm) * drive;
+      const torque = engineTorque(engineRpm) * s.torqueScale * drive;
       driveForce = (torque * ratio * s.finalDrive * s.drivetrainEfficiency) / s.wheelRadius;
       if (this.gear < 0) driveForce = -driveForce * 0.6;
     }
@@ -444,11 +455,10 @@ class CarPhysics {
 }
 
 // ===== carModel.js =====
-// Procedural low-poly sports car. The root sits on the ground under the
-// CG and faces +Z; the body is a child so it can pitch and roll on its
-// "suspension" while the wheels stay planted.
-
-const PAINT = 0xd7263d;
+// Renders any vehicle from `vehicles.js`. The root sits on the ground under
+// the CG and faces +Z; the body is a child so it can pitch and roll on its
+// "suspension" while the wheels stay planted. Each vehicle supplies a
+// `build(kit)` function that adds its bodywork through the kit helpers.
 
 function taperedBox(w, h, d, topW, topD, topOffsetZ = 0) {
   const geo = new THREE.BoxGeometry(w, h, d);
@@ -495,7 +505,9 @@ function makeWheel(radius, width) {
 }
 
 class CarModel {
-  constructor(spec) {
+  constructor(def) {
+    const spec = def.spec;
+    this.def = def;
     this.spec = spec;
     this.root = new THREE.Group();
     this.body = new THREE.Group();
@@ -506,66 +518,49 @@ class CarModel {
     const front = spec.cgToFront;
     const rear = -spec.cgToRear;
 
-    const paint = new THREE.MeshStandardMaterial({ color: PAINT, metalness: 0.45, roughness: 0.35 });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x1b1b1f, roughness: 0.7 });
-    const glass = new THREE.MeshStandardMaterial({ color: 0x0e1622, metalness: 0.9, roughness: 0.1 });
-    const chrome = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 1, roughness: 0.25 });
-
-    const add = (geo, mat, x, y, z, parent = this.body) => {
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set(x, y, z);
-      m.castShadow = true;
-      m.receiveShadow = true;
-      parent.add(m);
-      return m;
+    const mats = {
+      paint: new THREE.MeshStandardMaterial({ color: def.color, metalness: 0.45, roughness: 0.35 }),
+      trim: new THREE.MeshStandardMaterial({ color: def.trim ?? 0xf2f2f2, metalness: 0.2, roughness: 0.5 }),
+      dark: new THREE.MeshStandardMaterial({ color: 0x1b1b1f, roughness: 0.7 }),
+      glass: new THREE.MeshStandardMaterial({ color: 0x0e1622, metalness: 0.9, roughness: 0.1 }),
+      chrome: new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 1, roughness: 0.25 }),
     };
-
-    // Main hull: lower skirt + shoulder line.
-    const bodyLen = 4.3;
-    const bodyCenterZ = (front + rear) / 2 + 0.05;
-    add(new THREE.BoxGeometry(1.8, 0.38, bodyLen), paint, 0, 0.55, bodyCenterZ);
-    add(taperedBox(1.8, 0.16, bodyLen - 0.1, 1.68, bodyLen - 0.5, -0.05), paint, 0, 0.82, bodyCenterZ);
-    // Hood bulge.
-    add(taperedBox(1.0, 0.06, 1.3, 0.8, 1.1), paint, 0, 0.92, front + 0.25);
-    // Cabin + glasshouse.
-    add(taperedBox(1.62, 0.5, 2.0, 1.26, 1.05, -0.12), glass, 0, 1.13, bodyCenterZ - 0.25);
-    add(taperedBox(1.3, 0.04, 1.08, 1.24, 1.0), paint, 0, 1.38, bodyCenterZ - 0.37);
-    // Bumpers / splitter / diffuser.
-    add(new THREE.BoxGeometry(1.84, 0.16, 0.18), dark, 0, 0.42, bodyCenterZ + bodyLen / 2);
-    add(new THREE.BoxGeometry(1.84, 0.18, 0.18), dark, 0, 0.43, bodyCenterZ - bodyLen / 2);
-    add(new THREE.BoxGeometry(1.5, 0.03, bodyLen - 0.4), dark, 0, 0.35, bodyCenterZ);
-    // Grille.
-    add(new THREE.BoxGeometry(0.9, 0.16, 0.02), dark, 0, 0.56, bodyCenterZ + bodyLen / 2 + 0.005);
-    // Rear wing.
-    const wingZ = bodyCenterZ - bodyLen / 2 + 0.22;
-    add(new THREE.BoxGeometry(1.7, 0.04, 0.32), dark, 0, 1.14, wingZ);
-    for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.05, 0.24, 0.12), dark, s * 0.6, 1.02, wingZ);
-    // Mirrors.
-    for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.18, 0.1, 0.12), paint, s * 0.93, 1.0, bodyCenterZ + 0.55);
-    // Exhaust tips.
-    for (const s of [-1, 1]) {
-      const tip = add(new THREE.CylinderGeometry(0.05, 0.05, 0.16, 12), chrome, s * 0.45, 0.4, bodyCenterZ - bodyLen / 2 - 0.08);
-      tip.rotation.x = Math.PI / 2;
-    }
-
-    // Lights.
     this.headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4d6, emissiveIntensity: 1.2 });
     this.tailMat = new THREE.MeshStandardMaterial({ color: 0x550000, emissive: 0xff1a1a, emissiveIntensity: 0.4 });
     this.reverseMat = new THREE.MeshStandardMaterial({ color: 0x777777, emissive: 0xffffff, emissiveIntensity: 0 });
-    for (const s of [-1, 1]) {
-      add(new THREE.BoxGeometry(0.42, 0.1, 0.04), this.headMat, s * 0.62, 0.68, bodyCenterZ + bodyLen / 2 + 0.005);
-      add(new THREE.BoxGeometry(0.5, 0.1, 0.04), this.tailMat, s * 0.6, 0.68, bodyCenterZ - bodyLen / 2 - 0.005);
-      add(new THREE.BoxGeometry(0.12, 0.08, 0.04), this.reverseMat, s * 0.22, 0.68, bodyCenterZ - bodyLen / 2 - 0.005);
-    }
+
+    const add = (geo, mat, x, y, z) => {
+      const m = new THREE.Mesh(geo, typeof mat === 'string' ? mats[mat] : mat);
+      m.position.set(x, y, z);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      this.body.add(m);
+      return m;
+    };
+    const kit = {
+      THREE, spec, mats, front, rear, r,
+      add,
+      box: (w, h, d, mat, x, y, z) => add(new THREE.BoxGeometry(w, h, d), mat, x, y, z),
+      tapered: (w, h, d, topW, topD, off, mat, x, y, z) => add(taperedBox(w, h, d, topW, topD, off), mat, x, y, z),
+      /** Head, tail and reverse lights at the given body ends. */
+      lights: ({ frontZ, rearZ, y, headX, tailX, headW = 0.42, tailW = 0.5, h = 0.1, rearY = y }) => {
+        for (const s of [-1, 1]) {
+          add(new THREE.BoxGeometry(headW, h, 0.04), this.headMat, s * headX, y, frontZ + 0.005);
+          add(new THREE.BoxGeometry(tailW, h, 0.04), this.tailMat, s * tailX, rearY, rearZ - 0.005);
+          add(new THREE.BoxGeometry(0.12, h * 0.8, 0.04), this.reverseMat, s * (tailX - tailW / 2 - 0.12), rearY, rearZ - 0.005);
+        }
+      },
+    };
+    def.build(kit);
 
     // Wheels: front ones live under a steering pivot.
     this.wheels = [];
-    const wheelW = 0.26;
+    const wheelW = def.wheelWidth ?? 0.26;
     const placements = [
-      { x: halfTrack, z: front, front: true, left: true },
-      { x: -halfTrack, z: front, front: true, left: false },
-      { x: halfTrack, z: rear, front: false, left: true },
-      { x: -halfTrack, z: rear, front: false, left: false },
+      { x: halfTrack, z: front, front: true },
+      { x: -halfTrack, z: front, front: true },
+      { x: halfTrack, z: rear, front: false },
+      { x: -halfTrack, z: rear, front: false },
     ];
     for (const p of placements) {
       const pivot = new THREE.Group();
@@ -577,13 +572,12 @@ class CarModel {
     }
 
     // Soft blob shadow helps ground the car even outside the shadow map.
-    const blobTex = makeBlobTexture();
     const blob = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.6, 5.2),
-      new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false, opacity: 0.55 }),
+      new THREE.PlaneGeometry(def.width * 1.4, def.length * 1.2),
+      new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false, opacity: 0.55 }),
     );
     blob.rotation.x = -Math.PI / 2;
-    blob.position.set(0, 0.015, bodyCenterZ);
+    blob.position.set(0, 0.015, (front + rear) / 2);
     blob.renderOrder = 1;
     this.root.add(blob);
 
@@ -591,14 +585,15 @@ class CarModel {
     this.pitch = 0;
   }
 
-  /** Sync visuals to the physics state. */
+  /** Sync visuals to the physics state of the car being driven. */
   update(car, dt) {
     this.root.position.set(car.x, 0, car.z);
-    this.root.rotation.y = car.heading;
+    this.root.quaternion.setFromAxisAngle(UP, car.heading);
 
     // Body roll/pitch from smoothed accelerations (a cheap suspension).
-    const targetRoll = THREE.MathUtils.clamp(car.accelLat * 0.012, -0.08, 0.08);
-    const targetPitch = THREE.MathUtils.clamp(-car.accelLong * 0.008, -0.06, 0.06);
+    const soft = this.def.suspension ?? 1;
+    const targetRoll = THREE.MathUtils.clamp(car.accelLat * 0.012 * soft, -0.08, 0.08);
+    const targetPitch = THREE.MathUtils.clamp(-car.accelLong * 0.008 * soft, -0.06, 0.06);
     const k = 1 - Math.exp(-dt * 8);
     this.roll += (targetRoll - this.roll) * k;
     this.pitch += (targetPitch - this.pitch) * k;
@@ -616,6 +611,28 @@ class CarModel {
     this.reverseMat.emissiveIntensity = car.gear < 0 ? 2.5 : 0;
   }
 
+  /** Sync visuals to a parked vehicle's rigid body. */
+  updateParked(body, dt) {
+    const t = body.translation();
+    const q = body.rotation();
+    this.root.position.set(t.x, t.y, t.z);
+    this.root.quaternion.set(q.x, q.y, q.z, q.w);
+    this.body.rotation.set(0, 0, 0);
+    this.body.position.y = 0;
+    this.roll = this.pitch = 0;
+    // Let the wheels roll along with the body's motion.
+    const v = body.linvel();
+    const fwd = _fwd.set(0, 0, 1).applyQuaternion(this.root.quaternion);
+    const along = v.x * fwd.x + v.z * fwd.z;
+    for (const w of this.wheels) {
+      w.spin += (along / this.spec.wheelRadius) * dt;
+      w.mesh.rotation.x = w.spin;
+      w.pivot.rotation.y = 0;
+    }
+    this.tailMat.emissiveIntensity = 0.2;
+    this.reverseMat.emissiveIntensity = 0;
+  }
+
   /** World-space contact points of each wheel, for skid marks and smoke. */
   contactPoints(out = []) {
     this.root.updateMatrixWorld();
@@ -628,7 +645,12 @@ class CarModel {
   }
 }
 
-function makeBlobTexture() {
+const UP = new THREE.Vector3(0, 1, 0);
+const _fwd = new THREE.Vector3();
+
+let _blob;
+function blobTexture() {
+  if (_blob) return _blob;
   const c = document.createElement('canvas');
   c.width = 64;
   c.height = 128;
@@ -639,8 +661,178 @@ function makeBlobTexture() {
   g.setTransform(1, 0, 0, 2, 0, -64);
   g.fillStyle = grad;
   g.fillRect(0, 0, 64, 128);
-  return new THREE.CanvasTexture(c);
+  return (_blob = new THREE.CanvasTexture(c));
 }
+
+// ===== vehicles.js =====
+// The drivable fleet. Each entry carries:
+//   spec    overrides for the handling model (merged over physics.js DEFAULT_SPEC)
+//   hitbox  collision boxes in the vehicle frame (half extents + centre)
+//   home    where it parks when the arena is built
+//   cam     chase-camera scale and hood-camera position
+//   build   adds bodywork through the CarModel kit (see carModel.js)
+// Vehicle frame: x = left, y = up, z = forward, origin on the ground under the CG.
+
+const sports = {
+  id: 'sports',
+  name: 'Sports coupe',
+  color: 0xd7263d,
+  length: 4.3,
+  width: 1.8,
+  spec: {},
+  hitbox: [
+    { half: [0.92, 0.33, 2.2], at: [0, 0.58, 0] },
+    { half: [0.7, 0.26, 1.0], at: [0, 1.15, -0.3] },
+  ],
+  home: { x: 0, z: -52, heading: 0 },
+  cam: { scale: 1, hoodY: 1.42, hoodZ: 0.9 },
+  build({ THREE, box, tapered, add, front, rear, lights }) {
+    const len = 4.3;
+    const cz = (front + rear) / 2 + 0.05;
+    box(1.8, 0.38, len, 'paint', 0, 0.55, cz);
+    tapered(1.8, 0.16, len - 0.1, 1.68, len - 0.5, -0.05, 'paint', 0, 0.82, cz);
+    tapered(1.0, 0.06, 1.3, 0.8, 1.1, 0, 'paint', 0, 0.92, front + 0.25);
+    tapered(1.62, 0.5, 2.0, 1.26, 1.05, -0.12, 'glass', 0, 1.13, cz - 0.25);
+    tapered(1.3, 0.04, 1.08, 1.24, 1.0, 0, 'paint', 0, 1.38, cz - 0.37);
+    box(1.84, 0.16, 0.18, 'dark', 0, 0.42, cz + len / 2);
+    box(1.84, 0.18, 0.18, 'dark', 0, 0.43, cz - len / 2);
+    box(1.5, 0.03, len - 0.4, 'dark', 0, 0.35, cz);
+    box(0.9, 0.16, 0.02, 'dark', 0, 0.56, cz + len / 2 + 0.005);
+    const wingZ = cz - len / 2 + 0.22;
+    box(1.7, 0.04, 0.32, 'dark', 0, 1.14, wingZ);
+    for (const s of [-1, 1]) box(0.05, 0.24, 0.12, 'dark', s * 0.6, 1.02, wingZ);
+    for (const s of [-1, 1]) box(0.18, 0.1, 0.12, 'paint', s * 0.93, 1.0, cz + 0.55);
+    for (const s of [-1, 1]) {
+      const tip = add(new THREE.CylinderGeometry(0.05, 0.05, 0.16, 12), 'chrome', s * 0.45, 0.4, cz - len / 2 - 0.08);
+      tip.rotation.x = Math.PI / 2;
+    }
+    lights({ frontZ: cz + len / 2, rearZ: cz - len / 2, y: 0.68, headX: 0.62, tailX: 0.6 });
+  },
+};
+
+const hatch = {
+  id: 'hatch',
+  name: 'Hatchback',
+  color: 0x2f7bd6,
+  length: 3.85,
+  width: 1.72,
+  suspension: 1.3,
+  spec: {
+    mass: 1050, inertiaScale: 1.25, cgToFront: 1.1, cgToRear: 1.35, cgHeight: 0.5,
+    trackWidth: 1.5, wheelRadius: 0.3, tireGrip: 1.05, maxSteer: 0.62,
+    brakeForce: 11500, dragCoef: 0.55, engineBrake: 250,
+    torqueScale: 0.5, gearRatios: [3.5, 2.1, 1.45, 1.1, 0.9], finalDrive: 3.9, engineTone: 1.25,
+  },
+  hitbox: [
+    { half: [0.86, 0.28, 1.92], at: [0, 0.6, -0.125] },
+    { half: [0.75, 0.28, 1.15], at: [0, 1.12, -0.42] },
+  ],
+  home: { x: -7, z: -52, heading: 0 },
+  cam: { scale: 0.95, hoodY: 1.42, hoodZ: 0.5 },
+  wheelWidth: 0.22,
+  build({ box, tapered, lights }) {
+    const len = 3.85;
+    const cz = -0.125;
+    box(1.72, 0.52, len, 'paint', 0, 0.58, cz);
+    tapered(1.66, 0.56, 2.5, 1.4, 1.9, -0.25, 'glass', 0, 1.12, cz - 0.3);
+    box(1.42, 0.05, 1.85, 'paint', 0, 1.42, cz - 0.5);
+    tapered(1.7, 0.08, 1.0, 1.55, 0.9, 0, 'paint', 0, 0.88, cz + 1.4);
+    box(1.76, 0.18, 0.15, 'dark', 0, 0.38, cz + len / 2);
+    box(1.76, 0.18, 0.15, 'dark', 0, 0.38, cz - len / 2);
+    box(0.7, 0.12, 0.02, 'dark', 0, 0.62, cz + len / 2 + 0.005);
+    box(1.3, 0.05, 0.25, 'dark', 0, 1.42, cz - len / 2 + 0.25); // roof spoiler
+    for (const s of [-1, 1]) box(0.16, 0.1, 0.1, 'paint', s * 0.9, 1.0, cz + 0.85);
+    lights({ frontZ: cz + len / 2, rearZ: cz - len / 2, y: 0.72, headX: 0.6, tailX: 0.66, tailW: 0.26, h: 0.14 });
+  },
+};
+
+const pickup = {
+  id: 'pickup',
+  name: 'Pickup truck',
+  color: 0x2d6a4f,
+  length: 5.5,
+  width: 1.96,
+  suspension: 1.4,
+  spec: {
+    mass: 2100, inertiaScale: 2.3, cgToFront: 1.6, cgToRear: 1.75, cgHeight: 0.7,
+    trackWidth: 1.76, wheelRadius: 0.42, tireGrip: 0.98, maxSteer: 0.56, steerSpeed: 2.0,
+    brakeForce: 23000, dragCoef: 1.1, rollingResistance: 20, engineBrake: 600,
+    torqueScale: 1.3, gearRatios: [3.5, 2.2, 1.5, 1.15, 0.9], finalDrive: 3.9, engineTone: 0.7,
+  },
+  hitbox: [
+    { half: [0.98, 0.35, 2.75], at: [0, 0.95, -0.075] },
+    { half: [0.9, 0.43, 0.95], at: [0, 1.62, 0.275] },
+  ],
+  home: { x: 7, z: -52, heading: 0 },
+  cam: { scale: 1.25, hoodY: 2.05, hoodZ: 0.9 },
+  wheelWidth: 0.32,
+  build({ box, tapered, lights }) {
+    const cz = -0.075;
+    const len = 5.5;
+    const frontZ = cz + len / 2;
+    const rearZ = cz - len / 2;
+    box(1.95, 0.5, len, 'paint', 0, 0.95, cz);
+    box(1.6, 0.2, len - 0.5, 'dark', 0, 0.6, cz);
+    box(1.9, 0.18, 1.6, 'paint', 0, 1.29, frontZ - 0.8);
+    tapered(1.92, 0.85, 1.9, 1.75, 1.6, -0.05, 'glass', 0, 1.62, 0.275);
+    box(1.76, 0.06, 1.62, 'paint', 0, 2.06, 0.25);
+    // Bed.
+    const bedZ = (rearZ + (0.275 - 0.95)) / 2;
+    const bedLen = 0.275 - 0.95 - rearZ;
+    box(1.9, 0.06, bedLen, 'dark', 0, 1.22, bedZ);
+    for (const s of [-1, 1]) box(0.08, 0.45, bedLen, 'paint', s * 0.935, 1.42, bedZ);
+    box(1.94, 0.45, 0.08, 'paint', 0, 1.42, rearZ + 0.04);
+    box(1.9, 0.45, 0.08, 'paint', 0, 1.42, 0.275 - 0.95);
+    // Chrome.
+    box(2.0, 0.2, 0.18, 'chrome', 0, 0.78, frontZ + 0.05);
+    box(2.0, 0.2, 0.18, 'chrome', 0, 0.78, rearZ - 0.05);
+    box(1.3, 0.3, 0.03, 'chrome', 0, 1.12, frontZ + 0.01);
+    for (const s of [-1, 1]) box(0.2, 0.14, 0.14, 'chrome', s * 1.02, 1.75, 0.95);
+    lights({ frontZ, rearZ, y: 1.12, rearY: 1.42, headX: 0.72, tailX: 0.84, tailW: 0.16, h: 0.16 });
+  },
+};
+
+const bus = {
+  id: 'bus',
+  name: 'School bus',
+  color: 0xf2b705,
+  trim: 0xf5f1e6,
+  length: 10.6,
+  width: 2.5,
+  suspension: 0.6,
+  spec: {
+    mass: 9000, inertiaScale: 8, cgToFront: 2.6, cgToRear: 3.2, cgHeight: 1.1,
+    trackWidth: 2.1, wheelRadius: 0.5, tireGrip: 0.85, maxSteer: 0.58,
+    steerSpeed: 1.5, steerReturn: 2.5, steerSpeedScale: 500,
+    brakeForce: 70000, dragCoef: 4, rollingResistance: 90, engineBrake: 2200,
+    torqueScale: 1.8, gearRatios: [3.0, 2.0, 1.45, 1.15, 1.0], finalDrive: 7,
+    shiftUpRpm: 6000, engineTone: 0.45,
+  },
+  hitbox: [{ half: [1.27, 1.2, 5.3], at: [0, 1.85, -0.3] }],
+  home: { x: 22, z: -50, heading: Math.PI / 2 },
+  cam: { scale: 1.9, hoodY: 2.7, hoodZ: 4.6 },
+  wheelWidth: 0.36,
+  build({ box, lights }) {
+    const cz = -0.3;
+    const len = 10.6;
+    const frontZ = cz + len / 2;
+    const rearZ = cz - len / 2;
+    box(2.5, 2.3, len, 'paint', 0, 1.85, cz);
+    box(2.4, 0.15, len - 0.2, 'trim', 0, 3.07, cz);
+    box(2.52, 0.8, 8.2, 'glass', 0, 2.35, cz - 0.5);
+    box(2.3, 1.0, 0.04, 'glass', 0, 2.3, frontZ + 0.01);
+    box(1.9, 0.7, 0.04, 'glass', 0, 2.4, rearZ - 0.01);
+    for (const y of [1.6, 1.3]) box(2.52, 0.06, len + 0.02, 'dark', 0, y, cz);
+    box(2.6, 0.3, 0.2, 'dark', 0, 0.75, frontZ + 0.08);
+    box(2.6, 0.3, 0.2, 'dark', 0, 0.75, rearZ - 0.08);
+    box(0.03, 1.7, 0.9, 'glass', -1.26, 1.6, frontZ - 1.2); // door
+    box(0.9, 0.18, 0.03, 'dark', 0, 2.95, frontZ + 0.02); // destination sign
+    lights({ frontZ, rearZ, y: 1.1, headX: 0.9, tailX: 1.0, tailW: 0.25, h: 0.2 });
+  },
+};
+
+// Fill in every handling value so models and parked bodies can read them too.
+const VEHICLES = [sports, hatch, pickup, bus].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec } }));
 
 // ===== destruction.js =====
 // Rigid-body world for everything the car can smash. Each object kind is
@@ -731,6 +923,7 @@ function treeGeo() {
 const BRICK_COLORS = [0xa34a32, 0xb2553a, 0x93412c, 0xa85b42, 0x8e3e2b];
 const CONCRETE = [0xb8b5ad, 0xaeaba3, 0xc2bfb7];
 const WOOD = [0xb58a52, 0xa77d48, 0xc0965c];
+const FACADE = [0xd9cbb3, 0xcfc0a6, 0xe0d3bd];
 
 const KINDS = {
   brick: { size: [0.6, 0.3, 0.3], mass: 12, colors: BRICK_COLORS, material: 'brick', breakForce: 14000, fracture: { into: 'brickHalf', grid: [2, 1, 1] }, cap: 600 },
@@ -758,6 +951,16 @@ const KINDS = {
   pole: { shape: 'cyl', size: [0.13, 7], mass: 150, colors: [0xffffff], material: 'metal', breakForce: 90000, fracture: { into: 'poleHalf', grid: [1, 2, 1] }, geo: poleGeo, cap: 40 },
   poleHalf: { shape: 'cyl', size: [0.13, 3.5], mass: 75, colors: [0x9a9da3], material: 'metal', cap: 80 },
 
+  // Office building pieces.
+  panel: { size: [2, 1.2, 0.4], mass: 500, colors: FACADE, material: 'concrete', breakForce: 250000, fracture: { into: 'panelChunk', grid: [2, 2, 1] }, cap: 60 },
+  panelChunk: { size: [1, 0.6, 0.4], mass: 125, colors: FACADE, material: 'concrete', cap: 240 },
+  pillar: { size: [0.5, 1.5, 0.4], mass: 180, colors: FACADE, material: 'concrete', breakForce: 90000, fracture: { into: 'pillarChunk', grid: [1, 2, 1] }, cap: 60 },
+  pillarChunk: { size: [0.5, 0.75, 0.4], mass: 90, colors: FACADE, material: 'concrete', cap: 120 },
+  floorSlab: { size: [2, 0.3, 6.8], mass: 900, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', breakForce: 400000, fracture: { into: 'floorChunk', grid: [2, 1, 2] }, cap: 20 },
+  floorChunk: { size: [1, 0.3, 3.4], mass: 225, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', cap: 80 },
+  glass: { size: [0.75, 1.44, 0.06], mass: 6, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, breakForce: 1500, fracture: { into: 'shard', grid: [2, 2, 1] }, cap: 100 },
+  shard: { size: [0.375, 0.72, 0.06], mass: 1.5, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, noCcd: true, lifetime: 6, cap: 420 },
+
   tree: { shape: 'tree', size: [0.22, 3], mass: 320, colors: [0xffffff], material: 'wood', geo: treeGeo, cap: 30 },
 };
 
@@ -770,14 +973,16 @@ class Pool {
     if (kind.geo) geo = kind.geo();
     else if (kind.shape === 'cyl') geo = new THREE.CylinderGeometry(kind.size[0], kind.size[0], kind.size[1], 16);
     else geo = new THREE.BoxGeometry(...kind.size);
-    const mat = new THREE.MeshStandardMaterial({
-      roughness: kind.material === 'metal' ? 0.45 : 0.85,
-      metalness: kind.material === 'metal' ? 0.35 : 0,
-      vertexColors: !!geo.attributes.color,
-    });
+    const mat = kind.glass
+      ? new THREE.MeshStandardMaterial({ roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.45, depthWrite: false })
+      : new THREE.MeshStandardMaterial({
+        roughness: kind.material === 'metal' ? 0.45 : 0.85,
+        metalness: kind.material === 'metal' ? 0.35 : 0,
+        vertexColors: !!geo.attributes.color,
+      });
     this.mesh = new THREE.InstancedMesh(geo, mat, kind.cap);
     this.mesh.count = 0;
-    this.mesh.castShadow = true;
+    this.mesh.castShadow = !kind.glass;
     this.mesh.receiveShadow = true;
     this.mesh.frustumCulled = false;
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -867,21 +1072,68 @@ class Destruction {
     this.carBody = null;
   }
 
-  /** Kinematic stand-in for the player's car (it pushes; we read reactions). */
-  createCar(spec) {
-    const desc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, 0, 0);
-    this.carBody = this.world.createRigidBody(desc);
-    const midZ = (spec.cgToFront - spec.cgToRear) / 2 + 0.05;
-    this.carColliders = [
-      this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.92, 0.33, 2.2).setTranslation(0, 0.58, midZ).setFriction(0.4), this.carBody),
-      this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.7, 0.26, 1.0).setTranslation(0, 1.15, midZ - 0.3).setFriction(0.4), this.carBody),
-    ];
-    this.carMass = spec.mass;
-    this.carInertia = spec.mass * spec.inertiaScale;
+  /** Kinematic stand-in for the vehicle being driven (it pushes; we read reactions). */
+  createCar(def) {
+    if (this.carBody) this.world.removeRigidBody(this.carBody);
+    this.lastCarPose = null;
+    this.carBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
+    this.carColliders = def.hitbox.map((h) => this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4),
+      this.carBody,
+    ));
+  }
+
+  /**
+   * A parked vehicle: a dynamic body that rests on four wheel spheres, so
+   * it can be shoved, spun and flipped like everything else.
+   */
+  spawnVehicle(def, pose, vel = null) {
+    const { spec } = def;
+    const h = pose.heading;
+    const desc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(pose.x, pose.y ?? 0, pose.z)
+      .setRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) })
+      .setLinearDamping(0.15)
+      .setAngularDamping(0.4)
+      .setSleeping(!vel);
+    if (vel) {
+      desc.setLinvel(vel.x, 0, vel.z);
+      desc.setAngvel({ x: 0, y: vel.yaw, z: 0 });
+    }
+    const body = this.world.createRigidBody(desc);
+    const volume = (b) => b.half[0] * b.half[1] * b.half[2];
+    const totalVol = def.hitbox.reduce((sum, b) => sum + volume(b), 0);
+    const events = RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS;
+    const colliders = def.hitbox.map((b) => this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(...b.half).setTranslation(...b.at)
+        .setMass(spec.mass * 0.96 * volume(b) / totalVol)
+        .setFriction(0.5).setRestitution(0.1)
+        .setActiveEvents(events).setContactForceEventThreshold(spec.mass * 2.5 / STEP),
+      body,
+    ));
+    const r = spec.wheelRadius;
+    const ht = spec.trackWidth / 2;
+    for (const [x, z] of [[ht, spec.cgToFront], [-ht, spec.cgToFront], [ht, -spec.cgToRear], [-ht, -spec.cgToRear]]) {
+      colliders.push(this.world.createCollider(
+        RAPIER.ColliderDesc.ball(r).setTranslation(x, r, z).setMass(spec.mass * 0.01).setFriction(0.9),
+        body,
+      ));
+    }
+    const entity = { kind: { name: 'vehicle', mass: spec.mass, material: 'metal' }, body, colliders, alive: true, vehicle: def };
+    for (const c of colliders) this.byCollider.set(c.handle, entity);
+    return entity;
+  }
+
+  removeVehicle(entity) {
+    if (!entity.alive) return;
+    entity.alive = false;
+    for (const c of entity.colliders) this.byCollider.delete(c.handle);
+    this.world.removeRigidBody(entity.body);
   }
 
   teleportCar(car) {
     const h = car.heading;
+    this.lastCarPose = { x: car.x, z: car.z, h };
     this.carBody.setTranslation({ x: car.x, y: 0, z: car.z }, true);
     this.carBody.setRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) }, true);
   }
@@ -906,7 +1158,7 @@ class Destruction {
       .setSleeping(!!opts.sleep);
     if (opts.vel) desc.setLinvel(opts.vel.x, opts.vel.y, opts.vel.z);
     if (opts.angvel) desc.setAngvel(opts.angvel);
-    if (kind.mass < 15) desc.setCcdEnabled(true);
+    if (kind.mass < 15 && !kind.noCcd) desc.setCcdEnabled(true);
     const body = this.world.createRigidBody(desc);
 
     const colliders = [];
@@ -1003,9 +1255,15 @@ class Destruction {
     this.time += STEP;
     this.car = car;
     this.breakDrag = 0;
+    // Only move the kinematic body when the car actually moved: Rapier
+    // treats every kinematic update as motion and wakes whatever touches it.
     const h = car.heading;
-    this.carBody.setNextKinematicTranslation({ x: car.x, y: 0, z: car.z });
-    this.carBody.setNextKinematicRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) });
+    const last = this.lastCarPose;
+    if (!last || Math.abs(car.x - last.x) > 1e-4 || Math.abs(car.z - last.z) > 1e-4 || Math.abs(h - last.h) > 1e-5) {
+      this.carBody.setNextKinematicTranslation({ x: car.x, y: 0, z: car.z });
+      this.carBody.setNextKinematicRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) });
+      this.lastCarPose = { x: car.x, z: car.z, h };
+    }
 
     this.world.step(this.eventQueue);
 
@@ -1103,8 +1361,8 @@ class Destruction {
         _m.compose(_p, _q, _s);
         pool.mesh.setMatrixAt(e.slot, _m);
         changed = true;
-        // Debris that leaves the arena is recycled.
-        if (t.y < -20 || Math.abs(t.x) > this.recycleRange || Math.abs(t.z) > this.recycleRange) {
+        // Debris that leaves the arena (or outlives its kind's lifetime) is recycled.
+        if ((e.kind.lifetime && this.time - e.born > e.kind.lifetime) || t.y < -20 || Math.abs(t.x) > this.recycleRange || Math.abs(t.z) > this.recycleRange) {
           this.despawn(e);
           continue;
         }
@@ -1293,6 +1551,52 @@ function populateArena(d) {
   const barrels = (x, z, n) => {
     for (const p of scatter(x, z, 2.2, n, 0.75)) d.spawn('barrel', { x: p.x, y: 0.475 + gap, z: p.z }, 0, opts);
   };
+
+  // Three-storey office block, 10 m x 6.8 m.
+  // Each storey: a 1.2 m band of wall panels, a 1.5 m band of pillars and
+  // glass, then a 0.3 m floor slab spanning front wall to back wall.
+  const building = (cx, cz, floors) => {
+    const halfW = 5;
+    const halfD = 3.4;
+    let layer = 0;
+    const lift = () => layer * gap;
+    for (let f = 0; f < floors; f++) {
+      const y0 = f * 3;
+      // Lower band.
+      layer++;
+      for (const side of [-1, 1]) {
+        for (let i = 0; i < 5; i++) {
+          d.spawn('panel', { x: cx - halfW + 1 + 2 * i, y: y0 + 0.6 + lift(), z: cz + side * (halfD - 0.2) }, 0, opts);
+        }
+        for (let j = 0; j < 3; j++) {
+          d.spawn('panel', { x: cx + side * (halfW - 0.2), y: y0 + 0.6 + lift(), z: cz - 3 + 1 + 2 * j }, Math.PI / 2, opts);
+        }
+      }
+      // Window band: a pillar in the middle of every 2 m bay (so each slab
+      // above is supported under its centre) with a pane either side.
+      layer++;
+      for (const side of [-1, 1]) {
+        const z = cz + side * (halfD - 0.2);
+        for (let i = 0; i < 5; i++) {
+          const x0 = cx - halfW + 2 * i;
+          d.spawn('pillar', { x: x0 + 1, y: y0 + 1.95 + lift(), z }, 0, opts);
+          for (const off of [0.375, 1.625]) d.spawn('glass', { x: x0 + off, y: y0 + 1.92 + lift(), z }, 0, opts);
+        }
+        const x = cx + side * (halfW - 0.2);
+        for (let j = 0; j < 3; j++) {
+          const z0 = cz - 3 + 2 * j;
+          d.spawn('pillar', { x, y: y0 + 1.95 + lift(), z: z0 + 1 }, Math.PI / 2, opts);
+          for (const off of [0.375, 1.625]) d.spawn('glass', { x, y: y0 + 1.92 + lift(), z: z0 + off }, Math.PI / 2, opts);
+        }
+      }
+      // Floor slab.
+      layer++;
+      for (let i = 0; i < 5; i++) {
+        d.spawn('floorSlab', { x: cx - halfW + 1 + 2 * i, y: y0 + 2.85 + lift(), z: cz }, 0, opts);
+      }
+    }
+  };
+  building(22, 50, 3);
 
   // The big wall straight ahead of the start.
   brickWall(0, -20, 0, 18, 8);
@@ -1561,6 +1865,12 @@ class ChaseCamera {
     this.pos = new THREE.Vector3();
     this.target = new THREE.Vector3();
     this.initialised = false;
+    this.vehicleCam = { scale: 1, hoodY: 1.42, hoodZ: 0.9 };
+  }
+
+  /** Fit the camera to a vehicle's size (see `cam` in vehicles.js). */
+  setVehicle(def) {
+    this.vehicleCam = def.cam;
   }
 
   get modeName() {
@@ -1603,22 +1913,24 @@ class ChaseCamera {
     if (m.hood) {
       const sinH = Math.sin(car.heading);
       const cosH = Math.cos(car.heading);
-      cam.position.set(car.x + sinH * 0.9, 1.42, car.z + cosH * 0.9);
-      cam.lookAt(car.x + sinH * 25, 0.9, car.z + cosH * 25);
+      const { hoodY, hoodZ } = this.vehicleCam;
+      cam.position.set(car.x + sinH * hoodZ, hoodY, car.z + cosH * hoodZ);
+      cam.lookAt(car.x + sinH * 25, hoodY - 0.5, car.z + cosH * 25);
       this.initialised = true;
       return;
     }
 
     // Pull back a little at speed.
-    const dist = m.dist + Math.min(2, speed * 0.03);
+    const k = this.vehicleCam.scale;
+    const dist = m.dist * k + Math.min(2, speed * 0.03);
     const desired = new THREE.Vector3(
       car.x - Math.sin(this.yaw) * dist,
-      m.height,
+      m.height * k,
       car.z - Math.cos(this.yaw) * dist,
     );
     const lookAt = new THREE.Vector3(
       car.x + Math.sin(car.heading) * 2,
-      m.look,
+      m.look * k,
       car.z + Math.cos(car.heading) * 2,
     );
 
@@ -1753,6 +2065,7 @@ const IMPACTS = {
   wood: { filter: 'bandpass', freq: 750, q: 1.4, decay: 0.16, gain: 0.7, tones: [210, 330], toneGain: 0.35, toneDecay: 0.5 },
   metal: { filter: 'bandpass', freq: 2200, q: 9, decay: 0.55, gain: 0.45, tones: [420, 1130], toneGain: 0.35, toneDecay: 1 },
   plastic: { filter: 'highpass', freq: 1400, q: 0.7, decay: 0.08, gain: 0.35, tones: [], toneGain: 0, toneDecay: 0 },
+  glass: { filter: 'highpass', freq: 3200, q: 1.5, decay: 0.35, gain: 0.45, tones: [2600, 3900, 5300], toneGain: 0.18, toneDecay: 0.7 },
   crash: { filter: 'lowpass', freq: 420, q: 1, decay: 0.45, gain: 0.9, tones: [48], toneGain: 1, toneDecay: 0.9 },
 };
 
@@ -1876,7 +2189,7 @@ class CarAudio {
   update(car, skid) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    const firing = (car.rpm / 60) * 2; // 4-cylinder firing frequency
+    const firing = (car.rpm / 60) * 2 * (car.spec.engineTone ?? 1); // 4-cylinder firing frequency
     this.osc1.frequency.setTargetAtTime(firing, t, 0.03);
     this.osc2.frequency.setTargetAtTime(firing * 0.5 * 1.01, t, 0.03);
     this.engineFilter.frequency.setTargetAtTime(300 + car.throttle * 1400 + car.rpm * 0.15, t, 0.05);
@@ -1917,9 +2230,16 @@ addEventListener('resize', () => {
 });
 
 const world = createWorld(scene, renderer);
-const car = new CarPhysics();
-const model = new CarModel(car.spec);
-scene.add(model.root);
+// Every vehicle has a model in the scene. One is driven (custom handling
+// model + kinematic collider); the rest are parked rigid bodies.
+const fleet = VEHICLES.map((def) => {
+  const model = new CarModel(def);
+  scene.add(model.root);
+  return { def, model, parked: null };
+});
+let active = fleet[0];
+let car = new CarPhysics(active.def.spec);
+let assists = true;
 const destruction = new Destruction(scene, 300);
 const skids = new SkidMarks(scene);
 const smoke = new Smoke(scene);
@@ -1941,15 +2261,59 @@ destruction.on('impact', (material, strength) => audio.impact(material, strength
 
 function buildArena() {
   destruction.createWorld();
-  destruction.createCar(car.spec);
+  destruction.createCar(active.def);
   populateArena(destruction);
+  for (const v of fleet) v.parked = v === active ? null : destruction.spawnVehicle(v.def, v.def.home);
 }
 
 function resetCar() {
-  car.reset(START.x, START.z, START.heading);
+  const { home } = active.def;
+  car.reset(home.x, home.z, home.heading);
   destruction.teleportCar(car);
   skids.clear();
+  chase.setVehicle(active.def);
   chase.snap();
+}
+
+/** The parked vehicle closest to the driver, if it's near enough to hop into. */
+function nearbyVehicle() {
+  let best = null;
+  let bestGap = 3.5;
+  for (const v of fleet) {
+    if (!v.parked) continue;
+    const t = v.parked.body.translation();
+    const gap = Math.hypot(t.x - car.x, t.z - car.z) - (v.def.length + active.def.length) / 4;
+    if (gap < bestGap) { best = v; bestGap = gap; }
+  }
+  return best;
+}
+
+/** Leave the current vehicle parked where it is and take over `target`. */
+function switchTo(target) {
+  const old = active;
+  old.parked = destruction.spawnVehicle(
+    old.def,
+    { x: car.x, z: car.z, heading: car.heading },
+    { x: car.velX, z: car.velZ, yaw: car.yawRate },
+  );
+  // Take the target's pose (set upright if it was knocked over).
+  const t = target.parked.body.translation();
+  const q = target.parked.body.rotation();
+  const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
+  const heading = Math.atan2(fwd.x, fwd.z);
+  destruction.removeVehicle(target.parked);
+  target.parked = null;
+
+  active = target;
+  car = new CarPhysics({ ...target.def.spec, assists });
+  car.reset(t.x, t.z, heading);
+  destruction.createCar(target.def);
+  destruction.teleportCar(car);
+  skids.clear();
+  chase.setVehicle(target.def);
+  chase.snap();
+  refreshBadges();
+  toast(`Driving: ${target.def.name}`);
 }
 
 function resetAll() {
@@ -1964,6 +2328,7 @@ resetAll();
 const hud = {
   speed: $('speed'), gear: $('gear'), rpmFill: $('rpm-fill'), drift: $('drift'),
   toast: $('toast'), telemetry: $('telemetry'), assists: $('assists'), cam: $('cam'), smashed: $('smashed'),
+  vehicle: $('vehicle'), prompt: $('prompt'),
 };
 let toastTimer = 0;
 function toast(msg) {
@@ -1975,13 +2340,21 @@ function refreshBadges() {
   hud.assists.textContent = `Assists: ${car.spec.assists ? 'ON' : 'OFF'}`;
   hud.assists.classList.toggle('off', !car.spec.assists);
   hud.cam.textContent = `Camera: ${chase.modeName}`;
+  hud.vehicle.textContent = active.def.name;
+}
+
+function enterNearby() {
+  const v = nearbyVehicle();
+  if (v) switchTo(v);
 }
 
 input.onPress('KeyR', () => { resetCar(); toast('Car reset'); });
 input.onPress('KeyB', () => { resetAll(); toast('Arena rebuilt'); });
 input.onPress('KeyC', () => { chase.cycle(); refreshBadges(); toast(`Camera: ${chase.modeName}`); });
+input.onPress('KeyE', enterNearby);
 input.onPress('KeyT', () => {
-  car.spec.assists = !car.spec.assists;
+  assists = !assists;
+  car.spec.assists = assists;
   refreshBadges();
   toast(car.spec.assists ? 'Assists ON (traction + countersteer)' : 'Assists OFF: full drift mode');
 });
@@ -1996,6 +2369,7 @@ if (isTouch) {
   $('touch-cam').addEventListener('click', () => { chase.cycle(); refreshBadges(); });
   $('touch-reset').addEventListener('click', resetCar);
   $('touch-rebuild').addEventListener('click', resetAll);
+  $('touch-enter').addEventListener('click', enterNearby);
 }
 
 const startAudio = () => audio.start();
@@ -2067,10 +2441,14 @@ function stepWorld() {
 
 function frameTail(dt) {
   destruction.sync();
-  model.update(car, dt);
+  active.model.update(car, dt);
+  for (const v of fleet) if (v.parked) v.model.updateParked(v.parked.body, dt);
+  const near = car.speed < 8 ? nearbyVehicle() : null;
+  hud.prompt.classList.toggle('show', !!near);
+  if (near) hud.prompt.innerHTML = `<kbd>E</kbd> Drive the ${near.def.name.toLowerCase()}`;
 
   // Tire effects.
-  model.contactPoints(contacts);
+  active.model.contactPoints(contacts);
   const speed = car.speed;
   const latSlipF = Math.abs(Math.sin(car.slipFront));
   const latSlipR = Math.abs(Math.sin(car.slipRear));
@@ -2099,7 +2477,7 @@ function frameTail(dt) {
     camera.position.z += (Math.random() - 0.5) * a;
     shake *= Math.exp(-dt * 6);
   }
-  world.followSun(model.root.position);
+  world.followSun(active.model.root.position);
 
   // HUD.
   hud.speed.textContent = Math.round(speed * 3.6);
@@ -2144,7 +2522,9 @@ function frameTail(dt) {
   renderer.render(scene, camera);
 }
 
-window.game = { car, model, chase, scene, destruction };
+window.game = {
+  get car() { return car; }, get active() { return active; }, fleet, chase, scene, destruction, switchTo, nearbyVehicle,
+};
 requestAnimationFrame(frame);
 </script>
 </body>

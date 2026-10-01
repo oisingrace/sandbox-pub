@@ -162,6 +162,52 @@ export function populateArena(d) {
     for (const p of scatter(x, z, 2.2, n, 0.75)) d.spawn('barrel', { x: p.x, y: 0.475 + gap, z: p.z }, 0, opts);
   };
 
+  // Three-storey office block, 10 m x 6.8 m.
+  // Each storey: a 1.2 m band of wall panels, a 1.5 m band of pillars and
+  // glass, then a 0.3 m floor slab spanning front wall to back wall.
+  const building = (cx, cz, floors) => {
+    const halfW = 5;
+    const halfD = 3.4;
+    let layer = 0;
+    const lift = () => layer * gap;
+    for (let f = 0; f < floors; f++) {
+      const y0 = f * 3;
+      // Lower band.
+      layer++;
+      for (const side of [-1, 1]) {
+        for (let i = 0; i < 5; i++) {
+          d.spawn('panel', { x: cx - halfW + 1 + 2 * i, y: y0 + 0.6 + lift(), z: cz + side * (halfD - 0.2) }, 0, opts);
+        }
+        for (let j = 0; j < 3; j++) {
+          d.spawn('panel', { x: cx + side * (halfW - 0.2), y: y0 + 0.6 + lift(), z: cz - 3 + 1 + 2 * j }, Math.PI / 2, opts);
+        }
+      }
+      // Window band: a pillar in the middle of every 2 m bay (so each slab
+      // above is supported under its centre) with a pane either side.
+      layer++;
+      for (const side of [-1, 1]) {
+        const z = cz + side * (halfD - 0.2);
+        for (let i = 0; i < 5; i++) {
+          const x0 = cx - halfW + 2 * i;
+          d.spawn('pillar', { x: x0 + 1, y: y0 + 1.95 + lift(), z }, 0, opts);
+          for (const off of [0.375, 1.625]) d.spawn('glass', { x: x0 + off, y: y0 + 1.92 + lift(), z }, 0, opts);
+        }
+        const x = cx + side * (halfW - 0.2);
+        for (let j = 0; j < 3; j++) {
+          const z0 = cz - 3 + 2 * j;
+          d.spawn('pillar', { x, y: y0 + 1.95 + lift(), z: z0 + 1 }, Math.PI / 2, opts);
+          for (const off of [0.375, 1.625]) d.spawn('glass', { x, y: y0 + 1.92 + lift(), z: z0 + off }, Math.PI / 2, opts);
+        }
+      }
+      // Floor slab.
+      layer++;
+      for (let i = 0; i < 5; i++) {
+        d.spawn('floorSlab', { x: cx - halfW + 1 + 2 * i, y: y0 + 2.85 + lift(), z: cz }, 0, opts);
+      }
+    }
+  };
+  building(22, 50, 3);
+
   // The big wall straight ahead of the start.
   brickWall(0, -20, 0, 18, 8);
   // A second, lower wall to the right.

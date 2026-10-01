@@ -33,6 +33,8 @@ export const DEFAULT_SPEC = {
   reverseRatio: 3.2,
   finalDrive: 3.7,
   drivetrainEfficiency: 0.82,
+  torqueScale: 1,         // multiplies the shared torque curve
+  engineTone: 1,          // engine sound pitch multiplier
   idleRpm: 900,
   redline: 7200,
   shiftUpRpm: 6800,
@@ -190,7 +192,7 @@ export class CarPhysics {
     const engineRpm = Math.max(rpm, drive > 0.05 ? 2400 + drive * 1500 : s.idleRpm);
     let driveForce = 0;
     if (this.shiftTimer === 0 && engineRpm < s.redline) {
-      const torque = engineTorque(engineRpm) * drive;
+      const torque = engineTorque(engineRpm) * s.torqueScale * drive;
       driveForce = (torque * ratio * s.finalDrive * s.drivetrainEfficiency) / s.wheelRadius;
       if (this.gear < 0) driveForce = -driveForce * 0.6;
     }

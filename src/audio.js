@@ -7,6 +7,7 @@ const IMPACTS = {
   wood: { filter: 'bandpass', freq: 750, q: 1.4, decay: 0.16, gain: 0.7, tones: [210, 330], toneGain: 0.35, toneDecay: 0.5 },
   metal: { filter: 'bandpass', freq: 2200, q: 9, decay: 0.55, gain: 0.45, tones: [420, 1130], toneGain: 0.35, toneDecay: 1 },
   plastic: { filter: 'highpass', freq: 1400, q: 0.7, decay: 0.08, gain: 0.35, tones: [], toneGain: 0, toneDecay: 0 },
+  glass: { filter: 'highpass', freq: 3200, q: 1.5, decay: 0.35, gain: 0.45, tones: [2600, 3900, 5300], toneGain: 0.18, toneDecay: 0.7 },
   crash: { filter: 'lowpass', freq: 420, q: 1, decay: 0.45, gain: 0.9, tones: [48], toneGain: 1, toneDecay: 0.9 },
 };
 
@@ -130,7 +131,7 @@ export class CarAudio {
   update(car, skid) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    const firing = (car.rpm / 60) * 2; // 4-cylinder firing frequency
+    const firing = (car.rpm / 60) * 2 * (car.spec.engineTone ?? 1); // 4-cylinder firing frequency
     this.osc1.frequency.setTargetAtTime(firing, t, 0.03);
     this.osc2.frequency.setTargetAtTime(firing * 0.5 * 1.01, t, 0.03);
     this.engineFilter.frequency.setTargetAtTime(300 + car.throttle * 1400 + car.rpm * 0.15, t, 0.05);

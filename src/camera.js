@@ -18,6 +18,12 @@ export class ChaseCamera {
     this.pos = new THREE.Vector3();
     this.target = new THREE.Vector3();
     this.initialised = false;
+    this.vehicleCam = { scale: 1, hoodY: 1.42, hoodZ: 0.9 };
+  }
+
+  /** Fit the camera to a vehicle's size (see `cam` in vehicles.js). */
+  setVehicle(def) {
+    this.vehicleCam = def.cam;
   }
 
   get modeName() {
@@ -60,22 +66,24 @@ export class ChaseCamera {
     if (m.hood) {
       const sinH = Math.sin(car.heading);
       const cosH = Math.cos(car.heading);
-      cam.position.set(car.x + sinH * 0.9, 1.42, car.z + cosH * 0.9);
-      cam.lookAt(car.x + sinH * 25, 0.9, car.z + cosH * 25);
+      const { hoodY, hoodZ } = this.vehicleCam;
+      cam.position.set(car.x + sinH * hoodZ, hoodY, car.z + cosH * hoodZ);
+      cam.lookAt(car.x + sinH * 25, hoodY - 0.5, car.z + cosH * 25);
       this.initialised = true;
       return;
     }
 
     // Pull back a little at speed.
-    const dist = m.dist + Math.min(2, speed * 0.03);
+    const k = this.vehicleCam.scale;
+    const dist = m.dist * k + Math.min(2, speed * 0.03);
     const desired = new THREE.Vector3(
       car.x - Math.sin(this.yaw) * dist,
-      m.height,
+      m.height * k,
       car.z - Math.cos(this.yaw) * dist,
     );
     const lookAt = new THREE.Vector3(
       car.x + Math.sin(car.heading) * 2,
-      m.look,
+      m.look * k,
       car.z + Math.cos(car.heading) * 2,
     );
 

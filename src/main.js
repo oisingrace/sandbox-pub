@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { CarPhysics } from './physics.js';
 import { CarModel } from './carModel.js';
-import { createWorld, populateArena, START, DRIVE_LIMIT } from './world.js';
+import { createWorld, populateArena, DRIVE_LIMIT } from './world.js';
+import { VEHICLES } from './vehicles.js';
 import { Destruction, initRapier, WORLD_STEP } from './destruction.js';
 import { SkidMarks, Smoke } from './effects.js';
 import { ChaseCamera } from './camera.js';
@@ -38,9 +39,16 @@ addEventListener('resize', () => {
 });
 
 const world = createWorld(scene, renderer);
-const car = new CarPhysics();
-const model = new CarModel(car.spec);
-scene.add(model.root);
+// Every vehicle has a model in the scene. One is driven (custom handling
+// model + kinematic collider); the rest are parked rigid bodies.
+const fleet = VEHICLES.map((def) => {
+  const model = new CarModel(def);
+  scene.add(model.root);
+  return { def, model, parked: null };
+});
+let active = fleet[0];
+let car = new CarPhysics(active.def.spec);
+let assists = true;
 const destruction = new Destruction(scene, 300);
 const skids = new SkidMarks(scene);
 const smoke = new Smoke(scene);
@@ -62,15 +70,59 @@ destruction.on('impact', (material, strength) => audio.impact(material, strength
 
 function buildArena() {
   destruction.createWorld();
-  destruction.createCar(car.spec);
+  destruction.createCar(active.def);
   populateArena(destruction);
+  for (const v of fleet) v.parked = v === active ? null : destruction.spawnVehicle(v.def, v.def.home);
 }
 
 function resetCar() {
-  car.reset(START.x, START.z, START.heading);
+  const { home } = active.def;
+  car.reset(home.x, home.z, home.heading);
   destruction.teleportCar(car);
   skids.clear();
+  chase.setVehicle(active.def);
   chase.snap();
+}
+
+/** The parked vehicle closest to the driver, if it's near enough to hop into. */
+function nearbyVehicle() {
+  let best = null;
+  let bestGap = 3.5;
+  for (const v of fleet) {
+    if (!v.parked) continue;
+    const t = v.parked.body.translation();
+    const gap = Math.hypot(t.x - car.x, t.z - car.z) - (v.def.length + active.def.length) / 4;
+    if (gap < bestGap) { best = v; bestGap = gap; }
+  }
+  return best;
+}
+
+/** Leave the current vehicle parked where it is and take over `target`. */
+function switchTo(target) {
+  const old = active;
+  old.parked = destruction.spawnVehicle(
+    old.def,
+    { x: car.x, z: car.z, heading: car.heading },
+    { x: car.velX, z: car.velZ, yaw: car.yawRate },
+  );
+  // Take the target's pose (set upright if it was knocked over).
+  const t = target.parked.body.translation();
+  const q = target.parked.body.rotation();
+  const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
+  const heading = Math.atan2(fwd.x, fwd.z);
+  destruction.removeVehicle(target.parked);
+  target.parked = null;
+
+  active = target;
+  car = new CarPhysics({ ...target.def.spec, assists });
+  car.reset(t.x, t.z, heading);
+  destruction.createCar(target.def);
+  destruction.teleportCar(car);
+  skids.clear();
+  chase.setVehicle(target.def);
+  chase.snap();
+  refreshBadges();
+  toast(`Driving: ${target.def.name}`);
 }
 
 function resetAll() {
@@ -85,6 +137,7 @@ resetAll();
 const hud = {
   speed: $('speed'), gear: $('gear'), rpmFill: $('rpm-fill'), drift: $('drift'),
   toast: $('toast'), telemetry: $('telemetry'), assists: $('assists'), cam: $('cam'), smashed: $('smashed'),
+  vehicle: $('vehicle'), prompt: $('prompt'),
 };
 let toastTimer = 0;
 function toast(msg) {
@@ -96,13 +149,21 @@ function refreshBadges() {
   hud.assists.textContent = `Assists: ${car.spec.assists ? 'ON' : 'OFF'}`;
   hud.assists.classList.toggle('off', !car.spec.assists);
   hud.cam.textContent = `Camera: ${chase.modeName}`;
+  hud.vehicle.textContent = active.def.name;
+}
+
+function enterNearby() {
+  const v = nearbyVehicle();
+  if (v) switchTo(v);
 }
 
 input.onPress('KeyR', () => { resetCar(); toast('Car reset'); });
 input.onPress('KeyB', () => { resetAll(); toast('Arena rebuilt'); });
 input.onPress('KeyC', () => { chase.cycle(); refreshBadges(); toast(`Camera: ${chase.modeName}`); });
+input.onPress('KeyE', enterNearby);
 input.onPress('KeyT', () => {
-  car.spec.assists = !car.spec.assists;
+  assists = !assists;
+  car.spec.assists = assists;
   refreshBadges();
   toast(car.spec.assists ? 'Assists ON (traction + countersteer)' : 'Assists OFF: full drift mode');
 });
@@ -117,6 +178,7 @@ if (isTouch) {
   $('touch-cam').addEventListener('click', () => { chase.cycle(); refreshBadges(); });
   $('touch-reset').addEventListener('click', resetCar);
   $('touch-rebuild').addEventListener('click', resetAll);
+  $('touch-enter').addEventListener('click', enterNearby);
 }
 
 const startAudio = () => audio.start();
@@ -188,10 +250,14 @@ function stepWorld() {
 
 function frameTail(dt) {
   destruction.sync();
-  model.update(car, dt);
+  active.model.update(car, dt);
+  for (const v of fleet) if (v.parked) v.model.updateParked(v.parked.body, dt);
+  const near = car.speed < 8 ? nearbyVehicle() : null;
+  hud.prompt.classList.toggle('show', !!near);
+  if (near) hud.prompt.innerHTML = `<kbd>E</kbd> Drive the ${near.def.name.toLowerCase()}`;
 
   // Tire effects.
-  model.contactPoints(contacts);
+  active.model.contactPoints(contacts);
   const speed = car.speed;
   const latSlipF = Math.abs(Math.sin(car.slipFront));
   const latSlipR = Math.abs(Math.sin(car.slipRear));
@@ -220,7 +286,7 @@ function frameTail(dt) {
     camera.position.z += (Math.random() - 0.5) * a;
     shake *= Math.exp(-dt * 6);
   }
-  world.followSun(model.root.position);
+  world.followSun(active.model.root.position);
 
   // HUD.
   hud.speed.textContent = Math.round(speed * 3.6);
@@ -265,5 +331,7 @@ function frameTail(dt) {
   renderer.render(scene, camera);
 }
 
-window.game = { car, model, chase, scene, destruction };
+window.game = {
+  get car() { return car; }, get active() { return active; }, fleet, chase, scene, destruction, switchTo, nearbyVehicle,
+};
 requestAnimationFrame(frame);
