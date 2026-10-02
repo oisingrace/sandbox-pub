@@ -98,6 +98,68 @@ Pick **Car football** on the main menu (next to Free roam) for a Blue vs Orange 
   ball. An arrow at the screen edge points to the ball when it's off screen, and a ring under it
   shows where it'll land.
 
+## Custom cars
+
+**Car workshop** (main menu → *Car workshop*) lets players build their own cars:
+
+- **Body:** six styles (coupe, hatchback, muscle, pickup, van, buggy), each with its own shape,
+  engine and base performance. Sliders for length, width, roof height, ride height and wheel size.
+- **Paint:** body, trim and glow colours.
+- **Parts:** rear wing, hood scoop, bull bar, roof lights, exhaust stacks, racing stripes, roll cage.
+- **Special:** none, burner (burns through what it hits, like the Ember GT) or a flamethrower turret
+  (like the Inferno pickup).
+- **Engine and handling:** engine sound, and sliders for power, weight, grip, balance (planted to
+  tail-happy) and boost.
+- The **stats** (top speed, 0–100 km/h, weight) are measured by actually running the car through the
+  handling model, so they're honest, and they update as you tune. A live 3D preview turns behind the
+  menu.
+- **Save** keeps it in this browser (up to 14); saved cars appear in the car picker and the in-game
+  garage, and park in rows behind the start line. **Save and drive** jumps straight in.
+- **Share code** gives a short text code; a friend pastes it under *Import* to get a copy.
+- **Online**, your design travels with you: other players see and collide with your custom car, and
+  if you switch cars mid-game they get the new one.
+
+### The framework (for adding more in code)
+
+A custom car is a plain-data **design** (`src/carkit.js`), safe to save, share and send over the
+network; every value is checked and clamped by `cleanDesign`:
+
+```js
+{
+  id: 'c-abc1234', name: 'Red Menace', style: 'pickup',
+  color: 0xc0161c, trim: 0x1c1c22, accent: 0xff6a10,
+  size: { length: 0.5, width: 0.5, height: 0.5, ride: 0.5, wheels: 0.5 }, // 0..1 around the style
+  tune: { power: 0.9, weight: 0.5, grip: 0.5, balance: 0.5, boost: 0.5 },  // 0..1, 0.5 neutral
+  engine: 'v8', ability: 'flamethrower', parts: ['stacks', 'bullbar', 'lightbar'],
+}
+```
+
+`compileCar(design, home)` turns it into a full vehicle definition, the same shape as the
+hand-built cars in `src/vehicles.js`, so the rest of the game can't tell them apart:
+
+- **layout:** real dimensions from the style and size sliders;
+- **spec:** the handling model's values (mass from the body's volume and the weight slider, engine
+  torque from the style and power slider, tyre grip, rear grip balance, wheelbase, track, wheel
+  radius, drag, brakes, boost);
+- **hitbox** (body box, cabin box, turret), **camera** fit, **exhaust** positions and the
+  **flamethrower** mount;
+- **build:** the bodywork for `CarModel`, made from boxes and tapered boxes;
+- **stats:** measured top speed and 0–100.
+
+To extend it:
+
+- **A new body style:** add an entry to `STYLES` (base length, width, roof and body height, ride
+  height, the cabin's span along the car, roof taper, wheel size, default engine, power; optional
+  `bed` or `open`). `buildBody` and the hitbox follow the layout automatically.
+- **A new part:** add it to `PARTS` (its label) and draw it in `buildBody` under
+  `if (parts.has('yourPart'))`.
+- **A new ability:** add it to `ABILITIES` and set the matching flag in `compileCar` (see how
+  `burns` and `flamethrower` are set).
+- **A new tuning slider:** add it to `TUNE_KEYS` and use `t.yourKey` in the spec.
+
+`src/customs.js` is the registry (`Garage`): built-in cars plus saved designs, and other players'
+designs for the session. `src/workshop.js` is the editor UI.
+
 ## Audio
 
 Everything is synthesised with Web Audio; there are no sound files (`src/audio.js`).
@@ -301,6 +363,9 @@ All of it is in `src/destruction.js`.
 - `src/quake.js`: screen quake driven by how much destruction is happening
 - `src/flamethrower.js`: the Inferno pickup's flame stream, fuel tank and fire particles
 - `src/score.js`: destruction points and the combo multiplier
+- `src/carkit.js`: custom car designs: styles, parts, tuning, and compiling a design into a car
+- `src/customs.js`: the vehicle registry (built-in, saved custom and other players' cars)
+- `src/workshop.js`: the car workshop screens (list, editor, share codes)
 - `src/net.js`: peer-to-peer rooms (PeerJS), with the host relaying messages
 - `src/multiplayer.js`: other players' cars, smoothing, name tags
 - `src/carCollision.js`: car-to-car collisions with momentum-correct impulses

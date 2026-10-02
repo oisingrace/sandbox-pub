@@ -54,6 +54,7 @@ function makeWheel(radius, width) {
     rim: new THREE.MeshStandardMaterial({ color: 0xc9ccd1, metalness: 0.85, roughness: 0.3 }),
     hub: new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6, roughness: 0.4 }),
   };
+  for (const m of Object.values(WHEEL_MATS)) m.userData.shared = true; // see CarModel.dispose
   const { tire: tireMat, rim: rimMat, hub: hubMat } = WHEEL_MATS;
 
   const tire = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, width, 28, 1), tireMat);
@@ -102,7 +103,7 @@ export class CarModel {
       dark: new THREE.MeshStandardMaterial({ color: 0x1b1b1f, roughness: 0.7 }),
       glass: new THREE.MeshStandardMaterial({ color: 0x0e1622, metalness: 0.9, roughness: 0.1 }),
       chrome: new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 1, roughness: 0.25 }),
-      glow: new THREE.MeshStandardMaterial({ color: 0x2a0d00, emissive: 0xff6a10, emissiveIntensity: 2.2 }),
+      glow: new THREE.MeshStandardMaterial({ color: 0x2a0d00, emissive: def.accent ?? 0xff6a10, emissiveIntensity: 2.2 }),
     };
     this.glowMat = mats.glow;
     this.headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4d6, emissiveIntensity: 1.2 });
@@ -187,6 +188,15 @@ export class CarModel {
 
     this.roll = 0;
     this.pitch = 0;
+  }
+
+  /** Free this model's GPU resources (custom car previews are rebuilt often). */
+  dispose() {
+    this.root.traverse((o) => {
+      o.geometry?.dispose();
+      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      for (const m of mats) if (!m.userData.shared) m.dispose();
+    });
   }
 
   /** Sync visuals to the physics state of the car being driven. */

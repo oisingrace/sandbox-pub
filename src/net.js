@@ -15,9 +15,9 @@
 // the football match state), so traffic grows with players, not players².
 //
 // Messages are small JSON objects:
-//   hello   { name, vehicle }            client -> host on connect
+//   hello   { name, vehicle, car }       client -> host on connect (car: custom design, or null)
 //   welcome { id, players, mode }        host -> client (mode: the room's game mode)
-//   joined  { id, name, vehicle }        host -> everyone
+//   joined  { id, name, vehicle, car }   host -> everyone
 //   left    { id }                       host -> everyone
 //   event   { id, e }                    one-off events; `e.to` sends to one player only
 //   state   { s }                        fast, client -> host: our car (see multiplayer.js)
@@ -69,7 +69,7 @@ export class Net {
   }
 
   /** Create a room. Resolves with the room code. */
-  host(name, vehicle, mode = 'free') {
+  host(name, vehicle, mode = 'free', car = null) {
     if (!window.Peer) return Promise.reject(new Error('Multiplayer library failed to load.'));
     return new Promise((resolve, reject) => {
       const attempt = (tries) => {
@@ -81,7 +81,7 @@ export class Net {
           this.code = code;
           this.id = 'host';
           this.mode = mode;
-          this.players.set('host', { name, vehicle });
+          this.players.set('host', { name, vehicle, car });
           peer.on('connection', (conn) => (conn.metadata?.fast ? this.acceptFast(conn) : this.acceptClient(conn)));
           resolve(code);
         });
@@ -109,10 +109,11 @@ export class Net {
         const id = conn.peer;
         this.conns.set(id, conn);
         const players = Object.fromEntries(this.players);
-        this.players.set(id, { name: msg.name, vehicle: msg.vehicle });
+        const car = msg.car && typeof msg.car === 'object' ? msg.car : null; // checked by carkit.cleanDesign
+        this.players.set(id, { name: msg.name, vehicle: msg.vehicle, car });
         conn.send({ t: 'welcome', id, players, mode: this.mode });
-        this.relay({ t: 'joined', id, name: msg.name, vehicle: msg.vehicle }, id);
-        this.emit('joined', id, msg.name, msg.vehicle);
+        this.relay({ t: 'joined', id, name: msg.name, vehicle: msg.vehicle, car }, id);
+        this.emit('joined', id, msg.name, msg.vehicle, car);
       } else if (msg.t === 'event') {
         msg.id = conn.peer; // trust the connection, not the message
         const to = msg.e?.to;
@@ -163,7 +164,7 @@ export class Net {
   }
 
   /** Join a room by code. Resolves once the host has welcomed us. */
-  join(code, name, vehicle) {
+  join(code, name, vehicle, car = null) {
     if (!window.Peer) return Promise.reject(new Error('Multiplayer library failed to load.'));
     code = code.trim().toUpperCase();
     return new Promise((resolve, reject) => {
@@ -181,7 +182,7 @@ export class Net {
       });
       peer.on('open', () => {
         const conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'json' });
-        conn.on('open', () => conn.send({ t: 'hello', name, vehicle }));
+        conn.on('open', () => conn.send({ t: 'hello', name, vehicle, car }));
         conn.on('data', (msg) => {
           if (msg.t === 'welcome' && !settled) {
             settled = true;
@@ -193,15 +194,15 @@ export class Net {
             this.mode = msg.mode || 'free';
             this.conns.set('host', conn);
             this.players = new Map(Object.entries(msg.players));
-            this.players.set(msg.id, { name, vehicle });
+            this.players.set(msg.id, { name, vehicle, car });
             this.openFast(peer, code);
             resolve(code);
-            for (const [id, p] of Object.entries(msg.players)) this.emit('joined', id, p.name, p.vehicle);
+            for (const [id, p] of Object.entries(msg.players)) this.emit('joined', id, p.name, p.vehicle, p.car);
             return;
           }
           if (msg.t === 'joined') {
-            this.players.set(msg.id, { name: msg.name, vehicle: msg.vehicle });
-            this.emit('joined', msg.id, msg.name, msg.vehicle);
+            this.players.set(msg.id, { name: msg.name, vehicle: msg.vehicle, car: msg.car });
+            this.emit('joined', msg.id, msg.name, msg.vehicle, msg.car);
           } else if (msg.t === 'left') {
             this.players.delete(msg.id);
             this.emit('left', msg.id);

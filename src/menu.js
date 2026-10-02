@@ -18,7 +18,7 @@ const MODE_BLURBS = {
 export class Menu {
   /**
    * @param {object} opts
-   * @param {Array} opts.vehicles  vehicle definitions
+   * @param {() => Array} opts.vehicles  current vehicle definitions (built-in + custom)
    * @param {() => object} opts.getSettings
    * @param {(key: string, value: any) => void} opts.onSetting
    * @param {() => void} opts.onPlay
@@ -33,7 +33,7 @@ export class Menu {
     for (const el of this.root.querySelectorAll('.screen')) this.screens[el.dataset.screen] = el;
     this.tab = 'graphics';
     this.backTo = 'main';
-    this.vehicleIndex = Math.max(0, opts.vehicles.findIndex((v) => v.id === opts.getSettings().startVehicle));
+    this.vehicleIndex = Math.max(0, opts.vehicles().findIndex((v) => v.id === opts.getSettings().startVehicle));
 
     const on = (id, fn) => document.getElementById(id).addEventListener('click', fn);
     on('btn-play', () => opts.onPlay(this.vehicle));
@@ -46,6 +46,7 @@ export class Menu {
     on('btn-rebuild', () => opts.onRebuild());
     on('btn-quit', () => opts.onQuit());
     on('btn-online', () => this.show('online', 'main'));
+    on('btn-workshop', () => opts.onWorkshop());
     on('btn-host', () => opts.onHost(this.playerName()));
     on('btn-join', () => opts.onJoin(document.getElementById('join-code').value, this.playerName()));
     document.getElementById('join-code').addEventListener('keydown', (e) => {
@@ -122,7 +123,8 @@ export class Menu {
   }
 
   get vehicle() {
-    return this.opts.vehicles[this.vehicleIndex];
+    const list = this.opts.vehicles();
+    return list[Math.min(this.vehicleIndex, list.length - 1)];
   }
 
   get isOpen() {
@@ -159,7 +161,7 @@ export class Menu {
   showGarage() {
     const current = this.opts.currentVehicle();
     const list = document.getElementById('garage-list');
-    list.replaceChildren(...this.opts.vehicles.map((v) => {
+    list.replaceChildren(...this.opts.vehicles().map((v) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'garage-card';
@@ -183,7 +185,7 @@ export class Menu {
       stats.innerHTML = `<span><b>${v.stats.top}</b> km/h</span><span><b>${v.stats.accel}</b> s 0–100</span><span><b>${v.spec.mass.toLocaleString('en-US')}</b> kg</span>`;
       b.append(dot, name, blurb, stats);
       b.addEventListener('click', () => {
-        this.vehicleIndex = this.opts.vehicles.indexOf(v);
+        this.vehicleIndex = this.opts.vehicles().indexOf(v);
         this.renderVehicle();
         this.opts.onPickVehicle(v);
       });
@@ -193,8 +195,15 @@ export class Menu {
     list.querySelector('[aria-current="true"]')?.focus({ preventScroll: true });
   }
 
+  /** Make `id` the selected vehicle on the main menu. */
+  selectVehicle(id) {
+    const i = this.opts.vehicles().findIndex((v) => v.id === id);
+    if (i >= 0) this.vehicleIndex = i;
+    this.renderVehicle();
+  }
+
   pickVehicle(dir) {
-    const n = this.opts.vehicles.length;
+    const n = this.opts.vehicles().length;
     this.vehicleIndex = (this.vehicleIndex + dir + n) % n;
     this.renderVehicle();
     this.opts.onSetting('startVehicle', this.vehicle.id);

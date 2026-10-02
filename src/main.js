@@ -3,6 +3,9 @@ import { CarPhysics } from './physics.js';
 import { CarModel } from './carModel.js';
 import { createWorld, populateArena, DRIVE_LIMIT } from './world.js';
 import { VEHICLES } from './vehicles.js';
+import { Garage } from './customs.js';
+import { compileCar } from './carkit.js';
+import { Workshop } from './workshop.js';
 import { Destruction, initRapier, WORLD_STEP } from './destruction.js';
 import { SkidMarks, Smoke } from './effects.js';
 import { ChaseCamera } from './camera.js';
@@ -75,7 +78,9 @@ addEventListener('resize', () => {
 const world = createWorld(scene, renderer);
 // Every vehicle has a model in the scene. One is driven (custom handling
 // model + kinematic collider); the rest are parked rigid bodies.
-const fleet = VEHICLES.map((def) => {
+// The garage holds the built-in cars plus your custom ones (see customs.js).
+const garage = new Garage();
+const fleet = garage.all.map((def) => {
   const model = new CarModel(def);
   scene.add(model.root);
   return { def, model, parked: null };
@@ -119,7 +124,7 @@ const score = new Score();
 const _nz = { pos: new THREE.Vector3(), dir: new THREE.Vector3() };
 // Multiplayer (peer-to-peer; see net.js and multiplayer.js).
 const net = new Net();
-const mp = new Multiplayer({ scene, destruction, vehicles: VEHICLES });
+const mp = new Multiplayer({ scene, destruction, findVehicle: (id) => garage.find(id) });
 let slot = 0; // our start position in a room
 let state = 'menu'; // 'menu' | 'playing' | 'paused'
 let arenaDirty = false; // has the arena been played in since it was built?
@@ -475,6 +480,7 @@ function changeVehicle(def) {
   setSetting('startVehicle', def.id);
   refreshTeamGlows();
   refreshBadges();
+  announceCar(def);
   toast(`Driving: ${def.name}`);
 }
 
@@ -503,6 +509,7 @@ function switchTo(target) {
   chase.snap();
   audio.setVehicle(target.def);
   refreshBadges();
+  announceCar(target.def);
   toast(`Driving: ${target.def.name}`);
 }
 
@@ -531,7 +538,8 @@ function refreshBadges() {
 
 // --- Menus and game state -------------------------------------------------
 const menu = new Menu({
-  vehicles: VEHICLES,
+  vehicles: () => garage.all,
+  onWorkshop: () => workshop.open(),
   getSettings: () => settings,
   onSetting: setSetting,
   onPlay: (def) => play(def),
@@ -547,6 +555,84 @@ const menu = new Menu({
   // Show the chosen mode's map behind the main menu.
   onModePicked: (m) => { if (state === 'menu' && !net.online && m !== mode) enterMode(m); },
 });
+
+// --- Custom cars --------------------------------------------------------------
+const workshop = new Workshop({
+  garage,
+  show: (name) => menu.show(name, name === 'workshop' ? 'main' : undefined),
+  onPreview: (design) => showPreview(design),
+  onSaved: (def) => { syncFleet(); menu.selectVehicle(def.id); setSetting('startVehicle', def.id); },
+  onDeleted: () => { syncFleet(); menu.selectVehicle(active.def.id); },
+  onTestDrive: (def) => { showPreview(null); play(fleet.find((v) => v.def.id === def.id)?.def); },
+});
+
+/** Match the fleet to the garage after custom cars are saved or deleted. */
+function syncFleet() {
+  const defs = garage.all;
+  const activeId = active.def.id;
+  for (const v of [...fleet]) {
+    if (defs.includes(v.def)) continue;
+    if (v.parked) destruction.removeVehicle(v.parked);
+    scene.remove(v.model.root);
+    v.model.dispose();
+    fleet.splice(fleet.indexOf(v), 1);
+  }
+  for (const def of defs) {
+    if (fleet.some((v) => v.def === def)) continue;
+    const model = new CarModel(def);
+    model.root.visible = false;
+    scene.add(model.root);
+    fleet.push({ def, model, parked: null });
+  }
+  fleet.sort((a, b) => defs.indexOf(a.def) - defs.indexOf(b.def));
+  const next = fleet.find((v) => v.def.id === activeId) || fleet[0];
+  if (next !== active) {
+    active = next;
+    car = new CarPhysics({ ...active.def.spec, assists: settings.assists }, terrain);
+  }
+  arenaDirty = true; // park new cars (and drop deleted ones) on the next Play
+}
+
+/** Tell the other players what our custom car looks like (built-ins they already know). */
+function announceCar(def) {
+  if (net.online && def.custom) net.sendEvent({ type: 'cardef', car: def.design });
+}
+
+// The workshop preview: the design being edited, on a turntable behind the menu.
+const SHOWROOM = { x: 0, z: -80 };
+let preview = null; // { model, def }
+let previewSpin = 0;
+function showPreview(design) {
+  if (preview) {
+    scene.remove(preview.model.root);
+    preview.model.dispose();
+    preview = null;
+  }
+  if (!design) {
+    camera.clearViewOffset();
+    return;
+  }
+  const def = compileCar(design, SHOWROOM, false);
+  const model = new CarModel(def);
+  scene.add(model.root);
+  preview = { model, def, pose: { x: SHOWROOM.x, y: 0, z: SHOWROOM.z, heading: 0, pitch: 0, roll: 0, velX: 0, velZ: 0, vLong: 0, steer: 0, braking: 0, handbrake: false, gear: 1, boosting: false, airborne: false, accelLat: 0, accelLong: 0, frontWheelSpeed: 0, rearWheelSpeed: 0, spec: def.spec } };
+  model.update(preview.pose, 0);
+}
+
+/** Orbit the camera round the preview car, with the car shifted right of the menu. */
+function updatePreview(dt) {
+  if (menu.current !== 'editor') { showPreview(null); return; }
+  previewSpin += dt * 0.35;
+  const { def } = preview;
+  const dist = Math.max(6.5, def.length * 1.5 + def.spec.body.top);
+  camera.position.set(SHOWROOM.x + Math.sin(previewSpin) * dist, 1.6 + def.spec.body.top * 0.5, SHOWROOM.z + Math.cos(previewSpin) * dist);
+  camera.lookAt(SHOWROOM.x, def.spec.body.top * 0.45, SHOWROOM.z);
+  const w = innerWidth, h = innerHeight;
+  if (w > 760) camera.setViewOffset(w, h, -w * 0.2, 0, w, h);
+  else camera.clearViewOffset();
+  preview.model.update(preview.pose, dt);
+  world.followSun(new THREE.Vector3(SHOWROOM.x, 0, SHOWROOM.z));
+}
 
 function play(def) {
   audio.start();
@@ -571,6 +657,7 @@ function play(def) {
   }
   refreshTeamGlows();
   arenaDirty = true;
+  announceCar(active.def);
   audio.setVehicle(active.def);
   refreshBadges();
   menu.hide();
@@ -593,9 +680,11 @@ function rebuildArena() {
 }
 
 // --- Online play -------------------------------------------------------------
-net.on('joined', (id, name, vehicle) => {
+net.on('joined', (id, name, vehicle, design) => {
   if (id === net.id) return;
+  if (design) garage.addRemote(design); // their custom car
   mp.addPlayer(id, name, vehicle);
+  announceCar(active.def); // and ours, if custom, for the newcomer
   toast(`${name} joined`);
   updateNames();
   if (net.isHost && mode === 'football') assignTeam(id);
@@ -621,6 +710,13 @@ net.on('match', (m) => {
   football.applySnapshot(m, performance.now() < ownTouchUntil);
 });
 net.on('event', (id, e) => {
+  if (e.type === 'cardef') {
+    // A player's custom car (new or edited): rebuild their model if they're in it.
+    const def = garage.addRemote(e.car);
+    const r = mp.remotes.get(id);
+    if (def && r && r.def.id === def.id && r.def !== def) mp.addPlayer(id, r.name, def.id);
+    return;
+  }
   if (e.type === 'hit' && e.to === net.id) {
     // Another player hit us: take their impulse now, unless we already
     // resolved this contact ourselves a moment ago.
@@ -650,7 +746,7 @@ async function hostRoom(name) {
   setSetting('playerName', name);
   menu.setOnlineStatus('Creating a room…');
   try {
-    await net.host(name, menu.vehicle.id, menu.mode);
+    await net.host(name, menu.vehicle.id, menu.mode, menu.vehicle.custom ? menu.vehicle.design : null);
     slot = 0;
     startOnline();
   } catch (err) {
@@ -666,7 +762,7 @@ async function joinRoom(code, name) {
   setSetting('playerName', name);
   menu.setOnlineStatus('Joining…');
   try {
-    await net.join(code, name, menu.vehicle.id);
+    await net.join(code, name, menu.vehicle.id, menu.vehicle.custom ? menu.vehicle.design : null);
     slot = Math.max(1, net.players.size - 1);
     startOnline();
   } catch (err) {
@@ -956,17 +1052,21 @@ function frame() {
     }
     updateScene(dt);
   } else if (state === 'menu') {
-    // Slow orbit over the arena behind the main menu.
-    menuOrbit += dt * 0.06;
-    const { radius, height } = map.orbit;
-    camera.position.set(Math.sin(menuOrbit) * radius, height, Math.cos(menuOrbit) * radius);
-    camera.lookAt(0, 2, 0);
+    if (preview) {
+      updatePreview(dt);
+    } else {
+      // Slow orbit over the arena behind the main menu.
+      menuOrbit += dt * 0.06;
+      const { radius, height } = map.orbit;
+      camera.position.set(Math.sin(menuOrbit) * radius, height, Math.cos(menuOrbit) * radius);
+      camera.lookAt(0, 2, 0);
+    }
     destruction.sync();
     if (mode === 'football') football.syncMesh();
     if (bot) bot.model.update(bot.car, 0);
     for (const v of fleet) if (v.parked) v.model.updateParked(v.parked.body, dt);
     active.model.update(car, 0);
-    world.followSun(new THREE.Vector3(0, 0, 0));
+    if (!preview) world.followSun(new THREE.Vector3(0, 0, 0));
   }
   // Paused: redraw the frozen frame only a few times a second (enough to
   // show settings changes behind the menu) to save battery.
@@ -1011,7 +1111,9 @@ function trackPerformance(raw) {
 }
 
 // --- Car-to-car collisions ------------------------------------------------
-const footprints = new Map(VEHICLES.map((d) => [d, footprint(d)]));
+// Car footprints for collisions, worked out once per vehicle definition.
+const footprintCache = new WeakMap();
+const footprints = { get: (def) => footprintCache.get(def) || footprintCache.set(def, footprint(def)).get(def) };
 const lastContact = new Map(); // remote id -> time we last resolved a hit with them
 const lastHitFrom = new Map(); // remote id -> time they last sent us a hit
 const _hitQ = new THREE.Quaternion();
@@ -1267,6 +1369,6 @@ window.game = {
   get car() { return car; }, get active() { return active; }, get state() { return state; }, net, mp,
   get renderer() { return renderer; }, get settings() { return settings; },
   fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu, quake, score, tank,
-  football, get bot() { return bot; }, get mode() { return mode; }, enterMode,
+  football, get bot() { return bot; }, get mode() { return mode; }, enterMode, garage,
 };
 requestAnimationFrame(frame);

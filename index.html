@@ -154,7 +154,7 @@
       #menu { background: linear-gradient(90deg, rgba(8, 10, 14, 0.85), rgba(8, 10, 14, 0.4)); }
       .screen[data-screen="main"] { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); column-gap: 24px; row-gap: 8px; width: min(820px, 100%); align-items: start; }
       .screen[data-screen="main"] > .logo, .screen[data-screen="main"] > .tagline, .screen[data-screen="main"] > .fineprint { grid-column: 1; }
-      .screen[data-screen="main"] > .vehicle-card, .screen[data-screen="main"] > .mode-picker, .screen[data-screen="main"] > #btn-play, .screen[data-screen="main"] > #btn-online, .screen[data-screen="main"] > .btn-row { grid-column: 2; }
+      .screen[data-screen="main"] > .vehicle-card, .screen[data-screen="main"] > .mode-picker, .screen[data-screen="main"] > #btn-play, .screen[data-screen="main"] > #btn-online, .screen[data-screen="main"] > #btn-workshop, .screen[data-screen="main"] > .btn-row { grid-column: 2; }
       .screen[data-screen="main"] > .logo { grid-row: 1; }
       .screen[data-screen="main"] > .tagline { grid-row: 2; }
       .screen[data-screen="main"] > .fineprint { grid-row: 3 / span 2; }
@@ -270,6 +270,25 @@
     #fuel-fill.empty { background: #7a3a20; }
     #t-fire { display: none; right: 16px; bottom: 196px; width: 64px; height: 64px; font-size: 12px; border-color: rgba(255, 122, 26, 0.8); }
     body.touch.flamer #t-fire { display: flex; }
+    /* --- Car workshop --- */
+    .screen.editor { width: min(520px, 100%); }
+    .editor-head { margin: 14px 0 0; font: 400 16px var(--font-display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--hazard); }
+    .editor-stats { position: sticky; top: -20px; z-index: 1; padding: 10px 0; background: #111318; border-bottom: 1px solid var(--menu-line); font-size: 13px; }
+    .editor-stats.stale b { opacity: 0.5; }
+    .colours { display: flex; gap: 14px; }
+    .colour { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--hud-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+    .colour input { width: 44px; height: 32px; padding: 0; border: 1px solid var(--menu-line); border-radius: 8px; background: none; cursor: pointer; }
+    .colour input:focus-visible { outline: 3px solid var(--hazard); outline-offset: 2px; }
+    #menu .seg.parts { padding: 10px 0; }
+    #menu .seg button[aria-pressed="true"] { background: var(--hud-fg); color: var(--hazard-ink); border-color: transparent; }
+    .slider output { min-width: 3ch; }
+    .editor-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .editor-actions .primary { flex: 1 1 100%; }
+    .workshop-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; align-items: stretch; margin-top: 6px; }
+    .import-row { display: flex; gap: 6px; min-width: 0; }
+    .import-row input, #editor-code { flex: 1; min-width: 0; font: 600 13px ui-monospace, monospace; color: var(--hud-fg); background: rgba(255,255,255,0.06); border: 1px solid var(--menu-line); border-radius: 8px; padding: 10px; }
+    #editor-code { width: 100%; resize: vertical; word-break: break-all; user-select: text; -webkit-user-select: text; }
+    .field input[type="text"] { text-transform: none; }
   </style>
   <!-- PeerJS: browser-to-browser multiplayer (UMD build, defines window.Peer). -->
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -363,6 +382,7 @@
 
       <button type="button" class="primary" id="btn-play">Play</button>
       <button type="button" class="secondary" id="btn-online">Play online with friends</button>
+      <button type="button" class="secondary" id="btn-workshop">Car workshop: build your own</button>
       <div class="btn-row">
         <button type="button" id="btn-options">Options</button>
         <button type="button" id="btn-controls">Controls</button>
@@ -411,6 +431,36 @@
       <div id="option-tabs" class="tabs" role="tablist"></div>
       <div id="option-list" class="option-list"></div>
       <button type="button" class="back" data-back>Back</button>
+    </section>
+
+    <section class="screen wide" data-screen="workshop" hidden aria-labelledby="workshop-title">
+      <h2 id="workshop-title" class="screen-title">Car workshop</h2>
+      <p class="online-intro">Build your own car: pick a body, size it, paint it, bolt on parts and tune how it drives. Saved cars show up in the car picker and garage, park behind the start line, and other players see them online.</p>
+      <div id="workshop-list" class="garage-list" role="list"></div>
+      <div class="workshop-actions">
+        <button type="button" class="primary" id="btn-new-car">New car</button>
+        <div class="import-row">
+          <input id="import-code" type="text" placeholder="Paste a share code" autocomplete="off" spellcheck="false" aria-label="Share code">
+          <button type="button" id="btn-import-car">Import</button>
+        </div>
+      </div>
+      <p id="workshop-status" class="online-status" role="status" aria-live="polite"></p>
+      <button type="button" class="back" data-back>Back</button>
+    </section>
+
+    <section class="screen wide editor" data-screen="editor" hidden aria-labelledby="editor-title">
+      <h2 id="editor-title" class="screen-title">Design</h2>
+      <div id="editor-stats" class="stats editor-stats" aria-live="polite"></div>
+      <div id="editor-form" class="option-list"></div>
+      <textarea id="editor-code" rows="3" readonly hidden aria-label="Share code"></textarea>
+      <p id="editor-status" class="online-status" role="status" aria-live="polite"></p>
+      <div class="editor-actions">
+        <button type="button" class="primary" id="btn-editor-drive">Save and drive</button>
+        <button type="button" id="btn-editor-save">Save</button>
+        <button type="button" id="btn-editor-share">Share code</button>
+        <button type="button" id="btn-editor-delete">Delete</button>
+        <button type="button" id="btn-editor-back">Back</button>
+      </div>
     </section>
 
     <section class="screen wide" data-screen="garage" hidden aria-labelledby="garage-title">

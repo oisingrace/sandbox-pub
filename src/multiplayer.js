@@ -31,10 +31,10 @@ const round = (v) => Math.round(v * 100) / 100;
 const wrapMp = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
 export class Multiplayer {
-  constructor({ scene, destruction, vehicles }) {
+  constructor({ scene, destruction, findVehicle }) {
     this.scene = scene;
     this.destruction = destruction;
-    this.vehicles = vehicles;
+    this.findVehicle = findVehicle; // id -> vehicle definition (built-in or custom), or null
     this.remotes = new Map();
     this.lastSent = null;
     this.lastSentAt = -1;
@@ -46,7 +46,7 @@ export class Multiplayer {
 
   addPlayer(id, name, vehicleId) {
     this.removePlayer(id);
-    const def = this.vehicles.find((v) => v.id === vehicleId) || this.vehicles[0];
+    const def = this.findVehicle(vehicleId) || this.findVehicle('sports');
     const model = new CarModel(def);
     model.root.visible = false;
     const proxy = makeProxy(def);
@@ -90,7 +90,8 @@ export class Multiplayer {
     }
     r.lastTs = ts;
     const s = decodeState(arr);
-    if (s.v !== r.def.id) {
+    // They changed vehicle (to one we know: custom designs arrive separately).
+    if (s.v !== r.def.id && this.findVehicle(s.v)) {
       // They changed vehicle: keep the timing we've learned about them.
       const keep = { offset: r.offset, jitter: r.jitter, delay: r.delay, lastTs: r.lastTs };
       r = Object.assign(this.addPlayer(id, r.name, s.v), keep);
