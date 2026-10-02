@@ -6,6 +6,20 @@ smashed: two office buildings with glass windows, a gas station, explosive fuel 
 container yard, a water tower, giant bowling pins, a fenced grove, brick walls, concrete sheds, a block
 tower, crate pyramids, barrels, a domino run, light poles, trees, cones, and the barrier ring itself.
 
+**Ramps and jumps** (`src/terrain.js`):
+- A launch kicker off the start line, aimed over the big brick wall.
+- Two side kickers: one into a crate pyramid, one over the low wall.
+- A gap jump with a landing ramp in the east.
+- A tabletop in the north.
+- A 4.5 m mega ramp in the west, aimed at the container yard.
+
+The car's handling model gained a vertical part. It follows the ground, picks up pitch and roll from
+the slope, and loses speed climbing. It becomes airborne when the ground drops away faster than gravity
+(a ramp lip). In the air, the nose settles toward the direction of travel, and throttle or brake tilt
+it. Landing flat keeps your speed, while landing on the nose or a corner scrubs it off. The back and
+sides of a ramp are walls. Ramps are also solid in the physics world (made of convex slices), so debris
+and parked cars slide off them. Airtime is shown on screen, and big air refills boost.
+
 **Fuel drums** explode when hit hard (or burned by the Ember GT). The blast pushes everything within
 9 m outward and up, shatters things close by, shoves the car, and sets off nearby drums a moment later,
 so a pile goes up in a chain.
@@ -152,6 +166,7 @@ All of it is in `src/destruction.js`.
 - `src/destruction.js`: rigid-body world, fracturing, and instanced rendering
 - `src/effects.js`: skid marks and tire smoke
 - `src/burn.js`: the Ember GT's voxel burn effect
+- `src/terrain.js`: ramps, the height lookup the car drives on, and their meshes and colliders
 - `src/input.js`: keyboard, gamepad and touch input
 - `src/audio.js`: synthesized engine, tire squeal, and per-material impact sounds
 - `src/settings.js`: options, presets, and saving them

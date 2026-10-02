@@ -6,6 +6,7 @@
 //   forward = (sin h, cos h), left = (cos h, -sin h).
 
 const G = 9.81;
+const MAX_STEP = 0.35; // a rise bigger than this in one step is a wall
 
 export const DEFAULT_SPEC = {
   mass: 1250,              // kg
@@ -66,10 +67,12 @@ function engineTorque(rpm) {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const sign = (v) => (v > 0 ? 1 : v < 0 ? -1 : 0);
+const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
 export class CarPhysics {
-  constructor(spec = {}) {
+  constructor(spec = {}, terrain = null) {
     this.spec = { ...DEFAULT_SPEC, ...spec };
+    this.terrain = terrain; // optional: anything with heightAt(x, z)
     this.reset();
   }
 
@@ -91,6 +94,17 @@ export class CarPhysics {
     this.handbrake = false;
     this.boost = 1;         // boost meter, 0..1
     this.boosting = false;
+    // Vertical motion (ramps and jumps).
+    this.y = this.terrain ? this.terrain.heightAt(x, z) : 0;
+    this.velY = 0;
+    this.pitch = 0;          // nose up positive
+    this.roll = 0;           // left side up positive
+    this.pitchRate = 0;
+    this.rollRate = 0;
+    this.airborne = false;
+    this.airTime = 0;
+    this.landed = null;      // { impact, misalign, airTime } for one step after landing
+    this.blocked = 0;        // speed of a hit against a ramp wall, for one step
     // Per-frame telemetry used by visuals/audio.
     this.vLong = 0;
     this.vLat = 0;
@@ -150,6 +164,13 @@ export class CarPhysics {
     this.boosting = !!input.boost && this.boost > 0.02;
     if (this.boosting) this.boost = Math.max(0, this.boost - dt / s.boostDuration);
     else if (!input.boost) this.boost = Math.min(1, this.boost + dt / s.boostRecharge);
+
+    this.landed = null;
+    this.blocked = 0;
+    if (this.airborne) {
+      this.flyStep(dt, input);
+      return;
+    }
 
     // --- Steering ------------------------------------------------------
     // Less lock at speed keeps the front tires near their peak slip angle.
@@ -256,6 +277,7 @@ export class CarPhysics {
     const torque = a * (FxF * ss + FyF * cs) - b * FyR;
 
     if (this.boosting) Fx += s.mass * s.boostAccel;
+    Fx -= s.mass * G * Math.sin(this.pitch); // climbing a ramp costs speed
     const ax = Fx / s.mass;
     const ay = Fy / s.mass;
 
@@ -272,9 +294,12 @@ export class CarPhysics {
       this.yawRate *= 0.8;
     }
 
+    const prevX = this.x;
+    const prevZ = this.z;
     this.heading += this.yawRate * dt;
     this.x += this.velX * dt;
     this.z += this.velZ * dt;
+    this.followGround(dt, prevX, prevZ);
 
     // Smoothed accelerations for load transfer and body motion.
     const k = 1 - Math.exp(-dt * 10);
@@ -316,6 +341,130 @@ export class CarPhysics {
     this.velZ += dvz;
     this.yawRate += clamp(torque / (s.mass * s.inertiaScale), -0.8, 0.8);
     return Math.min(dv, maxDv);
+  }
+
+  /** Ground height under the CG plus the slope pitch and roll beneath the car. */
+  sampleGround() {
+    const t = this.terrain;
+    if (!t) return { h: 0, pitch: 0, roll: 0 };
+    const s = this.spec;
+    const sinH = Math.sin(this.heading);
+    const cosH = Math.cos(this.heading);
+    const at = (fwd, left) => t.heightAt(this.x + sinH * fwd + cosH * left, this.z + cosH * fwd - sinH * left);
+    const hF = at(s.cgToFront, 0);
+    const hR = at(-s.cgToRear, 0);
+    const half = s.trackWidth / 2;
+    const hL = at(0, half);
+    const hRt = at(0, -half);
+    const hC = at(0, 0);
+    return {
+      h: Math.max(hC, (hF + hR) / 2),
+      pitch: Math.atan2(hF - hR, s.cgToFront + s.cgToRear),
+      roll: Math.atan2(hL - hRt, s.trackWidth),
+    };
+  }
+
+  /**
+   * Keep the car on the ground, launch it when the ground drops away faster
+   * than gravity can pull it down (a ramp lip), and stop it at walls.
+   */
+  followGround(dt, prevX, prevZ) {
+    const g = this.sampleGround();
+    // A sudden rise is a wall (the back or side of a ramp), not a slope.
+    if (g.h - this.y > MAX_STEP) {
+      this.blocked = this.speed;
+      this.x = prevX;
+      this.z = prevZ;
+      this.velX *= -0.25;
+      this.velZ *= -0.25;
+      this.yawRate *= 0.5;
+      return;
+    }
+    const ballistic = this.y + this.velY * dt - 0.5 * G * dt * dt;
+    if (g.h >= ballistic - 0.02) {
+      const newVelY = clamp((g.h - this.y) / dt, -30, 30);
+      this.velY = newVelY;
+      this.y = g.h;
+      const k = 1 - Math.exp(-dt * 25);
+      const pitch = this.pitch + (g.pitch - this.pitch) * k;
+      const roll = this.roll + (g.roll - this.roll) * k;
+      this.pitchRate = (pitch - this.pitch) / dt;
+      this.rollRate = (roll - this.roll) / dt;
+      this.pitch = pitch;
+      this.roll = roll;
+    } else {
+      // Off the lip: keep the vertical speed the ramp gave us, but not the
+      // ramp's curvature spin (that sends cars into backflips).
+      this.airborne = true;
+      this.pitchRate *= 0.15;
+      this.rollRate *= 0.3;
+      this.airTime = 0;
+      this.y = ballistic;
+      this.velY -= G * dt;
+    }
+  }
+
+  /** Flight: gravity, a little air control, and the landing. */
+  flyStep(dt, input) {
+    const s = this.spec;
+    this.airTime += dt;
+    this.velY -= G * dt;
+    // In the air the nose settles toward the direction of travel (arcade
+    // style), and throttle/brake tilt it from there. Steering yaws a little.
+    const hSpeed = Math.hypot(this.velX, this.velZ);
+    const glide = Math.atan2(this.velY, Math.max(hSpeed, 1)) * 0.7;
+    const control = ((input.throttle || 0) - (input.brake || 0)) * 0.6;
+    this.pitchRate += ((glide + control) - this.pitch) * 5 * dt;
+    this.pitchRate *= Math.exp(-dt * 3);
+    this.rollRate *= Math.exp(-dt * 1.5);
+    this.yawRate += clamp(input.steer || 0, -1, 1) * 1.2 * dt;
+    this.yawRate *= Math.exp(-dt * 1.2);
+    if (this.boosting) {
+      const a = s.boostAccel * dt;
+      const cp = Math.cos(this.pitch);
+      this.velX += Math.sin(this.heading) * cp * a;
+      this.velZ += Math.cos(this.heading) * cp * a;
+      this.velY += Math.sin(this.pitch) * a;
+    }
+    const drag = Math.exp(-dt * 0.04);
+    this.velX *= drag;
+    this.velZ *= drag;
+    this.pitch += this.pitchRate * dt;
+    this.roll += this.rollRate * dt;
+    this.heading += this.yawRate * dt;
+    this.x += this.velX * dt;
+    this.z += this.velZ * dt;
+    this.y += this.velY * dt;
+    this.steer *= Math.exp(-dt * 4);
+    // The engine revs freely with nothing to push against.
+    const target = s.idleRpm + (s.redline - s.idleRpm) * (input.throttle || 0) * 0.95;
+    this.rpm += (target - this.rpm) * (1 - Math.exp(-dt * 6));
+    this.throttle = input.throttle || 0;
+    this.accelLong *= Math.exp(-dt * 4);
+    this.accelLat *= Math.exp(-dt * 4);
+    this.slipFront = this.slipRear = 0;
+    this.wheelspin = 0;
+
+    const g = this.sampleGround();
+    if (this.y <= g.h) this.land(g);
+  }
+
+  land(g) {
+    const impact = Math.max(0, -this.velY);
+    const misalign = Math.abs(wrapAngle(this.pitch - g.pitch)) + Math.abs(wrapAngle(this.roll - g.roll));
+    // Landing flat on the wheels keeps most speed; landing on the nose or
+    // a corner scrubs it off.
+    const loss = clamp(Math.max(0, misalign - 0.35) * 0.5 + Math.max(0, impact - 8) * 0.015, 0, 0.75);
+    this.velX *= 1 - loss;
+    this.velZ *= 1 - loss;
+    if (misalign > 1.1) this.yawRate += (Math.random() - 0.5) * 3; // spun out on a bad landing
+    this.landed = { impact, misalign, airTime: this.airTime };
+    this.airborne = false;
+    this.y = g.h;
+    this.velY = 0;
+    this.pitch = g.pitch;
+    this.roll = g.roll;
+    this.pitchRate = this.rollRate = 0;
   }
 
   tireCurve(slip) {

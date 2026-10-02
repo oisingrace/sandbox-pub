@@ -51,7 +51,7 @@ export class SkidMarks {
     }
     const nx = (-dz / len) * this.width * 0.5;
     const nz = (dx / len) * this.width * 0.5;
-    const y = 0.025;
+    const y = (p.y || 0) + 0.025;
     const quad = [
       prev.p.x - nx, y, prev.p.z - nz,
       prev.p.x + nx, y, prev.p.z + nz,

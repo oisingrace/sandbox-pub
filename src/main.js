@@ -11,6 +11,7 @@ import { CarAudio } from './audio.js';
 import { loadSettings, saveSettings, changeSetting } from './settings.js';
 import { Menu } from './menu.js';
 import { BurnEffect } from './burn.js';
+import { Terrain, arenaRamps } from './terrain.js';
 
 const PHYSICS_DT = 1 / 120;
 // At most this many car steps per frame (2 debris-world steps). A slow
@@ -71,8 +72,15 @@ const fleet = VEHICLES.map((def) => {
   return { def, model, parked: null };
 });
 let active = fleet.find((v) => v.def.id === settings.startVehicle) || fleet[0];
-let car = new CarPhysics({ ...active.def.spec, assists: settings.assists });
+// Ramps and jumps: the car's handling reads heights from here, and the
+// physics world gets matching colliders.
+const terrain = new Terrain();
+arenaRamps(terrain);
+terrain.buildMeshes(scene);
+
+let car = new CarPhysics({ ...active.def.spec, assists: settings.assists }, terrain);
 const destruction = new Destruction(scene, 300);
+destruction.terrain = terrain;
 const skids = new SkidMarks(scene);
 const smoke = new Smoke(scene);
 const dust = new Smoke(scene, 160, 0xb9ad98);
@@ -212,7 +220,7 @@ function switchTo(target) {
   target.parked = null;
 
   active = target;
-  car = new CarPhysics({ ...target.def.spec, assists: settings.assists });
+  car = new CarPhysics({ ...target.def.spec, assists: settings.assists }, terrain);
   car.reset(t.x, t.z, heading);
   destruction.createCar(target.def);
   destruction.teleportCar(car);
@@ -260,7 +268,7 @@ function play(def) {
   const chosen = fleet.find((v) => v.def === def) || active;
   if (chosen !== active || arenaDirty) {
     active = chosen;
-    car = new CarPhysics({ ...active.def.spec, assists: settings.assists });
+    car = new CarPhysics({ ...active.def.spec, assists: settings.assists }, terrain);
     resetAll();
   } else {
     resetCar();
@@ -383,6 +391,11 @@ function frame() {
     while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
       car.step(PHYSICS_DT, controls);
       containCar();
+      if (car.landed) onLanding(car.landed);
+      if (car.blocked > 3) {
+        shake = Math.min(1, shake + car.blocked * 0.03);
+        audio.impact('crash', Math.min(1, car.blocked / 15));
+      }
       // The debris world runs at a lower rate than the car's handling.
       worldClock += PHYSICS_DT;
       if (worldClock >= WORLD_STEP - 1e-9) {
@@ -446,6 +459,20 @@ function trackPerformance(raw) {
   }
 }
 
+/** Touchdown: thump, shake, dust off the wheels, and boost for big air. */
+function onLanding({ impact, misalign, airTime }) {
+  if (impact > 2.5) {
+    shake = Math.min(1, shake + impact * 0.035 + misalign * 0.2);
+    audio.impact('crash', Math.min(1, impact / 14 + misalign * 0.3));
+    active.model.contactPoints(contacts);
+    for (const p of contacts) dust.emit(p, { x: car.velX * 0.3, z: car.velZ * 0.3 }, Math.min(1, impact / 12), terrain.heightAt(p.x, p.z) + 0.2);
+  }
+  if (airTime > 0.6) {
+    car.boost = Math.min(1, car.boost + airTime * 0.08);
+    if (misalign < 0.6) toast(`Clean landing: ${airTime.toFixed(1)} s of air`);
+  }
+}
+
 function stepWorld() {
   const r = destruction.step(car);
   if (r.total > 0) {
@@ -469,6 +496,7 @@ function updateScene(dt) {
 
   // Tire effects.
   active.model.contactPoints(contacts);
+  for (const p of contacts) p.y = terrain.heightAt(p.x, p.z);
   const speed = car.speed;
   const latSlipF = Math.abs(Math.sin(car.slipFront));
   const latSlipR = Math.abs(Math.sin(car.slipRear));
@@ -482,7 +510,7 @@ function updateScene(dt) {
   contacts.forEach((p, i) => {
     const front = i < 2;
     const s = Math.min(1, (front ? frontSkid : rearSkid) * (front ? speedGate : Math.max(speedGate, car.wheelspin)));
-    skids.add(i, p, s);
+    skids.add(i, p, car.airborne ? 0 : s);
     if (!front && s > 0.35 && Math.random() < s * smokeRate) smoke.emit(p, { x: car.velX, z: car.velZ }, s);
     squeal = Math.max(squeal, s);
   });
@@ -514,7 +542,11 @@ function updateScene(dt) {
   hud.rpmFill.style.width = `${Math.max(0, Math.min(1, rpmT)) * 100}%`;
   hud.rpmFill.classList.toggle('red', car.rpm > car.spec.shiftUpRpm - 300);
 
-  if (car.isDrifting) {
+  if (car.airborne && car.airTime > 0.35) {
+    hud.drift.innerHTML = `AIR <b>${car.airTime.toFixed(1)}s</b><small>${Math.round(car.y)} m up</small>`;
+    hud.drift.classList.add('show');
+    driftTimer = 1.4;
+  } else if (car.isDrifting) {
     const angle = Math.abs(Math.atan2(car.vLat, car.vLong)) * 57.3;
     driftScore += angle * speed * dt * 0.1;
     driftTimer = 1.2;

@@ -69,8 +69,10 @@ export class ChaseCamera {
       const sinH = Math.sin(car.heading);
       const cosH = Math.cos(car.heading);
       const { hoodY, hoodZ } = this.vehicleCam;
-      cam.position.set(car.x + sinH * hoodZ, hoodY, car.z + cosH * hoodZ);
-      cam.lookAt(car.x + sinH * 25, hoodY - 0.5, car.z + cosH * 25);
+      const y = car.y || 0;
+      const p = car.pitch || 0;
+      cam.position.set(car.x + sinH * hoodZ, y + hoodY, car.z + cosH * hoodZ);
+      cam.lookAt(car.x + sinH * 25, y + hoodY - 0.5 + Math.tan(p) * 25, car.z + cosH * 25);
       this.initialised = true;
       return;
     }
@@ -80,12 +82,12 @@ export class ChaseCamera {
     const dist = m.dist * k + Math.min(2, speed * 0.03);
     const desired = new THREE.Vector3(
       car.x - Math.sin(this.yaw) * dist,
-      m.height * k,
+      (car.y || 0) + m.height * k,
       car.z - Math.cos(this.yaw) * dist,
     );
     const lookAt = new THREE.Vector3(
       car.x + Math.sin(car.heading) * 2,
-      m.look * k,
+      (car.y || 0) + m.look * k,
       car.z + Math.cos(car.heading) * 2,
     );
 

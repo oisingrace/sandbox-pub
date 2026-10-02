@@ -274,7 +274,8 @@ export function populateArena(d) {
   }
 
   // Cone slalom from the start line.
-  for (let i = 0; i < 6; i++) d.spawn('cone', { x: (i % 2 ? 1.6 : -1.6), y: 0.3 + gap, z: -44 + i * 3.4 }, 0, opts);
+  // Cones line the run-up to the start kicker.
+  for (const z of [-49, -46, -43]) for (const x of [-3.6, 3.6]) d.spawn('cone', { x, y: 0.3 + gap, z }, 0, opts);
   // Ring of cones around the centre circle.
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2;

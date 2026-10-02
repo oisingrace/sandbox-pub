@@ -271,6 +271,15 @@ const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3(1, 1, 1);
 const _v = new THREE.Vector3();
 const _sv = new THREE.Vector3();
+const _euler = new THREE.Euler();
+const _carQ = new THREE.Quaternion();
+
+/** The car's full orientation: heading, plus pitch and roll on ramps and in the air. */
+function carRotation(car) {
+  _euler.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
+  _carQ.setFromEuler(_euler);
+  return { x: _carQ.x, y: _carQ.y, z: _carQ.z, w: _carQ.w };
+}
 
 export class Destruction {
   constructor(scene, groundHalfSize) {
@@ -322,6 +331,7 @@ export class Destruction {
       RAPIER.ColliderDesc.cuboid(this.groundHalfSize, 0.5, this.groundHalfSize).setFriction(0.8),
       ground,
     );
+    this.terrain?.addColliders(this.world); // ramps
     this.carBody = null;
   }
 
@@ -397,9 +407,9 @@ export class Destruction {
 
   teleportCar(car) {
     const h = car.heading;
-    this.lastCarPose = { x: car.x, z: car.z, h };
-    this.carBody.setTranslation({ x: car.x, y: 0, z: car.z }, true);
-    this.carBody.setRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) }, true);
+    this.lastCarPose = { x: car.x, z: car.z, h, y: car.y || 0, p: car.pitch || 0 };
+    this.carBody.setTranslation({ x: car.x, y: car.y || 0, z: car.z }, true);
+    this.carBody.setRotation(carRotation(car), true);
   }
 
   /**
@@ -532,10 +542,13 @@ export class Destruction {
     // treats every kinematic update as motion and wakes whatever touches it.
     const h = car.heading;
     const last = this.lastCarPose;
-    if (!last || Math.abs(car.x - last.x) > 1e-4 || Math.abs(car.z - last.z) > 1e-4 || Math.abs(h - last.h) > 1e-5) {
-      this.carBody.setNextKinematicTranslation({ x: car.x, y: 0, z: car.z });
-      this.carBody.setNextKinematicRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) });
-      this.lastCarPose = { x: car.x, z: car.z, h };
+    const y = car.y || 0;
+    const moved = !last || Math.abs(car.x - last.x) > 1e-4 || Math.abs(car.z - last.z) > 1e-4
+      || Math.abs(h - last.h) > 1e-5 || Math.abs(y - last.y) > 1e-4 || Math.abs((car.pitch || 0) - last.p) > 1e-5;
+    if (moved) {
+      this.carBody.setNextKinematicTranslation({ x: car.x, y, z: car.z });
+      this.carBody.setNextKinematicRotation(carRotation(car));
+      this.lastCarPose = { x: car.x, z: car.z, h, y, p: car.pitch || 0 };
     }
 
     if (this.burner) this.burnAround(car);
@@ -684,8 +697,8 @@ export class Destruction {
     const localZ = (hi[2] + lo[2]) / 2 + (dir * ahead) / 2;
     const sinH = Math.sin(car.heading);
     const cosH = Math.cos(car.heading);
-    const centre = { x: car.x + sinH * localZ, y: (hi[1] + lo[1]) / 2, z: car.z + cosH * localZ };
-    const rot = { x: 0, y: Math.sin(car.heading / 2), z: 0, w: Math.cos(car.heading / 2) };
+    const centre = { x: car.x + sinH * localZ, y: (car.y || 0) + (hi[1] + lo[1]) / 2, z: car.z + cosH * localZ };
+    const rot = carRotation(car);
     const found = new Set();
     this.world.intersectionsWithShape(centre, rot, new RAPIER.Cuboid(half.x, half.y, half.z), (collider) => {
       const e = this.byCollider.get(collider.handle);

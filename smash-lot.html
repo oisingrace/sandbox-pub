@@ -308,6 +308,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 //   forward = (sin h, cos h), left = (cos h, -sin h).
 
 const G = 9.81;
+const MAX_STEP = 0.35; // a rise bigger than this in one step is a wall
 
 const DEFAULT_SPEC = {
   mass: 1250,              // kg
@@ -368,10 +369,12 @@ function engineTorque(rpm) {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const sign = (v) => (v > 0 ? 1 : v < 0 ? -1 : 0);
+const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
 class CarPhysics {
-  constructor(spec = {}) {
+  constructor(spec = {}, terrain = null) {
     this.spec = { ...DEFAULT_SPEC, ...spec };
+    this.terrain = terrain; // optional: anything with heightAt(x, z)
     this.reset();
   }
 
@@ -393,6 +396,17 @@ class CarPhysics {
     this.handbrake = false;
     this.boost = 1;         // boost meter, 0..1
     this.boosting = false;
+    // Vertical motion (ramps and jumps).
+    this.y = this.terrain ? this.terrain.heightAt(x, z) : 0;
+    this.velY = 0;
+    this.pitch = 0;          // nose up positive
+    this.roll = 0;           // left side up positive
+    this.pitchRate = 0;
+    this.rollRate = 0;
+    this.airborne = false;
+    this.airTime = 0;
+    this.landed = null;      // { impact, misalign, airTime } for one step after landing
+    this.blocked = 0;        // speed of a hit against a ramp wall, for one step
     // Per-frame telemetry used by visuals/audio.
     this.vLong = 0;
     this.vLat = 0;
@@ -452,6 +466,13 @@ class CarPhysics {
     this.boosting = !!input.boost && this.boost > 0.02;
     if (this.boosting) this.boost = Math.max(0, this.boost - dt / s.boostDuration);
     else if (!input.boost) this.boost = Math.min(1, this.boost + dt / s.boostRecharge);
+
+    this.landed = null;
+    this.blocked = 0;
+    if (this.airborne) {
+      this.flyStep(dt, input);
+      return;
+    }
 
     // --- Steering ------------------------------------------------------
     // Less lock at speed keeps the front tires near their peak slip angle.
@@ -558,6 +579,7 @@ class CarPhysics {
     const torque = a * (FxF * ss + FyF * cs) - b * FyR;
 
     if (this.boosting) Fx += s.mass * s.boostAccel;
+    Fx -= s.mass * G * Math.sin(this.pitch); // climbing a ramp costs speed
     const ax = Fx / s.mass;
     const ay = Fy / s.mass;
 
@@ -574,9 +596,12 @@ class CarPhysics {
       this.yawRate *= 0.8;
     }
 
+    const prevX = this.x;
+    const prevZ = this.z;
     this.heading += this.yawRate * dt;
     this.x += this.velX * dt;
     this.z += this.velZ * dt;
+    this.followGround(dt, prevX, prevZ);
 
     // Smoothed accelerations for load transfer and body motion.
     const k = 1 - Math.exp(-dt * 10);
@@ -618,6 +643,130 @@ class CarPhysics {
     this.velZ += dvz;
     this.yawRate += clamp(torque / (s.mass * s.inertiaScale), -0.8, 0.8);
     return Math.min(dv, maxDv);
+  }
+
+  /** Ground height under the CG plus the slope pitch and roll beneath the car. */
+  sampleGround() {
+    const t = this.terrain;
+    if (!t) return { h: 0, pitch: 0, roll: 0 };
+    const s = this.spec;
+    const sinH = Math.sin(this.heading);
+    const cosH = Math.cos(this.heading);
+    const at = (fwd, left) => t.heightAt(this.x + sinH * fwd + cosH * left, this.z + cosH * fwd - sinH * left);
+    const hF = at(s.cgToFront, 0);
+    const hR = at(-s.cgToRear, 0);
+    const half = s.trackWidth / 2;
+    const hL = at(0, half);
+    const hRt = at(0, -half);
+    const hC = at(0, 0);
+    return {
+      h: Math.max(hC, (hF + hR) / 2),
+      pitch: Math.atan2(hF - hR, s.cgToFront + s.cgToRear),
+      roll: Math.atan2(hL - hRt, s.trackWidth),
+    };
+  }
+
+  /**
+   * Keep the car on the ground, launch it when the ground drops away faster
+   * than gravity can pull it down (a ramp lip), and stop it at walls.
+   */
+  followGround(dt, prevX, prevZ) {
+    const g = this.sampleGround();
+    // A sudden rise is a wall (the back or side of a ramp), not a slope.
+    if (g.h - this.y > MAX_STEP) {
+      this.blocked = this.speed;
+      this.x = prevX;
+      this.z = prevZ;
+      this.velX *= -0.25;
+      this.velZ *= -0.25;
+      this.yawRate *= 0.5;
+      return;
+    }
+    const ballistic = this.y + this.velY * dt - 0.5 * G * dt * dt;
+    if (g.h >= ballistic - 0.02) {
+      const newVelY = clamp((g.h - this.y) / dt, -30, 30);
+      this.velY = newVelY;
+      this.y = g.h;
+      const k = 1 - Math.exp(-dt * 25);
+      const pitch = this.pitch + (g.pitch - this.pitch) * k;
+      const roll = this.roll + (g.roll - this.roll) * k;
+      this.pitchRate = (pitch - this.pitch) / dt;
+      this.rollRate = (roll - this.roll) / dt;
+      this.pitch = pitch;
+      this.roll = roll;
+    } else {
+      // Off the lip: keep the vertical speed the ramp gave us, but not the
+      // ramp's curvature spin (that sends cars into backflips).
+      this.airborne = true;
+      this.pitchRate *= 0.15;
+      this.rollRate *= 0.3;
+      this.airTime = 0;
+      this.y = ballistic;
+      this.velY -= G * dt;
+    }
+  }
+
+  /** Flight: gravity, a little air control, and the landing. */
+  flyStep(dt, input) {
+    const s = this.spec;
+    this.airTime += dt;
+    this.velY -= G * dt;
+    // In the air the nose settles toward the direction of travel (arcade
+    // style), and throttle/brake tilt it from there. Steering yaws a little.
+    const hSpeed = Math.hypot(this.velX, this.velZ);
+    const glide = Math.atan2(this.velY, Math.max(hSpeed, 1)) * 0.7;
+    const control = ((input.throttle || 0) - (input.brake || 0)) * 0.6;
+    this.pitchRate += ((glide + control) - this.pitch) * 5 * dt;
+    this.pitchRate *= Math.exp(-dt * 3);
+    this.rollRate *= Math.exp(-dt * 1.5);
+    this.yawRate += clamp(input.steer || 0, -1, 1) * 1.2 * dt;
+    this.yawRate *= Math.exp(-dt * 1.2);
+    if (this.boosting) {
+      const a = s.boostAccel * dt;
+      const cp = Math.cos(this.pitch);
+      this.velX += Math.sin(this.heading) * cp * a;
+      this.velZ += Math.cos(this.heading) * cp * a;
+      this.velY += Math.sin(this.pitch) * a;
+    }
+    const drag = Math.exp(-dt * 0.04);
+    this.velX *= drag;
+    this.velZ *= drag;
+    this.pitch += this.pitchRate * dt;
+    this.roll += this.rollRate * dt;
+    this.heading += this.yawRate * dt;
+    this.x += this.velX * dt;
+    this.z += this.velZ * dt;
+    this.y += this.velY * dt;
+    this.steer *= Math.exp(-dt * 4);
+    // The engine revs freely with nothing to push against.
+    const target = s.idleRpm + (s.redline - s.idleRpm) * (input.throttle || 0) * 0.95;
+    this.rpm += (target - this.rpm) * (1 - Math.exp(-dt * 6));
+    this.throttle = input.throttle || 0;
+    this.accelLong *= Math.exp(-dt * 4);
+    this.accelLat *= Math.exp(-dt * 4);
+    this.slipFront = this.slipRear = 0;
+    this.wheelspin = 0;
+
+    const g = this.sampleGround();
+    if (this.y <= g.h) this.land(g);
+  }
+
+  land(g) {
+    const impact = Math.max(0, -this.velY);
+    const misalign = Math.abs(wrapAngle(this.pitch - g.pitch)) + Math.abs(wrapAngle(this.roll - g.roll));
+    // Landing flat on the wheels keeps most speed; landing on the nose or
+    // a corner scrubs it off.
+    const loss = clamp(Math.max(0, misalign - 0.35) * 0.5 + Math.max(0, impact - 8) * 0.015, 0, 0.75);
+    this.velX *= 1 - loss;
+    this.velZ *= 1 - loss;
+    if (misalign > 1.1) this.yawRate += (Math.random() - 0.5) * 3; // spun out on a bad landing
+    this.landed = { impact, misalign, airTime: this.airTime };
+    this.airborne = false;
+    this.y = g.h;
+    this.velY = 0;
+    this.pitch = g.pitch;
+    this.roll = g.roll;
+    this.pitchRate = this.rollRate = 0;
   }
 
   tireCurve(slip) {
@@ -814,6 +963,7 @@ class CarModel {
     blob.position.set(0, 0.015, (front + rear) / 2);
     blob.renderOrder = 1;
     this.root.add(blob);
+    this.blob = blob;
 
     this.roll = 0;
     this.pitch = 0;
@@ -821,8 +971,13 @@ class CarModel {
 
   /** Sync visuals to the physics state of the car being driven. */
   update(car, dt) {
-    this.root.position.set(car.x, 0, car.z);
-    this.root.quaternion.setFromAxisAngle(UP, car.heading);
+    this.root.position.set(car.x, car.y || 0, car.z);
+    _modelEuler.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
+    this.root.quaternion.setFromEuler(_modelEuler);
+    this.blob.visible = !car.airborne;
+    // Suspension squash on landing, springing back.
+    if (car.landed) this.squash = Math.min(0.22, car.landed.impact * 0.02);
+    this.squash = (this.squash || 0) * Math.exp(-dt * 7);
 
     // Body roll/pitch from smoothed accelerations (a cheap suspension).
     const soft = this.def.suspension ?? 1;
@@ -832,7 +987,7 @@ class CarModel {
     this.roll += (targetRoll - this.roll) * k;
     this.pitch += (targetPitch - this.pitch) * k;
     this.body.rotation.set(this.pitch, 0, this.roll, 'YXZ');
-    this.body.position.y = Math.abs(this.roll) * 0.4;
+    this.body.position.y = Math.abs(this.roll) * 0.4 - this.squash;
 
     for (const w of this.wheels) {
       const surfaceSpeed = w.front ? car.frontWheelSpeed : car.rearWheelSpeed;
@@ -897,6 +1052,7 @@ class CarModel {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
+const _modelEuler = new THREE.Euler();
 const _fwd = new THREE.Vector3();
 
 let _blob;
@@ -1420,6 +1576,15 @@ const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3(1, 1, 1);
 const _v = new THREE.Vector3();
 const _sv = new THREE.Vector3();
+const _euler = new THREE.Euler();
+const _carQ = new THREE.Quaternion();
+
+/** The car's full orientation: heading, plus pitch and roll on ramps and in the air. */
+function carRotation(car) {
+  _euler.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
+  _carQ.setFromEuler(_euler);
+  return { x: _carQ.x, y: _carQ.y, z: _carQ.z, w: _carQ.w };
+}
 
 class Destruction {
   constructor(scene, groundHalfSize) {
@@ -1471,6 +1636,7 @@ class Destruction {
       RAPIER.ColliderDesc.cuboid(this.groundHalfSize, 0.5, this.groundHalfSize).setFriction(0.8),
       ground,
     );
+    this.terrain?.addColliders(this.world); // ramps
     this.carBody = null;
   }
 
@@ -1546,9 +1712,9 @@ class Destruction {
 
   teleportCar(car) {
     const h = car.heading;
-    this.lastCarPose = { x: car.x, z: car.z, h };
-    this.carBody.setTranslation({ x: car.x, y: 0, z: car.z }, true);
-    this.carBody.setRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) }, true);
+    this.lastCarPose = { x: car.x, z: car.z, h, y: car.y || 0, p: car.pitch || 0 };
+    this.carBody.setTranslation({ x: car.x, y: car.y || 0, z: car.z }, true);
+    this.carBody.setRotation(carRotation(car), true);
   }
 
   /**
@@ -1681,10 +1847,13 @@ class Destruction {
     // treats every kinematic update as motion and wakes whatever touches it.
     const h = car.heading;
     const last = this.lastCarPose;
-    if (!last || Math.abs(car.x - last.x) > 1e-4 || Math.abs(car.z - last.z) > 1e-4 || Math.abs(h - last.h) > 1e-5) {
-      this.carBody.setNextKinematicTranslation({ x: car.x, y: 0, z: car.z });
-      this.carBody.setNextKinematicRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) });
-      this.lastCarPose = { x: car.x, z: car.z, h };
+    const y = car.y || 0;
+    const moved = !last || Math.abs(car.x - last.x) > 1e-4 || Math.abs(car.z - last.z) > 1e-4
+      || Math.abs(h - last.h) > 1e-5 || Math.abs(y - last.y) > 1e-4 || Math.abs((car.pitch || 0) - last.p) > 1e-5;
+    if (moved) {
+      this.carBody.setNextKinematicTranslation({ x: car.x, y, z: car.z });
+      this.carBody.setNextKinematicRotation(carRotation(car));
+      this.lastCarPose = { x: car.x, z: car.z, h, y, p: car.pitch || 0 };
     }
 
     if (this.burner) this.burnAround(car);
@@ -1833,8 +2002,8 @@ class Destruction {
     const localZ = (hi[2] + lo[2]) / 2 + (dir * ahead) / 2;
     const sinH = Math.sin(car.heading);
     const cosH = Math.cos(car.heading);
-    const centre = { x: car.x + sinH * localZ, y: (hi[1] + lo[1]) / 2, z: car.z + cosH * localZ };
-    const rot = { x: 0, y: Math.sin(car.heading / 2), z: 0, w: Math.cos(car.heading / 2) };
+    const centre = { x: car.x + sinH * localZ, y: (car.y || 0) + (hi[1] + lo[1]) / 2, z: car.z + cosH * localZ };
+    const rot = carRotation(car);
     const found = new Set();
     this.world.intersectionsWithShape(centre, rot, new RAPIER.Cuboid(half.x, half.y, half.z), (collider) => {
       const e = this.byCollider.get(collider.handle);
@@ -2219,7 +2388,8 @@ function populateArena(d) {
   }
 
   // Cone slalom from the start line.
-  for (let i = 0; i < 6; i++) d.spawn('cone', { x: (i % 2 ? 1.6 : -1.6), y: 0.3 + gap, z: -44 + i * 3.4 }, 0, opts);
+  // Cones line the run-up to the start kicker.
+  for (const z of [-49, -46, -43]) for (const x of [-3.6, 3.6]) d.spawn('cone', { x, y: 0.3 + gap, z }, 0, opts);
   // Ring of cones around the centre circle.
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2;
@@ -2422,7 +2592,7 @@ class SkidMarks {
     }
     const nx = (-dz / len) * this.width * 0.5;
     const nz = (dx / len) * this.width * 0.5;
-    const y = 0.025;
+    const y = (p.y || 0) + 0.025;
     const quad = [
       prev.p.x - nx, y, prev.p.z - nz,
       prev.p.x + nx, y, prev.p.z + nz,
@@ -2581,8 +2751,10 @@ class ChaseCamera {
       const sinH = Math.sin(car.heading);
       const cosH = Math.cos(car.heading);
       const { hoodY, hoodZ } = this.vehicleCam;
-      cam.position.set(car.x + sinH * hoodZ, hoodY, car.z + cosH * hoodZ);
-      cam.lookAt(car.x + sinH * 25, hoodY - 0.5, car.z + cosH * 25);
+      const y = car.y || 0;
+      const p = car.pitch || 0;
+      cam.position.set(car.x + sinH * hoodZ, y + hoodY, car.z + cosH * hoodZ);
+      cam.lookAt(car.x + sinH * 25, y + hoodY - 0.5 + Math.tan(p) * 25, car.z + cosH * 25);
       this.initialised = true;
       return;
     }
@@ -2592,12 +2764,12 @@ class ChaseCamera {
     const dist = m.dist * k + Math.min(2, speed * 0.03);
     const desired = new THREE.Vector3(
       car.x - Math.sin(this.yaw) * dist,
-      m.height * k,
+      (car.y || 0) + m.height * k,
       car.z - Math.cos(this.yaw) * dist,
     );
     const lookAt = new THREE.Vector3(
       car.x + Math.sin(car.heading) * 2,
-      m.look * k,
+      (car.y || 0) + m.look * k,
       car.z + Math.cos(car.heading) * 2,
     );
 
@@ -3805,6 +3977,219 @@ function shapeTest(kind) {
   return { fill: 1, test: () => true };
 }
 
+// ===== terrain.js =====
+// Ramps and jumps. Each ramp is a solid block whose top follows a height
+// profile along its length; its back and sides are vertical walls.
+// The car's handling model queries `heightAt` directly (fast, exact), while
+// Rapier gets the same shape as a fixed trimesh so debris and parked cars
+// slide off it too.
+//
+// Ramp frame: u runs along the ramp (0 = entry, length = far end) in the
+// direction of `heading`; v runs across it (-width/2 .. width/2).
+
+const PROFILES = {
+  /** Curved launch kicker: steepest at the lip, then a vertical drop. */
+  kicker: (H, L) => (u) => H * Math.pow(u / L, 1.5),
+  /** Straight wedge. */
+  wedge: (H, L) => (u) => (H * u) / L,
+  /** Down-slope for landing (high end first). */
+  landing: (H, L) => (u) => H * (1 - u / L),
+  /** Up, flat top, down. `parts` = [up, flat, down] lengths. */
+  table: (H, L, parts) => (u) => {
+    const [a, b] = parts;
+    if (u < a) return (H * u) / a;
+    if (u < a + b) return H;
+    return H * (1 - (u - a - b) / (L - a - b));
+  },
+};
+
+class Terrain {
+  constructor() {
+    this.ramps = [];
+    this.meshes = [];
+  }
+
+  /**
+   * @param {object} r  { x, z, heading, length, width, height, profile, parts? }
+   *   (x, z) is the entry edge centre; the ramp extends `length` along `heading`.
+   */
+  addRamp(r) {
+    const ramp = { ...r };
+    ramp.h = PROFILES[r.profile](r.height, r.length, r.parts);
+    ramp.sin = Math.sin(r.heading);
+    ramp.cos = Math.cos(r.heading);
+    // Bounding circle for a cheap early-out.
+    ramp.cx = r.x + ramp.sin * (r.length / 2);
+    ramp.cz = r.z + ramp.cos * (r.length / 2);
+    ramp.radius = Math.hypot(r.length / 2, r.width / 2) + 0.5;
+    this.ramps.push(ramp);
+    return ramp;
+  }
+
+  /** Ground height at a world point (0 on the flat lot). */
+  heightAt(x, z) {
+    let h = 0;
+    for (const r of this.ramps) {
+      const dx = x - r.cx;
+      const dz = z - r.cz;
+      if (dx * dx + dz * dz > r.radius * r.radius) continue;
+      const ex = x - r.x;
+      const ez = z - r.z;
+      const u = ex * r.sin + ez * r.cos;
+      const v = ex * r.cos - ez * r.sin;
+      if (u < 0 || u > r.length || Math.abs(v) > r.width / 2) continue;
+      h = Math.max(h, r.h(u));
+    }
+    return h;
+  }
+
+  /** Build the render meshes (once per scene). */
+  buildMeshes(scene) {
+    const top = new THREE.MeshStandardMaterial({ map: rampTexture(), roughness: 0.85 });
+    const side = new THREE.MeshStandardMaterial({ color: 0x8d8a84, roughness: 0.9 });
+    for (const r of this.ramps) {
+      const geo = rampGeometry(r);
+      const mesh = new THREE.Mesh(geo, [top, side]);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+      this.meshes.push(mesh);
+    }
+  }
+
+  /**
+   * Add the ramps to a (fresh) Rapier world. Each ramp is a row of convex
+   * slices (one per profile segment): far more robust than a triangle mesh,
+   * which lets small objects slip through its seams.
+   */
+  addColliders(world) {
+    for (const r of this.ramps) {
+      const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+      const w = r.width / 2;
+      for (let i = 0; i < SEGMENTS; i++) {
+        const u0 = (i / SEGMENTS) * r.length;
+        const u1 = ((i + 1) / SEGMENTS) * r.length;
+        const h0 = Math.max(0.02, r.h(u0));
+        const h1 = Math.max(0.02, r.h(u1));
+        const pts = [];
+        for (const [u, h] of [[u0, h0], [u1, h1]]) {
+          for (const v of [-w, w]) {
+            const x = r.x + r.sin * u + r.cos * v;
+            const z = r.z + r.cos * u - r.sin * v;
+            pts.push(x, 0, z, x, h, z);
+          }
+        }
+        const desc = RAPIER.ColliderDesc.convexHull(new Float32Array(pts));
+        if (desc) world.createCollider(desc.setFriction(0.8), body);
+      }
+    }
+  }
+}
+
+const SEGMENTS = 24;
+
+/**
+ * Closed solid: a top surface sampled along the profile, two side walls,
+ * a back wall and a bottom. Material group 0 = top, 1 = walls.
+ */
+function rampGeometry(r) {
+  const w = r.width / 2;
+  const pts = [];
+  for (let i = 0; i <= SEGMENTS; i++) {
+    const u = (i / SEGMENTS) * r.length;
+    pts.push([u, Math.max(0.001, r.h(u))]);
+  }
+  const positions = [];
+  const uvs = [];
+  const indices = [];
+  const groups = [];
+  const toWorld = (u, y, v) => [r.x + r.sin * u + r.cos * v, y, r.z + r.cos * u - r.sin * v];
+  const pushQuad = (a, b, c, d, uvQuad) => {
+    const base = positions.length / 3;
+    for (const p of [a, b, c, d]) positions.push(...p);
+    uvs.push(...(uvQuad || [0, 0, 1, 0, 1, 1, 0, 1]));
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+
+  // Top surface (group 0).
+  let start = indices.length;
+  for (let i = 0; i < SEGMENTS; i++) {
+    const [u0, h0] = pts[i];
+    const [u1, h1] = pts[i + 1];
+    const t0 = u0 / 4, t1 = u1 / 4;
+    pushQuad(toWorld(u0, h0, w), toWorld(u0, h0, -w), toWorld(u1, h1, -w), toWorld(u1, h1, w),
+      [0, t0, r.width / 4, t0, r.width / 4, t1, 0, t1]);
+  }
+  groups.push([start, indices.length - start, 0]);
+
+  // Walls and bottom (group 1).
+  start = indices.length;
+  for (let i = 0; i < SEGMENTS; i++) {
+    const [u0, h0] = pts[i];
+    const [u1, h1] = pts[i + 1];
+    // Left (v = +w) and right (v = -w) sides.
+    pushQuad(toWorld(u0, 0, w), toWorld(u0, h0, w), toWorld(u1, h1, w), toWorld(u1, 0, w));
+    pushQuad(toWorld(u1, 0, -w), toWorld(u1, h1, -w), toWorld(u0, h0, -w), toWorld(u0, 0, -w));
+  }
+  const [uEnd, hEnd] = pts[SEGMENTS];
+  const [, hStart] = pts[0];
+  pushQuad(toWorld(uEnd, 0, w), toWorld(uEnd, hEnd, w), toWorld(uEnd, hEnd, -w), toWorld(uEnd, 0, -w)); // far wall
+  pushQuad(toWorld(0, 0, -w), toWorld(0, hStart, -w), toWorld(0, hStart, w), toWorld(0, 0, w)); // entry lip
+  pushQuad(toWorld(0, 0, w), toWorld(uEnd, 0, w), toWorld(uEnd, 0, -w), toWorld(0, 0, -w)); // bottom
+  groups.push([start, indices.length - start, 1]);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  for (const [s, c, m] of groups) geo.addGroup(s, c, m);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Concrete ramp surface with hazard chevrons, tiling every 4 m. */
+let _rampTex = null;
+function rampTexture() {
+  if (_rampTex) return _rampTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#9a968d';
+  g.fillRect(0, 0, 256, 256);
+  const img = g.getImageData(0, 0, 256, 256);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 22;
+    img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n;
+  }
+  g.putImageData(img, 0, 0);
+  // Yellow chevrons pointing up the ramp.
+  g.strokeStyle = 'rgba(242, 194, 48, 0.9)';
+  g.lineWidth = 18;
+  g.beginPath();
+  g.moveTo(40, 170); g.lineTo(128, 90); g.lineTo(216, 170);
+  g.stroke();
+  _rampTex = new THREE.CanvasTexture(c);
+  _rampTex.wrapS = _rampTex.wrapT = THREE.RepeatWrapping;
+  _rampTex.colorSpace = THREE.SRGBColorSpace;
+  return _rampTex;
+}
+
+/** The arena's ramps. Positions are chosen to stay clear of other objects. */
+function arenaRamps(terrain) {
+  // Straight off the start line, aimed at the big brick wall.
+  terrain.addRamp({ x: 0, z: -42, heading: 0, length: 8, width: 5, height: 1.6, profile: 'kicker' });
+  // Side kickers: one flies into a crate pyramid, one over the low wall.
+  terrain.addRamp({ x: -11, z: -12, heading: -Math.PI / 2, length: 7, width: 5, height: 1.4, profile: 'kicker' });
+  terrain.addRamp({ x: 22, z: 6, heading: Math.PI / 2, length: 7, width: 5, height: 1.5, profile: 'kicker' });
+  // Gap jump on the east side: launch, 12 m gap, landing ramp.
+  terrain.addRamp({ x: 66, z: 24, heading: 0, length: 7, width: 6, height: 1.6, profile: 'kicker' });
+  terrain.addRamp({ x: 66, z: 43, heading: 0, length: 16, width: 7, height: 2, profile: 'landing' });
+  // Tabletop across the north.
+  terrain.addRamp({ x: -12, z: 66, heading: Math.PI / 2, length: 22, width: 7, height: 2.2, profile: 'table', parts: [7, 8] });
+  // Mega ramp in the west, aimed at the container yard.
+  terrain.addRamp({ x: -64, z: 66, heading: Math.atan2(-15, -62), length: 16, width: 7, height: 4.5, profile: 'kicker' });
+}
+
 // ===== main.js =====
 const PHYSICS_DT = 1 / 120;
 // At most this many car steps per frame (2 debris-world steps). A slow
@@ -3865,8 +4250,15 @@ const fleet = VEHICLES.map((def) => {
   return { def, model, parked: null };
 });
 let active = fleet.find((v) => v.def.id === settings.startVehicle) || fleet[0];
-let car = new CarPhysics({ ...active.def.spec, assists: settings.assists });
+// Ramps and jumps: the car's handling reads heights from here, and the
+// physics world gets matching colliders.
+const terrain = new Terrain();
+arenaRamps(terrain);
+terrain.buildMeshes(scene);
+
+let car = new CarPhysics({ ...active.def.spec, assists: settings.assists }, terrain);
 const destruction = new Destruction(scene, 300);
+destruction.terrain = terrain;
 const skids = new SkidMarks(scene);
 const smoke = new Smoke(scene);
 const dust = new Smoke(scene, 160, 0xb9ad98);
@@ -4006,7 +4398,7 @@ function switchTo(target) {
   target.parked = null;
 
   active = target;
-  car = new CarPhysics({ ...target.def.spec, assists: settings.assists });
+  car = new CarPhysics({ ...target.def.spec, assists: settings.assists }, terrain);
   car.reset(t.x, t.z, heading);
   destruction.createCar(target.def);
   destruction.teleportCar(car);
@@ -4054,7 +4446,7 @@ function play(def) {
   const chosen = fleet.find((v) => v.def === def) || active;
   if (chosen !== active || arenaDirty) {
     active = chosen;
-    car = new CarPhysics({ ...active.def.spec, assists: settings.assists });
+    car = new CarPhysics({ ...active.def.spec, assists: settings.assists }, terrain);
     resetAll();
   } else {
     resetCar();
@@ -4177,6 +4569,11 @@ function frame() {
     while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
       car.step(PHYSICS_DT, controls);
       containCar();
+      if (car.landed) onLanding(car.landed);
+      if (car.blocked > 3) {
+        shake = Math.min(1, shake + car.blocked * 0.03);
+        audio.impact('crash', Math.min(1, car.blocked / 15));
+      }
       // The debris world runs at a lower rate than the car's handling.
       worldClock += PHYSICS_DT;
       if (worldClock >= WORLD_STEP - 1e-9) {
@@ -4240,6 +4637,20 @@ function trackPerformance(raw) {
   }
 }
 
+/** Touchdown: thump, shake, dust off the wheels, and boost for big air. */
+function onLanding({ impact, misalign, airTime }) {
+  if (impact > 2.5) {
+    shake = Math.min(1, shake + impact * 0.035 + misalign * 0.2);
+    audio.impact('crash', Math.min(1, impact / 14 + misalign * 0.3));
+    active.model.contactPoints(contacts);
+    for (const p of contacts) dust.emit(p, { x: car.velX * 0.3, z: car.velZ * 0.3 }, Math.min(1, impact / 12), terrain.heightAt(p.x, p.z) + 0.2);
+  }
+  if (airTime > 0.6) {
+    car.boost = Math.min(1, car.boost + airTime * 0.08);
+    if (misalign < 0.6) toast(`Clean landing: ${airTime.toFixed(1)} s of air`);
+  }
+}
+
 function stepWorld() {
   const r = destruction.step(car);
   if (r.total > 0) {
@@ -4263,6 +4674,7 @@ function updateScene(dt) {
 
   // Tire effects.
   active.model.contactPoints(contacts);
+  for (const p of contacts) p.y = terrain.heightAt(p.x, p.z);
   const speed = car.speed;
   const latSlipF = Math.abs(Math.sin(car.slipFront));
   const latSlipR = Math.abs(Math.sin(car.slipRear));
@@ -4276,7 +4688,7 @@ function updateScene(dt) {
   contacts.forEach((p, i) => {
     const front = i < 2;
     const s = Math.min(1, (front ? frontSkid : rearSkid) * (front ? speedGate : Math.max(speedGate, car.wheelspin)));
-    skids.add(i, p, s);
+    skids.add(i, p, car.airborne ? 0 : s);
     if (!front && s > 0.35 && Math.random() < s * smokeRate) smoke.emit(p, { x: car.velX, z: car.velZ }, s);
     squeal = Math.max(squeal, s);
   });
@@ -4308,7 +4720,11 @@ function updateScene(dt) {
   hud.rpmFill.style.width = `${Math.max(0, Math.min(1, rpmT)) * 100}%`;
   hud.rpmFill.classList.toggle('red', car.rpm > car.spec.shiftUpRpm - 300);
 
-  if (car.isDrifting) {
+  if (car.airborne && car.airTime > 0.35) {
+    hud.drift.innerHTML = `AIR <b>${car.airTime.toFixed(1)}s</b><small>${Math.round(car.y)} m up</small>`;
+    hud.drift.classList.add('show');
+    driftTimer = 1.4;
+  } else if (car.isDrifting) {
     const angle = Math.abs(Math.atan2(car.vLat, car.vLong)) * 57.3;
     driftScore += angle * speed * dt * 0.1;
     driftTimer = 1.2;

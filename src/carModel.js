@@ -183,6 +183,7 @@ export class CarModel {
     blob.position.set(0, 0.015, (front + rear) / 2);
     blob.renderOrder = 1;
     this.root.add(blob);
+    this.blob = blob;
 
     this.roll = 0;
     this.pitch = 0;
@@ -190,8 +191,13 @@ export class CarModel {
 
   /** Sync visuals to the physics state of the car being driven. */
   update(car, dt) {
-    this.root.position.set(car.x, 0, car.z);
-    this.root.quaternion.setFromAxisAngle(UP, car.heading);
+    this.root.position.set(car.x, car.y || 0, car.z);
+    _modelEuler.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
+    this.root.quaternion.setFromEuler(_modelEuler);
+    this.blob.visible = !car.airborne;
+    // Suspension squash on landing, springing back.
+    if (car.landed) this.squash = Math.min(0.22, car.landed.impact * 0.02);
+    this.squash = (this.squash || 0) * Math.exp(-dt * 7);
 
     // Body roll/pitch from smoothed accelerations (a cheap suspension).
     const soft = this.def.suspension ?? 1;
@@ -201,7 +207,7 @@ export class CarModel {
     this.roll += (targetRoll - this.roll) * k;
     this.pitch += (targetPitch - this.pitch) * k;
     this.body.rotation.set(this.pitch, 0, this.roll, 'YXZ');
-    this.body.position.y = Math.abs(this.roll) * 0.4;
+    this.body.position.y = Math.abs(this.roll) * 0.4 - this.squash;
 
     for (const w of this.wheels) {
       const surfaceSpeed = w.front ? car.frontWheelSpeed : car.rearWheelSpeed;
@@ -266,6 +272,7 @@ export class CarModel {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
+const _modelEuler = new THREE.Euler();
 const _fwd = new THREE.Vector3();
 
 let _blob;
