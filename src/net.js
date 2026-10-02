@@ -6,11 +6,12 @@
 //
 // Messages are small JSON objects:
 //   hello   { name, vehicle }            client -> host on connect
-//   welcome { id, players }              host -> client
+//   welcome { id, players, mode }        host -> client (mode: the room's game mode)
 //   joined  { id, name, vehicle }        host -> everyone
 //   left    { id }                       host -> everyone
 //   state   { id, s }                    car state, ~20 per second
 //   event   { id, e }                    one-off events (arena rebuild, ...)
+//   match   { m }                        host -> everyone: football ball and score
 
 const PREFIX = 'smashlot-';
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O
@@ -53,7 +54,7 @@ export class Net {
   }
 
   /** Create a room. Resolves with the room code. */
-  host(name, vehicle) {
+  host(name, vehicle, mode = 'free') {
     if (!window.Peer) return Promise.reject(new Error('Multiplayer library failed to load.'));
     return new Promise((resolve, reject) => {
       const attempt = (tries) => {
@@ -64,6 +65,7 @@ export class Net {
           this.isHost = true;
           this.code = code;
           this.id = 'host';
+          this.mode = mode;
           this.players.set('host', { name, vehicle });
           peer.on('connection', (conn) => this.acceptClient(conn));
           resolve(code);
@@ -93,7 +95,7 @@ export class Net {
         this.conns.set(id, conn);
         const players = Object.fromEntries(this.players);
         this.players.set(id, { name: msg.name, vehicle: msg.vehicle });
-        conn.send({ t: 'welcome', id, players });
+        conn.send({ t: 'welcome', id, players, mode: this.mode });
         this.relay({ t: 'joined', id, name: msg.name, vehicle: msg.vehicle }, id);
         this.emit('joined', id, msg.name, msg.vehicle);
       } else if (msg.t === 'state' || msg.t === 'event') {
@@ -141,6 +143,7 @@ export class Net {
             this.isHost = false;
             this.code = code;
             this.id = msg.id;
+            this.mode = msg.mode || 'free';
             this.conns.set('host', conn);
             this.players = new Map(Object.entries(msg.players));
             this.players.set(msg.id, { name, vehicle });
@@ -170,6 +173,7 @@ export class Net {
   dispatch(msg) {
     if (msg.t === 'state') this.emit('state', msg.id, msg.s);
     else if (msg.t === 'event') this.emit('event', msg.id, msg.e);
+    else if (msg.t === 'match') this.emit('match', msg.m);
   }
 
   /** Host: send to every client except `except`. */
@@ -182,6 +186,11 @@ export class Net {
     const msg = { t: 'state', id: this.id, s };
     if (this.isHost) this.relay(msg);
     else this.conns.get('host')?.open && this.conns.get('host').send(msg);
+  }
+
+  /** Host: football match state for everyone. */
+  sendMatch(m) {
+    if (this.isHost) this.relay({ t: 'match', m });
   }
 
   sendEvent(e) {
@@ -198,6 +207,7 @@ export class Net {
     this.peer = null;
     this.id = null;
     this.code = null;
+    this.mode = null;
     this.isHost = false;
   }
 }

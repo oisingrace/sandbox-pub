@@ -37,6 +37,11 @@ export function createWorld(scene, renderer) {
   grass.receiveShadow = true;
   scene.add(grass);
 
+  // Everything that belongs to the free-roam lot (and not to other maps)
+  // goes in this group, so switching maps just hides it.
+  const arena = new THREE.Group();
+  scene.add(arena);
+
   // Asphalt lot.
   const lotSize = ARENA_HALF * 2 + 16;
   const asphalt = makeAsphaltTexture(renderer);
@@ -47,14 +52,14 @@ export function createWorld(scene, renderer) {
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
-  scene.add(ground);
+  arena.add(ground);
 
   const grid = new THREE.GridHelper(lotSize, lotSize / 8, 0x5b5b60, 0x5b5b60);
   grid.position.y = 0.01;
   grid.material.transparent = true;
   grid.material.opacity = 0.25;
   grid.material.depthWrite = false;
-  scene.add(grid);
+  arena.add(grid);
 
   const paint = new THREE.MeshBasicMaterial({ color: 0xf2f2f2, transparent: true, opacity: 0.85, depthWrite: false });
   const yellow = new THREE.MeshBasicMaterial({ color: 0xf2c230, transparent: true, opacity: 0.85, depthWrite: false });
@@ -63,7 +68,7 @@ export function createWorld(scene, renderer) {
     m.rotation.set(-Math.PI / 2, 0, rotY);
     m.position.set(x, 0.02, z);
     m.renderOrder = 1;
-    scene.add(m);
+    arena.add(m);
   };
   // Start box.
   flat(new THREE.PlaneGeometry(3.2, 0.25), paint, START.x, START.z - 3.2);
@@ -95,6 +100,7 @@ export function createWorld(scene, renderer) {
 
   const VIEW = { near: [70, 200], medium: [110, 380], far: [150, 650] };
   return {
+    arena,
     followSun(target) {
       sun.position.copy(target).add(sunOffset);
       sun.target.position.copy(target);
@@ -379,7 +385,7 @@ export function populateArena(d) {
   }
 }
 
-function makeAsphaltTexture(renderer) {
+export function makeAsphaltTexture(renderer) {
   const size = 512;
   const c = document.createElement('canvas');
   c.width = c.height = size;

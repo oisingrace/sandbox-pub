@@ -20,6 +20,8 @@ export class ChaseCamera {
     this.initialised = false;
     this.vehicleCam = { scale: 1, hoodY: 1.42, hoodZ: 0.9 };
     this.boostFov = 0;
+    this.focus = null; // ball cam: { x, y, z } to keep in view, or null
+    this.bounds = null; // optional (pos) => void that keeps the camera inside walls
   }
 
   /** Fit the camera to a vehicle's size (see `cam` in vehicles.js). */
@@ -51,6 +53,12 @@ export class ChaseCamera {
       const velYaw = Math.atan2(car.velX, car.velZ);
       targetYaw = car.heading + wrap(velYaw - car.heading) * 0.55;
     }
+
+    // Ball cam: look past the car at the ball instead of along the car.
+    const f = this.focus;
+    const fdx = f ? f.x - car.x : 0, fdz = f ? f.z - car.z : 0;
+    const ballCam = f && !m.hood && Math.hypot(fdx, fdz) > 2.5;
+    if (ballCam) targetYaw = Math.atan2(fdx, fdz);
 
     if (!this.initialised) {
       this.yaw = targetYaw;
@@ -85,11 +93,18 @@ export class ChaseCamera {
       (car.y || 0) + m.height * k,
       car.z - Math.cos(this.yaw) * dist,
     );
-    const lookAt = new THREE.Vector3(
-      car.x + Math.sin(car.heading) * 2,
-      (car.y || 0) + m.look * k,
-      car.z + Math.cos(car.heading) * 2,
-    );
+    const lookAt = ballCam
+      ? new THREE.Vector3(
+        car.x + Math.sin(this.yaw) * 4,
+        (car.y || 0) + m.look * k + Math.max(0, Math.min(4, (f.y - (car.y || 0) - 1.5) * 0.3)),
+        car.z + Math.cos(this.yaw) * 4,
+      )
+      : new THREE.Vector3(
+        car.x + Math.sin(car.heading) * 2,
+        (car.y || 0) + m.look * k,
+        car.z + Math.cos(car.heading) * 2,
+      );
+    if (ballCam) desired.y += 0.6 * k;
 
     if (!this.initialised) {
       this.pos.copy(desired);
@@ -105,6 +120,7 @@ export class ChaseCamera {
       this.target.lerp(lookAt, 1 - Math.exp(-dt * 15));
     }
 
+    this.bounds?.(this.pos);
     cam.position.copy(this.pos);
     cam.lookAt(this.target);
   }

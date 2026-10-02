@@ -170,8 +170,8 @@ function makeProxy(def) {
   };
 }
 
-/** Floating name label above a remote car. */
-function nameTag(name, def) {
+/** Floating name label above a car (dot in `color`, or the car's colour). */
+export function nameTag(name, def, color) {
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 64;
@@ -182,7 +182,7 @@ function nameTag(name, def) {
   g.beginPath();
   g.roundRect((256 - w) / 2, 8, w, 48, 24);
   g.fill();
-  g.fillStyle = `#${(def.swatch ?? def.color).toString(16).padStart(6, '0')}`;
+  g.fillStyle = `#${(color ?? def.swatch ?? def.color).toString(16).padStart(6, '0')}`;
   g.beginPath();
   g.arc((256 - w) / 2 + 22, 32, 7, 0, Math.PI * 2);
   g.fill();

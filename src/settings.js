@@ -33,6 +33,7 @@ export const OPTIONS = {
     volume: { label: 'Volume', choices: [[0.25, '25%'], [0.5, '50%'], [0.75, '75%'], [1, '100%']] },
     startVehicle: { label: 'Vehicle', choices: [] },
     playerName: { label: 'Name', choices: [] },
+    mode: { label: 'Game mode', choices: [] },
   },
 };
 
@@ -50,6 +51,7 @@ export const DEFAULTS = {
   volume: 0.75,
   startVehicle: 'sports',
   playerName: '',
+  mode: 'free',
 };
 
 /** A sensible first-run preset from what the device reports. */

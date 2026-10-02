@@ -150,7 +150,7 @@
       #menu { background: linear-gradient(90deg, rgba(8, 10, 14, 0.85), rgba(8, 10, 14, 0.4)); }
       .screen[data-screen="main"] { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); column-gap: 24px; row-gap: 8px; width: min(820px, 100%); align-items: start; }
       .screen[data-screen="main"] > .logo, .screen[data-screen="main"] > .tagline, .screen[data-screen="main"] > .fineprint { grid-column: 1; }
-      .screen[data-screen="main"] > .vehicle-card, .screen[data-screen="main"] > #btn-play, .screen[data-screen="main"] > .btn-row { grid-column: 2; }
+      .screen[data-screen="main"] > .vehicle-card, .screen[data-screen="main"] > .mode-picker, .screen[data-screen="main"] > #btn-play, .screen[data-screen="main"] > #btn-online, .screen[data-screen="main"] > .btn-row { grid-column: 2; }
       .screen[data-screen="main"] > .logo { grid-row: 1; }
       .screen[data-screen="main"] > .tagline { grid-row: 2; }
       .screen[data-screen="main"] > .fineprint { grid-row: 3 / span 2; }
@@ -209,6 +209,38 @@
     .garage-card .g-stats { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; font-weight: 400; color: var(--hud-dim); font-variant-numeric: tabular-nums; }
     .garage-card .g-stats b { color: var(--hud-fg); }
     #t-boost { right: 140px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
+    /* --- Game modes / football --- */
+    .mode-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; }
+    #menu .mode-picker button { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid transparent; background: transparent; }
+    #menu .mode-picker button small { font-size: 12px; font-weight: 400; color: var(--hud-dim); line-height: 1.3; }
+    #menu .mode-picker button[aria-checked="true"] { background: rgba(255, 210, 63, 0.14); border-color: var(--hazard); }
+    #menu .mode-picker button[aria-checked="true"] small { color: var(--hud-fg); }
+    .room-mode { font-size: 13px; color: var(--hud-dim); margin: 0; }
+    .room-mode b { color: var(--hazard); }
+    #scoreboard { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: stretch; border-radius: 10px; overflow: hidden; background: var(--hud-bg); backdrop-filter: blur(6px); font: 400 22px/1 "Russo One", "Arial Black", Impact, sans-serif; z-index: 5; }
+    #scoreboard[hidden] { display: none; }
+    #scoreboard .team { display: flex; align-items: center; gap: 10px; padding: 7px 12px; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
+    #scoreboard .team b { font-size: 26px; font-weight: 400; min-width: 1ch; text-align: center; }
+    #scoreboard .blue { background: #2f6fe0; }
+    #scoreboard .orange { background: #e86a10; }
+    #match-clock { padding: 7px 14px; font-size: 22px; min-width: 4.2ch; text-align: center; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center; }
+    #match-clock.low { color: #ff6b6b; }
+    body.in-menu #scoreboard, body.in-menu #banner, body.in-menu #ball-arrow { display: none !important; }
+    body.football #dash .smash, body.football #prompt { display: none; }
+    body.football #players { top: 70px; }
+    #banner { position: fixed; top: 26%; left: 50%; transform: translate(-50%, -50%) scale(0.85); opacity: 0; pointer-events: none; text-align: center; font: 400 64px/1 "Russo One", "Arial Black", Impact, sans-serif; letter-spacing: 0.04em; text-transform: uppercase; text-shadow: 0 4px 24px rgba(0,0,0,0.55); transition: opacity 0.2s, transform 0.25s; z-index: 6; }
+    #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    #banner small { display: block; margin-top: 10px; font: 700 18px/1.2 system-ui, sans-serif; letter-spacing: 0.04em; text-transform: none; }
+    #banner.count { font-size: 96px; color: #ffd23f; }
+    #banner.team0 { color: #6aa8ff; }
+    #banner.team1 { color: #ff9a45; }
+    #ball-arrow { position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 4; }
+    #ball-arrow::before { content: ""; position: absolute; left: -16px; top: -14px; width: 32px; height: 28px; background: #fff; clip-path: polygon(100% 50%, 0 0, 22% 50%, 0 100%); filter: drop-shadow(0 0 4px rgba(0,0,0,0.6)); }
+    #ball-arrow[hidden] { display: none; }
+    @media (max-width: 560px) { #banner { font-size: 44px; } #banner.count { font-size: 72px; } #scoreboard .team span { display: none; } }
+    body:not(.touch) #touch-ballcam { display: none; }
+    #touch-ballcam { left: 316px; top: 16px; }
+    body:not(.football) #touch-ballcam { display: none !important; }
   </style>
   <!-- PeerJS: browser-to-browser multiplayer (UMD build, defines window.Peer). -->
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -231,6 +263,7 @@
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
     <div class="row"><kbd>V</kbd> <b>change car</b> &nbsp;<kbd>E</kbd> <b>drive a nearby parked one</b></div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
+    <div class="row"><kbd>Y</kbd> <b>ball cam</b> (car football)</div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>Esc</kbd> <b>pause</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
   </div>
@@ -251,6 +284,13 @@
     <div class="smash">Smashed <b id="smashed">0</b></div>
   </div>
 
+  <div id="scoreboard" hidden>
+    <div class="team blue"><span>Blue</span><b id="score-blue">0</b></div>
+    <div id="match-clock">3:00</div>
+    <div class="team orange"><b id="score-orange">0</b><span>Orange</span></div>
+  </div>
+  <div id="banner"></div>
+  <div id="ball-arrow" hidden></div>
   <div id="drift"></div>
   <div id="toast"></div>
   <div id="prompt"></div>
@@ -279,13 +319,18 @@
         </div>
       </div>
 
+      <div class="mode-picker" role="radiogroup" aria-label="Game mode">
+        <button type="button" role="radio" data-mode="free" aria-checked="true">Free roam<small>Smash up the lot</small></button>
+        <button type="button" role="radio" data-mode="football" aria-checked="false">Car football<small>Blue vs Orange in the stadium</small></button>
+      </div>
+
       <button type="button" class="primary" id="btn-play">Play</button>
       <button type="button" class="secondary" id="btn-online">Play online with friends</button>
       <div class="btn-row">
         <button type="button" id="btn-options">Options</button>
         <button type="button" id="btn-controls">Controls</button>
       </div>
-      <p class="fineprint">Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.</p>
+      <p class="fineprint" id="mode-blurb">Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.</p>
     </section>
 
     <section class="screen" data-screen="pause" hidden aria-labelledby="pause-title">
@@ -305,6 +350,7 @@
 
     <section class="screen wide" data-screen="online" hidden aria-labelledby="online-title">
       <h2 id="online-title" class="screen-title">Play online</h2>
+      <p class="room-mode">New rooms play <b id="room-mode-name">Free roam</b> (pick the mode on the main menu). Joining plays whatever the room is playing.</p>
       <p class="online-intro">Up to 8 players. The game runs on everyone's own computer and players connect directly, so there's no server. Your vehicle is the one picked on the main menu.</p>
       <label class="field"><span>Your name</span><input id="player-name" type="text" maxlength="16" autocomplete="nickname" placeholder="Driver"></label>
       <div class="online-actions">
@@ -347,6 +393,7 @@
           <tr><td>Reverse</td><td>Hold <kbd>S</kbd> when stopped</td><td>Hold LT</td></tr>
           <tr><td>Handbrake</td><td><kbd>Space</kbd></td><td>A / RB</td></tr>
           <tr><td>Boost (refills over time and when you smash things)</td><td><kbd>Shift</kbd></td><td>LB</td></tr>
+          <tr><td>Ball cam on/off (football)</td><td><kbd>Y</kbd></td><td>On screen: BALL</td></tr>
           <tr><td>Change car (anywhere)</td><td><kbd>V</kbd></td><td>On screen: CAR</td></tr>
           <tr><td>Drive a nearby parked vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
           <tr><td>Camera (chase, far, hood)</td><td><kbd>C</kbd></td><td>X</td></tr>
@@ -372,6 +419,7 @@
     <div class="tbtn small" id="touch-pause" aria-label="Pause">II</div>
     <div class="tbtn small" id="touch-enter">IN</div>
     <div class="tbtn small" id="touch-garage">CAR</div>
+    <div class="tbtn small" id="touch-ballcam">BALL</div>
     <div class="tbtn" id="t-boost" data-touch="boost">BST</div>
   </div>
 
@@ -1727,6 +1775,7 @@ class Destruction {
     this.fragments = [];
     this.breakQueue = [];
     this.pendingBlasts = [];
+    this.blastJ = { x: 0, z: 0 };
     this.bodyCount = 0;
     this.debrisCount = 0;
     this.time = 0;
@@ -1737,7 +1786,7 @@ class Destruction {
       RAPIER.ColliderDesc.cuboid(this.groundHalfSize, 0.5, this.groundHalfSize).setFriction(0.8),
       ground,
     );
-    this.terrain?.addColliders(this.world); // ramps
+    this.statics?.addColliders(this.world); // the map's ramps and walls
     this.carBody = null;
     // Remote players' cars survive a rebuild: recreate their bodies.
     for (const r of this.remoteCars?.values() || []) this.buildRemoteBody(r);
@@ -1903,6 +1952,24 @@ class Destruction {
     return entity;
   }
 
+  /** Register a body made elsewhere (the football) so it takes part in contacts and blasts. */
+  register(entity) {
+    for (const c of entity.colliders) this.byCollider.set(c.handle, entity);
+  }
+
+  unregister(entity) {
+    for (const c of entity.colliders) this.byCollider.delete(c.handle);
+  }
+
+  /** Remove every spawned object matching `test(entity, position)`. */
+  despawnWhere(test) {
+    for (const pool of Object.values(this.pools)) {
+      for (const e of [...pool.entities]) {
+        if (e.alive && test(e, e.body.translation())) this.despawn(e);
+      }
+    }
+  }
+
   despawn(entity) {
     if (!entity.alive) return;
     entity.alive = false;
@@ -1969,7 +2036,7 @@ class Destruction {
     this.time += STEP;
     this.car = car;
     this.breakDrag = 0;
-    this.blastJ = { x: 0, z: 0 };
+    this.blastJ ||= { x: 0, z: 0 };
     // Chain reactions: detonate drums whose fuse ran out.
     if (this.pendingBlasts.length) {
       const due = this.pendingBlasts.filter((b) => b.at <= this.time);
@@ -2072,6 +2139,7 @@ class Destruction {
       jx += this.blastJ.x;
       jz += this.blastJ.z;
       total += Math.hypot(this.blastJ.x, this.blastJ.z);
+      this.blastJ = { x: 0, z: 0 };
     }
     return { jx, jz, torque, total };
   }
@@ -2085,7 +2153,13 @@ class Destruction {
     const t = entity.body.translation();
     const centre = new THREE.Vector3(t.x, t.y, t.z);
     this.despawn(entity);
-    const R = BLAST_RADIUS;
+    this.blast(t);
+    const car = this.car;
+    this.emit('explode', centre, car ? Math.hypot(car.x - t.x, car.z - t.z) : 99);
+  }
+
+  /** Push, shatter and set off everything around a point (no sound or flash). */
+  blast(t, R = BLAST_RADIUS) {
     const seen = new Set();
     this.world.collidersWithAabbIntersectingAabb(t, { x: R, y: R, z: R }, (c) => {
       const body = c.parent();
@@ -2125,7 +2199,6 @@ class Destruction {
         this.blastJ.z += (dz / (d || 1)) * dv * car.spec.mass;
       }
     }
-    this.emit('explode', centre, car ? Math.hypot(car.x - t.x, car.z - t.z) : 99);
   }
 
   /**
@@ -2146,7 +2219,7 @@ class Destruction {
     const found = new Set();
     this.world.intersectionsWithShape(centre, rot, new RAPIER.Cuboid(half.x, half.y, half.z), (collider) => {
       const e = this.byCollider.get(collider.handle);
-      if (e && e.alive && !e.vehicle) found.add(e);
+      if (e && e.alive && !e.vehicle && !e.kind.noBurn) found.add(e);
       return found.size < BURNS_PER_STEP;
     });
     for (const e of found) this.burn(e, car);
@@ -2290,6 +2363,11 @@ function createWorld(scene, renderer) {
   grass.receiveShadow = true;
   scene.add(grass);
 
+  // Everything that belongs to the free-roam lot (and not to other maps)
+  // goes in this group, so switching maps just hides it.
+  const arena = new THREE.Group();
+  scene.add(arena);
+
   // Asphalt lot.
   const lotSize = ARENA_HALF * 2 + 16;
   const asphalt = makeAsphaltTexture(renderer);
@@ -2300,14 +2378,14 @@ function createWorld(scene, renderer) {
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
-  scene.add(ground);
+  arena.add(ground);
 
   const grid = new THREE.GridHelper(lotSize, lotSize / 8, 0x5b5b60, 0x5b5b60);
   grid.position.y = 0.01;
   grid.material.transparent = true;
   grid.material.opacity = 0.25;
   grid.material.depthWrite = false;
-  scene.add(grid);
+  arena.add(grid);
 
   const paint = new THREE.MeshBasicMaterial({ color: 0xf2f2f2, transparent: true, opacity: 0.85, depthWrite: false });
   const yellow = new THREE.MeshBasicMaterial({ color: 0xf2c230, transparent: true, opacity: 0.85, depthWrite: false });
@@ -2316,7 +2394,7 @@ function createWorld(scene, renderer) {
     m.rotation.set(-Math.PI / 2, 0, rotY);
     m.position.set(x, 0.02, z);
     m.renderOrder = 1;
-    scene.add(m);
+    arena.add(m);
   };
   // Start box.
   flat(new THREE.PlaneGeometry(3.2, 0.25), paint, START.x, START.z - 3.2);
@@ -2348,6 +2426,7 @@ function createWorld(scene, renderer) {
 
   const VIEW = { near: [70, 200], medium: [110, 380], far: [150, 650] };
   return {
+    arena,
     followSun(target) {
       sun.position.copy(target).add(sunOffset);
       sun.target.position.copy(target);
@@ -2841,6 +2920,8 @@ class ChaseCamera {
     this.initialised = false;
     this.vehicleCam = { scale: 1, hoodY: 1.42, hoodZ: 0.9 };
     this.boostFov = 0;
+    this.focus = null; // ball cam: { x, y, z } to keep in view, or null
+    this.bounds = null; // optional (pos) => void that keeps the camera inside walls
   }
 
   /** Fit the camera to a vehicle's size (see `cam` in vehicles.js). */
@@ -2872,6 +2953,12 @@ class ChaseCamera {
       const velYaw = Math.atan2(car.velX, car.velZ);
       targetYaw = car.heading + wrap(velYaw - car.heading) * 0.55;
     }
+
+    // Ball cam: look past the car at the ball instead of along the car.
+    const f = this.focus;
+    const fdx = f ? f.x - car.x : 0, fdz = f ? f.z - car.z : 0;
+    const ballCam = f && !m.hood && Math.hypot(fdx, fdz) > 2.5;
+    if (ballCam) targetYaw = Math.atan2(fdx, fdz);
 
     if (!this.initialised) {
       this.yaw = targetYaw;
@@ -2906,11 +2993,18 @@ class ChaseCamera {
       (car.y || 0) + m.height * k,
       car.z - Math.cos(this.yaw) * dist,
     );
-    const lookAt = new THREE.Vector3(
-      car.x + Math.sin(car.heading) * 2,
-      (car.y || 0) + m.look * k,
-      car.z + Math.cos(car.heading) * 2,
-    );
+    const lookAt = ballCam
+      ? new THREE.Vector3(
+        car.x + Math.sin(this.yaw) * 4,
+        (car.y || 0) + m.look * k + Math.max(0, Math.min(4, (f.y - (car.y || 0) - 1.5) * 0.3)),
+        car.z + Math.cos(this.yaw) * 4,
+      )
+      : new THREE.Vector3(
+        car.x + Math.sin(car.heading) * 2,
+        (car.y || 0) + m.look * k,
+        car.z + Math.cos(car.heading) * 2,
+      );
+    if (ballCam) desired.y += 0.6 * k;
 
     if (!this.initialised) {
       this.pos.copy(desired);
@@ -2926,6 +3020,7 @@ class ChaseCamera {
       this.target.lerp(lookAt, 1 - Math.exp(-dt * 15));
     }
 
+    this.bounds?.(this.pos);
     cam.position.copy(this.pos);
     cam.lookAt(this.target);
   }
@@ -3054,6 +3149,7 @@ const IMPACTS = {
   metal: { filter: 'bandpass', freq: 2200, q: 9, decay: 0.55, gain: 0.45, tones: [420, 1130], toneGain: 0.35, toneDecay: 1 },
   plastic: { filter: 'highpass', freq: 1400, q: 0.7, decay: 0.08, gain: 0.35, tones: [180], toneGain: 0.2, toneDecay: 0.4 },
   glass: { filter: 'highpass', freq: 3200, q: 1.5, decay: 0.35, gain: 0.45, tones: [2600, 3900, 5300], toneGain: 0.18, toneDecay: 0.7 },
+  ball: { filter: 'lowpass', freq: 1300, q: 1.1, decay: 0.16, gain: 0.85, tones: [120, 78], toneGain: 0.9, toneDecay: 0.7 },
   crash: { filter: 'lowpass', freq: 420, q: 1, decay: 0.45, gain: 0.9, tones: [48], toneGain: 1, toneDecay: 0.9 },
 };
 
@@ -3441,6 +3537,104 @@ class CarAudio {
     }
   }
 
+  /** Referee's whistle: a trilled high tone. `long` for full time. */
+  whistle(long = false) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const blasts = long ? [[0, 0.35], [0.45, 0.35], [0.9, 0.9]] : [[0, 0.5]];
+    for (const [t0, dur] of blasts) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = 2900;
+      const trill = ctx.createOscillator();
+      trill.frequency.value = 38;
+      const depth = ctx.createGain();
+      depth.gain.value = 180;
+      trill.connect(depth).connect(o.frequency);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, now + t0);
+      g.gain.exponentialRampToValueAtTime(0.16, now + t0 + 0.02);
+      g.gain.setValueAtTime(0.16, now + t0 + dur - 0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, now + t0 + dur);
+      o.connect(g).connect(this.sfxBus);
+      for (const n of [o, trill]) { n.start(now + t0); n.stop(now + t0 + dur + 0.02); }
+    }
+  }
+
+  /** Countdown beep; `go` is the higher final one. */
+  beep(go = false) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'square';
+    o.frequency.value = go ? 1320 : 660;
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = 2400;
+    const g = ctx.createGain();
+    const dur = go ? 0.45 : 0.16;
+    g.gain.setValueAtTime(0.12, now);
+    g.gain.setValueAtTime(0.12, now + dur - 0.04);
+    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    o.connect(f).connect(g).connect(this.sfxBus);
+    o.start(now);
+    o.stop(now + dur + 0.02);
+  }
+
+  /** Goal: stadium horn plus the crowd going up. */
+  goalHorn() {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, now);
+    out.gain.exponentialRampToValueAtTime(0.32, now + 0.08);
+    out.gain.setValueAtTime(0.32, now + 1.5);
+    out.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 1500;
+    lp.connect(out).connect(this.sfxBus);
+    const send = ctx.createGain();
+    send.gain.value = 0.5;
+    out.connect(send).connect(this.reverbSend);
+    for (const f of [174, 220, 261]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = f;
+      o.connect(lp);
+      o.start(now);
+      o.stop(now + 2.25);
+    }
+    this.crowd(1, 4);
+  }
+
+  /** Crowd roar: band-passed noise swelling and fading over `dur` seconds. */
+  crowd(level = 0.6, dur = 2.5) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuffer();
+    src.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 900;
+    bp.Q.value = 0.6;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.35 * level, now + 0.4);
+    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    src.connect(bp).connect(g).connect(this.sfxBus);
+    const send = ctx.createGain();
+    send.gain.value = 0.6;
+    g.connect(send).connect(this.reverbSend);
+    src.start(now, Math.random());
+    src.stop(now + dur + 0.05);
+  }
+
   /** Short tick for menu buttons. */
   ui() {
     if (!this.ctx || this.muted) return;
@@ -3581,6 +3775,7 @@ const OPTIONS = {
     volume: { label: 'Volume', choices: [[0.25, '25%'], [0.5, '50%'], [0.75, '75%'], [1, '100%']] },
     startVehicle: { label: 'Vehicle', choices: [] },
     playerName: { label: 'Name', choices: [] },
+    mode: { label: 'Game mode', choices: [] },
   },
 };
 
@@ -3598,6 +3793,7 @@ const DEFAULTS = {
   volume: 0.75,
   startVehicle: 'sports',
   playerName: '',
+  mode: 'free',
 };
 
 /** A sensible first-run preset from what the device reports. */
@@ -3657,6 +3853,12 @@ const TABS = [
   ['game', 'Game'],
 ];
 
+const MODE_NAMES = { free: 'Free roam', football: 'Car football' };
+const MODE_BLURBS = {
+  free: 'Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.',
+  football: 'Knock the ball into the orange goal before the clock runs out. You play Blue against a computer driver, or team up online. The sidelines are lined with things to wreck, and the fuel drums in the corners blow the ball around. Press Y to toggle ball cam.',
+};
+
 class Menu {
   /**
    * @param {object} opts
@@ -3698,10 +3900,29 @@ class Menu {
     on('btn-prev-vehicle', () => this.pickVehicle(-1));
     on('btn-next-vehicle', () => this.pickVehicle(1));
     for (const el of this.root.querySelectorAll('[data-back]')) el.addEventListener('click', () => this.back());
+    for (const el of this.root.querySelectorAll('[data-mode]')) {
+      el.addEventListener('click', () => {
+        opts.onSetting('mode', el.dataset.mode);
+        this.renderMode();
+        opts.onModePicked?.(el.dataset.mode);
+      });
+    }
+    this.renderMode();
 
     this.renderVehicle();
     this.renderTabs();
     document.getElementById('player-name').value = opts.getSettings().playerName || '';
+  }
+
+  get mode() {
+    return this.opts.getSettings().mode === 'football' ? 'football' : 'free';
+  }
+
+  renderMode() {
+    const mode = this.mode;
+    for (const el of this.root.querySelectorAll('[data-mode]')) el.setAttribute('aria-checked', String(el.dataset.mode === mode));
+    document.getElementById('mode-blurb').textContent = MODE_BLURBS[mode];
+    document.getElementById('room-mode-name').textContent = MODE_NAMES[mode];
   }
 
   /** The name typed on the online screen (or a generated one). */
@@ -3722,7 +3943,8 @@ class Menu {
   }
 
   /** Show room details in the pause menu while online. */
-  setOnline(online, code, isHost) {
+  setOnline(online, code, isHost, mode = 'free') {
+    document.getElementById('btn-rebuild').textContent = mode === 'football' ? 'Restart match' : 'Rebuild arena';
     document.getElementById('pause-room').hidden = !online;
     document.getElementById('btn-leave').hidden = !online;
     document.getElementById('pause-code').textContent = code || '';
@@ -4427,11 +4649,12 @@ function arenaRamps(terrain) {
 //
 // Messages are small JSON objects:
 //   hello   { name, vehicle }            client -> host on connect
-//   welcome { id, players }              host -> client
+//   welcome { id, players, mode }        host -> client (mode: the room's game mode)
 //   joined  { id, name, vehicle }        host -> everyone
 //   left    { id }                       host -> everyone
 //   state   { id, s }                    car state, ~20 per second
 //   event   { id, e }                    one-off events (arena rebuild, ...)
+//   match   { m }                        host -> everyone: football ball and score
 
 const PREFIX = 'smashlot-';
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O
@@ -4474,7 +4697,7 @@ class Net {
   }
 
   /** Create a room. Resolves with the room code. */
-  host(name, vehicle) {
+  host(name, vehicle, mode = 'free') {
     if (!window.Peer) return Promise.reject(new Error('Multiplayer library failed to load.'));
     return new Promise((resolve, reject) => {
       const attempt = (tries) => {
@@ -4485,6 +4708,7 @@ class Net {
           this.isHost = true;
           this.code = code;
           this.id = 'host';
+          this.mode = mode;
           this.players.set('host', { name, vehicle });
           peer.on('connection', (conn) => this.acceptClient(conn));
           resolve(code);
@@ -4514,7 +4738,7 @@ class Net {
         this.conns.set(id, conn);
         const players = Object.fromEntries(this.players);
         this.players.set(id, { name: msg.name, vehicle: msg.vehicle });
-        conn.send({ t: 'welcome', id, players });
+        conn.send({ t: 'welcome', id, players, mode: this.mode });
         this.relay({ t: 'joined', id, name: msg.name, vehicle: msg.vehicle }, id);
         this.emit('joined', id, msg.name, msg.vehicle);
       } else if (msg.t === 'state' || msg.t === 'event') {
@@ -4562,6 +4786,7 @@ class Net {
             this.isHost = false;
             this.code = code;
             this.id = msg.id;
+            this.mode = msg.mode || 'free';
             this.conns.set('host', conn);
             this.players = new Map(Object.entries(msg.players));
             this.players.set(msg.id, { name, vehicle });
@@ -4591,6 +4816,7 @@ class Net {
   dispatch(msg) {
     if (msg.t === 'state') this.emit('state', msg.id, msg.s);
     else if (msg.t === 'event') this.emit('event', msg.id, msg.e);
+    else if (msg.t === 'match') this.emit('match', msg.m);
   }
 
   /** Host: send to every client except `except`. */
@@ -4603,6 +4829,11 @@ class Net {
     const msg = { t: 'state', id: this.id, s };
     if (this.isHost) this.relay(msg);
     else this.conns.get('host')?.open && this.conns.get('host').send(msg);
+  }
+
+  /** Host: football match state for everyone. */
+  sendMatch(m) {
+    if (this.isHost) this.relay({ t: 'match', m });
   }
 
   sendEvent(e) {
@@ -4619,6 +4850,7 @@ class Net {
     this.peer = null;
     this.id = null;
     this.code = null;
+    this.mode = null;
     this.isHost = false;
   }
 }
@@ -4804,8 +5036,8 @@ function makeProxy(def) {
   };
 }
 
-/** Floating name label above a remote car. */
-function nameTag(name, def) {
+/** Floating name label above a car (dot in `color`, or the car's colour). */
+function nameTag(name, def, color) {
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 64;
@@ -4816,7 +5048,7 @@ function nameTag(name, def) {
   g.beginPath();
   g.roundRect((256 - w) / 2, 8, w, 48, 24);
   g.fill();
-  g.fillStyle = `#${(def.swatch ?? def.color).toString(16).padStart(6, '0')}`;
+  g.fillStyle = `#${(color ?? def.swatch ?? def.color).toString(16).padStart(6, '0')}`;
   g.beginPath();
   g.arc((256 - w) / 2 + 22, 32, 7, 0, Math.PI * 2);
   g.fill();
@@ -4957,6 +5189,1073 @@ function applyToCar(car, mass, inertia, jx, jz, px, pz) {
   car.yawRate += Math.max(-4, Math.min(4, (rz * jx - rx * jz) / inertia));
 }
 
+// ===== stadium.js =====
+// The car football stadium: a long walled pitch with a goal at each end,
+// grandstands, floodlights, and the usual pile of things to break along the
+// sidelines and in the corners.
+//
+// The pitch runs along Z. Blue defends the -Z goal and attacks +Z; Orange
+// the other way round. Walls are fixed Rapier colliders (tall and invisible
+// above the glass, so the ball stays in); cars are kept in by `contain`,
+// since a kinematic car body doesn't collide with fixed ones.
+
+const PITCH = {
+  halfX: 36,
+  halfZ: 60,
+  goalHalf: 8,     // goal mouth is 16 m wide
+  goalDepth: 7,
+  goalHeight: 5,
+  chamfer: 8,      // corners are cut at 45° so the ball never gets stuck
+};
+const TEAM_COLORS = [0x2f7bff, 0xff7a1a];
+
+const WALL_TOP = 30;   // invisible collider height
+const GLASS_TOP = 8;   // visible glass height
+const BASE_TOP = 1.2;  // concrete kerb under the glass
+
+/** Wall segments (centre line) around the pitch, excluding the goal mouths. */
+function wallSegments() {
+  const { halfX: X, halfZ: Z, goalHalf: G, chamfer: C } = PITCH;
+  const segs = [];
+  for (const sx of [-1, 1]) segs.push([[sx * X, -(Z - C)], [sx * X, Z - C]]);
+  for (const sz of [-1, 1]) {
+    for (const sx of [-1, 1]) {
+      segs.push([[sx * G, sz * Z], [sx * (X - C), sz * Z]]);
+      segs.push([[sx * (X - C), sz * Z], [sx * X, sz * (Z - C)]]);
+    }
+  }
+  return segs;
+}
+
+function createStadium(scene, renderer) {
+  const group = new THREE.Group();
+  group.visible = false;
+  scene.add(group);
+  const { halfX: X, halfZ: Z, goalHalf: G, goalDepth: D, goalHeight: H } = PITCH;
+
+  // --- Ground: concrete surround, striped pitch, goal floors -------------
+  const concrete = new THREE.Mesh(
+    new THREE.PlaneGeometry(150, 200),
+    new THREE.MeshStandardMaterial({ color: 0x8e8c88, roughness: 0.95 }),
+  );
+  concrete.rotation.x = -Math.PI / 2;
+  concrete.position.y = 0.002;
+  concrete.receiveShadow = true;
+  group.add(concrete);
+
+  const pitchShape = new THREE.Shape();
+  const C = PITCH.chamfer;
+  pitchShape.moveTo(-X, -(Z - C));
+  pitchShape.lineTo(-(X - C), -Z);
+  pitchShape.lineTo(X - C, -Z);
+  pitchShape.lineTo(X, -(Z - C));
+  pitchShape.lineTo(X, Z - C);
+  pitchShape.lineTo(X - C, Z);
+  pitchShape.lineTo(-(X - C), Z);
+  pitchShape.lineTo(-X, Z - C);
+  const pitchGeo = new THREE.ShapeGeometry(pitchShape);
+  // UVs in metres / pitch size so the stripe texture spans the pitch.
+  const uv = pitchGeo.attributes.uv;
+  const pp = pitchGeo.attributes.position;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, (pp.getX(i) + X) / (2 * X), (pp.getY(i) + Z) / (2 * Z));
+  const pitch = new THREE.Mesh(pitchGeo, new THREE.MeshStandardMaterial({ map: grassStripes(renderer), roughness: 0.92 }));
+  pitch.rotation.x = -Math.PI / 2;
+  pitch.position.y = 0.006;
+  pitch.receiveShadow = true;
+  group.add(pitch);
+
+  const line = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false });
+  const flat = (geo, mat, x, z, rotY = 0, y = 0.014) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.rotation.set(-Math.PI / 2, 0, rotY);
+    m.position.set(x, y, z);
+    m.renderOrder = 1;
+    group.add(m);
+    return m;
+  };
+  const W = 0.3; // line width
+  for (const sx of [-1, 1]) flat(new THREE.PlaneGeometry(W, 2 * (Z - C)), line, sx * (X - 1.2), 0);
+  for (const sz of [-1, 1]) {
+    for (const sx of [-1, 1]) flat(new THREE.PlaneGeometry(X - C - G, W), line, sx * (G + (X - C - G) / 2), sz * (Z - 1.2));
+    // Goal line across the mouth, in the defending team's colour.
+    const team = sz < 0 ? 0 : 1;
+    flat(new THREE.PlaneGeometry(2 * G, 0.5), new THREE.MeshBasicMaterial({ color: TEAM_COLORS[team], transparent: true, opacity: 0.9, depthWrite: false }), 0, sz * Z);
+    // Penalty box.
+    flat(new THREE.PlaneGeometry(30, W), line, 0, sz * (Z - 16));
+    for (const sx of [-1, 1]) flat(new THREE.PlaneGeometry(W, 14.8), line, sx * 15, sz * (Z - 1.2 - 7.4));
+    // Goal floor, tinted.
+    flat(new THREE.PlaneGeometry(2 * G, D), new THREE.MeshBasicMaterial({ color: TEAM_COLORS[team], transparent: true, opacity: 0.35, depthWrite: false }), 0, sz * (Z + D / 2), 0, 0.01);
+    // Team colour wash over each half.
+    flat(new THREE.PlaneGeometry(2 * (X - 1.2), Z - 1.2), new THREE.MeshBasicMaterial({ color: TEAM_COLORS[team], transparent: true, opacity: 0.07, depthWrite: false }), 0, sz * (Z - 1.2) / 2, 0, 0.01);
+  }
+  flat(new THREE.PlaneGeometry(2 * (X - 1.2), W), line, 0, 0);
+  flat(new THREE.RingGeometry(9, 9 + W, 96), line, 0, 0);
+  flat(new THREE.CircleGeometry(0.6, 24), line, 0, 0);
+  // Arrows on the ramps' run-ups along the sidelines.
+
+  // --- Walls: concrete kerb, glass, posts and a rail -----------------------
+  const kerbMat = new THREE.MeshStandardMaterial({ color: 0xd9d6cf, roughness: 0.85 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0xbfe3ff, transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.2, depthWrite: false, side: THREE.DoubleSide });
+  const steelMat = new THREE.MeshStandardMaterial({ color: 0x5f6670, metalness: 0.7, roughness: 0.4 });
+  const kerbs = [], glass = [], steel = [];
+  const along = (a, b, w, h, y0, out) => {
+    const dx = b[0] - a[0], dz = b[1] - a[1];
+    const len = Math.hypot(dx, dz);
+    const geo = new THREE.BoxGeometry(w, h, len);
+    geo.rotateY(Math.atan2(dx, dz));
+    // Push the wall outward so its inner face is on the line.
+    const nx = -dz / len, nz = dx / len;
+    const s = Math.sign(nx * (a[0] + b[0]) + nz * (a[1] + b[1])) || 1;
+    geo.translate((a[0] + b[0]) / 2 + nx * s * w / 2, y0 + h / 2, (a[1] + b[1]) / 2 + nz * s * w / 2);
+    out.push(geo);
+    return { len, dx: dx / len, dz: dz / len, nx: nx * s, nz: nz * s };
+  };
+  for (const [a, b] of wallSegments()) {
+    along(a, b, 0.6, BASE_TOP, 0, kerbs);
+    along(a, b, 0.08, GLASS_TOP - BASE_TOP, BASE_TOP, glass);
+    const f = along(a, b, 0.25, 0.2, GLASS_TOP, steel);
+    const n = Math.max(1, Math.round(f.len / 8));
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const post = new THREE.BoxGeometry(0.22, GLASS_TOP - BASE_TOP, 0.22);
+      post.translate(a[0] + (b[0] - a[0]) * t + f.nx * 0.15, BASE_TOP + (GLASS_TOP - BASE_TOP) / 2, a[1] + (b[1] - a[1]) * t + f.nz * 0.15);
+      steel.push(post);
+    }
+  }
+  // Glass above each goal mouth.
+  for (const sz of [-1, 1]) {
+    const g = new THREE.BoxGeometry(2 * G, GLASS_TOP - H, 0.08);
+    g.translate(0, H + (GLASS_TOP - H) / 2, sz * (Z + 0.04));
+    glass.push(g);
+    const rail = new THREE.BoxGeometry(2 * G, 0.2, 0.25);
+    rail.translate(0, GLASS_TOP, sz * (Z + 0.12));
+    steel.push(rail);
+  }
+  const kerbMesh = new THREE.Mesh(mergeGeometries(kerbs), kerbMat);
+  kerbMesh.castShadow = kerbMesh.receiveShadow = true;
+  const glassMesh = new THREE.Mesh(mergeGeometries(glass), glassMat);
+  glassMesh.renderOrder = 2;
+  const steelMesh = new THREE.Mesh(mergeGeometries(steel), steelMat);
+  steelMesh.castShadow = true;
+  group.add(kerbMesh, glassMesh, steelMesh);
+
+  // --- Goals: frame and net in the defending team's colour ----------------
+  for (const sz of [-1, 1]) {
+    const team = sz < 0 ? 0 : 1;
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: TEAM_COLORS[team], emissiveIntensity: 0.35, roughness: 0.4 });
+    const parts = [];
+    for (const sx of [-1, 1]) {
+      const post = new THREE.CylinderGeometry(0.22, 0.22, H, 16);
+      post.translate(sx * G, H / 2, sz * Z);
+      parts.push(post);
+    }
+    const bar = new THREE.CylinderGeometry(0.22, 0.22, 2 * G + 0.44, 16);
+    bar.rotateZ(Math.PI / 2);
+    bar.translate(0, H, sz * Z);
+    parts.push(bar);
+    const frame = new THREE.Mesh(mergeGeometries(parts), frameMat);
+    frame.castShadow = true;
+    group.add(frame);
+
+    const netMat = new THREE.MeshBasicMaterial({ map: netTexture(), color: TEAM_COLORS[team], transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
+    const net = [];
+    const back = new THREE.PlaneGeometry(2 * G, H);
+    back.translate(0, H / 2, sz * (Z + D));
+    net.push(back);
+    for (const sx of [-1, 1]) {
+      const side = new THREE.PlaneGeometry(D, H);
+      side.rotateY(Math.PI / 2);
+      side.translate(sx * G, H / 2, sz * (Z + D / 2));
+      net.push(side);
+    }
+    const roof = new THREE.PlaneGeometry(2 * G, D);
+    roof.rotateX(Math.PI / 2);
+    roof.translate(0, H, sz * (Z + D / 2));
+    net.push(roof);
+    const netMesh = new THREE.Mesh(mergeGeometries(net), netMat);
+    netMesh.renderOrder = 2;
+    group.add(netMesh);
+  }
+
+  // --- Grandstands and crowd ----------------------------------------------
+  const standMat = new THREE.MeshStandardMaterial({ color: 0x6d717a, roughness: 0.9 });
+  const stands = [];
+  const seats = []; // [x, y, z, team bias]
+  const TIERS = 7;
+  const rowsAlong = (axis, sign, from, to, inner, teamBias) => {
+    for (let t = 0; t < TIERS; t++) {
+      const depth = 2.2;
+      const off = inner + t * depth + depth / 2;
+      const h = 1 + t * 1.1;
+      const len = to - from;
+      const geo = axis === 'x' ? new THREE.BoxGeometry(depth, h, len) : new THREE.BoxGeometry(len, h, depth);
+      if (axis === 'x') geo.translate(sign * off, h / 2, (from + to) / 2);
+      else geo.translate((from + to) / 2, h / 2, sign * off);
+      stands.push(geo);
+      for (let u = from + 0.6; u < to - 0.4; u += 0.95) {
+        const jitter = (Math.random() - 0.5) * 0.25;
+        if (axis === 'x') seats.push([sign * (off + 0.3), h, u + jitter, teamBias]);
+        else seats.push([u + jitter, h, sign * (off + 0.3), teamBias]);
+      }
+    }
+  };
+  rowsAlong('x', -1, -64, 64, X + 6, 0.5);
+  rowsAlong('x', 1, -64, 64, X + 6, 0.5);
+  rowsAlong('z', -1, -X - 4, X + 4, Z + D + 5, 0.1); // behind Blue's goal: mostly blue fans
+  rowsAlong('z', 1, -X - 4, X + 4, Z + D + 5, 0.9);
+  const standMesh = new THREE.Mesh(mergeGeometries(stands), standMat);
+  standMesh.receiveShadow = true;
+  group.add(standMesh);
+
+  const fan = new THREE.BoxGeometry(0.5, 0.85, 0.4);
+  fan.translate(0, 0.42, 0);
+  const crowd = new THREE.InstancedMesh(fan, new THREE.MeshStandardMaterial({ roughness: 0.8 }), seats.length);
+  const rng = mulberry32(5);
+  const shirt = new THREE.Color();
+  const PALETTE = [0xe8e2d6, 0x2b2b30, 0x8a5a3c, 0x5c7c4a, 0xd1b28a];
+  const m4 = new THREE.Matrix4();
+  seats.forEach(([x, y, z, bias], i) => {
+    m4.makeTranslation(x, y, z);
+    crowd.setMatrixAt(i, m4);
+    const r = rng();
+    if (r < 0.75) shirt.setHex(TEAM_COLORS[rng() < bias ? 1 : 0]);
+    else shirt.setHex(PALETTE[(rng() * PALETTE.length) | 0]);
+    shirt.offsetHSL(0, 0, (rng() - 0.5) * 0.12);
+    crowd.setColorAt(i, shirt);
+  });
+  group.add(crowd);
+  const crowdPhase = seats.map(() => rng() * Math.PI * 2);
+  let cheer = 0;
+
+  // --- Floodlights ---------------------------------------------------------
+  const lampMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff6dd, emissiveIntensity: 2.5 });
+  const towers = [], lamps = [];
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const x = sx * (X + 22), z = sz * (Z + 14);
+      const pole = new THREE.BoxGeometry(1, 30, 1);
+      pole.translate(x, 15, z);
+      towers.push(pole);
+      const head = new THREE.BoxGeometry(7, 3.5, 0.6);
+      head.rotateX(-0.5);
+      head.rotateY(Math.atan2(-x, -z));
+      head.translate(x, 30, z);
+      lamps.push(head);
+    }
+  }
+  group.add(new THREE.Mesh(mergeGeometries(towers), steelMat), new THREE.Mesh(mergeGeometries(lamps), lampMat));
+
+  // --- Ramps ---------------------------------------------------------------
+  const terrain = new Terrain();
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      // Kickers along each sideline, launching toward halfway.
+      terrain.addRamp({ x: sx * 31.5, z: sz * 31, heading: sz > 0 ? Math.PI : 0, length: 7, width: 5, height: 1.6, profile: 'kicker' });
+    }
+  }
+  terrain.buildMeshes(group);
+
+  return {
+    name: 'stadium',
+    group,
+    terrain,
+    orbit: { radius: 70, height: 30 },
+    addColliders(world) {
+      terrain.addColliders(world);
+      addStadiumColliders(world);
+    },
+    populate: populateStadium,
+    contain: containStadium,
+    /** Make the crowd jump for a few seconds. */
+    celebrate() { cheer = 3.5; },
+    update(dt) {
+      if (cheer <= 0) return;
+      cheer -= dt;
+      const k = Math.max(0, Math.min(1, cheer));
+      for (let i = 0; i < seats.length; i++) {
+        const [x, y, z] = seats[i];
+        const hop = Math.max(0, Math.sin(cheer * 11 + crowdPhase[i])) * 0.45 * k;
+        m4.makeTranslation(x, y + hop, z);
+        crowd.setMatrixAt(i, m4);
+      }
+      crowd.instanceMatrix.needsUpdate = true;
+    },
+  };
+}
+
+/** Fixed colliders: walls, chamfered corners, goal boxes and a ceiling. */
+function addStadiumColliders(world) {
+  const { halfZ: Z, goalHalf: G, goalDepth: D, goalHeight: H } = PITCH;
+  const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+  const box = (hx, hy, hz, x, y, z, yaw = 0) => {
+    const cd = RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setFriction(0.3).setRestitution(0.5);
+    if (yaw) cd.setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) });
+    world.createCollider(cd, body);
+  };
+  const T = 0.5; // half thickness
+  for (const [a, b] of wallSegments()) {
+    const dx = b[0] - a[0], dz = b[1] - a[1];
+    const len = Math.hypot(dx, dz);
+    let nx = -dz / len, nz = dx / len;
+    const s = Math.sign(nx * (a[0] + b[0]) + nz * (a[1] + b[1])) || 1;
+    nx *= s; nz *= s;
+    box(T, WALL_TOP / 2, len / 2 + T, (a[0] + b[0]) / 2 + nx * T, WALL_TOP / 2, (a[1] + b[1]) / 2 + nz * T, Math.atan2(dx, dz));
+  }
+  for (const sz of [-1, 1]) {
+    // Above the goal mouth, from the crossbar up.
+    box(G + T, (WALL_TOP - H) / 2, T, 0, H + (WALL_TOP - H) / 2, sz * (Z + T));
+    // Goal box: sides, back, roof.
+    for (const sx of [-1, 1]) box(T, H / 2 + T, D / 2 + T, sx * (G + T), H / 2, sz * (Z + D / 2));
+    box(G + T, H / 2 + T, T, 0, H / 2, sz * (Z + D + T));
+    box(G + T, T, D / 2 + T, 0, H + T, sz * (Z + D / 2));
+  }
+  box(60, 0.5, 80, 0, WALL_TOP + 0.5, 0); // ceiling
+}
+
+/**
+ * Keep a car (anything with x, z, velX, velZ, yawRate) on the pitch and in
+ * the goals. Returns the speed of the hardest wall hit (0 if none).
+ */
+function containStadium(c, margin = 1.5) {
+  const { halfX: X, halfZ: Z, goalHalf: G, goalDepth: D, chamfer: C } = PITCH;
+  let hit = 0;
+  const push = (nx, nz, depth) => {
+    c.x += nx * depth;
+    c.z += nz * depth;
+    const vn = c.velX * nx + c.velZ * nz;
+    if (vn < 0) {
+      c.velX -= 1.3 * vn * nx;
+      c.velZ -= 1.3 * vn * nz;
+      c.yawRate *= 0.5;
+      hit = Math.max(hit, -vn);
+    }
+  };
+  const sx = Math.sign(c.x) || 1, sz = Math.sign(c.z) || 1;
+  const ax = Math.abs(c.x), az = Math.abs(c.z);
+  const mouth = G - margin * 0.75;
+  if (az > Z) {
+    // Inside a goal: its side nets and back.
+    if (ax > mouth) push(-sx, 0, ax - mouth);
+    const back = Z + D - margin;
+    if (Math.abs(c.z) > back) push(0, -sz, Math.abs(c.z) - back);
+    return hit;
+  }
+  if (ax > X - margin) push(-sx, 0, ax - (X - margin));
+  if (az > Z - margin && Math.abs(c.x) > mouth) push(0, -sz, az - (Z - margin));
+  const diag = (Math.abs(c.x) + Math.abs(c.z) - (X + Z - C)) / Math.SQRT2 + margin;
+  if (diag > 0) push(-sx / Math.SQRT2, -sz / Math.SQRT2, diag);
+  return hit;
+}
+
+/** Where each team lines up for kickoff (index = player number in the team). */
+function kickoffSpot(team, index) {
+  const SPOTS = [[0, 40], [-14, 46], [14, 46], [0, 54], [-24, 52], [24, 52], [-8, 56], [8, 56]];
+  const [x, z] = SPOTS[index % SPOTS.length];
+  return team === 0 ? { x: -x, z: -z, heading: 0 } : { x, z, heading: Math.PI };
+}
+
+// --- Things to smash ----------------------------------------------------------
+
+/** One brick wall of a goal's back net (rebuilt at every kickoff). */
+function goalWall(d, sz) {
+  const { halfZ: Z, goalHalf: G, goalDepth: D } = PITCH;
+  stadiumBricks(d, 0, sz * (Z + D - 0.35), 0, 2 * G - 0.4, 6);
+}
+
+function stadiumBricks(d, x, z, yaw, len, rows) {
+  const opts = { sleep: true };
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const place = (u, y, kind) => d.spawn(kind, { x: x + u * c, y, z: z - u * s }, yaw, opts);
+  for (let r = 0; r < rows; r++) {
+    const y = 0.15 + r * 0.302;
+    let u = -len / 2;
+    if (r % 2) { place(u + 0.15, y, 'brickHalf'); u += 0.3; }
+    while (u + 0.6 <= len / 2 + 1e-6) { place(u + 0.3, y, 'brick'); u += 0.6; }
+    if (u < len / 2 - 1e-6) place(u + 0.15, y, 'brickHalf');
+  }
+}
+
+function populateStadium(d) {
+  const { halfX: X, halfZ: Z } = PITCH;
+  const opts = { sleep: true };
+  for (const sx of [-1, 1]) {
+    // Brick advertising boards along the middle of each sideline.
+    stadiumBricks(d, sx * (X - 1.5), 0, Math.PI / 2, 30, 4);
+    // Light poles at the halfway line, just inside the glass.
+    d.spawn('pole', { x: sx * (X - 1.2), y: 3.5, z: 19 }, 0, opts);
+    d.spawn('pole', { x: sx * (X - 1.2), y: 3.5, z: -19 }, 0, opts);
+    // Cones along the halfway line.
+    for (let x = 13; x <= X - 4; x += 3) d.spawn('cone', { x: sx * x, y: 0.3, z: 0 }, 0, opts);
+    for (const sz of [-1, 1]) {
+      // Crate pyramids near the corners.
+      const cz = sz * 44;
+      const cx = sx * (X - 3);
+      for (let i = 0; i < 3; i++) d.spawn('crate', { x: cx, y: 0.5, z: cz + (i - 1) * 1.02 }, 0, opts);
+      for (let i = 0; i < 2; i++) d.spawn('crate', { x: cx, y: 1.5, z: cz + (i - 0.5) * 1.02 }, 0, opts);
+      d.spawn('crate', { x: cx, y: 2.5, z: cz }, 0, opts);
+      // Fuel drums tucked into the cut corners: blasts throw the ball about.
+      const fx = sx * (X - 6.5), fz = sz * (Z - 4.5);
+      for (const [ox, oz] of [[0, 0], [0.7, 0.3], [0.2, 0.75]]) d.spawn('fuel', { x: fx + sx * ox, y: 0.45, z: fz + sz * oz }, 0, opts);
+      // Barrel rows flanking the goals.
+      for (let i = 0; i < 4; i++) d.spawn('barrel', { x: sx * (13 + i * 0.75), y: 0.48, z: sz * (Z - 3) }, 0, opts);
+      // Concrete block posts in midfield.
+      for (let y = 0; y < 2; y++) d.spawn('block', { x: sx * 14, y: 0.5 + y * 1.001, z: sz * 28 }, 0, opts);
+      // Stacked slab gates at each penalty box corner.
+      d.spawn('slab', { x: sx * 15, y: 1.1, z: sz * (Z - 16) }, 0, opts);
+    }
+  }
+  for (const sz of [-1, 1]) goalWall(d, sz);
+}
+
+// --- Textures -------------------------------------------------------------------
+
+function grassStripes(renderer) {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 512;
+  const g = c.getContext('2d');
+  const stripes = 16;
+  for (let i = 0; i < stripes; i++) {
+    g.fillStyle = i % 2 ? '#4f8f3c' : '#5a9c45';
+    g.fillRect(0, (i * c.height) / stripes, c.width, c.height / stripes);
+  }
+  const img = g.getImageData(0, 0, c.width, c.height);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 14;
+    img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n;
+  }
+  g.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return tex;
+}
+
+let _net;
+function netTexture() {
+  if (_net) return _net;
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const g = c.getContext('2d');
+  g.strokeStyle = 'rgba(255,255,255,0.75)';
+  g.lineWidth = 2;
+  g.strokeRect(1, 1, 30, 30);
+  _net = new THREE.CanvasTexture(c);
+  _net.wrapS = _net.wrapT = THREE.RepeatWrapping;
+  _net.repeat.set(16, 5);
+  return _net;
+}
+
+// ===== football.js =====
+// Car football: the ball, the match (kickoff, clock, goals, overtime) and
+// its HUD. One computer is the referee: the player in solo, the host
+// online. The referee simulates the ball and runs the clock; everyone else
+// gets snapshots (see `snapshot` / `applySnapshot`) and simulates the ball
+// locally between them so their own hits feel instant.
+
+const BALL_RADIUS = 1.5;
+const BALL_MASS = 60;
+const MAX_BALL_SPEED = 42;
+const MATCH_TIME = 180;
+const KICKOFF_TIME = 3;
+const GOAL_TIME = 3;
+const END_TIME = 7;
+const TEAM_NAMES = ['Blue', 'Orange'];
+const TEAM_CSS = ['#4d94ff', '#ff8a2a'];
+
+const roundFb = (v) => Math.round(v * 100) / 100;
+
+class Football {
+  constructor({ scene, destruction }) {
+    this.scene = scene;
+    this.destruction = destruction;
+    this.mesh = ballMesh();
+    this.mesh.visible = false;
+    scene.add(this.mesh);
+    this.marker = groundMarker();
+    this.marker.visible = false;
+    scene.add(this.marker);
+    this.entity = null;
+    this.active = false;
+    this.referee = true;
+    this.listeners = {};
+    this.teams = new Map(); // player id -> 0 (Blue) | 1 (Orange)
+    this.goals = new Map(); // player id -> goals scored this match
+    this.names = new Map(); // player id -> display name
+    this.resetMatchState();
+    this.hud = {
+      root: document.getElementById('scoreboard'),
+      blue: document.getElementById('score-blue'),
+      orange: document.getElementById('score-orange'),
+      clock: document.getElementById('match-clock'),
+      banner: document.getElementById('banner'),
+      arrow: document.getElementById('ball-arrow'),
+    };
+    this.bannerText = '';
+  }
+
+  on(event, fn) {
+    (this.listeners[event] ||= []).push(fn);
+  }
+
+  emit(event, ...args) {
+    for (const fn of this.listeners[event] || []) fn(...args);
+  }
+
+  resetMatchState() {
+    this.score = [0, 0];
+    this.phase = 'kickoff';
+    this.timer = KICKOFF_TIME;
+    this.timeLeft = MATCH_TIME;
+    this.overtime = false;
+    this.kickoffs = 0;
+    this.goalCount = 0;
+    this.lastGoal = null;
+    this.lastTouch = null;
+    this.touchingNow = new Set();
+    this.goals.clear();
+  }
+
+  /** Turn football on or off (switching game modes). */
+  setActive(on) {
+    this.active = on;
+    this.mesh.visible = on;
+    this.marker.visible = on;
+    this.hud.root.hidden = !on;
+    if (!on) {
+      this.setBanner('');
+      this.hud.arrow.hidden = true;
+    }
+  }
+
+  // --- Ball body ---------------------------------------------------------
+
+  /** Create the ball in the (fresh) physics world. */
+  spawnBall(pos = { x: 0, y: BALL_RADIUS, z: 0 }, vel = null) {
+    const world = this.destruction.world;
+    // Only remove the old ball if it lives in this world: after a rebuild
+    // the old world is gone, and its handles mean other bodies here.
+    if (this.entity && this.entity.world === world) {
+      this.destruction.unregister(this.entity);
+      world.removeRigidBody(this.entity.body);
+    }
+    const desc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(pos.x, pos.y, pos.z)
+      .setLinearDamping(0.12)
+      .setAngularDamping(0.4)
+      .setGravityScale(0.8) // a touch floaty, for aerials
+      .setCcdEnabled(true);
+    if (vel) desc.setLinvel(vel.x, vel.y, vel.z);
+    const body = world.createRigidBody(desc);
+    const collider = world.createCollider(
+      RAPIER.ColliderDesc.ball(BALL_RADIUS).setMass(BALL_MASS).setFriction(0.5).setRestitution(0.62)
+        .setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Max)
+        .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS)
+        .setContactForceEventThreshold(BALL_MASS * 3 / (1 / 60)),
+      body,
+    );
+    this.entity = {
+      kind: { name: 'ball', mass: BALL_MASS, material: 'ball', noBurn: true },
+      body, colliders: [collider], alive: true, ball: true, world,
+    };
+    this.destruction.register(this.entity);
+    this.collider = collider;
+  }
+
+  get body() {
+    return this.entity?.body;
+  }
+
+  /** Ball state as plain numbers. */
+  get ball() {
+    const b = this.body;
+    if (!b) return { x: 0, y: BALL_RADIUS, z: 0, vx: 0, vy: 0, vz: 0 };
+    const t = b.translation(), v = b.linvel();
+    return { x: t.x, y: t.y, z: t.z, vx: v.x, vy: v.y, vz: v.z };
+  }
+
+  placeBall(x, y, z, vx = 0, vy = 0, vz = 0, q = null) {
+    const b = this.body;
+    if (!b) return;
+    b.setTranslation({ x, y, z }, true);
+    b.setLinvel({ x: vx, y: vy, z: vz }, true);
+    if (q) b.setRotation(q, true);
+    else b.setAngvel({ x: 0, y: 0, z: 0 }, true);
+  }
+
+  // --- Match flow (referee only) ------------------------------------------
+
+  /** Start a fresh match (the arena has just been rebuilt). */
+  startMatch() {
+    this.resetMatchState();
+    this.kickoff();
+  }
+
+  kickoff() {
+    this.phase = 'kickoff';
+    this.timer = KICKOFF_TIME;
+    this.kickoffs++;
+    this.lastTouch = null;
+    this.placeBall(0, BALL_RADIUS, 0);
+    this.tidy();
+    this.emit('kickoff');
+  }
+
+  /**
+   * Between goals: clear broken pieces off the pitch and rebuild the brick
+   * walls at the back of each goal. Unbroken things stay where they are.
+   */
+  tidy() {
+    const d = this.destruction;
+    const { halfX: X, halfZ: Z, goalHalf: G } = PITCH;
+    d.despawnWhere((e, t) => (e.fragment && Math.abs(t.x) < X && Math.abs(t.z) < Z + 8)
+      || (Math.abs(t.z) > Z && Math.abs(t.x) < G + 0.5 && (e.kind.name === 'brick' || e.kind.name === 'brickHalf')));
+    for (const sz of [-1, 1]) goalWall(d, sz);
+  }
+
+  /** Physics-rate update, after the world step. */
+  step(dt) {
+    const b = this.body;
+    if (!b) return;
+    // Cap the speed so squeezes and blasts can't fire it into orbit.
+    const v = b.linvel();
+    const sp = Math.hypot(v.x, v.y, v.z);
+    if (sp > MAX_BALL_SPEED) {
+      const k = MAX_BALL_SPEED / sp;
+      b.setLinvel({ x: v.x * k, y: v.y * k, z: v.z * k }, true);
+    }
+    this.trackTouches();
+    if (!this.referee || !this.active) return;
+    const t = b.translation();
+    // Escaped somehow: drop it back in at the centre.
+    if (Math.abs(t.x) > PITCH.halfX + 6 || Math.abs(t.z) > PITCH.halfZ + PITCH.goalDepth + 6 || t.y < -4) {
+      this.placeBall(0, 12, 0);
+      return;
+    }
+    if (this.phase === 'kickoff') {
+      // Keep the ball on the spot until the whistle.
+      this.placeBall(0, BALL_RADIUS, 0);
+      return;
+    }
+    if (this.phase !== 'play') return;
+    const { halfZ: Z, goalHalf: G, goalHeight: H } = PITCH;
+    if (Math.abs(t.z) > Z + BALL_RADIUS && Math.abs(t.x) < G && t.y < H) {
+      this.scoreGoal(t.z > 0 ? 0 : 1, t);
+    }
+  }
+
+  /** Who touched the ball last (for goal credit). */
+  trackTouches() {
+    const world = this.destruction.world;
+    const owners = new Map();
+    if (this.destruction.carBody) owners.set(this.destruction.carBody.handle, this.myId);
+    for (const [id, r] of this.destruction.remoteCars || []) if (r.body) owners.set(r.body.handle, id);
+    const now = new Set();
+    world.contactPairsWith(this.collider, (other) => {
+      const body = other.parent();
+      const id = body && owners.get(body.handle);
+      if (id === undefined) return;
+      world.contactPair(this.collider, other, (manifold) => {
+        if (manifold.numContacts() > 0) now.add(id);
+      });
+    });
+    for (const id of now) {
+      if (!this.touchingNow.has(id)) this.emit('touch', id);
+      this.lastTouch = id;
+    }
+    if (now.size) {
+      // The ball sits higher than most bonnets, so plain contacts scoop it
+      // up a lot; keep hits mostly driven along the ground.
+      const b = this.body;
+      const v = b.linvel();
+      const maxUp = Math.hypot(v.x, v.z) * 0.35 + 4;
+      if (v.y > maxUp) b.setLinvel({ x: v.x, y: maxUp, z: v.z }, true);
+    }
+    this.touchingNow = now;
+  }
+
+  scoreGoal(team, pos) {
+    this.score[team]++;
+    this.goalCount++;
+    const by = this.lastTouch;
+    const own = by != null && this.teams.get(by) !== undefined && this.teams.get(by) !== team;
+    if (by != null && !own) this.goals.set(by, (this.goals.get(by) || 0) + 1);
+    this.lastGoal = { team, by: by ?? null, own, x: roundFb(pos.x), y: roundFb(pos.y), z: roundFb(pos.z) };
+    this.phase = 'goal';
+    this.timer = GOAL_TIME;
+    this.emit('goal', this.lastGoal);
+  }
+
+  /** Frame-rate update: clock and phases (referee), HUD (everyone). */
+  update(dt, camera) {
+    if (!this.active) return;
+    if (this.referee) this.runClock(dt);
+    else if (this.phase === 'play' && !this.overtime) this.timeLeft = Math.max(0, this.timeLeft - dt);
+    this.syncMesh();
+    this.goTimer = (this.goTimer || 0) - dt;
+    this.updateHud(camera);
+  }
+
+  runClock(dt) {
+    this.timer -= dt;
+    if (this.phase === 'kickoff') {
+      if (this.timer <= 0) {
+        this.phase = 'play';
+        this.emit('go');
+      }
+    } else if (this.phase === 'play') {
+      if (!this.overtime) {
+        this.timeLeft = Math.max(0, this.timeLeft - dt);
+        // Time's up once the ball is on the ground (no buzzer-beater robbed mid-air).
+        if (this.timeLeft <= 0 && this.ball.y < BALL_RADIUS + 0.6) {
+          if (this.score[0] === this.score[1]) {
+            this.overtime = true;
+            this.emit('overtime');
+          } else {
+            this.phase = 'ended';
+            this.timer = END_TIME;
+            this.emit('ended', this.score[0] > this.score[1] ? 0 : 1);
+          }
+        }
+      }
+    } else if (this.phase === 'goal') {
+      if (this.timer <= 0) {
+        if (this.overtime || (this.timeLeft <= 0 && this.score[0] !== this.score[1])) {
+          this.phase = 'ended';
+          this.timer = END_TIME;
+          this.emit('ended', this.score[0] > this.score[1] ? 0 : 1);
+        } else {
+          this.kickoff();
+        }
+      }
+    } else if (this.phase === 'ended') {
+      if (this.timer <= 0) this.emit('restart');
+    }
+  }
+
+  // --- Network -----------------------------------------------------------
+
+  /** Referee: the match state for other players. */
+  snapshot() {
+    const b = this.body;
+    const t = b.translation(), v = b.linvel(), q = b.rotation();
+    return {
+      b: [t.x, t.y, t.z, v.x, v.y, v.z, q.x, q.y, q.z, q.w].map(roundFb),
+      ph: this.phase, tm: roundFb(this.timer), tl: roundFb(this.timeLeft), ot: this.overtime ? 1 : 0,
+      s: this.score, k: this.kickoffs, gc: this.goalCount, lg: this.lastGoal,
+      teams: [...this.teams], goals: [...this.goals],
+    };
+  }
+
+  /**
+   * Everyone else: take the referee's state. `ownTouch` is true while our
+   * own car has just hit the ball: then our local ball is the better guess
+   * and the referee will follow what we send.
+   */
+  applySnapshot(m, ownTouch) {
+    const prevPhase = this.phase;
+    this.phase = m.ph;
+    this.timer = m.tm;
+    this.timeLeft = m.tl;
+    this.overtime = !!m.ot;
+    this.score = m.s;
+    this.teams = new Map(m.teams);
+    this.goals = new Map(m.goals);
+    if (m.k !== this.kickoffs) {
+      this.kickoffs = m.k;
+      this.emit('kickoff');
+    }
+    if (m.gc > this.goalCount) {
+      this.goalCount = m.gc;
+      this.lastGoal = m.lg;
+      if (m.lg) this.emit('goal', m.lg);
+    } else if (m.gc < this.goalCount) {
+      this.goalCount = m.gc; // a new match started
+    }
+    if (prevPhase === 'kickoff' && m.ph === 'play') this.emit('go');
+    if (prevPhase !== 'ended' && m.ph === 'ended') this.emit('ended', m.s[0] > m.s[1] ? 0 : 1);
+    if (!this.body || ownTouch) return;
+    const [x, y, z, vx, vy, vz, qx, qy, qz, qw] = m.b;
+    // Correct our local ball toward the referee's, a little ahead to make
+    // up for the delay. Small errors blend; big ones snap.
+    const lead = 0.05;
+    const tx = x + vx * lead, ty = Math.max(BALL_RADIUS * 0.9, y + vy * lead), tz = z + vz * lead;
+    const cur = this.body.translation();
+    const err = Math.hypot(tx - cur.x, ty - cur.y, tz - cur.z);
+    const k = err > 4 ? 1 : 0.35;
+    this.placeBall(cur.x + (tx - cur.x) * k, cur.y + (ty - cur.y) * k, cur.z + (tz - cur.z) * k, vx, vy, vz, { x: qx, y: qy, z: qz, w: qw });
+  }
+
+  /** Our ball state for the referee after we hit it. */
+  ballMessage() {
+    const b = this.body;
+    const t = b.translation(), v = b.linvel();
+    return [t.x, t.y, t.z, v.x, v.y, v.z].map(roundFb);
+  }
+
+  /** Referee: a player hit the ball on their screen; trust their result. */
+  takeBall(id, arr) {
+    if (!this.body || this.phase === 'kickoff') return;
+    const [x, y, z, vx, vy, vz] = arr;
+    this.placeBall(x, y, z, vx, vy, vz, this.body.rotation());
+    this.lastTouch = id;
+  }
+
+  // --- Visuals -----------------------------------------------------------
+
+  syncMesh() {
+    const b = this.body;
+    if (!b) return;
+    const t = b.translation(), q = b.rotation();
+    this.mesh.position.set(t.x, t.y, t.z);
+    this.mesh.quaternion.set(q.x, q.y, q.z, q.w);
+    this.mesh.visible = this.phase !== 'goal' || this.timer > GOAL_TIME - 0.05;
+    // Ring on the ground under the ball, so you can judge where it'll land.
+    const h = Math.max(0, t.y - BALL_RADIUS);
+    this.marker.position.set(t.x, 0.03, t.z);
+    this.marker.visible = h > 0.6 && this.mesh.visible;
+    const s = 1 + Math.min(1.5, h * 0.05);
+    this.marker.scale.set(s, s, s);
+    this.marker.material.opacity = Math.max(0.25, 0.85 - h * 0.03);
+  }
+
+  setBanner(text, cls = '') {
+    const key = text + '|' + cls;
+    if (key === this.bannerText) return;
+    this.bannerText = key;
+    const el = this.hud.banner;
+    el.innerHTML = text;
+    el.className = cls;
+    el.classList.toggle('show', !!text);
+  }
+
+  updateHud(camera) {
+    const h = this.hud;
+    h.blue.textContent = this.score[0];
+    h.orange.textContent = this.score[1];
+    if (this.overtime) {
+      h.clock.textContent = 'OT';
+    } else {
+      const t = Math.ceil(this.timeLeft);
+      h.clock.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    }
+    h.clock.classList.toggle('low', !this.overtime && this.timeLeft <= 30 && this.phase === 'play');
+    if (this.phase === 'kickoff') {
+      this.setBanner(String(Math.max(1, Math.ceil(this.timer))), 'count');
+    } else if (this.phase === 'goal' && this.lastGoal) {
+      const g = this.lastGoal;
+      const who = g.by != null ? this.names.get(g.by) : null;
+      const line = g.own ? `Own goal${who ? ` by ${escapeHtml(who)}` : ''}` : who ? `${escapeHtml(who)} scores` : `${TEAM_NAMES[g.team]} scores`;
+      this.setBanner(`GOAL!<small>${line}</small>`, `goal team${g.team}`);
+    } else if (this.phase === 'ended') {
+      const w = this.score[0] > this.score[1] ? 0 : 1;
+      this.setBanner(`${TEAM_NAMES[w]} wins<small>${this.score[0]} – ${this.score[1]}</small>`, `goal team${w}`);
+    } else if (this.goTimer > 0) {
+      this.setBanner('GO!', 'count');
+    } else {
+      this.setBanner('');
+    }
+
+    // Arrow at the screen edge pointing at the ball when it's off screen.
+    const a = h.arrow;
+    if (!camera || this.phase === 'goal') { a.hidden = true; return; }
+    const p = _fbScreen.copy(this.mesh.position).project(camera);
+    const behind = _fbView.copy(this.mesh.position).applyMatrix4(camera.matrixWorldInverse).z > 0;
+    const onScreen = !behind && Math.abs(p.x) < 0.95 && Math.abs(p.y) < 0.95;
+    a.hidden = onScreen;
+    if (onScreen) return;
+    let x = p.x, y = p.y;
+    if (behind) { x = -x; y = -y; }
+    const ang = Math.atan2(y, x);
+    const k = 0.86 / Math.max(Math.abs(Math.cos(ang)), Math.abs(Math.sin(ang)));
+    const sx = (Math.cos(ang) * k * 0.5 + 0.5) * innerWidth;
+    const sy = (-Math.sin(ang) * k * 0.5 + 0.5) * innerHeight;
+    a.style.transform = `translate(${sx}px, ${sy}px) rotate(${-ang}rad)`;
+  }
+
+  showGo() {
+    this.goTimer = 0.9;
+  }
+}
+
+const _fbScreen = new THREE.Vector3();
+const _fbView = new THREE.Vector3();
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
+/** A white ball with twelve dark spots, like a classic football. */
+function ballMesh() {
+  const geo = new THREE.IcosahedronGeometry(BALL_RADIUS, 4);
+  const spots = new THREE.IcosahedronGeometry(1, 0).attributes.position;
+  const dirs = [];
+  for (let i = 0; i < spots.count; i++) {
+    const d = new THREE.Vector3().fromBufferAttribute(spots, i).normalize();
+    if (!dirs.some((o) => o.distanceTo(d) < 1e-3)) dirs.push(d);
+  }
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).normalize();
+    const near = Math.max(...dirs.map((d) => d.dot(v)));
+    const c = near > 0.93 ? 0.08 : 0.95;
+    colors.set([c, c, c * 1.02], i * 3);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.05, flatShading: true }));
+  mesh.castShadow = true;
+  return mesh;
+}
+
+function groundMarker() {
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(BALL_RADIUS * 0.8, BALL_RADIUS, 40),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false }),
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.renderOrder = 2;
+  return ring;
+}
+
+/** Coloured glow under a car showing its team. */
+function teamGlow(def, team) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 4, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.6, 'rgba(255,255,255,0.45)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(c);
+  const glow = new THREE.Mesh(
+    new THREE.PlaneGeometry(def.width * 2.4, def.length * 1.7),
+    new THREE.MeshBasicMaterial({ map: tex, color: TEAM_COLORS[team], transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+  );
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = 0.04;
+  glow.renderOrder = 2;
+  glow.name = 'teamGlow';
+  return glow;
+}
+
+/** Add, recolour or remove (team = null) a car model's team glow. */
+function setTeamGlow(model, def, team) {
+  const old = model.root.getObjectByName('teamGlow');
+  if (old && old.userData.team === team) return;
+  if (old) model.root.remove(old);
+  if (team == null) return;
+  const glow = teamGlow(def, team);
+  glow.userData.team = team;
+  model.root.add(glow);
+}
+
+{ TEAM_CSS };
+
+// ===== bot.js =====
+// A computer opponent for solo football. It drives the same car physics as
+// the player: it lines up behind the ball facing the goal it attacks, goes
+// round the ball when it's on the wrong side, falls back to defend when the
+// ball heads for its own goal, and backs out when it gets stuck.
+
+const wrapBot = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const clampBot = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+class Bot {
+  constructor(def, terrain, team) {
+    this.def = def;
+    this.team = team;
+    this.car = new CarPhysics({ ...def.spec, assists: true }, terrain);
+    this.model = new CarModel(def);
+    this.stuck = 0;
+    this.reversing = 0;
+    this.input = { steer: 0, throttle: 0, brake: 0, handbrake: false, boost: false };
+  }
+
+  /** Decide this step's controls. `ball` is { x, y, z, vx, vz }. */
+  think(ball, dt) {
+    const c = this.car;
+    const goalZ = this.team === 0 ? PITCH.halfZ : -PITCH.halfZ; // the goal we attack
+    const ownZ = -goalZ;
+    // Where the ball will be shortly.
+    const look = 0.35;
+    const bx = ball.x + ball.vx * look;
+    const bz = ball.z + ball.vz * look;
+    // Unit vector from the target goal to the ball: we want to be behind
+    // the ball along this line, then drive through it.
+    let gx = bx, gz = bz - goalZ;
+    const gl = Math.hypot(gx, gz) || 1;
+    gx /= gl; gz /= gl;
+
+    let tx, tz;
+    let charge = false;
+    const toBallX = bx - c.x, toBallZ = bz - c.z;
+    const dist = Math.hypot(toBallX, toBallZ);
+    // How far "behind" the ball we are (positive = on the right side).
+    const behind = (c.x - bx) * gx + (c.z - bz) * gz;
+    const ballToOwn = Math.abs(ball.z - ownZ);
+    const meToOwn = Math.abs(c.z - ownZ);
+
+    if (ballToOwn < 35 && meToOwn > ballToOwn + 4 && Math.sign(ball.vz) === Math.sign(ownZ) && Math.abs(ball.vz) > 4) {
+      // Ball is heading for our goal and we're upfield: get back to goal.
+      tx = clampBot(ball.x * 0.4, -6, 6);
+      tz = ownZ - Math.sign(ownZ) * 6;
+      if (meToOwn < 10) { tx = bx; tz = bz; charge = true; }
+    } else if (behind > 1.5) {
+      // Right side: aim a little behind the ball, then straight through it.
+      const lead = Math.min(4, dist * 0.3);
+      tx = bx + gx * lead;
+      tz = bz + gz * lead;
+      if (dist < 9) { tx = bx - gx * 1.2; tz = bz - gz * 1.2; charge = true; }
+    } else {
+      // Wrong side: loop round the ball, passing it on the open side.
+      const px = -gz, pz = gx;
+      const side = Math.sign((c.x - bx) * px + (c.z - bz) * pz) || 1;
+      tx = bx + gx * 7 + px * side * 6;
+      tz = bz + gz * 7 + pz * side * 6;
+    }
+    tx = clampBot(tx, -PITCH.halfX + 3, PITCH.halfX - 3);
+    tz = clampBot(tz, -PITCH.halfZ + 2, PITCH.halfZ - 2);
+
+    const dx = tx - c.x, dz = tz - c.z;
+    const err = wrapBot(Math.atan2(dx, dz) - c.heading);
+    const speed = c.speed;
+    const inp = this.input;
+
+    // Unstick: pushing but not moving for a moment -> reverse out.
+    if (this.reversing > 0) {
+      this.reversing -= dt;
+      inp.throttle = 0;
+      inp.brake = 1;
+      inp.steer = -Math.sign(err) || 1;
+      inp.handbrake = false;
+      inp.boost = false;
+      return inp;
+    }
+    if (inp.throttle > 0.5 && speed < 1.2 && !c.airborne) this.stuck += dt;
+    else this.stuck = Math.max(0, this.stuck - dt * 2);
+    if (this.stuck > 0.9) {
+      this.stuck = 0;
+      this.reversing = 0.9;
+    }
+
+    inp.steer = clampBot(err * 2.6, -1, 1);
+    const sharp = Math.abs(err);
+    inp.throttle = sharp > 1.4 && speed > 14 ? 0.3 : 1;
+    inp.brake = sharp > 1.9 && speed > 18 ? 0.6 : 0;
+    inp.handbrake = sharp > 1.3 && speed > 9 && speed < 26;
+    inp.boost = !c.airborne && sharp < 0.18 && (charge || Math.hypot(dx, dz) > 25) && c.boost > 0.15;
+    return inp;
+  }
+
+  step(dt) {
+    this.car.step(dt, this.input);
+  }
+}
+
 // ===== main.js =====
 const PHYSICS_DT = 1 / 120;
 // At most this many car steps per frame (2 debris-world steps). A slow
@@ -5017,15 +6316,27 @@ const fleet = VEHICLES.map((def) => {
   return { def, model, parked: null };
 });
 let active = fleet.find((v) => v.def.id === settings.startVehicle) || fleet[0];
-// Ramps and jumps: the car's handling reads heights from here, and the
-// physics world gets matching colliders.
-const terrain = new Terrain();
-arenaRamps(terrain);
-terrain.buildMeshes(scene);
+// Maps. Each has its scenery group, ramps (the car's handling reads heights
+// from `terrain`; the physics world gets matching colliders), contents and
+// boundary. Free roam plays on the lot, car football in the stadium.
+const lotTerrain = new Terrain();
+arenaRamps(lotTerrain);
+lotTerrain.buildMeshes(world.arena);
+const stadium = createStadium(scene, renderer);
+const MAPS = {
+  free: {
+    name: 'lot', group: world.arena, terrain: lotTerrain, orbit: { radius: 82, height: 34 },
+    addColliders: (w) => lotTerrain.addColliders(w), populate: populateArena, contain: containLot,
+  },
+  football: stadium,
+};
+let mode = 'free';
+let map = MAPS.free;
+let terrain = map.terrain;
 
 let car = new CarPhysics({ ...active.def.spec, assists: settings.assists }, terrain);
 const destruction = new Destruction(scene, 300);
-destruction.terrain = terrain;
+destruction.statics = map;
 const skids = new SkidMarks(scene);
 const smoke = new Smoke(scene);
 const dust = new Smoke(scene, 160, 0xb9ad98);
@@ -5043,14 +6354,23 @@ const mp = new Multiplayer({ scene, destruction, vehicles: VEHICLES });
 let slot = 0; // our start position in a room
 let state = 'menu'; // 'menu' | 'playing' | 'paused'
 let arenaDirty = false; // has the arena been played in since it was built?
+// Car football.
+const football = new Football({ scene, destruction });
+let bot = null; // computer opponent in solo football
+let ballCam = true;
+let ownTouchUntil = 0; // online: we hit the ball; our local ball leads until then
+let matchSendTimer = 0;
+let lastBeep = 0;
+const myId = () => (net.online ? net.id : 'me');
 
 /**
  * Online, everyone's cars break things on every screen; only count (and
  * reward boost for) the ones our own car was closest to.
  */
 function creditedToMe(pos) {
-  if (!net.online) return true;
+  if (!net.online && !bot) return true;
   const mine = Math.hypot(pos.x - car.x, pos.z - car.z);
+  if (bot && Math.hypot(pos.x - bot.car.x, pos.z - bot.car.z) < mine) return false;
   for (const r of mp.remotes.values()) {
     if (r.seen && Math.hypot(pos.x - r.proxy.x, pos.z - r.proxy.z) < mine) return false;
   }
@@ -5134,15 +6454,35 @@ function setSetting(key, value) {
 function buildArena() {
   destruction.createWorld();
   destruction.createCar(active.def);
-  populateArena(destruction);
-  // Parked vehicles to swap into (solo only: they can't be kept in sync online).
-  for (const v of fleet) v.parked = v === active || net.online ? null : destruction.spawnVehicle(v.def, v.def.home);
+  map.populate(destruction);
+  // Parked vehicles to swap into (free roam, solo only: they can't be kept
+  // in sync online).
+  const parking = !net.online && mode === 'free';
+  for (const v of fleet) v.parked = v === active || !parking ? null : destruction.spawnVehicle(v.def, v.def.home);
   for (const v of fleet) v.model.root.visible = v === active || !!v.parked;
+  if (mode === 'football') football.spawnBall();
   arenaDirty = false;
 }
 
+/** Our start position: kickoff spot in football, else the start line. */
+function homeSpot() {
+  if (mode === 'football') return teamSpot(myId());
+  return net.online ? SPAWN_SLOTS[slot % SPAWN_SLOTS.length] : active.def.home;
+}
+
+/** A player's kickoff spot: by team, and their order within the team. */
+function teamSpot(id) {
+  const team = football.teams.get(id) ?? 0;
+  let index = 0;
+  for (const [other, t] of football.teams) {
+    if (other === id) break;
+    if (t === team) index++;
+  }
+  return kickoffSpot(team, index);
+}
+
 function resetCar() {
-  const home = net.online ? SPAWN_SLOTS[slot % SPAWN_SLOTS.length] : active.def.home;
+  const home = homeSpot();
   car.reset(home.x, home.z, home.heading);
   destruction.teleportCar(car);
   skids.clear();
@@ -5150,12 +6490,151 @@ function resetCar() {
   chase.snap();
 }
 
+function resetBot() {
+  if (!bot) return;
+  const s = teamSpot('bot');
+  bot.car.reset(s.x, s.z, s.heading);
+  bot.stuck = bot.reversing = 0;
+}
+
 function resetAll() {
   burnFx.clear();
   buildArena();
   smashed = 0;
   resetCar();
+  resetBot();
+  // The referee starts a new match; others wait for its kickoff.
+  if (mode === 'football' && football.referee) football.startMatch();
 }
+
+// --- Game modes ------------------------------------------------------------
+/** Switch map and rules (does not rebuild; see enterMode). */
+function setMode(next) {
+  mode = next === 'football' ? 'football' : 'free';
+  map = MAPS[mode];
+  terrain = map.terrain;
+  car.terrain = terrain;
+  if (bot) bot.car.terrain = terrain;
+  destruction.statics = map;
+  for (const m of Object.values(MAPS)) m.group.visible = m === map;
+  football.setActive(mode === 'football');
+  football.referee = !net.online || net.isHost;
+  football.myId = myId();
+  document.body.classList.toggle('football', mode === 'football');
+  chase.focus = mode === 'football' && ballCam ? football.mesh.position : null;
+  chase.bounds = mode === 'football' ? keepCameraInStadium : null;
+  if (mode === 'football' && !net.online) {
+    football.teams = new Map([['me', 0], ['bot', 1]]);
+    ensureBot();
+  } else {
+    removeBot();
+  }
+  if (mode === 'football' && net.online && net.isHost && !football.teams.has('host')) {
+    football.teams = new Map([['host', 0]]);
+    for (const id of mp.remotes.keys()) assignTeam(id);
+  }
+  updateNames();
+  refreshTeamGlows();
+  menu.setOnline(net.online, net.code, net.isHost, mode);
+}
+
+/** Keep the chase camera inside the stadium glass (and inside goals). */
+function keepCameraInStadium(pos) {
+  const { halfX: X, halfZ: Z, goalHalf: G, goalDepth: D } = PITCH;
+  const m = 0.8;
+  pos.x = Math.max(-X + m, Math.min(X - m, pos.x));
+  const zl = Math.abs(pos.x) < G - m ? Z + D - m : Z - m;
+  pos.z = Math.max(-zl, Math.min(zl, pos.z));
+  // Cut corners.
+  const over = (Math.abs(pos.x) + Math.abs(pos.z) - (X + Z - PITCH.chamfer)) / Math.SQRT2 + m;
+  if (over > 0 && Math.abs(pos.z) <= Z) {
+    pos.x -= Math.sign(pos.x) * over / Math.SQRT2;
+    pos.z -= Math.sign(pos.z) * over / Math.SQRT2;
+  }
+}
+
+/** Switch mode and start it fresh. */
+function enterMode(next) {
+  setMode(next);
+  resetAll();
+  arenaDirty = mode === 'football';
+}
+
+function ensureBot() {
+  if (bot) return;
+  const def = VEHICLES.find((v) => v.id === (active.def.id === 'hatch' ? 'sports' : 'hatch'));
+  bot = new Bot(def, terrain, 1);
+  const tag = nameTag('Bot', def, TEAM_COLORS[1]);
+  tag.position.set(0, Math.max(...def.hitbox.map((h) => h.at[1] + h.half[1])) + 1.1, 0);
+  bot.model.root.add(tag);
+  setTeamGlow(bot.model, def, 1);
+  scene.add(bot.model.root);
+  destruction.addRemoteCar('bot', def, bot.car);
+  resetBot();
+}
+
+function removeBot() {
+  if (!bot) return;
+  scene.remove(bot.model.root);
+  destruction.removeRemoteCar('bot');
+  bot = null;
+}
+
+/** Host: put a new player on the team with fewer players. */
+function assignTeam(id) {
+  const count = [0, 0];
+  for (const t of football.teams.values()) count[t]++;
+  football.teams.set(id, count[0] <= count[1] ? 0 : 1);
+}
+
+function updateNames() {
+  football.names = new Map([[myId(), settings.playerName || 'You'], ['bot', 'Bot']]);
+  for (const [id, p] of net.players) if (id !== net.id) football.names.set(id, p.name);
+}
+
+function refreshTeamGlows() {
+  const on = mode === 'football';
+  setTeamGlow(active.model, active.def, on ? football.teams.get(myId()) ?? 0 : null);
+  for (const v of fleet) if (v !== active) setTeamGlow(v.model, v.def, null);
+  for (const r of mp.remotes.values()) setTeamGlow(r.model, r.def, on ? football.teams.get(r.id) ?? null : null);
+}
+
+football.on('kickoff', () => {
+  resetCar();
+  resetBot();
+  lastBeep = 0;
+});
+football.on('go', () => {
+  football.showGo();
+  audio.beep(true);
+  audio.whistle();
+});
+football.on('goal', (g) => {
+  const pos = new THREE.Vector3(g.x, Math.max(1.5, g.y), g.z);
+  burnFx.fireball(pos);
+  destruction.blast(pos, 10);
+  for (let i = 0; i < 10; i++) {
+    soot.emit(pos, { x: (Math.random() - 0.5) * 12, z: (Math.random() - 0.5) * 12 }, 1, pos.y + Math.random() * 2);
+  }
+  audio.explosion(pos, Math.hypot(car.x - pos.x, car.z - pos.z));
+  audio.goalHorn();
+  stadium.celebrate();
+  shake = Math.min(1, shake + 0.5);
+  refreshPlayers();
+});
+football.on('overtime', () => {
+  toast('Overtime: next goal wins');
+  audio.whistle();
+});
+football.on('ended', () => audio.whistle(true));
+football.on('restart', () => {
+  // Referee: a fresh arena and match for everyone.
+  resetAll();
+  if (net.online) net.sendEvent({ type: 'rebuild' });
+});
+football.on('touch', (id) => {
+  if (id === myId()) ownTouchUntil = performance.now() + 400;
+});
 
 /** The parked vehicle closest to the driver, if it's near enough to hop into. */
 function nearbyVehicle() {
@@ -5192,7 +6671,7 @@ function changeVehicle(def) {
     destruction.removeVehicle(target.parked);
     target.parked = null;
   }
-  if (!net.online) old.parked = destruction.spawnVehicle(old.def, spot);
+  if (!net.online && mode === 'free') old.parked = destruction.spawnVehicle(old.def, spot);
   old.model.root.visible = !!old.parked;
 
   active = target;
@@ -5206,6 +6685,7 @@ function changeVehicle(def) {
   chase.snap();
   audio.setVehicle(def);
   setSetting('startVehicle', def.id);
+  refreshTeamGlows();
   refreshBadges();
   toast(`Driving: ${def.name}`);
 }
@@ -5272,19 +6752,32 @@ const menu = new Menu({
   onCopyCode: () => net.code,
   currentVehicle: () => active.def.id,
   onPickVehicle: (def) => { changeVehicle(def); resume(); },
+  // Show the chosen mode's map behind the main menu.
+  onModePicked: (m) => { if (state === 'menu' && !net.online && m !== mode) enterMode(m); },
 });
 
 function play(def) {
   audio.start();
   audio.setPaused(false);
   const chosen = fleet.find((v) => v.def === def) || active;
-  if (chosen !== active || arenaDirty) {
+  // Online, the room's mode wins (the host picked it).
+  const wanted = net.online && !net.isHost ? net.mode : menu.mode;
+  if (chosen !== active) {
+    for (const v of fleet) setTeamGlow(v.model, v.def, null);
     active = chosen;
     car = new CarPhysics({ ...active.def.spec, assists: settings.assists }, terrain);
+    arenaDirty = true;
+  }
+  if (wanted !== mode) {
+    setMode(wanted);
+    arenaDirty = true;
+  }
+  if (arenaDirty || mode === 'football') {
     resetAll();
   } else {
     resetCar();
   }
+  refreshTeamGlows();
   arenaDirty = true;
   audio.setVehicle(active.def);
   refreshBadges();
@@ -5297,13 +6790,13 @@ function play(def) {
 /** Rebuild the arena; online, only the host can, and it rebuilds for everyone. */
 function rebuildArena() {
   if (net.online && !net.isHost) {
-    toast('Only the host can rebuild the arena');
+    toast(mode === 'football' ? 'Only the host can restart the match' : 'Only the host can rebuild the arena');
     return false;
   }
   resetAll();
   arenaDirty = true;
   if (net.online) net.sendEvent({ type: 'rebuild' });
-  toast('Arena rebuilt');
+  toast(mode === 'football' ? 'New match' : 'Arena rebuilt');
   return true;
 }
 
@@ -5312,6 +6805,8 @@ net.on('joined', (id, name, vehicle) => {
   if (id === net.id) return;
   mp.addPlayer(id, name, vehicle);
   toast(`${name} joined`);
+  updateNames();
+  if (net.isHost && mode === 'football') assignTeam(id);
   // Give everyone the same fresh arena when someone new arrives.
   if (net.isHost) {
     resetAll();
@@ -5324,9 +6819,14 @@ net.on('left', (id) => {
   const p = mp.remotes.get(id);
   mp.removePlayer(id);
   if (p) toast(`${p.name} left`);
+  if (net.isHost) football.teams.delete(id);
   refreshPlayers();
 });
 net.on('state', (id, s) => mp.onState(id, s));
+net.on('match', (m) => {
+  if (mode !== 'football' || net.isHost) return;
+  football.applySnapshot(m, performance.now() < ownTouchUntil);
+});
 net.on('event', (id, e) => {
   if (e.type === 'hit' && e.to === net.id) {
     // Another player hit us: take their impulse now, unless we already
@@ -5339,24 +6839,29 @@ net.on('event', (id, e) => {
     collisionFx(Math.hypot(e.jx, e.jz) / m, e.px, e.pz);
     return;
   }
+  if (e.type === 'ball' && net.isHost && mode === 'football') {
+    football.takeBall(id, e.b);
+    return;
+  }
   if (e.type === 'rebuild' && id === 'host') {
     resetAll();
     arenaDirty = true;
-    toast('The host rebuilt the arena');
+    toast(mode === 'football' ? 'New match' : 'The host rebuilt the arena');
   }
 });
 net.on('hostLeft', () => {
+  net.leave(); // so the rest of this runs as solo
   mp.clear();
   toast('The host left. You are playing solo now.');
-  resetAll();
   updateOnlineUi();
+  enterMode(mode);
 });
 
 async function hostRoom(name) {
   setSetting('playerName', name);
   menu.setOnlineStatus('Creating a room…');
   try {
-    await net.host(name, menu.vehicle.id);
+    await net.host(name, menu.vehicle.id, menu.mode);
     slot = 0;
     startOnline();
   } catch (err) {
@@ -5383,6 +6888,8 @@ async function joinRoom(code, name) {
 function startOnline() {
   menu.setOnlineStatus('');
   arenaDirty = true; // start from a fresh arena
+  football.teams = new Map();
+  setMode(net.mode);
   play(menu.vehicle);
   updateOnlineUi();
   toast(net.isHost ? `Room ${net.code} created: share the code` : `Joined room ${net.code}`);
@@ -5393,12 +6900,13 @@ function leaveRoom() {
   net.leave();
   mp.clear();
   updateOnlineUi();
+  enterMode(menu.mode);
 }
 
 function updateOnlineUi() {
   document.body.classList.toggle('online', net.online);
   $('room-code').textContent = net.code || '';
-  menu.setOnline(net.online, net.code, net.isHost);
+  menu.setOnline(net.online, net.code, net.isHost, mode);
   refreshPlayers();
 }
 
@@ -5407,8 +6915,12 @@ function refreshPlayers() {
   const list = $('players');
   if (!net.online) { list.hidden = true; return; }
   list.hidden = false;
-  const rows = [{ name: `${settings.playerName || 'You'} (you)`, color: active.def.swatch ?? active.def.color, smashed }];
-  for (const r of mp.remotes.values()) rows.push({ name: r.name, color: r.def.swatch ?? r.def.color, smashed: r.smashed });
+  const fb = mode === 'football';
+  const color = (id, def) => (fb ? TEAM_COLORS[football.teams.get(id) ?? 0] : def.swatch ?? def.color);
+  const score = (id, n) => (fb ? football.goals.get(id) || 0 : n);
+  const rows = [{ name: `${settings.playerName || 'You'} (you)`, color: color(net.id, active.def), smashed: score(net.id, smashed) }];
+  for (const r of mp.remotes.values()) rows.push({ name: r.name, color: color(r.id, r.def), smashed: score(r.id, r.smashed) });
+  refreshTeamGlows();
   rows.sort((a, b) => b.smashed - a.smashed);
   const ul = $('players-list');
   ul.replaceChildren(...rows.map((r) => {
@@ -5467,9 +6979,17 @@ input.onPress('KeyT', playing(() => {
   setSetting('assists', !settings.assists);
   toast(settings.assists ? 'Assists ON (traction + countersteer)' : 'Assists OFF: full drift mode');
 }));
+input.onPress('KeyY', playing(toggleBallCam));
 input.onPress('KeyM', () => { setSetting('sound', !settings.sound); toast(settings.sound ? 'Sound on' : 'Sound off'); });
 input.onPress('KeyF', playing(() => hud.telemetry.classList.toggle('hidden')));
 input.onPress('KeyH', playing(() => $('help').classList.toggle('hidden')));
+
+function toggleBallCam() {
+  if (mode !== 'football') return;
+  ballCam = !ballCam;
+  chase.focus = ballCam ? football.mesh.position : null;
+  toast(ballCam ? 'Ball cam on' : 'Ball cam off');
+}
 
 function enterNearby() {
   const v = nearbyVehicle();
@@ -5492,24 +7012,34 @@ if (isTouch) {
   $('touch-pause').addEventListener('click', pause);
   $('touch-enter').addEventListener('click', enterNearby);
   $('touch-garage').addEventListener('click', () => { pause(); menu.showGarage(); });
+  $('touch-ballcam').addEventListener('click', toggleBallCam);
 }
 
 // Pause when the tab is hidden (also where an ad break would hook in).
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
 // Keep the car on the lot: a soft wall just outside the barrier ring.
-function containCar() {
+function containLot(c) {
+  let hit = 0;
   for (const axis of ['x', 'z']) {
     const vel = axis === 'x' ? 'velX' : 'velZ';
-    if (Math.abs(car[axis]) > DRIVE_LIMIT) {
-      car[axis] = Math.sign(car[axis]) * DRIVE_LIMIT;
-      if (Math.sign(car[vel]) === Math.sign(car[axis])) {
-        const hit = Math.abs(car[vel]);
-        car[vel] *= -0.3;
-        car.yawRate *= 0.5;
-        if (hit > 3) { shake = Math.min(1, shake + hit * 0.03); audio.impact('crash', Math.min(1, hit / 20)); }
+    if (Math.abs(c[axis]) > DRIVE_LIMIT) {
+      c[axis] = Math.sign(c[axis]) * DRIVE_LIMIT;
+      if (Math.sign(c[vel]) === Math.sign(c[axis])) {
+        hit = Math.max(hit, Math.abs(c[vel]));
+        c[vel] *= -0.3;
+        c.yawRate *= 0.5;
       }
     }
+  }
+  return hit;
+}
+
+function containCar() {
+  const hit = map.contain(car);
+  if (hit > 3) {
+    shake = Math.min(1, shake + hit * 0.03);
+    audio.impact('crash', Math.min(1, hit / 20));
   }
 }
 
@@ -5536,12 +7066,20 @@ function frame() {
   // driving); our own car just gets no input.
   const simulate = state === 'playing' || (state === 'paused' && net.online);
   if (simulate) {
-    const inputNow = state === 'playing' ? controls : { steer: 0, throttle: 0, brake: 0, handbrake: true, boost: false };
+    const frozen = mode === 'football' && football.phase === 'kickoff';
+    const idle = { steer: 0, throttle: 0, brake: 0, handbrake: true, boost: false };
+    const inputNow = state === 'playing' && !frozen ? controls : idle;
     accumulator += dt;
     let steps = 0;
     while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
       car.step(PHYSICS_DT, inputNow);
       containCar();
+      if (bot) {
+        if (frozen) Object.assign(bot.input, idle);
+        else bot.think(football.ball, PHYSICS_DT);
+        bot.step(PHYSICS_DT);
+        map.contain(bot.car);
+      }
       resolveCarCollisions();
       if (car.landed) onLanding(car.landed);
       if (car.blocked > 3) {
@@ -5561,6 +7099,14 @@ function frame() {
     if (net.online) {
       mp.update(dt);
       mp.send(net, car, active.def.id, smashed, dt);
+      if (mode === 'football') {
+        matchSendTimer -= dt;
+        if (matchSendTimer <= 0) {
+          matchSendTimer = 1 / 20;
+          if (net.isHost) net.sendMatch(football.snapshot());
+          else if (performance.now() < ownTouchUntil) net.sendEvent({ type: 'ball', b: football.ballMessage() });
+        }
+      }
       playersTimer -= dt;
       if (playersTimer <= 0) { playersTimer = 0.5; refreshPlayers(); }
     }
@@ -5568,9 +7114,12 @@ function frame() {
   } else if (state === 'menu') {
     // Slow orbit over the arena behind the main menu.
     menuOrbit += dt * 0.06;
-    camera.position.set(Math.sin(menuOrbit) * 82, 34, Math.cos(menuOrbit) * 82);
+    const { radius, height } = map.orbit;
+    camera.position.set(Math.sin(menuOrbit) * radius, height, Math.cos(menuOrbit) * radius);
     camera.lookAt(0, 2, 0);
     destruction.sync();
+    if (mode === 'football') football.syncMesh();
+    if (bot) bot.model.update(bot.car, 0);
     for (const v of fleet) if (v.parked) v.model.updateParked(v.parked.body, dt);
     active.model.update(car, 0);
     world.followSun(new THREE.Vector3(0, 0, 0));
@@ -5664,6 +7213,29 @@ function resolveCarCollisions() {
     collisionFx(imp.speed, c.px, c.pz);
   }
 
+  // The solo football bot: both cars are ours to push.
+  if (bot) {
+    const bc = bot.car;
+    const fp = footprints.get(bot.def);
+    const mass = bc.spec.mass;
+    const B = { x: bc.x, z: bc.z, y: bc.y, heading: bc.heading, velX: bc.velX, velZ: bc.velZ, yawRate: bc.yawRate, mass, inertia: mass * bc.spec.inertiaScale, fp };
+    const A = myBody();
+    const c = overlap(A, B);
+    if (c) {
+      const share = (1 / A.mass) / (1 / A.mass + 1 / B.mass);
+      car.x += c.nx * c.depth * share;
+      car.z += c.nz * c.depth * share;
+      bc.x -= c.nx * c.depth * (1 - share);
+      bc.z -= c.nz * c.depth * (1 - share);
+      const imp = contactImpulse(A, B, c);
+      if (imp) {
+        applyToCar(car, A.mass, A.inertia, imp.jx, imp.jz, c.px, c.pz);
+        applyToCar(bc, B.mass, B.inertia, -imp.jx, -imp.jz, c.px, c.pz);
+        collisionFx(imp.speed, c.px, c.pz);
+      }
+    }
+  }
+
   // Other players: we can only move our own car; the hit is sent to them.
   if (!net.online) return;
   const now = performance.now() / 1000;
@@ -5718,6 +7290,7 @@ function onLanding({ impact, misalign, airTime }) {
 
 function stepWorld() {
   const r = destruction.step(car);
+  if (mode === 'football') football.step(WORLD_STEP);
   if (r.total > 0) {
     const dv = car.applyImpulse(r.jx, r.jz, r.torque);
     shake = Math.min(1, shake + dv * 0.12);
@@ -5732,6 +7305,14 @@ function stepWorld() {
 function updateScene(dt) {
   destruction.sync();
   active.model.update(car, dt);
+  if (bot) bot.model.update(bot.car, dt);
+  if (mode === 'football') {
+    stadium.update(dt);
+    if (football.phase === 'kickoff') {
+      const n = Math.ceil(football.timer);
+      if (n !== lastBeep && n >= 1 && n <= 3) { lastBeep = n; audio.beep(); }
+    }
+  }
   for (const v of fleet) if (v.parked) v.model.updateParked(v.parked.body, dt);
   const near = car.speed < 8 ? nearbyVehicle() : null;
   hud.prompt.classList.toggle('show', !!near);
@@ -5776,6 +7357,7 @@ function updateScene(dt) {
   }
   world.followSun(active.model.root.position);
   audio.setListener(camera);
+  football.update(dt, camera);
 
   // HUD.
   hud.speed.textContent = Math.round(speed * 3.6);
@@ -5823,8 +7405,10 @@ function updateScene(dt) {
   }
 }
 
+setMode(menu.mode);
 buildArena();
 resetCar();
+resetBot();
 applySettings();
 openMainMenu();
 
@@ -5832,6 +7416,7 @@ window.game = {
   get car() { return car; }, get active() { return active; }, get state() { return state; }, net, mp,
   get renderer() { return renderer; }, get settings() { return settings; },
   fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu,
+  football, get bot() { return bot; }, get mode() { return mode; }, enterMode,
 };
 requestAnimationFrame(frame);
 </script>

@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ORDER = ['physics', 'carModel', 'vehicles', 'destruction', 'world', 'effects', 'camera', 'input', 'audio', 'settings', 'menu', 'burn', 'terrain', 'net', 'multiplayer', 'carCollision', 'main']
+ORDER = ['physics', 'carModel', 'vehicles', 'destruction', 'world', 'effects', 'camera', 'input', 'audio', 'settings', 'menu', 'burn', 'terrain', 'net', 'multiplayer', 'carCollision', 'stadium', 'football', 'bot', 'main']
 OUT = ROOT / 'smash-lot.html'
 
 bare_imports = []

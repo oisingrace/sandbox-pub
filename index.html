@@ -150,7 +150,7 @@
       #menu { background: linear-gradient(90deg, rgba(8, 10, 14, 0.85), rgba(8, 10, 14, 0.4)); }
       .screen[data-screen="main"] { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); column-gap: 24px; row-gap: 8px; width: min(820px, 100%); align-items: start; }
       .screen[data-screen="main"] > .logo, .screen[data-screen="main"] > .tagline, .screen[data-screen="main"] > .fineprint { grid-column: 1; }
-      .screen[data-screen="main"] > .vehicle-card, .screen[data-screen="main"] > #btn-play, .screen[data-screen="main"] > .btn-row { grid-column: 2; }
+      .screen[data-screen="main"] > .vehicle-card, .screen[data-screen="main"] > .mode-picker, .screen[data-screen="main"] > #btn-play, .screen[data-screen="main"] > #btn-online, .screen[data-screen="main"] > .btn-row { grid-column: 2; }
       .screen[data-screen="main"] > .logo { grid-row: 1; }
       .screen[data-screen="main"] > .tagline { grid-row: 2; }
       .screen[data-screen="main"] > .fineprint { grid-row: 3 / span 2; }
@@ -209,6 +209,38 @@
     .garage-card .g-stats { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; font-weight: 400; color: var(--hud-dim); font-variant-numeric: tabular-nums; }
     .garage-card .g-stats b { color: var(--hud-fg); }
     #t-boost { right: 140px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
+    /* --- Game modes / football --- */
+    .mode-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; }
+    #menu .mode-picker button { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid transparent; background: transparent; }
+    #menu .mode-picker button small { font-size: 12px; font-weight: 400; color: var(--hud-dim); line-height: 1.3; }
+    #menu .mode-picker button[aria-checked="true"] { background: rgba(255, 210, 63, 0.14); border-color: var(--hazard); }
+    #menu .mode-picker button[aria-checked="true"] small { color: var(--hud-fg); }
+    .room-mode { font-size: 13px; color: var(--hud-dim); margin: 0; }
+    .room-mode b { color: var(--hazard); }
+    #scoreboard { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: stretch; border-radius: 10px; overflow: hidden; background: var(--hud-bg); backdrop-filter: blur(6px); font: 400 22px/1 "Russo One", "Arial Black", Impact, sans-serif; z-index: 5; }
+    #scoreboard[hidden] { display: none; }
+    #scoreboard .team { display: flex; align-items: center; gap: 10px; padding: 7px 12px; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
+    #scoreboard .team b { font-size: 26px; font-weight: 400; min-width: 1ch; text-align: center; }
+    #scoreboard .blue { background: #2f6fe0; }
+    #scoreboard .orange { background: #e86a10; }
+    #match-clock { padding: 7px 14px; font-size: 22px; min-width: 4.2ch; text-align: center; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center; }
+    #match-clock.low { color: #ff6b6b; }
+    body.in-menu #scoreboard, body.in-menu #banner, body.in-menu #ball-arrow { display: none !important; }
+    body.football #dash .smash, body.football #prompt { display: none; }
+    body.football #players { top: 70px; }
+    #banner { position: fixed; top: 26%; left: 50%; transform: translate(-50%, -50%) scale(0.85); opacity: 0; pointer-events: none; text-align: center; font: 400 64px/1 "Russo One", "Arial Black", Impact, sans-serif; letter-spacing: 0.04em; text-transform: uppercase; text-shadow: 0 4px 24px rgba(0,0,0,0.55); transition: opacity 0.2s, transform 0.25s; z-index: 6; }
+    #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    #banner small { display: block; margin-top: 10px; font: 700 18px/1.2 system-ui, sans-serif; letter-spacing: 0.04em; text-transform: none; }
+    #banner.count { font-size: 96px; color: #ffd23f; }
+    #banner.team0 { color: #6aa8ff; }
+    #banner.team1 { color: #ff9a45; }
+    #ball-arrow { position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 4; }
+    #ball-arrow::before { content: ""; position: absolute; left: -16px; top: -14px; width: 32px; height: 28px; background: #fff; clip-path: polygon(100% 50%, 0 0, 22% 50%, 0 100%); filter: drop-shadow(0 0 4px rgba(0,0,0,0.6)); }
+    #ball-arrow[hidden] { display: none; }
+    @media (max-width: 560px) { #banner { font-size: 44px; } #banner.count { font-size: 72px; } #scoreboard .team span { display: none; } }
+    body:not(.touch) #touch-ballcam { display: none; }
+    #touch-ballcam { left: 316px; top: 16px; }
+    body:not(.football) #touch-ballcam { display: none !important; }
   </style>
   <!-- PeerJS: browser-to-browser multiplayer (UMD build, defines window.Peer). -->
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -231,6 +263,7 @@
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
     <div class="row"><kbd>V</kbd> <b>change car</b> &nbsp;<kbd>E</kbd> <b>drive a nearby parked one</b></div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
+    <div class="row"><kbd>Y</kbd> <b>ball cam</b> (car football)</div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>Esc</kbd> <b>pause</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
   </div>
@@ -251,6 +284,13 @@
     <div class="smash">Smashed <b id="smashed">0</b></div>
   </div>
 
+  <div id="scoreboard" hidden>
+    <div class="team blue"><span>Blue</span><b id="score-blue">0</b></div>
+    <div id="match-clock">3:00</div>
+    <div class="team orange"><b id="score-orange">0</b><span>Orange</span></div>
+  </div>
+  <div id="banner"></div>
+  <div id="ball-arrow" hidden></div>
   <div id="drift"></div>
   <div id="toast"></div>
   <div id="prompt"></div>
@@ -279,13 +319,18 @@
         </div>
       </div>
 
+      <div class="mode-picker" role="radiogroup" aria-label="Game mode">
+        <button type="button" role="radio" data-mode="free" aria-checked="true">Free roam<small>Smash up the lot</small></button>
+        <button type="button" role="radio" data-mode="football" aria-checked="false">Car football<small>Blue vs Orange in the stadium</small></button>
+      </div>
+
       <button type="button" class="primary" id="btn-play">Play</button>
       <button type="button" class="secondary" id="btn-online">Play online with friends</button>
       <div class="btn-row">
         <button type="button" id="btn-options">Options</button>
         <button type="button" id="btn-controls">Controls</button>
       </div>
-      <p class="fineprint">Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.</p>
+      <p class="fineprint" id="mode-blurb">Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.</p>
     </section>
 
     <section class="screen" data-screen="pause" hidden aria-labelledby="pause-title">
@@ -305,6 +350,7 @@
 
     <section class="screen wide" data-screen="online" hidden aria-labelledby="online-title">
       <h2 id="online-title" class="screen-title">Play online</h2>
+      <p class="room-mode">New rooms play <b id="room-mode-name">Free roam</b> (pick the mode on the main menu). Joining plays whatever the room is playing.</p>
       <p class="online-intro">Up to 8 players. The game runs on everyone's own computer and players connect directly, so there's no server. Your vehicle is the one picked on the main menu.</p>
       <label class="field"><span>Your name</span><input id="player-name" type="text" maxlength="16" autocomplete="nickname" placeholder="Driver"></label>
       <div class="online-actions">
@@ -347,6 +393,7 @@
           <tr><td>Reverse</td><td>Hold <kbd>S</kbd> when stopped</td><td>Hold LT</td></tr>
           <tr><td>Handbrake</td><td><kbd>Space</kbd></td><td>A / RB</td></tr>
           <tr><td>Boost (refills over time and when you smash things)</td><td><kbd>Shift</kbd></td><td>LB</td></tr>
+          <tr><td>Ball cam on/off (football)</td><td><kbd>Y</kbd></td><td>On screen: BALL</td></tr>
           <tr><td>Change car (anywhere)</td><td><kbd>V</kbd></td><td>On screen: CAR</td></tr>
           <tr><td>Drive a nearby parked vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
           <tr><td>Camera (chase, far, hood)</td><td><kbd>C</kbd></td><td>X</td></tr>
@@ -372,6 +419,7 @@
     <div class="tbtn small" id="touch-pause" aria-label="Pause">II</div>
     <div class="tbtn small" id="touch-enter">IN</div>
     <div class="tbtn small" id="touch-garage">CAR</div>
+    <div class="tbtn small" id="touch-ballcam">BALL</div>
     <div class="tbtn" id="t-boost" data-touch="boost">BST</div>
   </div>
 

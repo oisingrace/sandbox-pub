@@ -340,6 +340,7 @@ export class Destruction {
     this.fragments = [];
     this.breakQueue = [];
     this.pendingBlasts = [];
+    this.blastJ = { x: 0, z: 0 };
     this.bodyCount = 0;
     this.debrisCount = 0;
     this.time = 0;
@@ -350,7 +351,7 @@ export class Destruction {
       RAPIER.ColliderDesc.cuboid(this.groundHalfSize, 0.5, this.groundHalfSize).setFriction(0.8),
       ground,
     );
-    this.terrain?.addColliders(this.world); // ramps
+    this.statics?.addColliders(this.world); // the map's ramps and walls
     this.carBody = null;
     // Remote players' cars survive a rebuild: recreate their bodies.
     for (const r of this.remoteCars?.values() || []) this.buildRemoteBody(r);
@@ -516,6 +517,24 @@ export class Destruction {
     return entity;
   }
 
+  /** Register a body made elsewhere (the football) so it takes part in contacts and blasts. */
+  register(entity) {
+    for (const c of entity.colliders) this.byCollider.set(c.handle, entity);
+  }
+
+  unregister(entity) {
+    for (const c of entity.colliders) this.byCollider.delete(c.handle);
+  }
+
+  /** Remove every spawned object matching `test(entity, position)`. */
+  despawnWhere(test) {
+    for (const pool of Object.values(this.pools)) {
+      for (const e of [...pool.entities]) {
+        if (e.alive && test(e, e.body.translation())) this.despawn(e);
+      }
+    }
+  }
+
   despawn(entity) {
     if (!entity.alive) return;
     entity.alive = false;
@@ -582,7 +601,7 @@ export class Destruction {
     this.time += STEP;
     this.car = car;
     this.breakDrag = 0;
-    this.blastJ = { x: 0, z: 0 };
+    this.blastJ ||= { x: 0, z: 0 };
     // Chain reactions: detonate drums whose fuse ran out.
     if (this.pendingBlasts.length) {
       const due = this.pendingBlasts.filter((b) => b.at <= this.time);
@@ -685,6 +704,7 @@ export class Destruction {
       jx += this.blastJ.x;
       jz += this.blastJ.z;
       total += Math.hypot(this.blastJ.x, this.blastJ.z);
+      this.blastJ = { x: 0, z: 0 };
     }
     return { jx, jz, torque, total };
   }
@@ -698,7 +718,13 @@ export class Destruction {
     const t = entity.body.translation();
     const centre = new THREE.Vector3(t.x, t.y, t.z);
     this.despawn(entity);
-    const R = BLAST_RADIUS;
+    this.blast(t);
+    const car = this.car;
+    this.emit('explode', centre, car ? Math.hypot(car.x - t.x, car.z - t.z) : 99);
+  }
+
+  /** Push, shatter and set off everything around a point (no sound or flash). */
+  blast(t, R = BLAST_RADIUS) {
     const seen = new Set();
     this.world.collidersWithAabbIntersectingAabb(t, { x: R, y: R, z: R }, (c) => {
       const body = c.parent();
@@ -738,7 +764,6 @@ export class Destruction {
         this.blastJ.z += (dz / (d || 1)) * dv * car.spec.mass;
       }
     }
-    this.emit('explode', centre, car ? Math.hypot(car.x - t.x, car.z - t.z) : 99);
   }
 
   /**
@@ -759,7 +784,7 @@ export class Destruction {
     const found = new Set();
     this.world.intersectionsWithShape(centre, rot, new RAPIER.Cuboid(half.x, half.y, half.z), (collider) => {
       const e = this.byCollider.get(collider.handle);
-      if (e && e.alive && !e.vehicle) found.add(e);
+      if (e && e.alive && !e.vehicle && !e.kind.noBurn) found.add(e);
       return found.size < BURNS_PER_STEP;
     });
     for (const e of found) this.burn(e, car);

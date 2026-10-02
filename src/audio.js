@@ -15,6 +15,7 @@ const IMPACTS = {
   metal: { filter: 'bandpass', freq: 2200, q: 9, decay: 0.55, gain: 0.45, tones: [420, 1130], toneGain: 0.35, toneDecay: 1 },
   plastic: { filter: 'highpass', freq: 1400, q: 0.7, decay: 0.08, gain: 0.35, tones: [180], toneGain: 0.2, toneDecay: 0.4 },
   glass: { filter: 'highpass', freq: 3200, q: 1.5, decay: 0.35, gain: 0.45, tones: [2600, 3900, 5300], toneGain: 0.18, toneDecay: 0.7 },
+  ball: { filter: 'lowpass', freq: 1300, q: 1.1, decay: 0.16, gain: 0.85, tones: [120, 78], toneGain: 0.9, toneDecay: 0.7 },
   crash: { filter: 'lowpass', freq: 420, q: 1, decay: 0.45, gain: 0.9, tones: [48], toneGain: 1, toneDecay: 0.9 },
 };
 
@@ -400,6 +401,104 @@ export class CarAudio {
       src.start(t0, Math.random());
       src.stop(t0 + 0.08);
     }
+  }
+
+  /** Referee's whistle: a trilled high tone. `long` for full time. */
+  whistle(long = false) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const blasts = long ? [[0, 0.35], [0.45, 0.35], [0.9, 0.9]] : [[0, 0.5]];
+    for (const [t0, dur] of blasts) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = 2900;
+      const trill = ctx.createOscillator();
+      trill.frequency.value = 38;
+      const depth = ctx.createGain();
+      depth.gain.value = 180;
+      trill.connect(depth).connect(o.frequency);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, now + t0);
+      g.gain.exponentialRampToValueAtTime(0.16, now + t0 + 0.02);
+      g.gain.setValueAtTime(0.16, now + t0 + dur - 0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, now + t0 + dur);
+      o.connect(g).connect(this.sfxBus);
+      for (const n of [o, trill]) { n.start(now + t0); n.stop(now + t0 + dur + 0.02); }
+    }
+  }
+
+  /** Countdown beep; `go` is the higher final one. */
+  beep(go = false) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'square';
+    o.frequency.value = go ? 1320 : 660;
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = 2400;
+    const g = ctx.createGain();
+    const dur = go ? 0.45 : 0.16;
+    g.gain.setValueAtTime(0.12, now);
+    g.gain.setValueAtTime(0.12, now + dur - 0.04);
+    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    o.connect(f).connect(g).connect(this.sfxBus);
+    o.start(now);
+    o.stop(now + dur + 0.02);
+  }
+
+  /** Goal: stadium horn plus the crowd going up. */
+  goalHorn() {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, now);
+    out.gain.exponentialRampToValueAtTime(0.32, now + 0.08);
+    out.gain.setValueAtTime(0.32, now + 1.5);
+    out.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 1500;
+    lp.connect(out).connect(this.sfxBus);
+    const send = ctx.createGain();
+    send.gain.value = 0.5;
+    out.connect(send).connect(this.reverbSend);
+    for (const f of [174, 220, 261]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = f;
+      o.connect(lp);
+      o.start(now);
+      o.stop(now + 2.25);
+    }
+    this.crowd(1, 4);
+  }
+
+  /** Crowd roar: band-passed noise swelling and fading over `dur` seconds. */
+  crowd(level = 0.6, dur = 2.5) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuffer();
+    src.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 900;
+    bp.Q.value = 0.6;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.35 * level, now + 0.4);
+    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    src.connect(bp).connect(g).connect(this.sfxBus);
+    const send = ctx.createGain();
+    send.gain.value = 0.6;
+    g.connect(send).connect(this.reverbSend);
+    src.start(now, Math.random());
+    src.stop(now + dur + 0.05);
   }
 
   /** Short tick for menu buttons. */

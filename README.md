@@ -24,6 +24,37 @@ and parked cars slide off them. Airtime is shown on screen, and big air refills 
 9 m outward and up, shatters things close by, shoves the car, and sets off nearby drums a moment later,
 so a pile goes up in a chain.
 
+## Car football
+
+Pick **Car football** on the main menu (next to Free roam) for a Blue vs Orange match in a stadium
+(`src/stadium.js`, `src/football.js`):
+
+- **The stadium:** a 72 × 120 m walled pitch with chamfered corners so the ball never gets stuck, a
+  16 m × 5 m goal at each end, glass walls, grandstands full of fans who jump when someone scores, and
+  floodlights. Four sideline kickers launch you toward halfway.
+- **Still full of things to break:** brick advertising boards along both sidelines, crate pyramids,
+  barrel rows beside the goals, concrete posts, slabs, light poles, cones on the halfway line, and fuel
+  drums in the corners whose blasts throw the ball (and you) around. A brick wall lines the back of
+  each goal, so hard shots smash through it.
+- **The ball** is a 1.5 m radius Rapier sphere: light, bouncy and a little floaty for aerials. Cars
+  hit it through their real hitboxes.
+- **The match:** a 3-second countdown at kickoff with cars held on their spots, a 3:00 clock (time
+  runs out once the ball is on the ground), golden-goal overtime on a tie, then the winner is shown
+  and a new match starts. Each goal sets off a blast in the net, a horn and the crowd; then broken
+  pieces are cleared off the pitch and the goal walls are rebuilt, but unbroken things stay where
+  they've been knocked to.
+- **Solo:** you're Blue against a computer driver (`src/bot.js`). It drives the same car physics,
+  lines up behind the ball, goes around it when it's on the wrong side, falls back to defend, and
+  reverses out when it gets stuck.
+- **Online:** the host picks the mode; joiners play whatever the room is playing, and are put on the
+  team with fewer players. The host is the referee: it simulates the ball and the clock and sends
+  them 20 times a second. Everyone also simulates the ball locally between updates, and when you hit
+  it your own result leads for a moment and is sent to the host, so your touches feel instant. Goals
+  are credited to the last player to touch the ball, and the player list shows goals.
+- **Ball cam** (Y, or BALL on touch screens) is on by default: the camera looks past your car at the
+  ball. An arrow at the screen edge points to the ball when it's off screen, and a ring under it
+  shows where it'll land.
+
 ## Audio
 
 Everything is synthesised with Web Audio; there are no sound files (`src/audio.js`).
@@ -148,9 +179,10 @@ python3 -m http.server 8000
 | Toggle assists | T | B |
 | Cycle camera (chase / far / hood) | C | X |
 | Reset car | R | Y |
+| Ball cam on/off (car football) | Y | |
 | Change car (garage, anywhere) | V | |
 | Drive a nearby parked vehicle | E | |
-| Rebuild arena | B | |
+| Rebuild arena (football: new match) | B | |
 | Telemetry overlay | F | |
 | Mute / help | M / H | |
 
@@ -198,10 +230,13 @@ All of it is in `src/destruction.js`.
 ## Files
 
 - `src/physics.js`: vehicle dynamics
-- `src/vehicles.js`: the four vehicles (handling, hitbox, body builder)
+- `src/vehicles.js`: the five vehicles (handling, hitbox, body builder)
 - `src/carModel.js`: renders any vehicle, with suspension roll/pitch, wheel spin and steer
 - `src/camera.js`: chase / far / hood cameras
-- `src/world.js`: ground, backdrop, and the arena layout
+- `src/world.js`: ground, backdrop, and the free-roam arena layout
+- `src/stadium.js`: the football stadium: scenery, walls, ramps, contents and kickoff spots
+- `src/football.js`: the ball, match rules, network snapshots and the scoreboard
+- `src/bot.js`: the computer opponent for solo football
 - `src/destruction.js`: rigid-body world, fracturing, and instanced rendering
 - `src/effects.js`: skid marks and tire smoke
 - `src/burn.js`: the Ember GT's voxel burn effect

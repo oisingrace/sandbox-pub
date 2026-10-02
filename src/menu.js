@@ -9,6 +9,12 @@ const TABS = [
   ['game', 'Game'],
 ];
 
+export const MODE_NAMES = { free: 'Free roam', football: 'Car football' };
+const MODE_BLURBS = {
+  free: 'Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.',
+  football: 'Knock the ball into the orange goal before the clock runs out. You play Blue against a computer driver, or team up online. The sidelines are lined with things to wreck, and the fuel drums in the corners blow the ball around. Press Y to toggle ball cam.',
+};
+
 export class Menu {
   /**
    * @param {object} opts
@@ -50,10 +56,29 @@ export class Menu {
     on('btn-prev-vehicle', () => this.pickVehicle(-1));
     on('btn-next-vehicle', () => this.pickVehicle(1));
     for (const el of this.root.querySelectorAll('[data-back]')) el.addEventListener('click', () => this.back());
+    for (const el of this.root.querySelectorAll('[data-mode]')) {
+      el.addEventListener('click', () => {
+        opts.onSetting('mode', el.dataset.mode);
+        this.renderMode();
+        opts.onModePicked?.(el.dataset.mode);
+      });
+    }
+    this.renderMode();
 
     this.renderVehicle();
     this.renderTabs();
     document.getElementById('player-name').value = opts.getSettings().playerName || '';
+  }
+
+  get mode() {
+    return this.opts.getSettings().mode === 'football' ? 'football' : 'free';
+  }
+
+  renderMode() {
+    const mode = this.mode;
+    for (const el of this.root.querySelectorAll('[data-mode]')) el.setAttribute('aria-checked', String(el.dataset.mode === mode));
+    document.getElementById('mode-blurb').textContent = MODE_BLURBS[mode];
+    document.getElementById('room-mode-name').textContent = MODE_NAMES[mode];
   }
 
   /** The name typed on the online screen (or a generated one). */
@@ -74,7 +99,8 @@ export class Menu {
   }
 
   /** Show room details in the pause menu while online. */
-  setOnline(online, code, isHost) {
+  setOnline(online, code, isHost, mode = 'free') {
+    document.getElementById('btn-rebuild').textContent = mode === 'football' ? 'Restart match' : 'Rebuild arena';
     document.getElementById('pause-room').hidden = !online;
     document.getElementById('btn-leave').hidden = !online;
     document.getElementById('pause-code').textContent = code || '';
