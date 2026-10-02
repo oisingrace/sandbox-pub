@@ -94,6 +94,19 @@ export class Bot {
     inp.brake = sharp > 1.9 && speed > 18 ? 0.6 : 0;
     inp.handbrake = sharp > 1.3 && speed > 9 && speed < 26;
     inp.boost = !c.airborne && sharp < 0.18 && (charge || Math.hypot(dx, dz) > 25) && c.boost > 0.15;
+    // Jump at a high ball that's close and in front; flip into it on the way.
+    const ahead = Math.cos(wrapBot(Math.atan2(ball.x - c.x, ball.z - c.z) - c.heading));
+    const near = Math.hypot(ball.x - c.x, ball.z - c.z);
+    inp.jump = false;
+    inp.pitch = undefined;
+    if (!c.airborne && ball.y > 2.6 && ball.y < 6 && near < 7 && ahead > 0.85 && !this.reversing) {
+      inp.jump = true;
+    } else if (c.airborne && c.jumps === 1 && c.airTime > 0.25 && near < 4.5 && ahead > 0.7) {
+      inp.jump = true;   // second press with the nose-down stick: a front flip into the ball
+      inp.pitch = -1;
+    } else if (c.airborne) {
+      inp.pitch = Math.max(-1, Math.min(1, -c.pitch * 2)); // keep level for the landing
+    }
     return inp;
   }
 

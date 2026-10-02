@@ -240,7 +240,9 @@
     @media (max-width: 560px) { #banner { font-size: 44px; } #banner.count { font-size: 72px; } #scoreboard .team span { display: none; } }
     body:not(.touch) #touch-ballcam { display: none; }
     #touch-ballcam { left: 316px; top: 16px; }
-    body:not(.football) #touch-ballcam { display: none !important; }
+    body:not(.football) #touch-ballcam, body:not(.football) #t-jump { display: none !important; }
+    #t-jump { right: 16px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
+    body.football #t-hb { right: 220px; }
   </style>
   <!-- PeerJS: browser-to-browser multiplayer (UMD build, defines window.Peer). -->
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -263,7 +265,8 @@
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
     <div class="row"><kbd>V</kbd> <b>change car</b> &nbsp;<kbd>E</kbd> <b>drive a nearby parked one</b></div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
-    <div class="row"><kbd>Y</kbd> <b>ball cam</b> (car football)</div>
+    <div class="row">Football: <kbd>Space</kbd> <b>jump</b> (again: double jump, or flip with a direction) &nbsp;<kbd>Q</kbd> <b>powerslide</b></div>
+    <div class="row">In the air: <kbd>W</kbd><kbd>S</kbd> <b>pitch</b> &nbsp;<kbd>A</kbd><kbd>D</kbd> <b>turn</b> &nbsp;<kbd>Q</kbd>+<kbd>A</kbd><kbd>D</kbd> <b>roll</b> &nbsp;<kbd>Y</kbd> <b>ball cam</b></div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>Esc</kbd> <b>pause</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
   </div>
@@ -393,6 +396,9 @@
           <tr><td>Reverse</td><td>Hold <kbd>S</kbd> when stopped</td><td>Hold LT</td></tr>
           <tr><td>Handbrake</td><td><kbd>Space</kbd></td><td>A / RB</td></tr>
           <tr><td>Boost (refills over time and when you smash things)</td><td><kbd>Shift</kbd></td><td>LB</td></tr>
+          <tr><td>Football: jump (press again in the air to double jump; with a direction, flip)</td><td><kbd>Space</kbd></td><td>A · On screen: JUMP</td></tr>
+          <tr><td>Football: powerslide (in the air: hold to roll with A/D)</td><td><kbd>Q</kbd></td><td>RB</td></tr>
+          <tr><td>Football, in the air: pitch nose down / up</td><td><kbd>W</kbd> / <kbd>S</kbd></td><td>Left stick up / down</td></tr>
           <tr><td>Ball cam on/off (football)</td><td><kbd>Y</kbd></td><td>On screen: BALL</td></tr>
           <tr><td>Change car (anywhere)</td><td><kbd>V</kbd></td><td>On screen: CAR</td></tr>
           <tr><td>Drive a nearby parked vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
@@ -420,6 +426,7 @@
     <div class="tbtn small" id="touch-enter">IN</div>
     <div class="tbtn small" id="touch-garage">CAR</div>
     <div class="tbtn small" id="touch-ballcam">BALL</div>
+    <div class="tbtn" id="t-jump" data-touch="jump">JUMP</div>
     <div class="tbtn" id="t-boost" data-touch="boost">BST</div>
   </div>
 
@@ -438,6 +445,19 @@ import RAPIER from '@dimforge/rapier3d-compat';
 
 const G = 9.81;
 const MAX_STEP = 0.35; // a rise bigger than this in one step is a wall
+
+// Rocket-style moves, used when `car.aerial` is on (car football):
+const JUMP_SPEED = 5.2;      // m/s straight up off the ground
+const JUMP_HOLD = 0.2;       // s: holding jump this long pushes a little higher...
+const JUMP_HOLD_ACCEL = 11;  // ...with this much extra lift
+const SECOND_JUMP_WINDOW = 1.4; // s after take-off to double jump or flip
+const DOUBLE_JUMP_SPEED = 4.6;
+const FLIP_TIME = 0.6;       // s for one full flip
+const FLIP_SPEED = 6;        // m/s shove in the flip's direction
+const AIR_PITCH_RATE = 5.5;  // rad/s at full stick
+const AIR_YAW_RATE = 3.6;
+const AIR_ROLL_RATE = 5.5;
+const AIR_BOOST = 15;        // m/s^2 of thrust in the air (enough to fly)
 
 const DEFAULT_SPEC = {
   mass: 1250,              // kg
@@ -497,6 +517,8 @@ function engineTorque(rpm) {
 }
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+/** Air pitch input, + = nose up: the stick if given, else brake minus throttle (W dives, like Rocket League). */
+const airPitchInput = (input) => clamp(input.pitch ?? ((input.brake || 0) - (input.throttle || 0)), -1, 1);
 const sign = (v) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
@@ -534,6 +556,9 @@ class CarPhysics {
     this.rollRate = 0;
     this.airborne = false;
     this.airTime = 0;
+    this.jumps = 0;          // jumps used since leaving the ground (aerial mode)
+    this.jumpHeld = false;
+    this.flip = null;        // { pitch, roll, t } while a flip is spinning the car
     this.landed = null;      // { impact, misalign, airTime } for one step after landing
     this.blocked = 0;        // speed of a hit against a ramp wall, for one step
     // Per-frame telemetry used by visuals/audio.
@@ -598,6 +623,11 @@ class CarPhysics {
 
     this.landed = null;
     this.blocked = 0;
+    const jumpPressed = !!input.jump && !this.jumpHeld;
+    this.jumpHeld = !!input.jump;
+    const wasAirborne = this.airborne;
+    if (this.aerial && jumpPressed) this.jump(input);
+    if (this.airborne && !wasAirborne) this.pitchLock = { throttle: (input.throttle || 0) > 0.05, brake: (input.brake || 0) > 0.05 };
     if (this.airborne) {
       this.flyStep(dt, input);
       return;
@@ -827,6 +857,7 @@ class CarPhysics {
       // Off the lip: keep the vertical speed the ramp gave us, but not the
       // ramp's curvature spin (that sends cars into backflips).
       this.airborne = true;
+      this.pitchLock = { throttle: this.throttle > 0.05, brake: this.braking > 0.05 }; // see aerialControl
       this.pitchRate *= 0.15;
       this.rollRate *= 0.3;
       this.airTime = 0;
@@ -835,11 +866,48 @@ class CarPhysics {
     }
   }
 
+  /**
+   * Jump (aerial mode). On the ground: hop up. In the air, once, soon after
+   * take-off: a second jump, or with a direction held a flip that shoves the
+   * car that way.
+   */
+  jump(input) {
+    if (!this.airborne) {
+      this.airborne = true;
+      this.airTime = 0;
+      this.jumps = 1;
+      this.velY = Math.max(this.velY, 0) + JUMP_SPEED;
+      this.y += 0.02;
+      this.pitchRate = this.rollRate = 0;
+      return;
+    }
+    if (this.jumps !== 1 || this.airTime > SECOND_JUMP_WINDOW) return;
+    this.jumps = 2;
+    const fwd = -airPitchInput(input); // + = flip forwards (nose down)
+    const side = clamp(input.steer || 0, -1, 1); // + = left
+    if (Math.abs(fwd) < 0.3 && Math.abs(side) < 0.3) {
+      this.velY = Math.max(this.velY, 0) + DOUBLE_JUMP_SPEED;
+      return;
+    }
+    // Flip: shove along the stick direction (car frame), kill the fall.
+    const len = Math.hypot(fwd, side);
+    const f = fwd / len, l = side / len;
+    const sinH = Math.sin(this.heading), cosH = Math.cos(this.heading);
+    this.velX += (sinH * f + cosH * l) * FLIP_SPEED;
+    this.velZ += (cosH * f - sinH * l) * FLIP_SPEED;
+    this.velY = Math.max(this.velY, 0.5);
+    this.flip = { pitch: -f * (Math.PI * 2) / FLIP_TIME, roll: -l * (Math.PI * 2) / FLIP_TIME, t: FLIP_TIME };
+  }
+
   /** Flight: gravity, a little air control, and the landing. */
   flyStep(dt, input) {
     const s = this.spec;
     this.airTime += dt;
     this.velY -= G * dt;
+    if (this.aerial) {
+      this.aerialControl(dt, input);
+      return;
+    }
     // In the air the nose settles toward the direction of travel (arcade
     // style), and throttle/brake tilt it from there. Steering yaws a little.
     const hSpeed = Math.hypot(this.velX, this.velZ);
@@ -880,15 +948,95 @@ class CarPhysics {
     if (this.y <= g.h) this.land(g);
   }
 
+  /**
+   * Rocket-style air control (aerial mode): pitch, yaw and air roll at a
+   * steady rate, held attitude when the stick is let go, boost along the
+   * nose, and flips.
+   */
+  aerialControl(dt, input) {
+    const s = this.spec;
+    if (this.jumps === 1 && this.jumpHeld && this.airTime < JUMP_HOLD) this.velY += JUMP_HOLD_ACCEL * dt;
+    const k = Math.min(1, dt * 12);
+    if (this.flip) {
+      this.pitchRate = this.flip.pitch;
+      this.rollRate = this.flip.roll;
+      this.yawRate *= Math.exp(-dt * 4);
+      this.flip.t -= dt;
+      if (this.flip.t <= 0) {
+        this.flip = null;
+        this.pitchRate = this.rollRate = 0;
+      }
+    } else {
+      const steer = clamp(input.steer || 0, -1, 1);
+      const rollMode = !!input.handbrake; // powerslide button = air roll
+      // Throttle/brake held since take-off don't pitch the car until
+      // they're let go and pressed again, so driving off a jump with W
+      // held doesn't nosedive. (A gamepad stick is separate: no lock.)
+      const lock = this.pitchLock || {};
+      if ((input.throttle || 0) < 0.05) lock.throttle = false;
+      if ((input.brake || 0) < 0.05) lock.brake = false;
+      const pitchIn = input.pitch !== undefined ? airPitchInput(input)
+        : clamp((lock.brake ? 0 : input.brake || 0) - (lock.throttle ? 0 : input.throttle || 0), -1, 1);
+      this.pitchRate += (pitchIn * AIR_PITCH_RATE - this.pitchRate) * k;
+      this.rollRate += ((rollMode ? -steer * AIR_ROLL_RATE : 0) - this.rollRate) * k;
+      this.yawRate += ((rollMode ? 0 : steer * AIR_YAW_RATE) - this.yawRate) * k;
+    }
+    if (this.boosting) {
+      const a = AIR_BOOST * dt;
+      const cp = Math.cos(this.pitch);
+      this.velX += Math.sin(this.heading) * cp * a;
+      this.velZ += Math.cos(this.heading) * cp * a;
+      this.velY += Math.sin(this.pitch) * a;
+    }
+    // Keep the air speed sane.
+    const sp = Math.hypot(this.velX, this.velY, this.velZ);
+    if (sp > 40) {
+      this.velX *= 40 / sp;
+      this.velY *= 40 / sp;
+      this.velZ *= 40 / sp;
+    }
+    this.pitch = wrapAngle(this.pitch + this.pitchRate * dt);
+    this.roll = wrapAngle(this.roll + this.rollRate * dt);
+    this.heading = wrapAngle(this.heading + this.yawRate * dt);
+    this.x += this.velX * dt;
+    this.z += this.velZ * dt;
+    this.y += this.velY * dt;
+    this.steer *= Math.exp(-dt * 4);
+    const target = s.idleRpm + (s.redline - s.idleRpm) * (input.throttle || 0) * 0.95;
+    this.rpm += (target - this.rpm) * (1 - Math.exp(-dt * 6));
+    this.throttle = input.throttle || 0;
+    this.accelLong *= Math.exp(-dt * 4);
+    this.accelLat *= Math.exp(-dt * 4);
+    this.slipFront = this.slipRear = 0;
+    this.wheelspin = 0;
+
+    const g = this.sampleGround();
+    if (this.y <= g.h) this.land(g);
+  }
+
   land(g) {
+    this.jumps = 0;
+    this.flip = null;
+    if (this.aerial) {
+      // Arcade landings: the car always comes down on its wheels. Landing
+      // upside down or on its side costs speed; roughly flat costs nothing.
+      const up = Math.cos(this.pitch) * Math.cos(this.roll);
+      const loss = up < 0 ? 0.3 : up < 0.5 ? 0.1 : 0;
+      this.velX *= 1 - loss;
+      this.velZ *= 1 - loss;
+      // Coming down backwards (after a half flip): face the way we're going.
+      if (Math.cos(this.pitch) < 0) this.heading = wrapAngle(this.heading + Math.PI);
+    }
     const impact = Math.max(0, -this.velY);
     const misalign = Math.abs(wrapAngle(this.pitch - g.pitch)) + Math.abs(wrapAngle(this.roll - g.roll));
     // Landing flat on the wheels keeps most speed; landing on the nose or
     // a corner scrubs it off.
-    const loss = clamp(Math.max(0, misalign - 0.35) * 0.5 + Math.max(0, impact - 8) * 0.015, 0, 0.75);
-    this.velX *= 1 - loss;
-    this.velZ *= 1 - loss;
-    if (misalign > 1.1) this.yawRate += (Math.random() - 0.5) * 3; // spun out on a bad landing
+    if (!this.aerial) {
+      const loss = clamp(Math.max(0, misalign - 0.35) * 0.5 + Math.max(0, impact - 8) * 0.015, 0, 0.75);
+      this.velX *= 1 - loss;
+      this.velZ *= 1 - loss;
+      if (misalign > 1.1) this.yawRate += (Math.random() - 0.5) * 3; // spun out on a bad landing
+    }
     this.landed = { impact, misalign, airTime: this.airTime };
     this.airborne = false;
     this.y = g.h;
@@ -1104,6 +1252,7 @@ class CarModel {
     _modelEuler.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
     this.root.quaternion.setFromEuler(_modelEuler);
     this.blob.visible = !car.airborne;
+    if (this.teamGlow) this.teamGlow.visible = !car.airborne; // car football team glow
     // Suspension squash on landing, springing back.
     if (car.landed) this.squash = Math.min(0.22, car.landed.impact * 0.02);
     this.squash = (this.squash || 0) * Math.exp(-dt * 7);
@@ -3050,12 +3199,16 @@ const KEYS = {
   down: ['KeyS', 'ArrowDown'],
   handbrake: ['Space'],
   boost: ['ShiftLeft', 'ShiftRight'],
+  // Car football: Space jumps and Q is the powerslide (and air roll).
+  jump: ['Space'],
+  powerslide: ['KeyQ'],
 };
 
 class Input {
   constructor() {
     this.down = new Set();
-    this.touch = { left: false, right: false, up: false, down: false, handbrake: false, boost: false };
+    this.touch = { left: false, right: false, up: false, down: false, handbrake: false, boost: false, jump: false };
+    this.football = false; // set by the game: changes what Space and the A button do
     this.pressedHandlers = new Map();
     this.kbSteer = 0;
     this.kbThrottle = 0;
@@ -3064,6 +3217,7 @@ class Input {
     addEventListener('keydown', (e) => {
       if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
       if (!e.repeat) this.pressedHandlers.get(e.code)?.();
+      if (!e.repeat && KEYS.jump.includes(e.code)) this.jumpLatch = true; // a tap shorter than a frame still jumps
       this.down.add(e.code);
     });
     addEventListener('keyup', (e) => this.down.delete(e.code));
@@ -3103,9 +3257,11 @@ class Input {
       steer: this.kbSteer,
       throttle: this.kbThrottle,
       brake: this.kbBrake,
-      handbrake: this.held('handbrake'),
+      handbrake: this.football ? this.held('powerslide') || this.touch.handbrake : this.held('handbrake'),
       boost: this.held('boost'),
+      jump: this.football && (this.held('jump') || !!this.jumpLatch),
     };
+    this.jumpLatch = false;
 
     const pad = navigator.getGamepads?.().find((p) => p && p.connected);
     if (pad) {
@@ -3116,7 +3272,15 @@ class Input {
       const lt = pad.buttons[6]?.value || 0;
       if (rt > 0.02) out.throttle = rt;
       if (lt > 0.02) out.brake = lt;
-      if (pad.buttons[0]?.pressed || pad.buttons[5]?.pressed) out.handbrake = true;
+      if (this.football) {
+        // Rocket League layout: A jumps, RB powerslides / air rolls, left stick pitches in the air.
+        if (pad.buttons[0]?.pressed) out.jump = true;
+        if (pad.buttons[5]?.pressed) out.handbrake = true;
+        const pitch = deadzone(pad.axes[1] || 0);
+        if (pitch !== 0) out.pitch = pitch; // stick down = nose up
+      } else if (pad.buttons[0]?.pressed || pad.buttons[5]?.pressed) {
+        out.handbrake = true;
+      }
       if (pad.buttons[4]?.pressed) out.boost = true;
       this.padButtons(pad);
     }
@@ -3865,7 +4029,7 @@ const TABS = [
 const MODE_NAMES = { free: 'Free roam', football: 'Car football' };
 const MODE_BLURBS = {
   free: 'Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.',
-  football: 'Knock the ball into the orange goal before the clock runs out. You play Blue against a computer driver, or team up online. The sidelines are lined with things to wreck, and the fuel drums in the corners blow the ball around. Press Y to toggle ball cam.',
+  football: 'Knock the ball into the orange goal before the clock runs out. You play Blue against a computer driver, or team up online. The sidelines are lined with things to wreck, and the fuel drums in the corners blow the ball around. Space jumps (twice for a double jump or a flip), W/S pitch in the air, and boost lets you fly. Press Y to toggle ball cam.',
 };
 
 class Menu {
@@ -5107,8 +5271,9 @@ class Multiplayer {
         p.y = a.y + (b.y - a.y) * k;
         p.z = a.z + (b.z - a.z) * k;
         p.heading = a.h + wrapMp(b.h - a.h) * k;
-        p.pitch = a.p + (b.p - a.p) * k;
-        p.roll = a.r + (b.r - a.r) * k;
+        // Wrapped, so flips and rolls through ±180° turn the short way.
+        p.pitch = a.p + wrapMp(b.p - a.p) * k;
+        p.roll = a.r + wrapMp(b.r - a.r) * k;
       } else {
         // Ran out of snapshots: carry on along the last known velocity briefly.
         const ahead = Math.min(MAX_EXTRAPOLATE, Math.max(0, rt - a.t));
@@ -5685,8 +5850,14 @@ function addStadiumColliders(world) {
  * the goals. Returns the speed of the hardest wall hit (0 if none).
  */
 function containStadium(c, margin = 1.5) {
-  const { halfX: X, halfZ: Z, goalHalf: G, goalDepth: D, chamfer: C } = PITCH;
+  const { halfX: X, halfZ: Z, goalHalf: G, goalDepth: D, goalHeight: H, chamfer: C } = PITCH;
   let hit = 0;
+  // Cars can fly (car football): keep them under the ceiling.
+  if (c.y > WALL_TOP - 3) {
+    c.y = WALL_TOP - 3;
+    if (c.velY > 0) c.velY = 0;
+  }
+  const roof = H - 1.4; // highest a car's base can be inside a goal
   const push = (nx, nz, depth) => {
     c.x += nx * depth;
     c.z += nz * depth;
@@ -5706,10 +5877,15 @@ function containStadium(c, margin = 1.5) {
     if (ax > mouth) push(-sx, 0, ax - mouth);
     const back = Z + D - margin;
     if (Math.abs(c.z) > back) push(0, -sz, Math.abs(c.z) - back);
+    if (c.y > roof) {
+      c.y = roof;
+      if (c.velY > 0) c.velY = 0;
+    }
     return hit;
   }
   if (ax > X - margin) push(-sx, 0, ax - (X - margin));
-  if (az > Z - margin && Math.abs(c.x) > mouth) push(0, -sz, az - (Z - margin));
+  // The end walls, and the glass above the goal for a car flying at it.
+  if (az > Z - margin && (Math.abs(c.x) > mouth || (c.y || 0) > roof)) push(0, -sz, az - (Z - margin));
   const diag = (Math.abs(c.x) + Math.abs(c.z) - (X + Z - C)) / Math.SQRT2 + margin;
   if (diag > 0) push(-sx / Math.SQRT2, -sz / Math.SQRT2, diag);
   return hit;
@@ -6325,10 +6501,12 @@ function setTeamGlow(model, def, team) {
   const old = model.root.getObjectByName('teamGlow');
   if (old && old.userData.team === team) return;
   if (old) model.root.remove(old);
+  model.teamGlow = null;
   if (team == null) return;
   const glow = teamGlow(def, team);
   glow.userData.team = team;
   model.root.add(glow);
+  model.teamGlow = glow;
 }
 
 { TEAM_CSS };
@@ -6426,6 +6604,19 @@ class Bot {
     inp.brake = sharp > 1.9 && speed > 18 ? 0.6 : 0;
     inp.handbrake = sharp > 1.3 && speed > 9 && speed < 26;
     inp.boost = !c.airborne && sharp < 0.18 && (charge || Math.hypot(dx, dz) > 25) && c.boost > 0.15;
+    // Jump at a high ball that's close and in front; flip into it on the way.
+    const ahead = Math.cos(wrapBot(Math.atan2(ball.x - c.x, ball.z - c.z) - c.heading));
+    const near = Math.hypot(ball.x - c.x, ball.z - c.z);
+    inp.jump = false;
+    inp.pitch = undefined;
+    if (!c.airborne && ball.y > 2.6 && ball.y < 6 && near < 7 && ahead > 0.85 && !this.reversing) {
+      inp.jump = true;
+    } else if (c.airborne && c.jumps === 1 && c.airTime > 0.25 && near < 4.5 && ahead > 0.7) {
+      inp.jump = true;   // second press with the nose-down stick: a front flip into the ball
+      inp.pitch = -1;
+    } else if (c.airborne) {
+      inp.pitch = Math.max(-1, Math.min(1, -c.pitch * 2)); // keep level for the landing
+    }
     return inp;
   }
 
@@ -6696,6 +6887,7 @@ function setMode(next) {
   destruction.statics = map;
   for (const m of Object.values(MAPS)) m.group.visible = m === map;
   football.setActive(mode === 'football');
+  input.football = mode === 'football';
   football.referee = !net.online || net.isHost;
   football.myId = myId();
   document.body.classList.toggle('football', mode === 'football');
@@ -7266,14 +7458,16 @@ function frame() {
   const simulate = state === 'playing' || (state === 'paused' && net.online);
   if (simulate) {
     const frozen = mode === 'football' && football.phase === 'kickoff';
-    const idle = { steer: 0, throttle: 0, brake: 0, handbrake: true, boost: false };
+    const idle = { steer: 0, throttle: 0, brake: 0, handbrake: true, boost: false, jump: false };
     const inputNow = state === 'playing' && !frozen ? controls : idle;
     accumulator += dt;
     let steps = 0;
     while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
+      car.aerial = mode === 'football'; // jumps, flips and air control
       car.step(PHYSICS_DT, inputNow);
       containCar();
       if (bot) {
+        bot.car.aerial = true;
         if (frozen) Object.assign(bot.input, idle);
         else bot.think(football.ball, PHYSICS_DT);
         bot.step(PHYSICS_DT);
@@ -7475,7 +7669,7 @@ function onLanding({ impact, misalign, airTime }) {
   }
   if (airTime > 0.6) {
     car.boost = Math.min(1, car.boost + airTime * 0.08);
-    if (misalign < 0.6) toast(`Clean landing: ${airTime.toFixed(1)} s of air`);
+    if (misalign < 0.6 && mode !== 'football') toast(`Clean landing: ${airTime.toFixed(1)} s of air`);
   }
 }
 

@@ -8,12 +8,16 @@ const KEYS = {
   down: ['KeyS', 'ArrowDown'],
   handbrake: ['Space'],
   boost: ['ShiftLeft', 'ShiftRight'],
+  // Car football: Space jumps and Q is the powerslide (and air roll).
+  jump: ['Space'],
+  powerslide: ['KeyQ'],
 };
 
 export class Input {
   constructor() {
     this.down = new Set();
-    this.touch = { left: false, right: false, up: false, down: false, handbrake: false, boost: false };
+    this.touch = { left: false, right: false, up: false, down: false, handbrake: false, boost: false, jump: false };
+    this.football = false; // set by the game: changes what Space and the A button do
     this.pressedHandlers = new Map();
     this.kbSteer = 0;
     this.kbThrottle = 0;
@@ -22,6 +26,7 @@ export class Input {
     addEventListener('keydown', (e) => {
       if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
       if (!e.repeat) this.pressedHandlers.get(e.code)?.();
+      if (!e.repeat && KEYS.jump.includes(e.code)) this.jumpLatch = true; // a tap shorter than a frame still jumps
       this.down.add(e.code);
     });
     addEventListener('keyup', (e) => this.down.delete(e.code));
@@ -61,9 +66,11 @@ export class Input {
       steer: this.kbSteer,
       throttle: this.kbThrottle,
       brake: this.kbBrake,
-      handbrake: this.held('handbrake'),
+      handbrake: this.football ? this.held('powerslide') || this.touch.handbrake : this.held('handbrake'),
       boost: this.held('boost'),
+      jump: this.football && (this.held('jump') || !!this.jumpLatch),
     };
+    this.jumpLatch = false;
 
     const pad = navigator.getGamepads?.().find((p) => p && p.connected);
     if (pad) {
@@ -74,7 +81,15 @@ export class Input {
       const lt = pad.buttons[6]?.value || 0;
       if (rt > 0.02) out.throttle = rt;
       if (lt > 0.02) out.brake = lt;
-      if (pad.buttons[0]?.pressed || pad.buttons[5]?.pressed) out.handbrake = true;
+      if (this.football) {
+        // Rocket League layout: A jumps, RB powerslides / air rolls, left stick pitches in the air.
+        if (pad.buttons[0]?.pressed) out.jump = true;
+        if (pad.buttons[5]?.pressed) out.handbrake = true;
+        const pitch = deadzone(pad.axes[1] || 0);
+        if (pitch !== 0) out.pitch = pitch; // stick down = nose up
+      } else if (pad.buttons[0]?.pressed || pad.buttons[5]?.pressed) {
+        out.handbrake = true;
+      }
       if (pad.buttons[4]?.pressed) out.boost = true;
       this.padButtons(pad);
     }

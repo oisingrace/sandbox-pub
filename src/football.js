@@ -512,10 +512,12 @@ export function setTeamGlow(model, def, team) {
   const old = model.root.getObjectByName('teamGlow');
   if (old && old.userData.team === team) return;
   if (old) model.root.remove(old);
+  model.teamGlow = null;
   if (team == null) return;
   const glow = teamGlow(def, team);
   glow.userData.team = team;
   model.root.add(glow);
+  model.teamGlow = glow;
 }
 
 export { TEAM_CSS };

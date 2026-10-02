@@ -195,6 +195,7 @@ export class CarModel {
     _modelEuler.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
     this.root.quaternion.setFromEuler(_modelEuler);
     this.blob.visible = !car.airborne;
+    if (this.teamGlow) this.teamGlow.visible = !car.airborne; // car football team glow
     // Suspension squash on landing, springing back.
     if (car.landed) this.squash = Math.min(0.22, car.landed.impact * 0.02);
     this.squash = (this.squash || 0) * Math.exp(-dt * 7);

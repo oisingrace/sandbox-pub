@@ -331,8 +331,14 @@ function addStadiumColliders(world) {
  * the goals. Returns the speed of the hardest wall hit (0 if none).
  */
 export function containStadium(c, margin = 1.5) {
-  const { halfX: X, halfZ: Z, goalHalf: G, goalDepth: D, chamfer: C } = PITCH;
+  const { halfX: X, halfZ: Z, goalHalf: G, goalDepth: D, goalHeight: H, chamfer: C } = PITCH;
   let hit = 0;
+  // Cars can fly (car football): keep them under the ceiling.
+  if (c.y > WALL_TOP - 3) {
+    c.y = WALL_TOP - 3;
+    if (c.velY > 0) c.velY = 0;
+  }
+  const roof = H - 1.4; // highest a car's base can be inside a goal
   const push = (nx, nz, depth) => {
     c.x += nx * depth;
     c.z += nz * depth;
@@ -352,10 +358,15 @@ export function containStadium(c, margin = 1.5) {
     if (ax > mouth) push(-sx, 0, ax - mouth);
     const back = Z + D - margin;
     if (Math.abs(c.z) > back) push(0, -sz, Math.abs(c.z) - back);
+    if (c.y > roof) {
+      c.y = roof;
+      if (c.velY > 0) c.velY = 0;
+    }
     return hit;
   }
   if (ax > X - margin) push(-sx, 0, ax - (X - margin));
-  if (az > Z - margin && Math.abs(c.x) > mouth) push(0, -sz, az - (Z - margin));
+  // The end walls, and the glass above the goal for a car flying at it.
+  if (az > Z - margin && (Math.abs(c.x) > mouth || (c.y || 0) > roof)) push(0, -sz, az - (Z - margin));
   const diag = (Math.abs(c.x) + Math.abs(c.z) - (X + Z - C)) / Math.SQRT2 + margin;
   if (diag > 0) push(-sx / Math.SQRT2, -sz / Math.SQRT2, diag);
   return hit;

@@ -136,8 +136,9 @@ export class Multiplayer {
         p.y = a.y + (b.y - a.y) * k;
         p.z = a.z + (b.z - a.z) * k;
         p.heading = a.h + wrapMp(b.h - a.h) * k;
-        p.pitch = a.p + (b.p - a.p) * k;
-        p.roll = a.r + (b.r - a.r) * k;
+        // Wrapped, so flips and rolls through ±180° turn the short way.
+        p.pitch = a.p + wrapMp(b.p - a.p) * k;
+        p.roll = a.r + wrapMp(b.r - a.r) * k;
       } else {
         // Ran out of snapshots: carry on along the last known velocity briefly.
         const ahead = Math.min(MAX_EXTRAPOLATE, Math.max(0, rt - a.t));

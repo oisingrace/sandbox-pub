@@ -240,7 +240,9 @@
     @media (max-width: 560px) { #banner { font-size: 44px; } #banner.count { font-size: 72px; } #scoreboard .team span { display: none; } }
     body:not(.touch) #touch-ballcam { display: none; }
     #touch-ballcam { left: 316px; top: 16px; }
-    body:not(.football) #touch-ballcam { display: none !important; }
+    body:not(.football) #touch-ballcam, body:not(.football) #t-jump { display: none !important; }
+    #t-jump { right: 16px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
+    body.football #t-hb { right: 220px; }
   </style>
   <!-- PeerJS: browser-to-browser multiplayer (UMD build, defines window.Peer). -->
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -263,7 +265,8 @@
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
     <div class="row"><kbd>V</kbd> <b>change car</b> &nbsp;<kbd>E</kbd> <b>drive a nearby parked one</b></div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
-    <div class="row"><kbd>Y</kbd> <b>ball cam</b> (car football)</div>
+    <div class="row">Football: <kbd>Space</kbd> <b>jump</b> (again: double jump, or flip with a direction) &nbsp;<kbd>Q</kbd> <b>powerslide</b></div>
+    <div class="row">In the air: <kbd>W</kbd><kbd>S</kbd> <b>pitch</b> &nbsp;<kbd>A</kbd><kbd>D</kbd> <b>turn</b> &nbsp;<kbd>Q</kbd>+<kbd>A</kbd><kbd>D</kbd> <b>roll</b> &nbsp;<kbd>Y</kbd> <b>ball cam</b></div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>Esc</kbd> <b>pause</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
   </div>
@@ -393,6 +396,9 @@
           <tr><td>Reverse</td><td>Hold <kbd>S</kbd> when stopped</td><td>Hold LT</td></tr>
           <tr><td>Handbrake</td><td><kbd>Space</kbd></td><td>A / RB</td></tr>
           <tr><td>Boost (refills over time and when you smash things)</td><td><kbd>Shift</kbd></td><td>LB</td></tr>
+          <tr><td>Football: jump (press again in the air to double jump; with a direction, flip)</td><td><kbd>Space</kbd></td><td>A · On screen: JUMP</td></tr>
+          <tr><td>Football: powerslide (in the air: hold to roll with A/D)</td><td><kbd>Q</kbd></td><td>RB</td></tr>
+          <tr><td>Football, in the air: pitch nose down / up</td><td><kbd>W</kbd> / <kbd>S</kbd></td><td>Left stick up / down</td></tr>
           <tr><td>Ball cam on/off (football)</td><td><kbd>Y</kbd></td><td>On screen: BALL</td></tr>
           <tr><td>Change car (anywhere)</td><td><kbd>V</kbd></td><td>On screen: CAR</td></tr>
           <tr><td>Drive a nearby parked vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
@@ -420,6 +426,7 @@
     <div class="tbtn small" id="touch-enter">IN</div>
     <div class="tbtn small" id="touch-garage">CAR</div>
     <div class="tbtn small" id="touch-ballcam">BALL</div>
+    <div class="tbtn" id="t-jump" data-touch="jump">JUMP</div>
     <div class="tbtn" id="t-boost" data-touch="boost">BST</div>
   </div>
 

@@ -280,6 +280,7 @@ function setMode(next) {
   destruction.statics = map;
   for (const m of Object.values(MAPS)) m.group.visible = m === map;
   football.setActive(mode === 'football');
+  input.football = mode === 'football';
   football.referee = !net.online || net.isHost;
   football.myId = myId();
   document.body.classList.toggle('football', mode === 'football');
@@ -850,14 +851,16 @@ function frame() {
   const simulate = state === 'playing' || (state === 'paused' && net.online);
   if (simulate) {
     const frozen = mode === 'football' && football.phase === 'kickoff';
-    const idle = { steer: 0, throttle: 0, brake: 0, handbrake: true, boost: false };
+    const idle = { steer: 0, throttle: 0, brake: 0, handbrake: true, boost: false, jump: false };
     const inputNow = state === 'playing' && !frozen ? controls : idle;
     accumulator += dt;
     let steps = 0;
     while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
+      car.aerial = mode === 'football'; // jumps, flips and air control
       car.step(PHYSICS_DT, inputNow);
       containCar();
       if (bot) {
+        bot.car.aerial = true;
         if (frozen) Object.assign(bot.input, idle);
         else bot.think(football.ball, PHYSICS_DT);
         bot.step(PHYSICS_DT);
@@ -1059,7 +1062,7 @@ function onLanding({ impact, misalign, airTime }) {
   }
   if (airTime > 0.6) {
     car.boost = Math.min(1, car.boost + airTime * 0.08);
-    if (misalign < 0.6) toast(`Clean landing: ${airTime.toFixed(1)} s of air`);
+    if (misalign < 0.6 && mode !== 'football') toast(`Clean landing: ${airTime.toFixed(1)} s of air`);
   }
 }
 

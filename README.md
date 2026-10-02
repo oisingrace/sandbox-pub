@@ -51,6 +51,18 @@ Pick **Car football** on the main menu (next to Free roam) for a Blue vs Orange 
   them 20 times a second. Everyone also simulates the ball locally between updates, and when you hit
   it your own result leads for a moment and is sent to the host, so your touches feel instant. Goals
   are credited to the last player to touch the ball, and the player list shows goals.
+- **Jumps and aerials, Rocket League style** (football only, `src/physics.js`):
+  - **Space** jumps (hold it a moment to go higher). Press it again in the air within 1.4 s for a
+    double jump, or with a direction held for a flip that spins the car and shoves it that way
+    (W + double jump is a front flip for speed).
+  - In the air, **W/S pitch** the nose down/up, **A/D** turn, and **Q + A/D** roll. The car holds
+    its attitude when you let go. Boost pushes along the nose and is strong enough to fly.
+  - W or S held since take-off don't pitch the car until you release them, so driving off a jump
+    with W held doesn't nosedive.
+  - Cars always land on their wheels; coming down on the roof or side costs some speed.
+  - **Q** is the powerslide (the handbrake) in football. Gamepad: A jumps, RB powerslides and air
+    rolls, the left stick pitches. Touch screens get a JUMP button.
+  - The computer driver jumps at high balls and flips into them.
 - **Ball cam** (Y, or BALL on touch screens) is on by default: the camera looks past your car at the
   ball. An arrow at the screen edge points to the ball when it's off screen, and a ring under it
   shows where it'll land.
@@ -190,6 +202,9 @@ python3 -m http.server 8000
 | Toggle assists | T | B |
 | Cycle camera (chase / far / hood) | C | X |
 | Reset car | R | Y |
+| Football: jump / double jump / flip (with a direction) | Space | A |
+| Football: powerslide; in the air, hold to roll with A/D | Q | RB |
+| Football, in the air: pitch nose down / up | W / S | Left stick |
 | Ball cam on/off (car football) | Y | |
 | Change car (garage, anywhere) | V | |
 | Drive a nearby parked vehicle | E | |
