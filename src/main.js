@@ -13,7 +13,7 @@ import { Menu } from './menu.js';
 import { BurnEffect } from './burn.js';
 import { Terrain, arenaRamps } from './terrain.js';
 import { Net } from './net.js';
-import { Multiplayer, SPAWN_SLOTS, nameTag } from './multiplayer.js';
+import { Multiplayer, SPAWN_SLOTS, SEND_INTERVAL, nameTag } from './multiplayer.js';
 import { footprint, yawInertia, overlap, contactImpulse, applyToCar } from './carCollision.js';
 import { createStadium, kickoffSpot, TEAM_COLORS, PITCH } from './stadium.js';
 import { Football, setTeamGlow, TEAM_NAMES } from './football.js';
@@ -121,7 +121,7 @@ const football = new Football({ scene, destruction });
 let bot = null; // computer opponent in solo football
 let ballCam = true;
 let ownTouchUntil = 0; // online: we hit the ball; our local ball leads until then
-let matchSendTimer = 0;
+let netTimer = 0;
 let lastBeep = 0;
 const myId = () => (net.online ? net.id : 'me');
 
@@ -585,6 +585,7 @@ net.on('left', (id) => {
   refreshPlayers();
 });
 net.on('state', (id, s) => mp.onState(id, s));
+net.on('ball', (id, b) => { if (mode === 'football') football.takeBall(id, b); });
 net.on('match', (m) => {
   if (mode !== 'football' || net.isHost) return;
   football.applySnapshot(m, performance.now() < ownTouchUntil);
@@ -599,10 +600,6 @@ net.on('event', (id, e) => {
     const m = car.spec.mass;
     applyToCar(car, m, m * car.spec.inertiaScale, e.jx, e.jz, e.px, e.pz);
     collisionFx(Math.hypot(e.jx, e.jz) / m, e.px, e.pz);
-    return;
-  }
-  if (e.type === 'ball' && net.isHost && mode === 'football') {
-    football.takeBall(id, e.b);
     return;
   }
   if (e.type === 'rebuild' && id === 'host') {
@@ -673,6 +670,7 @@ function updateOnlineUi() {
 }
 
 let playersTimer = 0;
+let playersSig = '';
 function refreshPlayers() {
   const list = $('players');
   if (!net.online) { list.hidden = true; return; }
@@ -684,6 +682,10 @@ function refreshPlayers() {
   for (const r of mp.remotes.values()) rows.push({ name: r.name, color: color(r.id, r.def), smashed: score(r.id, r.smashed) });
   refreshTeamGlows();
   rows.sort((a, b) => b.smashed - a.smashed);
+  // Only touch the page when something shown actually changed.
+  const sig = JSON.stringify(rows);
+  if (sig === playersSig) return;
+  playersSig = sig;
   const ul = $('players-list');
   ul.replaceChildren(...rows.map((r) => {
     const li = document.createElement('li');
@@ -719,6 +721,25 @@ function openMainMenu() {
   audio.setPaused(true);
   menu.show('main');
 }
+
+/**
+ * One network tick (20 per second): send our car, and as host, everyone's
+ * newest cars plus the football match in one bundle per player. Keeps the
+ * leftover time so the rate doesn't sag with the frame rate.
+ */
+function netTick(dt) {
+  netTimer -= dt;
+  if (netTimer > 0) return;
+  netTimer = Math.max(0, netTimer + SEND_INTERVAL);
+  const own = mp.encode(car, active.def.id, smashed);
+  if (net.isHost) {
+    net.flush(own, mode === 'football' ? football.snapshot(++matchTicks % 10 === 0) : null);
+  } else {
+    if (own) net.sendState(own);
+    if (mode === 'football' && performance.now() < ownTouchUntil) net.sendBall(football.ballMessage());
+  }
+}
+let matchTicks = 0;
 
 /** Gameplay keys only act while driving. */
 const playing = (fn) => () => { if (state === 'playing') fn(); };
@@ -860,15 +881,7 @@ function frame() {
     if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
     if (net.online) {
       mp.update(dt);
-      mp.send(net, car, active.def.id, smashed, dt);
-      if (mode === 'football') {
-        matchSendTimer -= dt;
-        if (matchSendTimer <= 0) {
-          matchSendTimer = 1 / 20;
-          if (net.isHost) net.sendMatch(football.snapshot());
-          else if (performance.now() < ownTouchUntil) net.sendEvent({ type: 'ball', b: football.ballMessage() });
-        }
-      }
+      netTick(dt);
       playersTimer -= dt;
       if (playersTimer <= 0) { playersTimer = 0.5; refreshPlayers(); }
     }
@@ -1001,7 +1014,7 @@ function resolveCarCollisions() {
   // Other players: we can only move our own car; the hit is sent to them.
   if (!net.online) return;
   const now = performance.now() / 1000;
-  for (const r of mp.collisionTargets()) {
+  for (const r of mp.collisionTargets(car.x, car.z)) {
     const fp = footprints.get(r.def);
     const mass = r.def.spec.mass;
     const B = { ...r, mass, inertia: yawInertia(mass, fp), fp };

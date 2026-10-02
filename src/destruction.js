@@ -444,6 +444,7 @@ export class Destruction {
 
   buildRemoteBody(r) {
     const p = r.proxy;
+    r.last = null;
     r.body = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased()
       .setTranslation(p.x, p.y || 0, p.z).setRotation(carRotation(p)));
     r.colliders = r.def.hitbox.map((h) => this.world.createCollider(
@@ -623,10 +624,18 @@ export class Destruction {
 
     if (this.burner) this.burnAround(car);
     for (const r of this.remoteCars?.values() || []) {
+      // Like our own car: only move the body when the car moved, so parked
+      // players don't keep waking up everything they're touching.
       const p = r.proxy;
-      r.body.setNextKinematicTranslation({ x: p.x, y: p.y || 0, z: p.z });
-      r.body.setNextKinematicRotation(carRotation(p));
-      if (r.burner) this.burnAround(p, r.bounds);
+      const y = p.y || 0;
+      const l = r.last;
+      if (!l || Math.abs(p.x - l.x) > 1e-4 || Math.abs(p.z - l.z) > 1e-4 || Math.abs(y - l.y) > 1e-4
+        || Math.abs(p.heading - l.h) > 1e-5 || Math.abs((p.pitch || 0) - l.p) > 1e-5 || Math.abs((p.roll || 0) - l.r) > 1e-5) {
+        r.body.setNextKinematicTranslation({ x: p.x, y, z: p.z });
+        r.body.setNextKinematicRotation(carRotation(p));
+        r.last = { x: p.x, y, z: p.z, h: p.heading, p: p.pitch || 0, r: p.roll || 0 };
+        if (r.burner && Math.abs(p.vLong) > 0.2) this.burnAround(p, r.bounds);
+      }
     }
     this.world.step(this.eventQueue);
 

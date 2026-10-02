@@ -90,8 +90,19 @@ code; friends type it in to join (up to 8 players). The game runs on everyone's 
 
 - Browsers connect directly to the host over WebRTC using PeerJS. PeerJS's free public broker only
   introduces players when someone joins; there's no game server to host or pay for.
-- Each player sends their car's state 20 times a second (`src/net.js`). Other players' cars are drawn
-  100 ms behind and smoothed between updates (`src/multiplayer.js`).
+- Each player sends their car's state 20 times a second as a compact array (`src/multiplayer.js`);
+  a parked car only sends 4 a second. Each client has two connections to the host: a reliable one
+  for joins, hits and rebuilds, and an unordered one for the car updates, so one slow packet never
+  holds up the ones behind it (`src/net.js`).
+- The host doesn't forward every update as it arrives. Once per tick it sends each player one bundle
+  with everyone else's new car states and the football match state, so traffic grows with the number
+  of players instead of its square. Car hits go only to the car that was hit.
+- Updates carry the sender's clock, so other players' cars are placed on the timeline by when the
+  update was sent, not when it arrived: network jitter doesn't turn into stutter. They're drawn a
+  moment in the past (70–300 ms, adapting to each player's connection) and interpolated between
+  updates. The delay only changes slowly, so cars never visibly speed up or slow down.
+- Remote cars' physics bodies only move when the car moved, so a parked player doesn't keep waking
+  up the debris around them, and car-to-car checks skip anyone more than 14 m away.
 - Each remote car is also a solid body in your own physics world, so their crashes, burns and
   explosions happen on your screen too. Debris is simulated separately on every computer, so it can
   land a little differently for each player.

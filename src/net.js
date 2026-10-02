@@ -4,14 +4,25 @@
 // PeerJS's free public broker is only used to introduce browsers to each
 // other when someone joins.
 //
+// Each client has two connections to the host:
+//  - a reliable, ordered one for things that must arrive (joins, leaves,
+//    car hits, arena rebuilds), and
+//  - a "fast" unordered one for the ~20-per-second updates. Unordered means
+//    one slow packet never holds up the ones behind it (no head-of-line
+//    blocking); stale updates are recognised by timestamp and dropped.
+// The host doesn't forward each car update the moment it arrives: once per
+// tick it sends every client one bundle with everyone's newest state (and
+// the football match state), so traffic grows with players, not players².
+//
 // Messages are small JSON objects:
 //   hello   { name, vehicle }            client -> host on connect
 //   welcome { id, players, mode }        host -> client (mode: the room's game mode)
 //   joined  { id, name, vehicle }        host -> everyone
 //   left    { id }                       host -> everyone
-//   state   { id, s }                    car state, ~20 per second
-//   event   { id, e }                    one-off events (arena rebuild, ...)
-//   match   { m }                        host -> everyone: football ball and score
+//   event   { id, e }                    one-off events; `e.to` sends to one player only
+//   state   { s }                        fast, client -> host: our car (see multiplayer.js)
+//   ball    { b }                        fast, client -> host: the football after we hit it
+//   tick    { q, l: [[id, s]...], m }    fast, host -> client: everyone else's new car states + match
 
 const PREFIX = 'smashlot-';
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O
@@ -37,6 +48,10 @@ export class Net {
     this.code = null;
     this.id = null;
     this.conns = new Map(); // host: peerId -> connection; client: 'host' -> connection
+    this.fast = new Map(); // same keys: the unordered connections
+    this.latest = new Map(); // host: id -> car states received but not yet sent on
+    this.tickSeq = 0;
+    this.lastTick = 0;
     this.players = new Map(); // id -> { name, vehicle }
     this.handlers = {};
   }
@@ -67,7 +82,7 @@ export class Net {
           this.id = 'host';
           this.mode = mode;
           this.players.set('host', { name, vehicle });
-          peer.on('connection', (conn) => this.acceptClient(conn));
+          peer.on('connection', (conn) => (conn.metadata?.fast ? this.acceptFast(conn) : this.acceptClient(conn)));
           resolve(code);
         });
         peer.on('error', (err) => {
@@ -98,21 +113,53 @@ export class Net {
         conn.send({ t: 'welcome', id, players, mode: this.mode });
         this.relay({ t: 'joined', id, name: msg.name, vehicle: msg.vehicle }, id);
         this.emit('joined', id, msg.name, msg.vehicle);
-      } else if (msg.t === 'state' || msg.t === 'event') {
+      } else if (msg.t === 'event') {
         msg.id = conn.peer; // trust the connection, not the message
-        this.relay(msg, conn.peer);
-        this.dispatch(msg);
+        const to = msg.e?.to;
+        if (to && to !== 'host') this.sendTo(to, msg);
+        else if (!to) this.relay(msg, conn.peer);
+        if (!to || to === 'host') this.dispatch(msg);
+      } else {
+        this.fromClient(conn.peer, msg);
       }
     });
     const drop = () => {
       if (!this.conns.has(conn.peer)) return;
       this.conns.delete(conn.peer);
+      this.fast.get(conn.peer)?.close();
+      this.fast.delete(conn.peer);
+      this.latest.delete(conn.peer);
       this.players.delete(conn.peer);
       this.relay({ t: 'left', id: conn.peer });
       this.emit('left', conn.peer);
     };
     conn.on('close', drop);
     conn.on('error', drop);
+  }
+
+  /** Host side: a client's fast (unordered) connection. */
+  acceptFast(conn) {
+    this.fast.set(conn.peer, conn);
+    conn.on('data', (msg) => {
+      msg.fast = 1;
+      this.fromClient(conn.peer, msg);
+    });
+    conn.on('close', () => { if (this.fast.get(conn.peer) === conn) this.fast.delete(conn.peer); });
+  }
+
+  /** Host: a high-rate message from a client (on either connection). */
+  fromClient(id, msg) {
+    if (!this.conns.has(id)) return;
+    if (msg.t === 'state') {
+      // Keep every update since the last bundle (not just the newest), so
+      // receivers get the full 20 per second to interpolate between.
+      const list = this.latest.get(id) || [];
+      if (list.length < 4) list.push(msg.s);
+      this.latest.set(id, list);
+      this.emit('state', id, msg.s);
+    } else if (msg.t === 'ball') {
+      this.emit('ball', id, msg.b);
+    }
   }
 
   /** Join a room by code. Resolves once the host has welcomed us. */
@@ -147,6 +194,7 @@ export class Net {
             this.conns.set('host', conn);
             this.players = new Map(Object.entries(msg.players));
             this.players.set(msg.id, { name, vehicle });
+            this.openFast(peer, code);
             resolve(code);
             for (const [id, p] of Object.entries(msg.players)) this.emit('joined', id, p.name, p.vehicle);
             return;
@@ -170,10 +218,26 @@ export class Net {
     });
   }
 
+  /** Client: open the second, unordered connection to the host. */
+  openFast(peer, code) {
+    const fast = peer.connect(PREFIX + code, { reliable: false, serialization: 'json', metadata: { fast: 1 } });
+    fast.on('data', (msg) => {
+      msg.fast = 1;
+      this.dispatch(msg);
+    });
+    fast.on('close', () => { if (this.fast.get('host') === fast) this.fast.delete('host'); });
+    this.fast.set('host', fast);
+  }
+
   dispatch(msg) {
-    if (msg.t === 'state') this.emit('state', msg.id, msg.s);
-    else if (msg.t === 'event') this.emit('event', msg.id, msg.e);
-    else if (msg.t === 'match') this.emit('match', msg.m);
+    if (msg.t === 'tick') {
+      for (const [id, s] of msg.l) this.emit('state', id, s);
+      // Match state only from bundles newer than the last one we used.
+      if (msg.m && msg.q > this.lastTick) this.emit('match', msg.m);
+      this.lastTick = Math.max(this.lastTick, msg.q);
+    } else if (msg.t === 'event') {
+      this.emit('event', msg.id, msg.e);
+    }
   }
 
   /** Host: send to every client except `except`. */
@@ -181,27 +245,59 @@ export class Net {
     for (const [id, conn] of this.conns) if (id !== except && conn.open) conn.send(msg);
   }
 
-  /** Send our car state (host broadcasts it; clients send it to the host). */
-  sendState(s) {
-    const msg = { t: 'state', id: this.id, s };
-    if (this.isHost) this.relay(msg);
-    else this.conns.get('host')?.open && this.conns.get('host').send(msg);
+  sendTo(id, msg) {
+    const conn = this.conns.get(id);
+    if (conn?.open) conn.send(msg);
   }
 
-  /** Host: football match state for everyone. */
-  sendMatch(m) {
-    if (this.isHost) this.relay({ t: 'match', m });
+  /** High-rate message to one peer: the fast connection, or the reliable one until it's open. */
+  sendFast(id, msg) {
+    const conn = this.fast.get(id);
+    if (conn?.open) conn.send(msg);
+    else this.sendTo(id, msg);
+  }
+
+  /** Client: our car state, to the host. */
+  sendState(s) {
+    this.sendFast('host', { t: 'state', s });
+  }
+
+  /** Client: our copy of the football after we hit it. */
+  sendBall(b) {
+    this.sendFast('host', { t: 'ball', b });
+  }
+
+  /**
+   * Host, once per network tick: send each client one bundle with the new
+   * states of every other car (our own `own` included) and the football
+   * match state `m`, if any.
+   */
+  flush(own, m = null) {
+    if (own) this.latest.set(this.id, [own]);
+    if (!this.latest.size && !m) return;
+    const q = ++this.tickSeq;
+    const all = [];
+    for (const [id, list] of this.latest) for (const s of list) all.push([id, s]);
+    this.latest.clear();
+    for (const id of this.conns.keys()) {
+      const l = all.filter(([from]) => from !== id);
+      if (l.length || m) this.sendFast(id, m ? { t: 'tick', q, l, m } : { t: 'tick', q, l });
+    }
   }
 
   sendEvent(e) {
     const msg = { t: 'event', id: this.id, e };
-    if (this.isHost) this.relay(msg);
-    else this.conns.get('host')?.open && this.conns.get('host').send(msg);
+    if (!this.isHost) this.sendTo('host', msg);
+    else if (e.to) this.sendTo(e.to, msg);
+    else this.relay(msg);
   }
 
   leave() {
-    for (const conn of this.conns.values()) conn.close();
+    for (const conn of [...this.conns.values(), ...this.fast.values()]) conn.close();
     this.conns.clear();
+    this.fast.clear();
+    this.latest.clear();
+    this.tickSeq = this.lastTick = 0;
     this.players.clear();
     this.peer?.destroy();
     this.peer = null;

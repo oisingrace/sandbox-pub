@@ -290,16 +290,26 @@ export class Football {
 
   // --- Network -----------------------------------------------------------
 
-  /** Referee: the match state for other players. */
-  snapshot() {
+  /**
+   * Referee: the match state for other players. Teams and goal tallies are
+   * only included when they change, or every so often when `full`.
+   */
+  snapshot(full = false) {
     const b = this.body;
     const t = b.translation(), v = b.linvel(), q = b.rotation();
-    return {
+    const m = {
       b: [t.x, t.y, t.z, v.x, v.y, v.z, q.x, q.y, q.z, q.w].map(roundFb),
       ph: this.phase, tm: roundFb(this.timer), tl: roundFb(this.timeLeft), ot: this.overtime ? 1 : 0,
       s: this.score, k: this.kickoffs, gc: this.goalCount, lg: this.lastGoal,
-      teams: [...this.teams], goals: [...this.goals],
     };
+    const teams = [...this.teams], goals = [...this.goals];
+    const roster = JSON.stringify([teams, goals]);
+    if (full || roster !== this.sentRoster) {
+      m.teams = teams;
+      m.goals = goals;
+      this.sentRoster = roster;
+    }
+    return m;
   }
 
   /**
@@ -314,8 +324,8 @@ export class Football {
     this.timeLeft = m.tl;
     this.overtime = !!m.ot;
     this.score = m.s;
-    this.teams = new Map(m.teams);
-    this.goals = new Map(m.goals);
+    if (m.teams) this.teams = new Map(m.teams);
+    if (m.goals) this.goals = new Map(m.goals);
     if (m.k !== this.kickoffs) {
       this.kickoffs = m.k;
       this.emit('kickoff');
