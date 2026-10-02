@@ -73,7 +73,7 @@ so a pile goes up in a chain.
 
 ## Car football
 
-Pick **Car football** on the main menu (next to Free roam) for a Blue vs Orange match in a stadium
+Pick **Car football** on the main menu (next to Free roam and Versus) for a Blue vs Orange match in a stadium
 (`src/stadium.js`, `src/football.js`):
 
 - **The stadium:** a 72 × 120 m walled pitch with chamfered corners so the ball never gets stuck, a
@@ -117,6 +117,55 @@ Pick **Car football** on the main menu (next to Free roam) for a Blue vs Orange 
 - **Ball cam** (Y, or BALL on touch screens) is on by default: the camera looks past your car at the
   ball. An arrow at the screen edge points to the ball when it's off screen, and a ring under it
   shows where it'll land.
+
+## Versus
+
+Pick **Versus** on the main menu for an all-out car fight in **the Scrapyard** (`src/vsmap.js`,
+`src/versus.js`, `src/weapons.js`). Every car is for itself; whoever wrecks the most cars in five
+minutes wins.
+
+- **The Scrapyard:** a 170 m square yard walled in corrugated steel, with stacks of scrapped cars
+  outside and floodlights in the corners. In the middle is a raised cross (two table ramps crossing)
+  to fight over; each quarter has a kicker. Cover everywhere, and all of it breakable: L-shaped
+  container forts with fuel drums tucked inside, concrete block walls, brick walls, jersey barriers,
+  crate pyramids, slabs, barrels and lamp poles.
+- **Car health:** heavier cars take more punishment (about 100 hit points for the hatchback, 220 for
+  the bus). Damaged cars smoke below 40% and burn below 20%. A wrecked car blows up and respawns 3 s
+  later at the spawn furthest from everyone, with 2 s of protection (it blinks). The wreck counts for
+  whoever last hurt it within 6 s.
+- **Damage:** weapons; rams (by how hard the hit was, with most of the blame on whoever drove into
+  whom, so T-boning someone hurts them more than you); explosions, including the fuel drums; and hitting
+  the walls very hard.
+- **Mounted weapons** sit on a turret on the roof that **aims itself** at the enemy most in front of
+  you (a red ring marks it). Fire with X, a left click, the B button or FIRE on touch screens.
+  - **Machine gun:** every car's own weapon, unlimited. Bullets are real rays: cover stops them,
+    and they chip away at whatever they hit (one shot breaks a brick, and a couple set off a fuel drum).
+  - **Rockets** (8) home in on your target and blow up on whatever they hit: 45 damage at the centre,
+    a 7 m blast that also wrecks cover and sets off drums.
+  - **Rocket salvo** (4 salvos of 3).
+  - **Flamethrower** (8 s of fuel): burns cars in the stream and sets the scenery on fire, using the
+    Inferno's voxel burning. The Inferno pickup has its own flamethrower instead of a gun, on its refilling tank.
+  - **Mines** (4) drop behind you, arm after 0.8 s and go off when someone else drives within 3.5 m.
+- **Upgrade pads** (nine: the top of the cross, its four ends and the four corners) each offer one
+  upgrade, shown by a coloured beam and a label. What a pad offers changes every 20 s, and it refills
+  8 s after someone takes it. Better upgrades appear as the match goes on:
+  - from the start: rockets, repair (+50% health) and nitro (8 s of unlimited boost);
+  - after 1:00: flamethrower, armour (half damage for 15 s) and mines;
+  - after 2:30: rocket salvo and double damage (15 s).
+- **HUD:** health bar, weapon and ammo, active upgrades with their timers, the clock, a leaderboard
+  (wrecks and deaths), a kill feed, health bars over other cars, a red vignette when you're hit, and
+  a "Wrecked by…" countdown.
+- **Solo:** three computer drivers (`VersusBot`) in a random mix of the built-in cars. They hunt the
+  nearest enemy (leading a moving one), ram when close, fire when their target is in their sights,
+  drop mines on anyone tailing them, go for a repair when hurt and a weapon when they only have their
+  gun, and back out when they get stuck. They fight each other as well as you, and they bump into cover
+  instead of driving through it.
+- **Online:** each player looks after their own car's health. Whoever fires works out what their
+  shot hit and sends the damage to the victim, and a wrecked player announces it. Rockets and mines are
+  simulated on every screen, and each screen only damages its own car. Health, weapon, aim and status
+  ride along in the regular car updates, so everyone sees each other's health bars, turrets and
+  tracers. The host runs the clock, the scores and the pads (a player driving onto a pad asks the host
+  for it, so two players can't both take it).
 
 ## Custom cars
 
@@ -320,10 +369,10 @@ python3 -m http.server 8000
 | Football: powerslide; in the air, hold to roll with A/D | Q | RB |
 | Football, in the air: pitch nose down / up | W / S | Left stick |
 | Ball cam on/off (car football) | Y | |
-| Flamethrower (Inferno pickup) | X or left click | B |
+| Fire: flamethrower (Inferno pickup), or your weapon in Versus | X or left click | B |
 | Change car (garage, anywhere) | V | |
 | Drive a nearby parked vehicle | E | |
-| Rebuild arena (football: new match) | B | |
+| Rebuild arena (football and Versus: new match) | B | |
 | Telemetry overlay | F | |
 | Mute / help | M / H | |
 
@@ -378,6 +427,9 @@ All of it is in `src/destruction.js`.
 - `src/stadium.js`: the football stadium: scenery, walls, ramps, contents and kickoff spots
 - `src/football.js`: the ball, match rules, network snapshots and the scoreboard
 - `src/bot.js`: the computer opponent for solo football
+- `src/vsmap.js`: the Scrapyard (the Versus map): fence, ramps, cover, pads and spawns
+- `src/versus.js`: Versus rules: health, damage, wrecks and respawns, upgrade pads, the HUD, network events, and the computer drivers
+- `src/weapons.js`: weapon stats, roof turrets, tracers, rockets and mines
 - `src/destruction.js`: rigid-body world, fracturing, and instanced rendering
 - `src/effects.js`: skid marks and tire smoke
 - `src/burn.js`: the Ember GT's voxel burn effect

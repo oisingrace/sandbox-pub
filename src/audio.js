@@ -428,6 +428,95 @@ export class CarAudio {
     }
   }
 
+  /** One machine-gun shot: a sharp crack with a low thump. */
+  gun(pos, strength = 1) {
+    if (!this.ctx || this.muted || !this.audible(pos, 120)) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    if (!this.claimVoice(0.12, 0.3 * strength)) return;
+    const out = this.outputFor(pos, 0.2);
+    out.gain.setValueAtTime(0.35 * strength, now);
+    out.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuffer();
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 1800 + Math.random() * 600;
+    f.Q.value = 0.8;
+    src.connect(f).connect(out);
+    src.start(now, Math.random());
+    src.stop(now + 0.1);
+    const o = ctx.createOscillator();
+    o.frequency.setValueAtTime(190, now);
+    o.frequency.exponentialRampToValueAtTime(60, now + 0.06);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.5, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+    o.connect(g).connect(out);
+    o.start(now);
+    o.stop(now + 0.08);
+  }
+
+  /** A rocket leaving its pod: a rising hiss. */
+  rocket(pos) {
+    if (!this.ctx || this.muted || !this.audible(pos)) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    if (!this.claimVoice(0.6, 0.6)) return;
+    const out = this.outputFor(pos, 0.3);
+    out.gain.setValueAtTime(0.0001, now);
+    out.gain.exponentialRampToValueAtTime(0.5, now + 0.04);
+    out.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuffer();
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 2;
+    f.frequency.setValueAtTime(500, now);
+    f.frequency.exponentialRampToValueAtTime(2600, now + 0.5);
+    src.connect(f).connect(out);
+    src.start(now, Math.random());
+    src.stop(now + 0.6);
+  }
+
+  /** Picking up an upgrade: a quick rising arpeggio. */
+  pickup() {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    [660, 880, 1320].forEach((freq, i) => {
+      const o = ctx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = freq;
+      const g = ctx.createGain();
+      const t = now + i * 0.06;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.16, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+      o.connect(g).connect(this.sfxBus);
+      o.start(t);
+      o.stop(t + 0.18);
+    });
+  }
+
+  /** Our shot landed on a car: a small tick. */
+  hitTick() {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    if (this.lastTick && now - this.lastTick < 0.05) return;
+    this.lastTick = now;
+    const o = ctx.createOscillator();
+    o.type = 'square';
+    o.frequency.value = 2200;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.05, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    o.connect(g).connect(this.sfxBus);
+    o.start(now);
+    o.stop(now + 0.05);
+  }
+
   /** Countdown beep; `go` is the higher final one. */
   beep(go = false) {
     if (!this.ctx || this.muted) return;

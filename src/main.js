@@ -24,6 +24,9 @@ import { Bot } from './bot.js';
 import { ScreenQuake } from './quake.js';
 import { FlameFX, FlameTank, nozzle } from './flamethrower.js';
 import { Score, pointsFor, EXPLOSION_POINTS, COMBO_WINDOW } from './score.js';
+import { createScrapyard, keepCameraInYard, SPAWNS } from './vsmap.js';
+import { Versus } from './versus.js';
+import { turretMount } from './weapons.js';
 
 const PHYSICS_DT = 1 / 120;
 // At most this many car steps per frame (2 debris-world steps). A slow
@@ -93,12 +96,14 @@ const lotTerrain = new Terrain();
 arenaRamps(lotTerrain);
 lotTerrain.buildMeshes(world.arena);
 const stadium = createStadium(scene, renderer);
+const scrapyard = createScrapyard(scene, renderer);
 const MAPS = {
   free: {
     name: 'lot', group: world.arena, terrain: lotTerrain, orbit: { radius: 135, height: 60 },
     addColliders: (w) => lotTerrain.addColliders(w), populate: populateArena, contain: containLot,
   },
   football: stadium,
+  versus: scrapyard,
 };
 let mode = 'free';
 let map = MAPS.free;
@@ -131,6 +136,27 @@ let arenaDirty = false; // has the arena been played in since it was built?
 // Car football.
 const football = new Football({ scene, destruction });
 let bot = null; // computer opponent in solo football
+// Versus: health, weapons, upgrade pads and computer drivers (see versus.js).
+const versus = new Versus({
+  scene, destruction, audio, net,
+  me: () => ({ id: myId(), name: settings.playerName || 'You', def: active.def, car, model: active.model }),
+  remotes: () => mp.remotes,
+  terrain: () => terrain,
+  respawnMe: (spot) => {
+    car.reset(spot.x, spot.z, spot.heading);
+    destruction.teleportCar(car);
+    skids.clear();
+    chase.snap();
+  },
+  fx: {
+    explosion: (pos, size) => vsExplosion(pos, size),
+    smoke: (pos, vel, heavy) => (heavy ? soot : smoke).emit(pos, vel || { x: 0, z: 0 }, heavy ? 0.8 : 0.5, pos.y),
+    dust: (pos) => dust.emit(pos, { x: 0, z: 0 }, 0.4, pos.y),
+    toast: (msg) => toast(msg),
+    kick: (k) => quake.kick(k),
+  },
+});
+const VS_BOT_CARS = ['sports', 'pickup', 'ember', 'hatch', 'inferno', 'bus'];
 let ballCam = true;
 let ownTouchUntil = 0; // online: we hit the ball; our local ball leads until then
 let netTimer = 0;
@@ -188,7 +214,23 @@ destruction.on('explode', (pos, distance) => {
   quake.add(12, pos, car, 30); // a blast is felt further away than a smash
   quake.kick(Math.max(0, 1 - distance / 35) * 0.6);
   if (mine) car.boost = Math.min(1, car.boost + 0.05);
+  // Versus: fuel drums hurt whoever's parked next to them.
+  if (mode === 'versus') versus.explosionDamage(pos, 9, 40, null);
 });
+
+/** Versus: a rocket, mine or wreck going off (sound, flash, smoke, shake). */
+function vsExplosion(pos, size = 1) {
+  burnFx.fireball(pos);
+  const puffs = settings.effects === 'high' ? 6 : 2;
+  for (let i = 0; i < puffs; i++) {
+    soot.emit(pos, { x: (Math.random() - 0.5) * 8 * size, z: (Math.random() - 0.5) * 8 * size }, 1, pos.y + Math.random() * 1.5);
+    dust.emit(pos, { x: (Math.random() - 0.5) * 10 * size, z: (Math.random() - 0.5) * 10 * size }, 0.8, pos.y);
+  }
+  const d = Math.hypot(car.x - pos.x, car.z - pos.z);
+  audio.explosion(pos, d);
+  quake.add(9 * size, pos, car, 25);
+  quake.kick(Math.max(0, 1 - d / 30) * 0.45 * size);
+}
 
 /** Destruction points (free roam; football has its own score). */
 function award(base) {
@@ -263,6 +305,7 @@ function buildArena() {
 /** Our start position: kickoff spot in football, else the start line. */
 function homeSpot() {
   if (mode === 'football') return teamSpot(myId());
+  if (mode === 'versus') return versus.startSpot(net.online ? slot : 0);
   return net.online ? SPAWN_SLOTS[slot % SPAWN_SLOTS.length] : active.def.home;
 }
 
@@ -303,12 +346,13 @@ function resetAll() {
   resetBot();
   // The referee starts a new match; others wait for its kickoff.
   if (mode === 'football' && football.referee) football.startMatch();
+  if (mode === 'versus') versus.reset();
 }
 
 // --- Game modes ------------------------------------------------------------
 /** Switch map and rules (does not rebuild; see enterMode). */
 function setMode(next) {
-  mode = next === 'football' ? 'football' : 'free';
+  mode = MAPS[next] ? next : 'free';
   map = MAPS[mode];
   terrain = map.terrain;
   car.terrain = terrain;
@@ -316,17 +360,26 @@ function setMode(next) {
   destruction.statics = map;
   for (const m of Object.values(MAPS)) m.group.visible = m === map;
   football.setActive(mode === 'football');
+  versus.setActive(mode === 'versus');
+  document.body.classList.toggle('versus', mode === 'versus');
   menu.setCarLocked(mode === 'football');
   football.referee = !net.online || net.isHost;
   football.myId = myId();
   document.body.classList.toggle('football', mode === 'football');
   chase.focus = mode === 'football' && ballCam ? football.mesh.position : null;
-  chase.bounds = mode === 'football' ? keepCameraInStadium : null;
+  chase.bounds = mode === 'football' ? keepCameraInStadium : mode === 'versus' ? keepCameraInYard : null;
   if (mode === 'football' && !net.online) {
     football.teams = new Map([['me', 0], ['bot', 1]]);
     ensureBot();
   } else {
     removeBot();
+  }
+  if (mode === 'versus' && !net.online) {
+    // Three computer drivers in a random mix of the built-in cars.
+    const pool = VS_BOT_CARS.filter((id) => id !== active.def.id).sort(() => Math.random() - 0.5);
+    versus.addBots(pool.slice(0, 3).map((id) => VEHICLES.find((v) => v.id === id)));
+  } else {
+    versus.removeBots();
   }
   if (mode === 'football' && net.online && net.isHost && !football.teams.has('host')) {
     football.teams = new Map([['host', 0]]);
@@ -356,7 +409,7 @@ function keepCameraInStadium(pos) {
 function enterMode(next) {
   setMode(next);
   resetAll();
-  arenaDirty = mode === 'football';
+  arenaDirty = mode !== 'free';
 }
 
 function ensureBot() {
@@ -431,6 +484,12 @@ football.on('restart', () => {
   resetAll();
   if (net.online) net.sendEvent({ type: 'rebuild' });
 });
+versus.on('ended', () => audio.whistle(true));
+versus.on('restart', () => {
+  // Referee: a fresh arena and match for everyone.
+  resetAll();
+  if (net.online) net.sendEvent({ type: 'rebuild' });
+});
 football.on('touch', (id) => {
   if (id === myId()) ownTouchUntil = performance.now() + 400;
 });
@@ -457,6 +516,10 @@ function nearbyVehicle() {
 function changeVehicle(def) {
   if (mode === 'football') {
     toast('In car football everyone drives the Striker');
+    return;
+  }
+  if (mode === 'versus') {
+    toast('Pick your car on the main menu between matches');
     return;
   }
   const target = fleet.find((v) => v.def === def);
@@ -701,7 +764,7 @@ function play(def) {
     setMode(wanted);
     arenaDirty = true;
   }
-  if (arenaDirty || mode === 'football') {
+  if (arenaDirty || mode !== 'free') {
     resetAll();
   } else {
     resetCar();
@@ -720,13 +783,13 @@ function play(def) {
 /** Rebuild the arena; online, only the host can, and it rebuilds for everyone. */
 function rebuildArena() {
   if (net.online && !net.isHost) {
-    toast(mode === 'football' ? 'Only the host can restart the match' : 'Only the host can rebuild the arena');
+    toast(mode !== 'free' ? 'Only the host can restart the match' : 'Only the host can rebuild the arena');
     return false;
   }
   resetAll();
   arenaDirty = true;
   if (net.online) net.sendEvent({ type: 'rebuild' });
-  toast(mode === 'football' ? 'New match' : 'Arena rebuilt');
+  toast(mode !== 'free' ? 'New match' : 'Arena rebuilt');
   return true;
 }
 
@@ -757,7 +820,9 @@ net.on('left', (id) => {
 net.on('state', (id, s) => mp.onState(id, s));
 net.on('ball', (id, b) => { if (mode === 'football') football.takeBall(id, b); });
 net.on('match', (m) => {
-  if (mode !== 'football' || net.isHost) return;
+  if (net.isHost) return;
+  if (mode === 'versus') { versus.applySnapshot(m); return; }
+  if (mode !== 'football') return;
   football.applySnapshot(m, performance.now() < ownTouchUntil);
 });
 net.on('event', (id, e) => {
@@ -775,14 +840,23 @@ net.on('event', (id, e) => {
     if (now - (lastContact.get(id) || -1) < 0.25) return;
     lastHitFrom.set(id, now);
     const m = car.spec.mass;
+    if (mode === 'versus') {
+      const j = Math.hypot(e.jx, e.jz) || 1;
+      const other = mp.remotes.get(id)?.proxy || { velX: 0, velZ: 0 };
+      versus.rammed(myId(), id, j / m, e.jx / j, e.jz / j, { x: car.velX, z: car.velZ }, { x: other.velX, z: other.velZ });
+    }
     applyToCar(car, m, m * car.spec.inertiaScale, e.jx, e.jz, e.px, e.pz);
     collisionFx(Math.hypot(e.jx, e.jz) / m, e.px, e.pz);
+    return;
+  }
+  if (['dmg', 'wreck', 'take', 'grant', 'fx'].includes(e.type)) {
+    if (mode === 'versus') versus.onEvent(id, e);
     return;
   }
   if (e.type === 'rebuild' && id === 'host') {
     resetAll();
     arenaDirty = true;
-    toast(mode === 'football' ? 'New match' : 'The host rebuilt the arena');
+    toast(mode !== 'free' ? 'New match' : 'The host rebuilt the arena');
   }
 });
 net.on('hostLeft', () => {
@@ -908,9 +982,10 @@ function netTick(dt) {
   netTimer -= dt;
   if (netTimer > 0) return;
   netTimer = Math.max(0, netTimer + SEND_INTERVAL);
-  const own = mp.encode(car, active.def.id, score.points);
+  const own = mp.encode(car, active.def.id, score.points, mode === 'versus' ? versus.encodeMe() : null);
   if (net.isHost) {
-    net.flush(own, mode === 'football' ? football.snapshot(++matchTicks % 10 === 0) : null);
+    const full = ++matchTicks % 10 === 0;
+    net.flush(own, mode === 'football' ? football.snapshot(full) : mode === 'versus' ? versus.snapshot(full) : null);
   } else {
     if (own) net.sendState(own);
     if (mode === 'football' && performance.now() < ownTouchUntil) net.sendBall(football.ballMessage());
@@ -921,22 +996,27 @@ let matchTicks = 0;
 /** Flame particles and roar for every firing flamethrower; our fuel gauge. */
 function updateFlames(dt) {
   let roar = 0;
-  if (car.firing) {
-    nozzle(car, active.def.flamethrower.mount, _nz);
-    flames.emit('me', _nz.pos, _nz.dir, { x: car.velX, z: car.velZ }, dt);
-    roar = 1;
-  }
-  for (const rm of mp.remotes.values()) {
-    if (!rm.proxy.firing || !rm.def.flamethrower || !rm.seen) continue;
-    nozzle(rm.proxy, rm.def.flamethrower.mount, _nz);
-    flames.emit(rm.id, _nz.pos, _nz.dir, { x: rm.proxy.velX, z: rm.proxy.velZ }, dt);
-    roar = Math.max(roar, 1 / (1 + (Math.hypot(rm.proxy.x - car.x, rm.proxy.z - car.z) / 15) ** 2));
+  for (const f of flameSources()) {
+    nozzle(f.car, f.mount, _nz);
+    flames.emit(f.key, _nz.pos, _nz.dir, { x: f.car.velX, z: f.car.velZ }, dt);
+    roar = Math.max(roar, f.car === car ? 1 : 1 / (1 + (Math.hypot(f.car.x - car.x, f.car.z - car.z) / 15) ** 2));
   }
   flames.update(dt);
   audio.flame(roar);
   if (car.firing) quake.floor(0.12);
   hud.fuelFill.style.width = `${tank.level * 100}%`;
   hud.fuelFill.classList.toggle('empty', tank.empty);
+}
+
+/** Every flamethrower firing right now: { key, car, mount }. */
+function flameSources() {
+  if (mode === 'versus') return versus.flamers();
+  const out = [];
+  if (car.firing) out.push({ key: 'me', car, mount: turretMount(active.def) });
+  for (const rm of mp.remotes.values()) {
+    if (rm.proxy.firing && rm.seen) out.push({ key: rm.id, car: rm.proxy, mount: turretMount(rm.def) });
+  }
+  return out;
 }
 
 /** Points, multiplier and combo timer (free roam). */
@@ -968,6 +1048,7 @@ input.onPress('KeyC', playing(() => { chase.cycle(); refreshBadges(); toast(`Cam
 input.onPress('KeyE', playing(enterNearby));
 input.onPress('KeyV', () => {
   if (state === 'playing' && mode === 'football') toast('In car football everyone drives the Striker');
+  else if (state === 'playing' && mode === 'versus') toast('Pick your car on the main menu between matches');
   else if (state === 'playing') { pause(); menu.showGarage(); }
   else if (menu.current === 'garage') resume();
 });
@@ -1009,6 +1090,7 @@ if (isTouch) {
   $('touch-enter').addEventListener('click', enterNearby);
   $('touch-garage').addEventListener('click', () => {
     if (mode === 'football') { toast('In car football everyone drives the Striker'); return; }
+    if (mode === 'versus') { toast('Pick your car on the main menu between matches'); return; }
     pause();
     menu.showGarage();
   });
@@ -1037,6 +1119,7 @@ function containLot(c) {
 
 function containCar() {
   const hit = map.contain(car);
+  if (mode === 'versus') versus.crashed(myId(), hit);
   if (hit > 3) {
     quake.kick(hit * 0.03);
     audio.impact('crash', Math.min(1, hit / 20));
@@ -1070,20 +1153,29 @@ function frame() {
     const frozen = mode === 'football' && football.phase === 'kickoff';
     const idle = { steer: 0, throttle: 0, brake: 0, handbrake: true, boost: false, jump: false };
     const inputNow = state === 'playing' && !frozen ? controls : idle;
-    // Flamethrower: fuel and firing, once per frame.
-    car.firing = tank.update(dt, !!(active.def.flamethrower && inputNow.fire));
+    // Flamethrower: fuel and firing, once per frame (Versus runs its own weapons).
+    if (mode !== 'versus') car.firing = tank.update(dt, !!(active.def.flamethrower && inputNow.fire));
+    const wrecked = mode === 'versus' && versus.isWrecked(myId());
+    for (const b of versus.bots) b.think(dt, versus);
     accumulator += dt;
     let steps = 0;
     while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
       car.aerial = !!active.def.aerial; // jumps, flips and air control (the Striker)
-      car.step(PHYSICS_DT, inputNow);
-      containCar();
+      if (!wrecked) {
+        car.step(PHYSICS_DT, inputNow);
+        containCar();
+      }
       if (bot) {
         bot.car.aerial = true;
         if (frozen) Object.assign(bot.input, idle);
         else bot.think(football.ball, PHYSICS_DT);
         bot.step(PHYSICS_DT);
         map.contain(bot.car);
+      }
+      for (const b of versus.bots) {
+        if (versus.isWrecked(b.id)) continue;
+        b.step(PHYSICS_DT);
+        versus.crashed(b.id, map.contain(b.car));
       }
       resolveCarCollisions();
       if (car.landed) onLanding(car.landed);
@@ -1115,7 +1207,7 @@ function frame() {
       playersTimer -= dt;
       if (playersTimer <= 0) { playersTimer = 0.5; refreshPlayers(); }
     }
-    updateScene(dt);
+    updateScene(dt, state === 'playing' && !!controls.fire);
   } else if (state === 'menu') {
     if (preview) {
       updatePreview(dt);
@@ -1129,6 +1221,7 @@ function frame() {
     destruction.sync();
     if (mode === 'football') football.syncMesh();
     if (bot) bot.model.update(bot.car, 0);
+    for (const b of versus.bots) b.model.update(b.car, 0);
     for (const v of fleet) if (v.parked) v.model.updateParked(v.parked.body, dt);
     active.model.update(car, 0);
     if (!preview) world.followSun(new THREE.Vector3(0, 0, 0));
@@ -1224,33 +1317,20 @@ function resolveCarCollisions() {
     collisionFx(imp.speed, c.px, c.pz);
   }
 
-  // The solo football bot: both cars are ours to push.
-  if (bot) {
-    const bc = bot.car;
-    const fp = footprints.get(bot.def);
-    const mass = bc.spec.mass;
-    const B = { x: bc.x, z: bc.z, y: bc.y, heading: bc.heading, velX: bc.velX, velZ: bc.velZ, yawRate: bc.yawRate, mass, inertia: mass * bc.spec.inertiaScale, fp };
-    const A = myBody();
-    const c = overlap(A, B);
-    if (c) {
-      const share = (1 / A.mass) / (1 / A.mass + 1 / B.mass);
-      car.x += c.nx * c.depth * share;
-      car.z += c.nz * c.depth * share;
-      bc.x -= c.nx * c.depth * (1 - share);
-      bc.z -= c.nz * c.depth * (1 - share);
-      const imp = contactImpulse(A, B, c);
-      if (imp) {
-        applyToCar(car, A.mass, A.inertia, imp.jx, imp.jz, c.px, c.pz);
-        applyToCar(bc, B.mass, B.inertia, -imp.jx, -imp.jz, c.px, c.pz);
-        collisionFx(imp.speed, c.px, c.pz);
-      }
-    }
+  // Computer drivers (the football bot, Versus bots): both cars are ours to push.
+  const locals = [];
+  if (!(mode === 'versus' && versus.isWrecked(myId()))) locals.push({ id: myId(), car, def: active.def });
+  if (bot) locals.push({ id: 'bot', car: bot.car, def: bot.def });
+  for (const b of versus.bots) if (!versus.isWrecked(b.id)) locals.push({ id: b.id, car: b.car, def: b.def });
+  for (let i = 0; i < locals.length; i++) {
+    for (let j = i + 1; j < locals.length; j++) bump(locals[i], locals[j]);
   }
 
   // Other players: we can only move our own car; the hit is sent to them.
-  if (!net.online) return;
+  if (!net.online || (mode === 'versus' && versus.isWrecked(myId()))) return;
   const now = performance.now() / 1000;
   for (const r of mp.collisionTargets(car.x, car.z)) {
+    if (mode === 'versus' && versus.isWrecked(r.id)) continue;
     const fp = footprints.get(r.def);
     const mass = r.def.spec.mass;
     const B = { ...r, mass, inertia: yawInertia(mass, fp), fp };
@@ -1264,10 +1344,43 @@ function resolveCarCollisions() {
     const imp = contactImpulse(A, B, c);
     if (!imp) continue;
     lastContact.set(r.id, now);
+    if (mode === 'versus') {
+      const j = Math.hypot(imp.jx, imp.jz) || 1;
+      versus.rammed(myId(), r.id, j / A.mass, imp.jx / j, imp.jz / j, { x: A.velX, z: A.velZ }, { x: B.velX, z: B.velZ });
+    }
     applyToCar(car, A.mass, A.inertia, imp.jx, imp.jz, c.px, c.pz);
     net.sendEvent({ type: 'hit', to: r.id, jx: -imp.jx, jz: -imp.jz, px: c.px, pz: c.pz });
     collisionFx(imp.speed, c.px, c.pz);
   }
+}
+
+/** Two cars we simulate ourselves (us and computer drivers): separate them and trade impulses. */
+function bump(a, b) {
+  const body = (o) => {
+    const c = o.car, m = c.spec.mass;
+    return { x: c.x, z: c.z, y: c.y, heading: c.heading, velX: c.velX, velZ: c.velZ, yawRate: c.yawRate, mass: m, inertia: m * c.spec.inertiaScale, fp: footprints.get(o.def) };
+  };
+  const A = body(a), B = body(b);
+  const c = overlap(A, B);
+  if (!c) return;
+  const share = (1 / A.mass) / (1 / A.mass + 1 / B.mass);
+  a.car.x += c.nx * c.depth * share;
+  a.car.z += c.nz * c.depth * share;
+  b.car.x -= c.nx * c.depth * (1 - share);
+  b.car.z -= c.nz * c.depth * (1 - share);
+  const imp = contactImpulse(A, B, c);
+  if (!imp) return;
+  if (mode === 'versus') {
+    const j = Math.hypot(imp.jx, imp.jz) || 1;
+    const nx = imp.jx / j, nz = imp.jz / j;
+    const va = { x: A.velX, z: A.velZ }, vb = { x: B.velX, z: B.velZ };
+    versus.rammed(a.id, b.id, j / A.mass, nx, nz, va, vb);
+    versus.rammed(b.id, a.id, j / B.mass, -nx, -nz, vb, va);
+  }
+  applyToCar(a.car, A.mass, A.inertia, imp.jx, imp.jz, c.px, c.pz);
+  applyToCar(b.car, B.mass, B.inertia, -imp.jx, -imp.jz, c.px, c.pz);
+  // Sound and shake only when we're in it or close by.
+  if (a.car === car || b.car === car || Math.hypot(c.px - car.x, c.pz - car.z) < 30) collisionFx(imp.speed, c.px, c.pz);
 }
 
 let collisionFxCooldown = 0;
@@ -1302,16 +1415,12 @@ function onLanding({ impact, misalign, airTime }) {
 function stepWorld() {
   const r = destruction.step(car);
   // Flamethrowers (ours and other players') set fire to what they reach.
-  if (car.firing) {
-    nozzle(car, active.def.flamethrower.mount, _nz);
-    destruction.flameSweep(_nz.pos, _nz.dir, WORLD_STEP, _nz.pos);
-  }
-  for (const rm of mp.remotes.values()) {
-    if (!rm.proxy.firing || !rm.def.flamethrower || !rm.seen) continue;
-    nozzle(rm.proxy, rm.def.flamethrower.mount, _nz);
+  for (const f of flameSources()) {
+    nozzle(f.car, f.mount, _nz);
     destruction.flameSweep(_nz.pos, _nz.dir, WORLD_STEP, _nz.pos);
   }
   if (mode === 'football') football.step(WORLD_STEP);
+  if (mode === 'versus') versus.botReactions();
   if (r.total > 0) {
     const dv = car.applyImpulse(r.jx, r.jz, r.torque);
     quake.kick(dv * 0.12);
@@ -1323,10 +1432,12 @@ function stepWorld() {
   crashCooldown -= WORLD_STEP;
 }
 
-function updateScene(dt) {
+function updateScene(dt, firing = false) {
   destruction.sync();
   active.model.update(car, dt);
   if (bot) bot.model.update(bot.car, dt);
+  for (const b of versus.bots) b.model.update(b.car, dt);
+  versus.update(dt, firing, camera);
   if (mode === 'football') {
     stadium.update(dt);
     if (football.phase === 'kickoff') {
@@ -1434,6 +1545,6 @@ window.game = {
   get car() { return car; }, get active() { return active; }, get state() { return state; }, net, mp,
   get renderer() { return renderer; }, get settings() { return settings; },
   fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu, quake, score, tank,
-  football, get bot() { return bot; }, get mode() { return mode; }, enterMode, garage,
+  football, get bot() { return bot; }, get mode() { return mode; }, enterMode, garage, versus,
 };
 requestAnimationFrame(frame);

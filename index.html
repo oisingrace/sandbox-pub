@@ -214,7 +214,7 @@
     .garage-card .g-stats b { color: var(--hud-fg); }
     #t-boost { right: 140px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
     /* --- Game modes / football --- */
-    .mode-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; }
+    .mode-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px; background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; }
     #menu .mode-picker button { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid transparent; background: transparent; }
     #menu .mode-picker button small { font-size: 12px; font-weight: 400; color: var(--hud-dim); line-height: 1.3; }
     #menu .mode-picker button[aria-checked="true"] { background: rgba(255, 210, 63, 0.14); border-color: var(--hazard); }
@@ -271,6 +271,53 @@
     #fuel-fill.empty { background: #7a3a20; }
     #t-fire { display: none; right: 16px; bottom: 196px; width: 64px; height: 64px; font-size: 12px; border-color: rgba(255, 122, 26, 0.8); }
     body.touch.flamer #t-fire { display: flex; }
+    /* --- Versus --- */
+    #vs-top { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-radius: 10px; background: var(--hud-bg); backdrop-filter: blur(6px); z-index: 5; pointer-events: none; }
+    #vs-clock { font: 400 26px/1 "Russo One", "Arial Black", Impact, sans-serif; font-variant-numeric: tabular-nums; }
+    #vs-clock.low { color: #ff4d3d; }
+    #vs-kills { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #ffd23f; }
+    #vs-hud { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: min(400px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 6px; z-index: 5; pointer-events: none; }
+    #vs-health { position: relative; height: 20px; border-radius: 10px; background: rgba(12, 14, 18, 0.72); border: 1px solid rgba(255, 255, 255, 0.16); overflow: hidden; }
+    #vs-hp-fill { height: 100%; width: 100%; background: #46d17a; transition: width 0.12s, background 0.2s; }
+    #vs-hp-fill[data-level="mid"] { background: #ffb020; }
+    #vs-hp-fill[data-level="low"] { background: #ff3b30; }
+    #vs-hp-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 12px/1 system-ui, sans-serif; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
+    #vs-weapon { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 14px; border-radius: 10px; background: var(--hud-bg); backdrop-filter: blur(6px); }
+    #vs-weapon-name { font: 400 15px/1 "Russo One", "Arial Black", Impact, sans-serif; letter-spacing: 0.05em; text-transform: uppercase; }
+    #vs-ammo { font: 400 18px/1 "Russo One", "Arial Black", Impact, sans-serif; font-variant-numeric: tabular-nums; }
+    #vs-buffs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+    #vs-buffs:empty { display: none; }
+    #vs-buffs span { padding: 3px 9px; border-radius: 999px; background: rgba(12, 14, 18, 0.75); border: 1px solid var(--c); color: var(--c); font: 700 11px/1.3 system-ui, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; }
+    #vs-side { position: fixed; left: 16px; top: 16px; display: flex; flex-direction: column; gap: 8px; width: 210px; max-width: calc(100vw - 32px); z-index: 5; pointer-events: none; }
+    body.touch #vs-side { top: 84px; }
+    #vs-board { margin: 0; padding: 8px 12px; list-style: none; border-radius: 10px; background: var(--hud-bg); backdrop-filter: blur(6px); font-size: 13px; }
+    #vs-board li { display: grid; grid-template-columns: 10px 1fr 2.5ch 2.5ch; gap: 8px; align-items: center; padding: 2px 0; }
+    #vs-board li i { width: 10px; height: 10px; border-radius: 50%; }
+    #vs-board li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #vs-board li b { text-align: right; font-variant-numeric: tabular-nums; }
+    #vs-board li small { text-align: right; color: var(--hud-dim); font-variant-numeric: tabular-nums; }
+    #vs-board li.me span { color: #ffd23f; font-weight: 700; }
+    #vs-feed { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+    #vs-feed li { margin-bottom: 4px; padding: 5px 10px; border-radius: 8px; background: rgba(12, 14, 18, 0.62); animation: vs-in 0.2s ease-out; }
+    #vs-feed li.mine { box-shadow: inset 3px 0 0 #ffd23f; }
+    #vs-feed b { color: #ffd23f; font-weight: 700; }
+    @keyframes vs-in { from { opacity: 0; transform: translateX(-8px); } }
+    #vs-lock { position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 4; }
+    #vs-lock::before { content: ""; position: absolute; left: -22px; top: -22px; width: 40px; height: 40px; border: 2px solid #ff4d3d; border-radius: 50%; box-shadow: 0 0 8px rgba(255, 77, 61, 0.6); transition: transform 0.08s, border-color 0.08s; }
+    #vs-lock::after { content: ""; position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: #ff4d3d; }
+    #vs-lock.hit::before { border-color: #fff; transform: scale(0.8); }
+    #vs-vignette { position: fixed; inset: 0; pointer-events: none; z-index: 3; opacity: 0; background: radial-gradient(ellipse at center, transparent 45%, rgba(210, 10, 0, 0.6) 100%); }
+    #vs-wrecked { position: fixed; top: 38%; left: 50%; transform: translate(-50%, -50%) scale(0.9); opacity: 0; pointer-events: none; text-align: center; font: 400 52px/1 "Russo One", "Arial Black", Impact, sans-serif; text-transform: uppercase; color: #ff4d3d; text-shadow: 0 4px 24px rgba(0,0,0,0.6); transition: opacity 0.2s, transform 0.25s; z-index: 6; }
+    #vs-wrecked.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    #vs-wrecked b { color: #fff; font-weight: 400; }
+    #vs-wrecked small { display: block; margin-top: 10px; font: 700 18px/1.2 system-ui, sans-serif; color: #fff; text-transform: none; }
+    #banner.vs { color: #ffd23f; }
+    #vs-hud[hidden], #vs-top[hidden], #vs-board[hidden], #vs-feed[hidden], #vs-lock[hidden] { display: none; }
+    body.in-menu #vs-hud, body.in-menu #vs-top, body.in-menu #vs-side, body.in-menu #vs-lock, body.in-menu #vs-wrecked, body.in-menu #vs-vignette { display: none !important; }
+    body.versus #players, body.versus #dash .smash, body.versus #prompt, body.versus #dash .fuel { display: none !important; }
+    body.touch.versus #t-fire { display: flex; }
+    body.touch #vs-hud { width: min(300px, calc(100% - 200px)); }
+    @media (max-width: 560px) { #vs-wrecked { font-size: 34px; } #vs-side { width: 160px; } }
     /* --- Car workshop --- */
     .screen.editor { width: min(520px, 100%); }
     .editor-head { margin: 14px 0 0; font: 400 16px var(--font-display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--hazard); }
@@ -312,7 +359,8 @@
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
     <div class="row"><kbd>V</kbd> <b>change car</b> &nbsp;<kbd>E</kbd> <b>drive a nearby parked one</b></div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
-    <div class="row"><kbd>X</kbd> or click <b>flamethrower</b> (Inferno pickup) &nbsp;Keep smashing to raise the <b>multiplier</b></div>
+    <div class="row"><kbd>X</kbd> or click <b>fire</b> (flamethrower on the Inferno; any car's weapon in Versus) &nbsp;Keep smashing to raise the <b>multiplier</b></div>
+    <div class="row">Versus: weapons <b>aim themselves</b> at whoever's in front &nbsp;Drive over <b>pads</b> for upgrades</div>
     <div class="row">Striker: <kbd>Space</kbd> <b>jump</b> (again: double jump, or flip with a direction) &nbsp;<kbd>Q</kbd> <b>powerslide</b></div>
     <div class="row">In the air: <kbd>W</kbd><kbd>S</kbd> <b>pitch</b> &nbsp;<kbd>A</kbd><kbd>D</kbd> <b>turn</b> &nbsp;<kbd>Q</kbd>+<kbd>A</kbd><kbd>D</kbd> <b>roll</b> &nbsp;<kbd>Y</kbd> <b>ball cam</b></div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>Esc</kbd> <b>pause</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
@@ -348,6 +396,16 @@
     <div id="score-combo"><div id="score-combo-fill"></div></div>
     <div class="score-sub"><span id="score-count"></span><span id="score-gain"></span></div>
   </div>
+  <div id="vs-top" hidden><span id="vs-clock">5:00</span><span id="vs-kills"></span></div>
+  <div id="vs-side"><ol id="vs-board" hidden></ol><ol id="vs-feed" hidden></ol></div>
+  <div id="vs-hud" hidden>
+    <div id="vs-buffs"></div>
+    <div id="vs-weapon"><span id="vs-weapon-name">Machine gun</span><span id="vs-ammo">∞</span></div>
+    <div id="vs-health"><div id="vs-hp-fill"></div><span id="vs-hp-text"></span></div>
+  </div>
+  <div id="vs-lock" hidden></div>
+  <div id="vs-vignette"></div>
+  <div id="vs-wrecked"></div>
   <div id="drift"></div>
   <div id="toast"></div>
   <div id="prompt"></div>
@@ -379,6 +437,7 @@
       <div class="mode-picker" role="radiogroup" aria-label="Game mode">
         <button type="button" role="radio" data-mode="free" aria-checked="true">Free roam<small>Smash up the lot</small></button>
         <button type="button" role="radio" data-mode="football" aria-checked="false">Car football<small>Blue vs Orange in the stadium</small></button>
+        <button type="button" role="radio" data-mode="versus" aria-checked="false">Versus<small>Armed cars, most wrecks wins</small></button>
       </div>
 
       <button type="button" class="primary" id="btn-play">Play</button>
@@ -485,7 +544,7 @@
           <tr><td>Striker: powerslide (in the air: hold to roll with A/D)</td><td><kbd>Q</kbd></td><td>RB</td></tr>
           <tr><td>Striker, in the air: pitch nose down / up</td><td><kbd>W</kbd> / <kbd>S</kbd></td><td>Left stick up / down</td></tr>
           <tr><td>Ball cam on/off (football)</td><td><kbd>Y</kbd></td><td>On screen: BALL</td></tr>
-          <tr><td>Flamethrower (Inferno pickup)</td><td><kbd>X</kbd> or left click</td><td>B · On screen: FIRE</td></tr>
+          <tr><td>Fire (Inferno's flamethrower; your weapon in Versus)</td><td><kbd>X</kbd> or left click</td><td>B · On screen: FIRE</td></tr>
           <tr><td>Change car (anywhere)</td><td><kbd>V</kbd></td><td>On screen: CAR</td></tr>
           <tr><td>Drive a nearby parked vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
           <tr><td>Camera (chase, far, hood)</td><td><kbd>C</kbd></td><td>X</td></tr>

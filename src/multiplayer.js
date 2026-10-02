@@ -22,7 +22,8 @@ const MAX_EXTRAPOLATE = 0.25;
 // Car state on the wire is a flat array (about half the size of an object
 // with named keys):
 //   [time ms, vehicle, x, y, z, heading, pitch, roll, velX, velY, velZ,
-//    vLong, steer, flags (1 boost, 2 airborne, 4 braking, 8 handbrake, 16 flamethrower), gear, points]
+//    vLong, steer, flags (1 boost, 2 airborne, 4 braking, 8 handbrake, 16 flamethrower), gear, points,
+//    and in Versus: health, weapon, aim yaw, aim pitch, versus flags (see Versus.encodeMe)]
 
 /** Start positions in multiplayer: a row along the start line. */
 export const SPAWN_SLOTS = [0, -7, 7, -14, 14, -21, 21, -28].map((x) => ({ x, z: -52, heading: 0 }));
@@ -161,6 +162,11 @@ export class Multiplayer {
       p.braking = latest.br ? 1 : 0;
       p.handbrake = !!latest.hb;
       p.gear = latest.g;
+      p.hp = latest.hp;
+      p.wc = latest.wc;
+      p.ay = latest.ay;
+      p.ap = latest.ap;
+      p.vf = latest.vf;
       p.frontWheelSpeed = p.rearWheelSpeed = latest.vl;
       if (!r.seen) {
         // First sighting: place the body directly instead of sweeping it
@@ -178,7 +184,7 @@ export class Multiplayer {
    * Our own car's state for this network tick, or null when it's parked
    * and nothing changed (then it's only sent every IDLE_INTERVAL).
    */
-  encode(car, vehicleId, smashed) {
+  encode(car, vehicleId, smashed, extra = null) {
     const now = performance.now();
     const flags = (car.boosting ? 1 : 0) | (car.airborne ? 2 : 0) | (car.braking > 0.05 ? 4 : 0) | (car.handbrake ? 8 : 0)
       | (car.firing ? 16 : 0);
@@ -188,6 +194,7 @@ export class Multiplayer {
       round(car.velX), round(car.velY || 0), round(car.velZ), round(car.vLong), round(car.steer),
       flags, car.gear, smashed,
     ];
+    if (extra) s.push(...extra);
     const last = this.lastSent;
     const still = last && Math.hypot(car.velX, car.velZ) < 0.05 && Math.abs(car.velY || 0) < 0.05
       && s.every((v, i) => i === 0 || v === last[i]);
@@ -225,6 +232,7 @@ function decodeState(a) {
     v: a[1], x: a[2], y: a[3], z: a[4], h: a[5], p: a[6], r: a[7],
     vx: a[8], vy: a[9], vz: a[10], vl: a[11], st: a[12],
     b: f & 1, a: f & 2, br: f & 4, hb: f & 8, fi: f & 16, g: a[14], sm: a[15] || 0,
+    hp: a[16], wc: a[17], ay: a[18], ap: a[19], vf: a[20] || 0,
   };
 }
 

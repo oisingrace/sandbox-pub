@@ -19,6 +19,9 @@ const BURNS_PER_STEP = 24;
 // proper masses instead. Both still hit everything else.
 const GROUP_CAR = (0x0002 << 16) | (0xffff & ~0x0004);
 const GROUP_VEHICLE = (0x0004 << 16) | (0xffff & ~0x0002);
+// Bullet rays: hit everything except the cars (they're checked separately).
+const GROUP_BULLET = (0x0008 << 16) | (0xffff & ~0x0002 & ~0x0004);
+let _ray = null;
 const BLAST_RADIUS = 9;
 const BLAST_SPEED = 16; // m/s of push at the centre
 const MAX_DEBRIS_SPEED = 32;
@@ -839,29 +842,9 @@ export class Destruction {
     this.world.step(this.eventQueue);
 
     // Reaction on the car (read before fractures remove any colliders).
-    let jx = 0, jz = 0, torque = 0, total = 0;
-    for (const col of this.carColliders) {
-      this.world.contactPairsWith(col, (other) => {
-        const entity = this.byCollider.get(other.handle);
-        if (!entity) return;
-        this.world.contactPair(col, other, (manifold, flipped) => {
-          let imp = 0;
-          for (let i = 0; i < manifold.numContacts(); i++) imp += manifold.contactImpulse(i);
-          if (imp <= 0) return;
-          const n = manifold.normal();
-          const s = flipped ? 1 : -1; // impulse on the car points away from the other body
-          const ix = n.x * imp * s;
-          const iz = n.z * imp * s;
-          const t = entity.body.translation();
-          const rx = t.x - car.x;
-          const rz = t.z - car.z;
-          jx += ix;
-          jz += iz;
-          torque += rz * ix - rx * iz;
-          total += imp;
-        });
-      });
-    }
+    let { jx, jz, torque, total } = this.reaction(this.carColliders, car);
+    // Computer-driven cars (Versus bots) feel what they hit too.
+    for (const r of this.remoteCars?.values() || []) if (r.react) r.reaction = this.reaction(r.colliders, r.proxy);
 
     // Breakage and impact sounds.
     const toBreak = new Set(this.breakQueue);
@@ -898,10 +881,6 @@ export class Destruction {
     }
     this.enforceBudget();
 
-    const k = REACTION_SCALE;
-    jx *= k;
-    jz *= k;
-    torque *= k;
     const speed = Math.hypot(car.velX, car.velZ);
     if (this.breakDrag > 0 && speed > 0.5) {
       jx -= (car.velX / speed) * this.breakDrag;
@@ -915,6 +894,66 @@ export class Destruction {
       this.blastJ = { x: 0, z: 0 };
     }
     return { jx, jz, torque, total };
+  }
+
+  /** Contact impulses on a kinematic car's colliders this step, as a push and a twist. */
+  reaction(colliders, car) {
+    let jx = 0, jz = 0, torque = 0, total = 0;
+    for (const col of colliders) {
+      this.world.contactPairsWith(col, (other) => {
+        const entity = this.byCollider.get(other.handle);
+        if (!entity) return;
+        this.world.contactPair(col, other, (manifold, flipped) => {
+          let imp = 0;
+          for (let i = 0; i < manifold.numContacts(); i++) imp += manifold.contactImpulse(i);
+          if (imp <= 0) return;
+          const n = manifold.normal();
+          const s = flipped ? 1 : -1; // impulse on the car points away from the other body
+          const ix = n.x * imp * s;
+          const iz = n.z * imp * s;
+          const t = entity.body.translation();
+          const rx = t.x - car.x;
+          const rz = t.z - car.z;
+          jx += ix;
+          jz += iz;
+          torque += rz * ix - rx * iz;
+          total += imp;
+        });
+      });
+    }
+    const k = REACTION_SCALE;
+    return { jx: jx * k, jz: jz * k, torque: torque * k, total };
+  }
+
+  /**
+   * A bullet: the first thing (not a car) along a ray. Returns
+   * { dist, entity } (entity null for walls, ramps and the ground) or null.
+   */
+  shoot(origin, dir, maxDist) {
+    this.queries();
+    _ray ||= new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
+    _ray.origin = { x: origin.x, y: origin.y, z: origin.z };
+    _ray.dir = { x: dir.x, y: dir.y, z: dir.z };
+    const hit = this.world.castRay(_ray, maxDist, true, undefined, GROUP_BULLET);
+    if (!hit) return null;
+    return { dist: hit.timeOfImpact, entity: this.byCollider.get(hit.collider.handle) || null };
+  }
+
+  /**
+   * Gunfire hitting an object: a shove, and enough damage (heavier things
+   * take more) breaks it or sets it off.
+   */
+  damageEntity(e, amount, point, dir) {
+    if (!e?.alive || e.vehicle || e.ball || e.frozen) return;
+    const body = e.body;
+    const push = Math.min(e.kind.mass * 1.5, 40 + amount * 6);
+    body.applyImpulseAtPoint({ x: dir.x * push, y: dir.y * push + push * 0.15, z: dir.z * push }, point, true);
+    e.shot = (e.shot || 0) + amount;
+    if (e.shot < 2 + e.kind.mass * 0.15) return;
+    if (e.kind.explosive) {
+      if (!this.pendingBlasts.some((b) => b.entity === e)) this.pendingBlasts.push({ entity: e, at: this.time + 0.05 });
+    }
+    else if (this.canBreak(e)) this.breakQueue.push(e);
   }
 
   /**
