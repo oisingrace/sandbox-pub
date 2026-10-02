@@ -13,6 +13,13 @@ tower, crate pyramids, barrels, a domino run, light poles, trees, cones, and the
 - A tabletop in the north.
 - A 4.5 m mega ramp in the west, aimed at the container yard.
 
+**Landings** are physical. In the air the car turns about its middle, and it touches down when its
+lowest corner meets the ground. Land roughly upright and it's on its wheels and drivable straight
+away, with the body settling onto the ground over a moment (front wheels first, then the rear
+drops). Land on a corner and gravity tips it onto its wheels, side or roof, depending on which way it
+leans, rocking as it settles. A car resting on its side or roof slides to a stop, then hops back
+onto its wheels after about a second (in car football, jump does it at once).
+
 The car's handling model gained a vertical part. It follows the ground, picks up pitch and roll from
 the slope, and loses speed climbing. It becomes airborne when the ground drops away faster than gravity
 (a ramp lip). In the air, the nose settles toward the direction of travel, and throttle or brake tilt
@@ -59,7 +66,7 @@ Pick **Car football** on the main menu (next to Free roam) for a Blue vs Orange 
     its attitude when you let go. Boost pushes along the nose and is strong enough to fly.
   - W or S held since take-off don't pitch the car until you release them, so driving off a jump
     with W held doesn't nosedive.
-  - Cars always land on their wheels; coming down on the roof or side costs some speed.
+  - Jump on your roof or side to flip back onto your wheels straight away.
   - **Q** is the powerslide (the handbrake) in football. Gamepad: A jumps, RB powerslides and air
     rolls, the left stick pitches. Touch screens get a JUMP button.
   - The computer driver jumps at high balls and flips into them.

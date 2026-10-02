@@ -232,4 +232,16 @@ const ember = {
 };
 
 // Fill in every handling value so models and parked bodies can read them too.
-export const VEHICLES = [sports, hatch, pickup, bus, ember].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec } }));
+export const VEHICLES = [sports, hatch, pickup, bus, ember].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec, body: bodyBox(v.hitbox) } }));
+
+/** Size of a vehicle's body from its hitbox, for landings and tumbling. */
+function bodyBox(hitbox) {
+  let halfW = 0, minZ = Infinity, maxZ = -Infinity, top = 0;
+  for (const h of hitbox) {
+    halfW = Math.max(halfW, h.half[0]);
+    minZ = Math.min(minZ, h.at[2] - h.half[2]);
+    maxZ = Math.max(maxZ, h.at[2] + h.half[2]);
+    top = Math.max(top, h.at[1] + h.half[1]);
+  }
+  return { halfW, halfL: (maxZ - minZ) / 2, top };
+}

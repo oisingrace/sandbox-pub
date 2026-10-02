@@ -1145,7 +1145,7 @@ function updateScene(dt) {
   hud.rpmFill.style.width = `${Math.max(0, Math.min(1, rpmT)) * 100}%`;
   hud.rpmFill.classList.toggle('red', car.rpm > car.spec.shiftUpRpm - 300);
 
-  if (car.airborne && car.airTime > 0.35) {
+  if (car.airborne && !car.tumbling && car.airTime > 0.35) {
     hud.drift.innerHTML = `AIR <b>${car.airTime.toFixed(1)}s</b><small>${Math.round(car.y)} m up</small>`;
     hud.drift.classList.add('show');
     driftTimer = 1.4;

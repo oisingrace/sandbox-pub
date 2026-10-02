@@ -88,6 +88,11 @@ export class CarPhysics {
   constructor(spec = {}, terrain = null) {
     this.spec = { ...DEFAULT_SPEC, ...spec };
     this.terrain = terrain; // optional: anything with heightAt(x, z)
+    // Body box for landings and tumbling: half width/length, roof height,
+    // and the height of its middle (the point it rotates about in the air).
+    const b = this.spec.body || {};
+    this.body = { halfW: b.halfW ?? 0.95, halfL: b.halfL ?? 2.2, top: b.top ?? 1.35 };
+    this.body.centre = this.body.top * 0.45;
     this.reset();
   }
 
@@ -121,6 +126,9 @@ export class CarPhysics {
     this.jumps = 0;          // jumps used since leaving the ground (aerial mode)
     this.jumpHeld = false;
     this.flip = null;        // { pitch, roll, t } while a flip is spinning the car
+    this.tumbling = false;   // on the ground but not on the wheels (side, roof, an edge)
+    this.lift = 0;           // body raised off the wheels' ground height while settling
+    this.restTime = 0;
     this.landed = null;      // { impact, misalign, airTime } for one step after landing
     this.blocked = 0;        // speed of a hit against a ramp wall, for one step
     // Per-frame telemetry used by visuals/audio.
@@ -393,8 +401,10 @@ export class CarPhysics {
    */
   followGround(dt, prevX, prevZ) {
     const g = this.sampleGround();
+    // Work with the wheels' ground height, not the body lift (see below).
+    const yBase = this.y - (this.lift || 0);
     // A sudden rise is a wall (the back or side of a ramp), not a slope.
-    if (g.h - this.y > MAX_STEP) {
+    if (g.h - yBase > MAX_STEP) {
       this.blocked = this.speed;
       this.x = prevX;
       this.z = prevZ;
@@ -403,18 +413,25 @@ export class CarPhysics {
       this.yawRate *= 0.5;
       return;
     }
-    const ballistic = this.y + this.velY * dt - 0.5 * G * dt * dt;
+    const ballistic = yBase + this.velY * dt - 0.5 * G * dt * dt;
     if (g.h >= ballistic - 0.02) {
-      const newVelY = clamp((g.h - this.y) / dt, -30, 30);
+      const newVelY = clamp((g.h - yBase) / dt, -30, 30);
       this.velY = newVelY;
-      this.y = g.h;
-      const k = 1 - Math.exp(-dt * 25);
+      // Follow the slope closely, or settle more softly just after a landing.
+      this.settle = Math.max(0, (this.settle || 0) - dt);
+      const k = 1 - Math.exp(-dt * (this.settle > 0 ? 9 : 25));
       const pitch = this.pitch + (g.pitch - this.pitch) * k;
       const roll = this.roll + (g.roll - this.roll) * k;
       this.pitchRate = (pitch - this.pitch) / dt;
       this.rollRate = (roll - this.roll) / dt;
       this.pitch = pitch;
       this.roll = roll;
+      // While the body is still tilted after a landing, lift it so its
+      // lowest corner rests on the ground (front wheels touch, rear drops)
+      // instead of the nose sinking in.
+      const rp = pitch - g.pitch, rr = roll - g.roll;
+      this.lift = Math.max(0, this.supportDepth(rp, rr) - this.body.centre * this.upAxis(rp, rr, 0).y);
+      this.y = g.h + this.lift;
     } else {
       // Off the lip: keep the vertical speed the ramp gave us, but not the
       // ramp's curvature spin (that sends cars into backflips).
@@ -423,6 +440,7 @@ export class CarPhysics {
       this.pitchRate *= 0.15;
       this.rollRate *= 0.3;
       this.airTime = 0;
+      this.lift = 0;
       this.y = ballistic;
       this.velY -= G * dt;
     }
@@ -461,27 +479,46 @@ export class CarPhysics {
     this.flip = { pitch: -f * (Math.PI * 2) / FLIP_TIME, roll: -l * (Math.PI * 2) / FLIP_TIME, t: FLIP_TIME };
   }
 
-  /** Flight: gravity, a little air control, and the landing. */
+  /**
+   * Off the wheels: flight, and tumbling on the ground (landing on a
+   * corner, the side or the roof). Flips and rolls turn the car about its
+   * middle, the ground is found under the car's lowest corner, and gravity
+   * tips a car resting on an edge onto its wheels, side or roof.
+   */
   flyStep(dt, input) {
     const s = this.spec;
     this.airTime += dt;
     this.velY -= G * dt;
-    if (this.aerial) {
+    if (this.flip) {
+      // A flip (or a self-righting hop) spins the car at a set rate.
+      this.pitchRate = this.flip.pitch;
+      this.rollRate = this.flip.roll;
+      this.yawRate *= Math.exp(-dt * 4);
+      this.flip.t -= dt;
+      if (this.flip.t <= 0) {
+        this.flip = null;
+        this.pitchRate = this.rollRate = 0;
+        // W/S held through a flip don't start pitching until pressed again.
+        this.pitchLock = { throttle: (input.throttle || 0) > 0.05, brake: (input.brake || 0) > 0.05 };
+      }
+    } else if (this.tumbling) {
+      this.tumbleForces(dt, input);
+    } else if (this.aerial) {
       this.aerialControl(dt, input);
-      return;
+    } else {
+      // In the air the nose settles toward the direction of travel (arcade
+      // style), and throttle/brake tilt it from there. Steering yaws a little.
+      const hSpeed = Math.hypot(this.velX, this.velZ);
+      const glide = Math.atan2(this.velY, Math.max(hSpeed, 1)) * 0.7;
+      const control = ((input.throttle || 0) - (input.brake || 0)) * 0.6;
+      this.pitchRate += wrapAngle(glide + control - this.pitch) * 5 * dt;
+      this.pitchRate *= Math.exp(-dt * 3);
+      this.rollRate *= Math.exp(-dt * 1.5);
+      this.yawRate += clamp(input.steer || 0, -1, 1) * 1.2 * dt;
+      this.yawRate *= Math.exp(-dt * 1.2);
     }
-    // In the air the nose settles toward the direction of travel (arcade
-    // style), and throttle/brake tilt it from there. Steering yaws a little.
-    const hSpeed = Math.hypot(this.velX, this.velZ);
-    const glide = Math.atan2(this.velY, Math.max(hSpeed, 1)) * 0.7;
-    const control = ((input.throttle || 0) - (input.brake || 0)) * 0.6;
-    this.pitchRate += ((glide + control) - this.pitch) * 5 * dt;
-    this.pitchRate *= Math.exp(-dt * 3);
-    this.rollRate *= Math.exp(-dt * 1.5);
-    this.yawRate += clamp(input.steer || 0, -1, 1) * 1.2 * dt;
-    this.yawRate *= Math.exp(-dt * 1.2);
-    if (this.boosting) {
-      const a = s.boostAccel * dt;
+    if (this.boosting && !this.tumbling) {
+      const a = (this.aerial ? AIR_BOOST : s.boostAccel) * dt;
       const cp = Math.cos(this.pitch);
       this.velX += Math.sin(this.heading) * cp * a;
       this.velZ += Math.cos(this.heading) * cp * a;
@@ -490,9 +527,14 @@ export class CarPhysics {
     const drag = Math.exp(-dt * 0.04);
     this.velX *= drag;
     this.velZ *= drag;
-    this.pitch += this.pitchRate * dt;
-    this.roll += this.rollRate * dt;
-    this.heading += this.yawRate * dt;
+    // Keep the air speed sane.
+    const sp = Math.hypot(this.velX, this.velY, this.velZ);
+    if (sp > 40) {
+      this.velX *= 40 / sp;
+      this.velY *= 40 / sp;
+      this.velZ *= 40 / sp;
+    }
+    this.turnAboutCentre(this.pitchRate * dt, this.rollRate * dt, this.yawRate * dt);
     this.x += this.velX * dt;
     this.z += this.velZ * dt;
     this.y += this.velY * dt;
@@ -505,107 +547,199 @@ export class CarPhysics {
     this.accelLat *= Math.exp(-dt * 4);
     this.slipFront = this.slipRear = 0;
     this.wheelspin = 0;
-
-    const g = this.sampleGround();
-    if (this.y <= g.h) this.land(g);
+    this.groundContact(dt, input);
   }
 
   /**
    * Rocket-style air control (aerial mode): pitch, yaw and air roll at a
-   * steady rate, held attitude when the stick is let go, boost along the
-   * nose, and flips.
+   * steady rate and held attitude when the stick is let go.
    */
   aerialControl(dt, input) {
-    const s = this.spec;
     if (this.jumps === 1 && this.jumpHeld && this.airTime < JUMP_HOLD) this.velY += JUMP_HOLD_ACCEL * dt;
     const k = Math.min(1, dt * 12);
-    if (this.flip) {
-      this.pitchRate = this.flip.pitch;
-      this.rollRate = this.flip.roll;
-      this.yawRate *= Math.exp(-dt * 4);
-      this.flip.t -= dt;
-      if (this.flip.t <= 0) {
-        this.flip = null;
-        this.pitchRate = this.rollRate = 0;
-      }
-    } else {
-      const steer = clamp(input.steer || 0, -1, 1);
-      const rollMode = !!input.handbrake; // powerslide button = air roll
-      // Throttle/brake held since take-off don't pitch the car until
-      // they're let go and pressed again, so driving off a jump with W
-      // held doesn't nosedive. (A gamepad stick is separate: no lock.)
-      const lock = this.pitchLock || {};
-      if ((input.throttle || 0) < 0.05) lock.throttle = false;
-      if ((input.brake || 0) < 0.05) lock.brake = false;
-      const pitchIn = input.pitch !== undefined ? airPitchInput(input)
-        : clamp((lock.brake ? 0 : input.brake || 0) - (lock.throttle ? 0 : input.throttle || 0), -1, 1);
-      this.pitchRate += (pitchIn * AIR_PITCH_RATE - this.pitchRate) * k;
-      this.rollRate += ((rollMode ? -steer * AIR_ROLL_RATE : 0) - this.rollRate) * k;
-      this.yawRate += ((rollMode ? 0 : steer * AIR_YAW_RATE) - this.yawRate) * k;
-    }
-    if (this.boosting) {
-      const a = AIR_BOOST * dt;
-      const cp = Math.cos(this.pitch);
-      this.velX += Math.sin(this.heading) * cp * a;
-      this.velZ += Math.cos(this.heading) * cp * a;
-      this.velY += Math.sin(this.pitch) * a;
-    }
-    // Keep the air speed sane.
-    const sp = Math.hypot(this.velX, this.velY, this.velZ);
-    if (sp > 40) {
-      this.velX *= 40 / sp;
-      this.velY *= 40 / sp;
-      this.velZ *= 40 / sp;
-    }
-    this.pitch = wrapAngle(this.pitch + this.pitchRate * dt);
-    this.roll = wrapAngle(this.roll + this.rollRate * dt);
-    this.heading = wrapAngle(this.heading + this.yawRate * dt);
-    this.x += this.velX * dt;
-    this.z += this.velZ * dt;
-    this.y += this.velY * dt;
-    this.steer *= Math.exp(-dt * 4);
-    const target = s.idleRpm + (s.redline - s.idleRpm) * (input.throttle || 0) * 0.95;
-    this.rpm += (target - this.rpm) * (1 - Math.exp(-dt * 6));
-    this.throttle = input.throttle || 0;
-    this.accelLong *= Math.exp(-dt * 4);
-    this.accelLat *= Math.exp(-dt * 4);
-    this.slipFront = this.slipRear = 0;
-    this.wheelspin = 0;
-
-    const g = this.sampleGround();
-    if (this.y <= g.h) this.land(g);
+    const steer = clamp(input.steer || 0, -1, 1);
+    const rollMode = !!input.handbrake; // powerslide button = air roll
+    // Throttle/brake held since take-off don't pitch the car until
+    // they're let go and pressed again, so driving off a jump with W
+    // held doesn't nosedive. (A gamepad stick is separate: no lock.)
+    const lock = this.pitchLock || {};
+    if ((input.throttle || 0) < 0.05) lock.throttle = false;
+    if ((input.brake || 0) < 0.05) lock.brake = false;
+    const pitchIn = input.pitch !== undefined ? airPitchInput(input)
+      : clamp((lock.brake ? 0 : input.brake || 0) - (lock.throttle ? 0 : input.throttle || 0), -1, 1);
+    this.pitchRate += (pitchIn * AIR_PITCH_RATE - this.pitchRate) * k;
+    this.rollRate += ((rollMode ? -steer * AIR_ROLL_RATE : 0) - this.rollRate) * k;
+    this.yawRate += ((rollMode ? 0 : steer * AIR_YAW_RATE) - this.yawRate) * k;
   }
 
-  land(g) {
-    this.jumps = 0;
-    this.flip = null;
-    if (this.aerial) {
-      // Arcade landings: the car always comes down on its wheels. Landing
-      // upside down or on its side costs speed; roughly flat costs nothing.
-      const up = Math.cos(this.pitch) * Math.cos(this.roll);
-      const loss = up < 0 ? 0.3 : up < 0.5 ? 0.1 : 0;
-      this.velX *= 1 - loss;
-      this.velZ *= 1 - loss;
-      // Coming down backwards (after a half flip): face the way we're going.
-      if (Math.cos(this.pitch) < 0) this.heading = wrapAngle(this.heading + Math.PI);
+  /** The car's local up axis in the world. */
+  upAxis(pitch = this.pitch, roll = this.roll, heading = this.heading) {
+    const cx = -Math.sin(roll);
+    const cy = Math.cos(pitch) * Math.cos(roll);
+    const cz = -Math.sin(pitch) * Math.cos(roll);
+    const sh = Math.sin(heading), ch = Math.cos(heading);
+    return { x: cx * ch + cz * sh, y: cy, z: -cx * sh + cz * ch };
+  }
+
+  /**
+   * Rotate by the given angles about the middle of the car rather than the
+   * point under it on the ground (where `x, y, z` sits), so flips look right.
+   */
+  turnAboutCentre(dPitch, dRoll, dYaw) {
+    const hc = this.body.centre;
+    const a = this.upAxis();
+    this.pitch = wrapAngle(this.pitch + dPitch);
+    this.roll = wrapAngle(this.roll + dRoll);
+    this.heading = wrapAngle(this.heading + dYaw);
+    const b = this.upAxis();
+    this.x += hc * (a.x - b.x);
+    this.y += hc * (a.y - b.y);
+    this.z += hc * (a.z - b.z);
+  }
+
+  /**
+   * How far the car's lowest corner is below its middle, for a pitch and
+   * roll relative to the ground. The ends are rounded so a car never
+   * balances on its nose; its sides and roof are flat, so it can rest there.
+   */
+  supportDepth(pitch, roll) {
+    const { halfW, halfL, top, centre } = this.body;
+    const sideY = Math.cos(pitch) * Math.sin(roll);
+    const upY = Math.cos(pitch) * Math.cos(roll);
+    const fwdY = Math.sin(pitch);
+    const vertical = upY >= 0 ? centre * upY : (top - centre) * -upY;
+    return halfW * Math.abs(sideY) + Math.hypot(halfL * fwdY, vertical);
+  }
+
+  /** Is the car roughly the right way up (within ~30°) on the ground beneath it? */
+  wheelsDown(g) {
+    const up = this.upAxis(this.pitch - g.pitch, this.roll - g.roll, 0);
+    return up.y > 0.86;
+  }
+
+  /** Touching the ground while off the wheels: landing, rocking, tipping, sliding. */
+  groundContact(dt, input) {
+    const g = this.sampleGround();
+    const rp = this.pitch - g.pitch, rr = this.roll - g.roll;
+    const hc = this.body.centre;
+    const centreY = this.y + hc * this.upAxis().y;
+    const depth = this.supportDepth(rp, rr);
+    const gap = centreY - depth - g.h;
+    if (gap > 0.02) {
+      if (this.tumbling && gap > 0.15) this.tumbling = false; // bounced clear
+      return;
+    }
+    // Touching: keep the lowest corner on the ground.
+    if (gap < 0) this.y -= gap;
+    if (this.flip) {
+      // Mid flip (or self-right): the car vaults over whatever corner
+      // touches and finishes turning; the ground just holds it up.
+      this.velY = Math.max(this.velY, 0);
+      return;
     }
     const impact = Math.max(0, -this.velY);
-    const misalign = Math.abs(wrapAngle(this.pitch - g.pitch)) + Math.abs(wrapAngle(this.roll - g.roll));
-    // Landing flat on the wheels keeps most speed; landing on the nose or
-    // a corner scrubs it off.
-    if (!this.aerial) {
-      const loss = clamp(Math.max(0, misalign - 0.35) * 0.5 + Math.max(0, impact - 8) * 0.015, 0, 0.75);
+    if (!this.tumbling) {
+      this.landed = { impact, misalign: Math.acos(clamp(this.upAxis(rp, rr, 0).y, -1, 1)), airTime: this.airTime };
+      this.jumps = 0;
+      this.flip = null;
+      this.airTime = 0; // from here it counts time on the ground off the wheels
+    }
+    // A little bounce on a hard hit, otherwise the ground just stops the fall.
+    this.velY = impact > 3 ? impact * 0.22 : Math.max(0, this.velY);
+    if (this.wheelsDown(g) && Math.abs(this.pitchRate) < 2.5 && Math.abs(this.rollRate) < 2.5) {
+      this.land(g, impact);
+      return;
+    }
+    this.tumbling = true;
+    // Back on the wheels from here: jump (football) or wait a moment.
+    const resting = Math.hypot(this.pitchRate, this.rollRate) < 0.8 && this.speed < 2;
+    this.restTime = resting ? (this.restTime || 0) + dt : 0;
+    const jumpPressed = this.aerial && input.jump && !this.wasJumpForRight;
+    this.wasJumpForRight = !!input.jump;
+    if (this.restTime > (this.aerial ? 0.9 : 1.2) || (jumpPressed && this.airTime > 0.2)) this.selfRight(g);
+  }
+
+  /** Gravity tipping the car over its edges, and sliding friction, while tumbling. */
+  tumbleForces(dt, input) {
+    const g = this.sampleGround();
+    const rp = this.pitch - g.pitch, rr = this.roll - g.roll;
+    // The car settles where its middle is lowest; the slope of that height
+    // with angle is the gravity torque about the edge it's resting on.
+    const e = 1e-3;
+    const dPitch = (this.supportDepth(rp + e, rr) - this.supportDepth(rp - e, rr)) / (2 * e);
+    const dRoll = (this.supportDepth(rp, rr + e) - this.supportDepth(rp, rr - e)) / (2 * e);
+    const { halfW, halfL, top } = this.body;
+    const k2Roll = (halfW * halfW + top * top * 0.25) / 3;
+    const k2Pitch = (halfL * halfL + top * top * 0.25) / 3;
+    this.pitchRate += (-G * dPitch / k2Pitch) * dt;
+    this.rollRate += (-G * dRoll / k2Roll) * dt;
+    // Scraping along the ground damps the spin; near wheels-down the
+    // suspension soaks it up faster.
+    const up = this.upAxis(rp, rr, 0).y;
+    const damp = Math.exp(-dt * (up > 0.85 ? 4.5 : 1.8));
+    this.pitchRate *= damp;
+    this.rollRate *= damp;
+    this.yawRate *= Math.exp(-dt * 2.5);
+    // Sliding on a side or the roof drags hard; rocking on the wheels hardly at all.
+    const mu = up > 0.7 ? 0.05 : 0.6;
+    const sp = Math.hypot(this.velX, this.velZ);
+    if (sp > 1e-3) {
+      const k = Math.max(0, sp - mu * G * dt) / sp;
+      this.velX *= k;
+      this.velZ *= k;
+    }
+  }
+
+  /** Hop and roll back onto the wheels (after resting on the side or roof). */
+  selfRight(g) {
+    const T = 0.55;
+    let rp = wrapAngle(this.pitch - g.pitch);
+    let rr = wrapAngle(this.roll - g.roll);
+    // Upside down end over end is the same as rolled over and facing the
+    // other way; roll it back, which reads better.
+    if (Math.cos(rp) < 0) {
+      rp = wrapAngle(Math.PI - rp);
+      rr = wrapAngle(rr + Math.PI);
+      this.pitch = g.pitch + rp;
+      this.roll = g.roll + rr;
+      this.heading = wrapAngle(this.heading + Math.PI);
+    }
+    this.velY = 4.5;
+    this.tumbling = false;
+    this.restTime = 0;
+    this.flip = { pitch: -rp / T, roll: -rr / T, t: T, righting: true };
+  }
+
+  land(g, impact = Math.max(0, -this.velY)) {
+    this.jumps = 0;
+    this.flip = null;
+    this.tumbling = false;
+    this.restTime = 0;
+    // Wheels down but the Euler angles may say "flipped twice" (end over
+    // end and rolled over): write the same attitude the simple way round.
+    if (Math.cos(this.pitch - g.pitch) < 0) {
+      this.pitch = wrapAngle(Math.PI - this.pitch);
+      this.roll = wrapAngle(this.roll + Math.PI);
+      this.heading = wrapAngle(this.heading + Math.PI);
+    }
+    // Straight from flight: report it (for effects and airtime boost).
+    // After tumbling about on the ground: no airtime to reward.
+    const misalign = this.landed?.misalign ?? 0;
+    const airTime = this.landed ? this.landed.airTime : 0;
+    if (!this.aerial && impact > 8) {
+      const loss = clamp((impact - 8) * 0.015, 0, 0.3);
       this.velX *= 1 - loss;
       this.velZ *= 1 - loss;
-      if (misalign > 1.1) this.yawRate += (Math.random() - 0.5) * 3; // spun out on a bad landing
     }
-    this.landed = { impact, misalign, airTime: this.airTime };
+    this.landed = { impact, misalign, airTime };
     this.airborne = false;
-    this.y = g.h;
+    const rp = this.pitch - g.pitch, rr = this.roll - g.roll;
+    this.lift = Math.max(0, this.supportDepth(rp, rr) - this.body.centre * this.upAxis(rp, rr, 0).y);
+    this.y = g.h + this.lift;
     this.velY = 0;
-    this.pitch = g.pitch;
-    this.roll = g.roll;
-    this.pitchRate = this.rollRate = 0;
+    // On the wheels and driving again; the body settles onto the ground
+    // over a moment (see followGround) instead of snapping flat.
+    this.settle = 0.4;
   }
 
   tireCurve(slip) {
