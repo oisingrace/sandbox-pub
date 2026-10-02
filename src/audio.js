@@ -501,6 +501,46 @@ export class CarAudio {
     src.stop(now + dur + 0.05);
   }
 
+  /**
+   * Flamethrower roar: a continuous low rumble plus a fizzing hiss, faded to
+   * `level` (0 = off). Built on first use.
+   */
+  flame(level) {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    if (!this.flameOut) {
+      this.flameOut = ctx.createGain();
+      this.flameOut.gain.value = 0;
+      this.flameOut.connect(this.loopBus);
+      for (const [type, freq, q, gain, rate] of [['lowpass', 380, 0.9, 1.1, 0.6], ['bandpass', 2600, 0.7, 0.35, 1.3]]) {
+        const src = ctx.createBufferSource();
+        src.buffer = this.noiseBuffer();
+        src.loop = true;
+        src.playbackRate.value = rate;
+        const f = ctx.createBiquadFilter();
+        f.type = type;
+        f.frequency.value = freq;
+        f.Q.value = q;
+        const g = ctx.createGain();
+        g.gain.value = gain;
+        src.connect(f).connect(g).connect(this.flameOut);
+        src.start();
+      }
+      // Slow flutter so it sounds like burning, not static.
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 7;
+      const depth = ctx.createGain();
+      depth.gain.value = 0.25;
+      lfo.connect(depth).connect(this.flameOut.gain);
+      lfo.start();
+      this.flameLfo = depth;
+    }
+    const target = this.muted ? 0 : Math.min(1, level) * 0.55;
+    this.flameOut.gain.setTargetAtTime(target, ctx.currentTime, target > (this.flameLevel || 0) ? 0.03 : 0.12);
+    this.flameLfo.gain.setTargetAtTime(target * 0.35, ctx.currentTime, 0.05);
+    this.flameLevel = target;
+  }
+
   /** Short tick for menu buttons. */
   ui() {
     if (!this.ctx || this.muted) return;

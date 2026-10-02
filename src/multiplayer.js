@@ -22,7 +22,7 @@ const MAX_EXTRAPOLATE = 0.25;
 // Car state on the wire is a flat array (about half the size of an object
 // with named keys):
 //   [time ms, vehicle, x, y, z, heading, pitch, roll, velX, velY, velZ,
-//    vLong, steer, flags (1 boost, 2 airborne, 4 braking, 8 handbrake), gear, smashed]
+//    vLong, steer, flags (1 boost, 2 airborne, 4 braking, 8 handbrake, 16 flamethrower), gear, points]
 
 /** Start positions in multiplayer: a row along the start line. */
 export const SPAWN_SLOTS = [0, -7, 7, -14, 14, -21, 21, -28].map((x) => ({ x, z: -52, heading: 0 }));
@@ -155,6 +155,7 @@ export class Multiplayer {
       p.vLong = latest.vl;
       p.steer = latest.st;
       p.boosting = !!latest.b;
+      p.firing = !!latest.fi;
       p.airborne = !!latest.a;
       p.braking = latest.br ? 1 : 0;
       p.handbrake = !!latest.hb;
@@ -178,7 +179,8 @@ export class Multiplayer {
    */
   encode(car, vehicleId, smashed) {
     const now = performance.now();
-    const flags = (car.boosting ? 1 : 0) | (car.airborne ? 2 : 0) | (car.braking > 0.05 ? 4 : 0) | (car.handbrake ? 8 : 0);
+    const flags = (car.boosting ? 1 : 0) | (car.airborne ? 2 : 0) | (car.braking > 0.05 ? 4 : 0) | (car.handbrake ? 8 : 0)
+      | (car.firing ? 16 : 0);
     const s = [
       Math.round(now), vehicleId,
       round(car.x), round(car.y || 0), round(car.z), round(car.heading), round(car.pitch || 0), round(car.roll || 0),
@@ -221,7 +223,7 @@ function decodeState(a) {
   return {
     v: a[1], x: a[2], y: a[3], z: a[4], h: a[5], p: a[6], r: a[7],
     vx: a[8], vy: a[9], vz: a[10], vl: a[11], st: a[12],
-    b: f & 1, a: f & 2, br: f & 4, hb: f & 8, g: a[14], sm: a[15] || 0,
+    b: f & 1, a: f & 2, br: f & 4, hb: f & 8, fi: f & 16, g: a[14], sm: a[15] || 0,
   };
 }
 

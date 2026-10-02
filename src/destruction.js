@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
+import { FLAME, streamPoint } from './flamethrower.js';
 
 // Rigid-body world for everything the car can smash. Each object kind is
 // drawn with one InstancedMesh, so hundreds of pieces stay cheap. Objects
@@ -797,6 +798,44 @@ export class Destruction {
       return found.size < BURNS_PER_STEP;
     });
     for (const e of found) this.burn(e, car);
+  }
+
+  /**
+   * A flamethrower stream from `pos` along `dir` for `dt` seconds. Whatever
+   * it washes over heats up; once hot enough (heavier things take longer)
+   * it burns away as voxels. `from` is where the fire comes from (for the
+   * direction the voxels fly). Returns how many things caught fire.
+   */
+  flameSweep(pos, dir, dt, from) {
+    const hit = new Set();
+    const ident = { x: 0, y: 0, z: 0, w: 1 };
+    this.flameBalls ||= [];
+    let grounded = 0;
+    for (let i = 0, d = 1.2; d <= FLAME.range; i++, d += 1.2) {
+      const c = streamPoint(pos, dir, d);
+      if (c.y < 0.35) {
+        // The stream splashed down: it spreads a few metres along the ground.
+        c.y = 0.35;
+        if ((grounded += 1.2) > 4) break;
+      }
+      const r = 0.45 + d * 0.085;
+      this.flameBalls[i] ||= new RAPIER.Ball(r);
+      this.world.intersectionsWithShape(c, ident, this.flameBalls[i], (collider) => {
+        const e = this.byCollider.get(collider.handle);
+        if (e && e.alive && !e.vehicle && !e.kind.noBurn) hit.add(e);
+        return true;
+      });
+    }
+    let lit = 0;
+    for (const e of hit) {
+      if (!e.alive) continue;
+      e.heat = (e.heat || 0) + dt;
+      if (e.heat >= 0.1 + e.kind.mass / 900 && lit < BURNS_PER_STEP) {
+        this.burn(e, from);
+        lit++;
+      }
+    }
+    return lit;
   }
 
   burn(entity, car) {

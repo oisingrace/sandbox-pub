@@ -1,7 +1,7 @@
 # Smash Lot
 
 A third-person driving sandbox for the browser, built with three.js and the Rapier physics engine,
-with no build step. Pick from five vehicles and drive around a walled arena (180 × 180 m) where everything can be
+with no build step. Pick from six vehicles and drive around a walled arena (180 × 180 m) where everything can be
 smashed: two office buildings with glass windows, a gas station, explosive fuel drums, a shipping
 container yard, a water tower, giant bowling pins, a fenced grove, brick walls, concrete sheds, a block
 tower, crate pyramids, barrels, a domino run, light poles, trees, cones, and the barrier ring itself.
@@ -34,7 +34,22 @@ about a second. A crate pyramid gives a light tremble, a brick wall a solid rumb
 building or a chain of fuel drums shakes the whole screen. The motion is a smooth rumble that gets
 faster and stronger as it builds, moving and slightly tilting the camera. Your own crashes and hard
 landings add short jolts on top. A gamepad rumbles along. Options → Game → Screen shake sets it to
-Off, Low, Normal or High.
+anywhere from Off to 200% on a slider.
+
+**Points and multiplier** (`src/score.js`, free roam): everything you break, burn or blow up scores
+by its size (a brick 20, a crate 29, a shipping container 160, an explosion 250), times the
+multiplier. Keep destroying, each thing within 2.2 s of the last, and the multiplier climbs:
+×2 after 5 in a row, ×3 at 12, ×4 at 25, up to ×10 at 250. Stop too long and the combo cashes in
+(with a summary) and the multiplier drops back to ×1. The panel at the top shows your points, the
+multiplier (it heats up in colour), the combo timer and the points from your last smash. Online,
+the player list ranks everyone by points.
+
+**The Inferno pickup** (`src/flamethrower.js`) has a flamethrower turret in its bed. Hold **X** (or
+the left mouse button; B on a gamepad, FIRE on touch) to spray a 15 m arc of fire that splashes
+along the ground. Whatever it washes over heats up and then burns away as glowing voxels, the same
+burn as the Ember GT: light things catch instantly, heavy ones (containers, the canopy) need a few
+seconds of fire, and fuel drums explode. Its tank lasts 7 s and refills while you're not firing;
+the dash shows the fuel. Other players' flamethrowers burn things on your screen too.
 
 **Fuel drums** explode when hit hard (or burned by the Ember GT). The blast pushes everything within
 9 m outward and up, shatters things close by, shoves the car, and sets off nearby drums a moment later,
@@ -215,13 +230,14 @@ python3 -m http.server 8000
 | Steer | A / D | Left stick |
 | Handbrake | Space | A / RB |
 | Boost | Shift | LB |
-| Toggle assists | T | B |
+| Toggle assists | T | |
 | Cycle camera (chase / far / hood) | C | X |
 | Reset car | R | Y |
 | Football: jump / double jump / flip (with a direction) | Space | A |
 | Football: powerslide; in the air, hold to roll with A/D | Q | RB |
 | Football, in the air: pitch nose down / up | W / S | Left stick |
 | Ball cam on/off (car football) | Y | |
+| Flamethrower (Inferno pickup) | X or left click | B |
 | Change car (garage, anywhere) | V | |
 | Drive a nearby parked vehicle | E | |
 | Rebuild arena (football: new match) | B | |
@@ -272,7 +288,7 @@ All of it is in `src/destruction.js`.
 ## Files
 
 - `src/physics.js`: vehicle dynamics
-- `src/vehicles.js`: the five vehicles (handling, hitbox, body builder)
+- `src/vehicles.js`: the six vehicles (handling, hitbox, body builder)
 - `src/carModel.js`: renders any vehicle, with suspension roll/pitch, wheel spin and steer
 - `src/camera.js`: chase / far / hood cameras
 - `src/world.js`: ground, backdrop, and the free-roam arena layout
@@ -283,6 +299,8 @@ All of it is in `src/destruction.js`.
 - `src/effects.js`: skid marks and tire smoke
 - `src/burn.js`: the Ember GT's voxel burn effect
 - `src/quake.js`: screen quake driven by how much destruction is happening
+- `src/flamethrower.js`: the Inferno pickup's flame stream, fuel tank and fire particles
+- `src/score.js`: destruction points and the combo multiplier
 - `src/net.js`: peer-to-peer rooms (PeerJS), with the host relaying messages
 - `src/multiplayer.js`: other players' cars, smoothing, name tags
 - `src/carCollision.js`: car-to-car collisions with momentum-correct impulses

@@ -30,7 +30,11 @@ export const OPTIONS = {
   game: {
     assists: { label: 'Driving assists', hint: 'Traction control and countersteer', choices: [[true, 'On'], [false, 'Off']] },
     sound: { label: 'Sound', choices: [[true, 'On'], [false, 'Off']] },
-    screenShake: { label: 'Screen shake', hint: 'Grows with how much is being destroyed around you', choices: [[0, 'Off'], [0.5, 'Low'], [1, 'Normal'], [1.6, 'High']] },
+    screenShake: {
+      label: 'Screen shake', hint: 'Grows with how much is being destroyed around you',
+      slider: { min: 0, max: 2, step: 0.05, format: (v) => (v === 0 ? 'Off' : `${Math.round(v * 100)}%`) },
+      choices: [],
+    },
     volume: { label: 'Volume', choices: [[0.25, '25%'], [0.5, '50%'], [0.75, '75%'], [1, '100%']] },
     startVehicle: { label: 'Vehicle', choices: [] },
     playerName: { label: 'Name', choices: [] },

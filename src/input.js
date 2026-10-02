@@ -11,12 +11,14 @@ const KEYS = {
   // Car football: Space jumps and Q is the powerslide (and air roll).
   jump: ['Space'],
   powerslide: ['KeyQ'],
+  fire: ['KeyX'], // flamethrower (also the left mouse button)
 };
 
 export class Input {
   constructor() {
     this.down = new Set();
-    this.touch = { left: false, right: false, up: false, down: false, handbrake: false, boost: false, jump: false };
+    this.touch = { left: false, right: false, up: false, down: false, handbrake: false, boost: false, jump: false, fire: false };
+    this.mouseFire = false;
     this.football = false; // set by the game: changes what Space and the A button do
     this.pressedHandlers = new Map();
     this.kbSteer = 0;
@@ -24,13 +26,19 @@ export class Input {
     this.kbBrake = 0;
 
     addEventListener('keydown', (e) => {
-      if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+      const typing = e.target instanceof HTMLInputElement; // sliders and text fields keep their keys
+      if (!typing && (e.code.startsWith('Arrow') || e.code === 'Space')) e.preventDefault();
       if (!e.repeat) this.pressedHandlers.get(e.code)?.();
       if (!e.repeat && KEYS.jump.includes(e.code)) this.jumpLatch = true; // a tap shorter than a frame still jumps
       this.down.add(e.code);
     });
     addEventListener('keyup', (e) => this.down.delete(e.code));
-    addEventListener('blur', () => this.down.clear());
+    addEventListener('blur', () => { this.down.clear(); this.mouseFire = false; });
+    // Left mouse button on the game view fires the flamethrower.
+    document.getElementById('app')?.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button === 0) this.mouseFire = true;
+    });
+    addEventListener('pointerup', (e) => { if (e.button === 0) this.mouseFire = false; });
   }
 
   /** Register a one-shot action for a key (e.g. 'KeyR'). */
@@ -69,6 +77,7 @@ export class Input {
       handbrake: this.football ? this.held('powerslide') || this.touch.handbrake : this.held('handbrake'),
       boost: this.held('boost'),
       jump: this.football && (this.held('jump') || !!this.jumpLatch),
+      fire: this.held('fire') || this.mouseFire,
     };
     this.jumpLatch = false;
 
@@ -91,6 +100,7 @@ export class Input {
         out.handbrake = true;
       }
       if (pad.buttons[4]?.pressed) out.boost = true;
+      if (pad.buttons[1]?.pressed) out.fire = true; // B: flamethrower
       this.padButtons(pad);
     }
     return out;
@@ -98,7 +108,7 @@ export class Input {
 
   padButtons(pad) {
     // Edge-detect a few buttons mapped to keyboard actions.
-    const map = { 3: 'KeyR', 2: 'KeyC', 1: 'KeyT', 9: 'Escape' };
+    const map = { 3: 'KeyR', 2: 'KeyC', 9: 'Escape' };
     this.prevPad ||= {};
     for (const [idx, code] of Object.entries(map)) {
       const pressed = !!pad.buttons[idx]?.pressed;

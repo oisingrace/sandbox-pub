@@ -224,6 +224,29 @@ export class Menu {
     }
   }
 
+  /** A sliding-scale option: a range input with its value shown beside it. */
+  slider(key, def, value) {
+    const { min, max, step, format } = def.slider;
+    const wrap = document.createElement('label');
+    wrap.className = 'slider';
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = min;
+    input.max = max;
+    input.step = step;
+    input.value = value;
+    input.setAttribute('aria-label', def.label);
+    const out = document.createElement('output');
+    out.textContent = format(Number(value));
+    input.addEventListener('input', () => {
+      const v = Number(input.value);
+      out.textContent = format(v);
+      this.opts.onSetting(key, v);
+    });
+    wrap.append(input, out);
+    return wrap;
+  }
+
   renderOptions() {
     const settings = this.opts.getSettings();
     for (const b of document.querySelectorAll('#option-tabs button')) {
@@ -232,7 +255,7 @@ export class Menu {
     const list = document.getElementById('option-list');
     list.innerHTML = '';
     for (const [key, def] of Object.entries(OPTIONS[this.tab])) {
-      if (!def.choices.length) continue;
+      if (!def.choices.length && !def.slider) continue;
       const row = document.createElement('div');
       row.className = 'opt';
       const text = document.createElement('div');
@@ -240,6 +263,12 @@ export class Menu {
       text.innerHTML = `<span class="opt-label"></span>${def.hint ? '<span class="opt-hint"></span>' : ''}`;
       text.querySelector('.opt-label').textContent = def.label;
       if (def.hint) text.querySelector('.opt-hint').textContent = def.hint;
+      if (def.slider) {
+        row.dataset.key = key;
+        row.append(text, this.slider(key, def, settings[key]));
+        list.appendChild(row);
+        continue;
+      }
       const seg = document.createElement('div');
       seg.className = 'seg';
       seg.setAttribute('role', 'radiogroup');

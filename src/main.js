@@ -19,6 +19,8 @@ import { createStadium, kickoffSpot, TEAM_COLORS, PITCH } from './stadium.js';
 import { Football, setTeamGlow, TEAM_NAMES } from './football.js';
 import { Bot } from './bot.js';
 import { ScreenQuake } from './quake.js';
+import { FlameFX, FlameTank, nozzle } from './flamethrower.js';
+import { Score, pointsFor, EXPLOSION_POINTS, COMBO_WINDOW } from './score.js';
 
 const PHYSICS_DT = 1 / 120;
 // At most this many car steps per frame (2 debris-world steps). A slow
@@ -111,6 +113,10 @@ const audio = new CarAudio();
 
 let smashed = 0;
 const quake = new ScreenQuake();
+const flames = new FlameFX(scene);
+const tank = new FlameTank();
+const score = new Score();
+const _nz = { pos: new THREE.Vector3(), dir: new THREE.Vector3() };
 // Multiplayer (peer-to-peer; see net.js and multiplayer.js).
 const net = new Net();
 const mp = new Multiplayer({ scene, destruction, vehicles: VEHICLES });
@@ -142,7 +148,7 @@ function creditedToMe(pos) {
 
 destruction.on('fracture', (pos, kind) => {
   const mine = creditedToMe(pos);
-  if (mine) smashed++;
+  if (mine) { smashed++; award(pointsFor(kind.mass)); }
   const base = settings.effects === 'high' ? 2 + Math.round(kind.mass / 60) : 1;
   const n = Math.min(6, base);
   for (let i = 0; i < n; i++) dust.emit(pos, { x: 0, z: 0 }, 0.6 + Math.random() * 0.4, pos.y);
@@ -152,7 +158,7 @@ destruction.on('fracture', (pos, kind) => {
 });
 destruction.on('burn', (info) => {
   const mine = creditedToMe(info.pos);
-  if (mine) smashed++;
+  if (mine) { smashed++; award(pointsFor(info.kind.mass)); }
   burnFx.ignite(info);
   const puffs = settings.effects === 'high' ? 3 : 1;
   for (let i = 0; i < puffs; i++) soot.emit(info.pos, { x: 0, z: 0 }, 0.8, info.pos.y + 0.5);
@@ -166,7 +172,7 @@ destruction.on('impact', (material, strength, pos) => {
 });
 destruction.on('explode', (pos, distance) => {
   const mine = creditedToMe(pos);
-  if (mine) smashed++;
+  if (mine) { smashed++; award(EXPLOSION_POINTS); }
   burnFx.fireball(pos);
   const puffs = settings.effects === 'high' ? 8 : 3;
   for (let i = 0; i < puffs; i++) {
@@ -178,6 +184,15 @@ destruction.on('explode', (pos, distance) => {
   quake.kick(Math.max(0, 1 - distance / 35) * 0.6);
   if (mine) car.boost = Math.min(1, car.boost + 0.05);
 });
+
+/** Destruction points (free roam; football has its own score). */
+function award(base) {
+  if (mode !== 'free' || state === 'menu') return;
+  score.add(base);
+}
+score.onComboEnd = ({ count, mult, points }) => {
+  toast(`Combo over: ${count} smashed at ×${mult}, +${points.toLocaleString('en-US')}`);
+};
 
 // --- Settings ----------------------------------------------------------
 let shadowsWere = null;
@@ -271,6 +286,8 @@ function resetAll() {
   burnFx.clear();
   buildArena();
   smashed = 0;
+  score.reset();
+  flames.clear();
   resetCar();
   resetBot();
   // The referee starts a new match; others wait for its kickoff.
@@ -494,6 +511,8 @@ const hud = {
   speed: $('speed'), gear: $('gear'), rpmFill: $('rpm-fill'), drift: $('drift'),
   toast: $('toast'), telemetry: $('telemetry'), assists: $('assists'), cam: $('cam'), smashed: $('smashed'),
   vehicle: $('vehicle'), prompt: $('prompt'), fps: $('fps'), boostFill: $('boost-fill'),
+  fuelFill: $('fuel-fill'), points: $('score-points'), mult: $('score-mult'), comboFill: $('score-combo-fill'),
+  comboCount: $('score-count'), gain: $('score-gain'), scorePanel: $('score'),
 };
 let toastTimer = 0;
 function toast(msg) {
@@ -506,6 +525,8 @@ function refreshBadges() {
   hud.assists.classList.toggle('off', !settings.assists);
   hud.cam.textContent = `Camera: ${chase.modeName}`;
   hud.vehicle.textContent = active.def.name;
+  // Flamethrower controls and fuel gauge only for a vehicle that has one.
+  document.body.classList.toggle('flamer', !!active.def.flamethrower);
 }
 
 // --- Menus and game state -------------------------------------------------
@@ -686,9 +707,9 @@ function refreshPlayers() {
   list.hidden = false;
   const fb = mode === 'football';
   const color = (id, def) => (fb ? TEAM_COLORS[football.teams.get(id) ?? 0] : def.swatch ?? def.color);
-  const score = (id, n) => (fb ? football.goals.get(id) || 0 : n);
-  const rows = [{ name: `${settings.playerName || 'You'} (you)`, color: color(net.id, active.def), smashed: score(net.id, smashed) }];
-  for (const r of mp.remotes.values()) rows.push({ name: r.name, color: color(r.id, r.def), smashed: score(r.id, r.smashed) });
+  const pts = (id, n) => (fb ? football.goals.get(id) || 0 : n);
+  const rows = [{ name: `${settings.playerName || 'You'} (you)`, color: color(net.id, active.def), smashed: pts(net.id, score.points) }];
+  for (const r of mp.remotes.values()) rows.push({ name: r.name, color: color(r.id, r.def), smashed: pts(r.id, r.smashed) });
   refreshTeamGlows();
   rows.sort((a, b) => b.smashed - a.smashed);
   // Only touch the page when something shown actually changed.
@@ -702,9 +723,9 @@ function refreshPlayers() {
     dot.style.background = `#${r.color.toString(16).padStart(6, '0')}`;
     const name = document.createElement('span');
     name.textContent = r.name;
-    const score = document.createElement('b');
-    score.textContent = r.smashed;
-    li.append(dot, name, score);
+    const val = document.createElement('b');
+    val.textContent = r.smashed.toLocaleString('en-US');
+    li.append(dot, name, val);
     return li;
   }));
 }
@@ -740,7 +761,7 @@ function netTick(dt) {
   netTimer -= dt;
   if (netTimer > 0) return;
   netTimer = Math.max(0, netTimer + SEND_INTERVAL);
-  const own = mp.encode(car, active.def.id, smashed);
+  const own = mp.encode(car, active.def.id, score.points);
   if (net.isHost) {
     net.flush(own, mode === 'football' ? football.snapshot(++matchTicks % 10 === 0) : null);
   } else {
@@ -749,6 +770,41 @@ function netTick(dt) {
   }
 }
 let matchTicks = 0;
+
+/** Flame particles and roar for every firing flamethrower; our fuel gauge. */
+function updateFlames(dt) {
+  let roar = 0;
+  if (car.firing) {
+    nozzle(car, active.def.flamethrower.mount, _nz);
+    flames.emit('me', _nz.pos, _nz.dir, { x: car.velX, z: car.velZ }, dt);
+    roar = 1;
+  }
+  for (const rm of mp.remotes.values()) {
+    if (!rm.proxy.firing || !rm.def.flamethrower || !rm.seen) continue;
+    nozzle(rm.proxy, rm.def.flamethrower.mount, _nz);
+    flames.emit(rm.id, _nz.pos, _nz.dir, { x: rm.proxy.velX, z: rm.proxy.velZ }, dt);
+    roar = Math.max(roar, 1 / (1 + (Math.hypot(rm.proxy.x - car.x, rm.proxy.z - car.z) / 15) ** 2));
+  }
+  flames.update(dt);
+  audio.flame(roar);
+  if (car.firing) quake.floor(0.12);
+  hud.fuelFill.style.width = `${tank.level * 100}%`;
+  hud.fuelFill.classList.toggle('empty', tank.empty);
+}
+
+/** Points, multiplier and combo timer (free roam). */
+function updateScoreHud(dt) {
+  score.update(dt);
+  hud.scorePanel.hidden = mode !== 'free';
+  hud.points.textContent = score.points.toLocaleString('en-US');
+  hud.mult.textContent = `×${score.mult}`;
+  hud.mult.dataset.level = Math.min(10, score.mult);
+  hud.scorePanel.classList.toggle('combo', score.combo > 0);
+  hud.comboFill.style.width = `${Math.max(0, score.timer / COMBO_WINDOW) * 100}%`;
+  hud.comboCount.textContent = score.combo > 0 ? `${score.combo} smashed` : '';
+  const since = performance.now() - score.gainAt;
+  hud.gain.textContent = since < 700 ? `+${score.lastGain.toLocaleString('en-US')}` : '';
+}
 
 /** Gameplay keys only act while driving. */
 const playing = (fn) => () => { if (state === 'playing') fn(); };
@@ -861,6 +917,8 @@ function frame() {
     const frozen = mode === 'football' && football.phase === 'kickoff';
     const idle = { steer: 0, throttle: 0, brake: 0, handbrake: true, boost: false, jump: false };
     const inputNow = state === 'playing' && !frozen ? controls : idle;
+    // Flamethrower: fuel and firing, once per frame.
+    car.firing = tank.update(dt, !!(active.def.flamethrower && inputNow.fire));
     accumulator += dt;
     let steps = 0;
     while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
@@ -1076,6 +1134,16 @@ function onLanding({ impact, misalign, airTime }) {
 
 function stepWorld() {
   const r = destruction.step(car);
+  // Flamethrowers (ours and other players') set fire to what they reach.
+  if (car.firing) {
+    nozzle(car, active.def.flamethrower.mount, _nz);
+    destruction.flameSweep(_nz.pos, _nz.dir, WORLD_STEP, _nz.pos);
+  }
+  for (const rm of mp.remotes.values()) {
+    if (!rm.proxy.firing || !rm.def.flamethrower || !rm.seen) continue;
+    nozzle(rm.proxy, rm.def.flamethrower.mount, _nz);
+    destruction.flameSweep(_nz.pos, _nz.dir, WORLD_STEP, _nz.pos);
+  }
   if (mode === 'football') football.step(WORLD_STEP);
   if (r.total > 0) {
     const dv = car.applyImpulse(r.jx, r.jz, r.torque);
@@ -1131,6 +1199,8 @@ function updateScene(dt) {
   audio.update(car, squeal);
   if (car.boosting) quake.floor(0.18);
   hud.boostFill.style.width = `${car.boost * 100}%`;
+  updateFlames(dt);
+  updateScoreHud(dt);
   hud.boostFill.classList.toggle('on', car.boosting);
 
   chase.update(car, dt);
@@ -1196,7 +1266,7 @@ openMainMenu();
 window.game = {
   get car() { return car; }, get active() { return active; }, get state() { return state; }, net, mp,
   get renderer() { return renderer; }, get settings() { return settings; },
-  fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu, quake,
+  fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu, quake, score, tank,
   football, get bot() { return bot; }, get mode() { return mode; }, enterMode,
 };
 requestAnimationFrame(frame);

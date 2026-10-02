@@ -231,8 +231,51 @@ const ember = {
   },
 };
 
+// The flamethrower pickup: a pickup with a fuel-tank turret in the bed and
+// a nozzle over the cab (see flamethrower.js). `flamethrower.mount` is the
+// nozzle tip in the vehicle frame.
+const inferno = {
+  id: 'inferno',
+  name: 'Inferno pickup',
+  voice: 'v8',
+  blurb: 'A pickup with a flamethrower in the bed. Hold X (or click) to set the world on fire.',
+  stats: pickup.stats,
+  color: 0x2a2b2f,
+  trim: 0xc8321e,
+  swatch: 0xff7a1a,
+  length: pickup.length,
+  width: pickup.width,
+  suspension: pickup.suspension,
+  spec: pickup.spec,
+  hitbox: [...pickup.hitbox, { half: [0.42, 0.32, 0.75], at: [0, 1.95, -1.45] }],
+  home: { x: -21, z: -52, heading: 0 },
+  cam: { scale: 1.3, hoodY: 2.05, hoodZ: 0.9 },
+  exhaust: pickup.exhaust,
+  wheelWidth: pickup.wheelWidth,
+  flamethrower: { mount: [0, 2.42, 0.95] },
+  build(kit) {
+    const { THREE, box, add } = kit;
+    pickup.build(kit);
+    // Fuel tanks lying in the bed.
+    for (const sx of [-0.5, 0.5]) {
+      const tank = add(new THREE.CylinderGeometry(0.26, 0.26, 1.5, 16), 'trim', sx, 1.52, -2.0);
+      tank.rotation.x = Math.PI / 2;
+    }
+    box(0.08, 0.08, 1.2, 'chrome', 0, 1.55, -1.9); // feed pipe
+    // Turret: pedestal, housing, barrel over the cab, glowing nozzle.
+    box(0.5, 0.5, 0.5, 'dark', 0, 1.5, -1.3);
+    box(0.8, 0.5, 1.2, 'dark', 0, 1.98, -1.4);
+    box(0.84, 0.08, 1.24, 'trim', 0, 2.25, -1.4);
+    box(0.2, 0.2, 2.2, 'chrome', 0, 2.38, -0.2);
+    box(0.3, 0.3, 0.16, 'dark', 0, 2.38, 0.86);
+    box(0.2, 0.2, 0.04, 'glow', 0, 2.42, 0.95);
+    // Warning stripes on the tailgate.
+    for (let i = -2; i <= 2; i++) box(0.12, 0.3, 0.02, 'glow', i * 0.34, 1.42, -2.87);
+  },
+};
+
 // Fill in every handling value so models and parked bodies can read them too.
-export const VEHICLES = [sports, hatch, pickup, bus, ember].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec, body: bodyBox(v.hitbox) } }));
+export const VEHICLES = [sports, hatch, pickup, bus, ember, inferno].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec, body: bodyBox(v.hitbox) } }));
 
 /** Size of a vehicle's body from its hitbox, for landings and tumbling. */
 function bodyBox(hitbox) {

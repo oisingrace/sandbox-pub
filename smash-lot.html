@@ -103,6 +103,10 @@
     .opt-hint { font-size: 12px; color: var(--hud-dim); }
     .seg { display: flex; flex-wrap: wrap; gap: 4px; }
     #menu .seg button { padding: 8px 11px; font-size: 13px; border-radius: 8px; background: rgba(255,255,255,0.05); }
+    .slider { display: flex; align-items: center; gap: 12px; flex: 1 1 220px; max-width: 320px; }
+    .slider input { flex: 1; min-width: 0; accent-color: var(--hazard); height: 28px; cursor: pointer; }
+    .slider input:focus-visible { outline: 3px solid var(--hazard); outline-offset: 2px; }
+    .slider output { min-width: 4ch; text-align: right; font: 600 14px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
     #menu .seg button[aria-checked="true"] { background: var(--hud-fg); color: var(--hazard-ink); border-color: transparent; }
 
     table.controls { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -243,6 +247,29 @@
     body:not(.football) #touch-ballcam, body:not(.football) #t-jump { display: none !important; }
     #t-jump { right: 16px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
     body.football #t-hb { right: 220px; }
+    /* --- Destruction points and flamethrower --- */
+    #score { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); min-width: 200px; padding: 8px 14px 9px; border-radius: 12px; background: var(--hud-bg); backdrop-filter: blur(6px); text-align: center; z-index: 5; pointer-events: none; }
+    #score[hidden] { display: none; }
+    body.in-menu #score { display: none; }
+    .score-row { display: flex; align-items: baseline; justify-content: center; gap: 10px; }
+    #score-points { font: 400 28px/1 "Russo One", "Arial Black", Impact, sans-serif; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+    #score-mult { font: 400 20px/1 "Russo One", "Arial Black", Impact, sans-serif; color: var(--hud-dim); transition: transform 0.15s, color 0.15s; }
+    #score.combo #score-mult { color: #ffd23f; }
+    #score-mult[data-level="3"], #score-mult[data-level="4"] { color: #ffb02e !important; transform: scale(1.1); }
+    #score-mult[data-level="5"], #score-mult[data-level="6"] { color: #ff7a1a !important; transform: scale(1.2); }
+    #score-mult[data-level="7"], #score-mult[data-level="8"], #score-mult[data-level="9"], #score-mult[data-level="10"] { color: #ff4d3d !important; transform: scale(1.32); text-shadow: 0 0 12px rgba(255, 90, 40, 0.8); }
+    #score-combo { height: 4px; margin-top: 6px; border-radius: 2px; background: rgba(255,255,255,0.1); overflow: hidden; }
+    #score-combo-fill { height: 100%; width: 0; background: #ffd23f; }
+    .score-sub { display: flex; justify-content: space-between; gap: 12px; min-height: 15px; margin-top: 4px; font-size: 12px; color: var(--hud-dim); font-variant-numeric: tabular-nums; }
+    #score-gain { color: #ffd23f; font-weight: 700; }
+    body.online #score { top: 12px; }
+    #dash .fuel { display: none; align-items: center; gap: 8px; margin-top: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hud-dim); }
+    body.flamer #dash .fuel { display: flex; }
+    #fuel-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; }
+    #fuel-fill { height: 100%; width: 100%; background: #ff7a1a; }
+    #fuel-fill.empty { background: #7a3a20; }
+    #t-fire { display: none; right: 16px; bottom: 196px; width: 64px; height: 64px; font-size: 12px; border-color: rgba(255, 122, 26, 0.8); }
+    body.touch.flamer #t-fire { display: flex; }
   </style>
   <!-- PeerJS: browser-to-browser multiplayer (UMD build, defines window.Peer). -->
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -265,6 +292,7 @@
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
     <div class="row"><kbd>V</kbd> <b>change car</b> &nbsp;<kbd>E</kbd> <b>drive a nearby parked one</b></div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
+    <div class="row"><kbd>X</kbd> or click <b>flamethrower</b> (Inferno pickup) &nbsp;Keep smashing to raise the <b>multiplier</b></div>
     <div class="row">Football: <kbd>Space</kbd> <b>jump</b> (again: double jump, or flip with a direction) &nbsp;<kbd>Q</kbd> <b>powerslide</b></div>
     <div class="row">In the air: <kbd>W</kbd><kbd>S</kbd> <b>pitch</b> &nbsp;<kbd>A</kbd><kbd>D</kbd> <b>turn</b> &nbsp;<kbd>Q</kbd>+<kbd>A</kbd><kbd>D</kbd> <b>roll</b> &nbsp;<kbd>Y</kbd> <b>ball cam</b></div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>Esc</kbd> <b>pause</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
@@ -284,6 +312,7 @@
     </div>
     <div id="rpm"><div id="rpm-fill"></div></div>
     <div class="boost"><span>Boost</span><div id="boost-bar"><div id="boost-fill"></div></div></div>
+    <div class="fuel" id="fuel-row"><span>Fuel</span><div id="fuel-bar"><div id="fuel-fill"></div></div></div>
     <div class="smash">Smashed <b id="smashed">0</b></div>
   </div>
 
@@ -294,6 +323,11 @@
   </div>
   <div id="banner"></div>
   <div id="ball-arrow" hidden></div>
+  <div id="score" hidden>
+    <div class="score-row"><b id="score-points">0</b><span id="score-mult" data-level="1">×1</span></div>
+    <div id="score-combo"><div id="score-combo-fill"></div></div>
+    <div class="score-sub"><span id="score-count"></span><span id="score-gain"></span></div>
+  </div>
   <div id="drift"></div>
   <div id="toast"></div>
   <div id="prompt"></div>
@@ -400,6 +434,7 @@
           <tr><td>Football: powerslide (in the air: hold to roll with A/D)</td><td><kbd>Q</kbd></td><td>RB</td></tr>
           <tr><td>Football, in the air: pitch nose down / up</td><td><kbd>W</kbd> / <kbd>S</kbd></td><td>Left stick up / down</td></tr>
           <tr><td>Ball cam on/off (football)</td><td><kbd>Y</kbd></td><td>On screen: BALL</td></tr>
+          <tr><td>Flamethrower (Inferno pickup)</td><td><kbd>X</kbd> or left click</td><td>B · On screen: FIRE</td></tr>
           <tr><td>Change car (anywhere)</td><td><kbd>V</kbd></td><td>On screen: CAR</td></tr>
           <tr><td>Drive a nearby parked vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
           <tr><td>Camera (chase, far, hood)</td><td><kbd>C</kbd></td><td>X</td></tr>
@@ -427,6 +462,7 @@
     <div class="tbtn small" id="touch-garage">CAR</div>
     <div class="tbtn small" id="touch-ballcam">BALL</div>
     <div class="tbtn" id="t-jump" data-touch="jump">JUMP</div>
+    <div class="tbtn" id="t-fire" data-touch="fire">FIRE</div>
     <div class="tbtn" id="t-boost" data-touch="boost">BST</div>
   </div>
 
@@ -1715,8 +1751,51 @@ const ember = {
   },
 };
 
+// The flamethrower pickup: a pickup with a fuel-tank turret in the bed and
+// a nozzle over the cab (see flamethrower.js). `flamethrower.mount` is the
+// nozzle tip in the vehicle frame.
+const inferno = {
+  id: 'inferno',
+  name: 'Inferno pickup',
+  voice: 'v8',
+  blurb: 'A pickup with a flamethrower in the bed. Hold X (or click) to set the world on fire.',
+  stats: pickup.stats,
+  color: 0x2a2b2f,
+  trim: 0xc8321e,
+  swatch: 0xff7a1a,
+  length: pickup.length,
+  width: pickup.width,
+  suspension: pickup.suspension,
+  spec: pickup.spec,
+  hitbox: [...pickup.hitbox, { half: [0.42, 0.32, 0.75], at: [0, 1.95, -1.45] }],
+  home: { x: -21, z: -52, heading: 0 },
+  cam: { scale: 1.3, hoodY: 2.05, hoodZ: 0.9 },
+  exhaust: pickup.exhaust,
+  wheelWidth: pickup.wheelWidth,
+  flamethrower: { mount: [0, 2.42, 0.95] },
+  build(kit) {
+    const { THREE, box, add } = kit;
+    pickup.build(kit);
+    // Fuel tanks lying in the bed.
+    for (const sx of [-0.5, 0.5]) {
+      const tank = add(new THREE.CylinderGeometry(0.26, 0.26, 1.5, 16), 'trim', sx, 1.52, -2.0);
+      tank.rotation.x = Math.PI / 2;
+    }
+    box(0.08, 0.08, 1.2, 'chrome', 0, 1.55, -1.9); // feed pipe
+    // Turret: pedestal, housing, barrel over the cab, glowing nozzle.
+    box(0.5, 0.5, 0.5, 'dark', 0, 1.5, -1.3);
+    box(0.8, 0.5, 1.2, 'dark', 0, 1.98, -1.4);
+    box(0.84, 0.08, 1.24, 'trim', 0, 2.25, -1.4);
+    box(0.2, 0.2, 2.2, 'chrome', 0, 2.38, -0.2);
+    box(0.3, 0.3, 0.16, 'dark', 0, 2.38, 0.86);
+    box(0.2, 0.2, 0.04, 'glow', 0, 2.42, 0.95);
+    // Warning stripes on the tailgate.
+    for (let i = -2; i <= 2; i++) box(0.12, 0.3, 0.02, 'glow', i * 0.34, 1.42, -2.87);
+  },
+};
+
 // Fill in every handling value so models and parked bodies can read them too.
-const VEHICLES = [sports, hatch, pickup, bus, ember].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec, body: bodyBox(v.hitbox) } }));
+const VEHICLES = [sports, hatch, pickup, bus, ember, inferno].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec, body: bodyBox(v.hitbox) } }));
 
 /** Size of a vehicle's body from its hitbox, for landings and tumbling. */
 function bodyBox(hitbox) {
@@ -2527,6 +2606,44 @@ class Destruction {
       return found.size < BURNS_PER_STEP;
     });
     for (const e of found) this.burn(e, car);
+  }
+
+  /**
+   * A flamethrower stream from `pos` along `dir` for `dt` seconds. Whatever
+   * it washes over heats up; once hot enough (heavier things take longer)
+   * it burns away as voxels. `from` is where the fire comes from (for the
+   * direction the voxels fly). Returns how many things caught fire.
+   */
+  flameSweep(pos, dir, dt, from) {
+    const hit = new Set();
+    const ident = { x: 0, y: 0, z: 0, w: 1 };
+    this.flameBalls ||= [];
+    let grounded = 0;
+    for (let i = 0, d = 1.2; d <= FLAME.range; i++, d += 1.2) {
+      const c = streamPoint(pos, dir, d);
+      if (c.y < 0.35) {
+        // The stream splashed down: it spreads a few metres along the ground.
+        c.y = 0.35;
+        if ((grounded += 1.2) > 4) break;
+      }
+      const r = 0.45 + d * 0.085;
+      this.flameBalls[i] ||= new RAPIER.Ball(r);
+      this.world.intersectionsWithShape(c, ident, this.flameBalls[i], (collider) => {
+        const e = this.byCollider.get(collider.handle);
+        if (e && e.alive && !e.vehicle && !e.kind.noBurn) hit.add(e);
+        return true;
+      });
+    }
+    let lit = 0;
+    for (const e of hit) {
+      if (!e.alive) continue;
+      e.heat = (e.heat || 0) + dt;
+      if (e.heat >= 0.1 + e.kind.mass / 900 && lit < BURNS_PER_STEP) {
+        this.burn(e, from);
+        lit++;
+      }
+    }
+    return lit;
   }
 
   burn(entity, car) {
@@ -3348,12 +3465,14 @@ const KEYS = {
   // Car football: Space jumps and Q is the powerslide (and air roll).
   jump: ['Space'],
   powerslide: ['KeyQ'],
+  fire: ['KeyX'], // flamethrower (also the left mouse button)
 };
 
 class Input {
   constructor() {
     this.down = new Set();
-    this.touch = { left: false, right: false, up: false, down: false, handbrake: false, boost: false, jump: false };
+    this.touch = { left: false, right: false, up: false, down: false, handbrake: false, boost: false, jump: false, fire: false };
+    this.mouseFire = false;
     this.football = false; // set by the game: changes what Space and the A button do
     this.pressedHandlers = new Map();
     this.kbSteer = 0;
@@ -3361,13 +3480,19 @@ class Input {
     this.kbBrake = 0;
 
     addEventListener('keydown', (e) => {
-      if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+      const typing = e.target instanceof HTMLInputElement; // sliders and text fields keep their keys
+      if (!typing && (e.code.startsWith('Arrow') || e.code === 'Space')) e.preventDefault();
       if (!e.repeat) this.pressedHandlers.get(e.code)?.();
       if (!e.repeat && KEYS.jump.includes(e.code)) this.jumpLatch = true; // a tap shorter than a frame still jumps
       this.down.add(e.code);
     });
     addEventListener('keyup', (e) => this.down.delete(e.code));
-    addEventListener('blur', () => this.down.clear());
+    addEventListener('blur', () => { this.down.clear(); this.mouseFire = false; });
+    // Left mouse button on the game view fires the flamethrower.
+    document.getElementById('app')?.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button === 0) this.mouseFire = true;
+    });
+    addEventListener('pointerup', (e) => { if (e.button === 0) this.mouseFire = false; });
   }
 
   /** Register a one-shot action for a key (e.g. 'KeyR'). */
@@ -3406,6 +3531,7 @@ class Input {
       handbrake: this.football ? this.held('powerslide') || this.touch.handbrake : this.held('handbrake'),
       boost: this.held('boost'),
       jump: this.football && (this.held('jump') || !!this.jumpLatch),
+      fire: this.held('fire') || this.mouseFire,
     };
     this.jumpLatch = false;
 
@@ -3428,6 +3554,7 @@ class Input {
         out.handbrake = true;
       }
       if (pad.buttons[4]?.pressed) out.boost = true;
+      if (pad.buttons[1]?.pressed) out.fire = true; // B: flamethrower
       this.padButtons(pad);
     }
     return out;
@@ -3435,7 +3562,7 @@ class Input {
 
   padButtons(pad) {
     // Edge-detect a few buttons mapped to keyboard actions.
-    const map = { 3: 'KeyR', 2: 'KeyC', 1: 'KeyT', 9: 'Escape' };
+    const map = { 3: 'KeyR', 2: 'KeyC', 9: 'Escape' };
     this.prevPad ||= {};
     for (const [idx, code] of Object.entries(map)) {
       const pressed = !!pad.buttons[idx]?.pressed;
@@ -3954,6 +4081,46 @@ class CarAudio {
     src.stop(now + dur + 0.05);
   }
 
+  /**
+   * Flamethrower roar: a continuous low rumble plus a fizzing hiss, faded to
+   * `level` (0 = off). Built on first use.
+   */
+  flame(level) {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    if (!this.flameOut) {
+      this.flameOut = ctx.createGain();
+      this.flameOut.gain.value = 0;
+      this.flameOut.connect(this.loopBus);
+      for (const [type, freq, q, gain, rate] of [['lowpass', 380, 0.9, 1.1, 0.6], ['bandpass', 2600, 0.7, 0.35, 1.3]]) {
+        const src = ctx.createBufferSource();
+        src.buffer = this.noiseBuffer();
+        src.loop = true;
+        src.playbackRate.value = rate;
+        const f = ctx.createBiquadFilter();
+        f.type = type;
+        f.frequency.value = freq;
+        f.Q.value = q;
+        const g = ctx.createGain();
+        g.gain.value = gain;
+        src.connect(f).connect(g).connect(this.flameOut);
+        src.start();
+      }
+      // Slow flutter so it sounds like burning, not static.
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 7;
+      const depth = ctx.createGain();
+      depth.gain.value = 0.25;
+      lfo.connect(depth).connect(this.flameOut.gain);
+      lfo.start();
+      this.flameLfo = depth;
+    }
+    const target = this.muted ? 0 : Math.min(1, level) * 0.55;
+    this.flameOut.gain.setTargetAtTime(target, ctx.currentTime, target > (this.flameLevel || 0) ? 0.03 : 0.12);
+    this.flameLfo.gain.setTargetAtTime(target * 0.35, ctx.currentTime, 0.05);
+    this.flameLevel = target;
+  }
+
   /** Short tick for menu buttons. */
   ui() {
     if (!this.ctx || this.muted) return;
@@ -4091,7 +4258,11 @@ const OPTIONS = {
   game: {
     assists: { label: 'Driving assists', hint: 'Traction control and countersteer', choices: [[true, 'On'], [false, 'Off']] },
     sound: { label: 'Sound', choices: [[true, 'On'], [false, 'Off']] },
-    screenShake: { label: 'Screen shake', hint: 'Grows with how much is being destroyed around you', choices: [[0, 'Off'], [0.5, 'Low'], [1, 'Normal'], [1.6, 'High']] },
+    screenShake: {
+      label: 'Screen shake', hint: 'Grows with how much is being destroyed around you',
+      slider: { min: 0, max: 2, step: 0.05, format: (v) => (v === 0 ? 'Off' : `${Math.round(v * 100)}%`) },
+      choices: [],
+    },
     volume: { label: 'Volume', choices: [[0.25, '25%'], [0.5, '50%'], [0.75, '75%'], [1, '100%']] },
     startVehicle: { label: 'Vehicle', choices: [] },
     playerName: { label: 'Name', choices: [] },
@@ -4389,6 +4560,29 @@ class Menu {
     }
   }
 
+  /** A sliding-scale option: a range input with its value shown beside it. */
+  slider(key, def, value) {
+    const { min, max, step, format } = def.slider;
+    const wrap = document.createElement('label');
+    wrap.className = 'slider';
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = min;
+    input.max = max;
+    input.step = step;
+    input.value = value;
+    input.setAttribute('aria-label', def.label);
+    const out = document.createElement('output');
+    out.textContent = format(Number(value));
+    input.addEventListener('input', () => {
+      const v = Number(input.value);
+      out.textContent = format(v);
+      this.opts.onSetting(key, v);
+    });
+    wrap.append(input, out);
+    return wrap;
+  }
+
   renderOptions() {
     const settings = this.opts.getSettings();
     for (const b of document.querySelectorAll('#option-tabs button')) {
@@ -4397,7 +4591,7 @@ class Menu {
     const list = document.getElementById('option-list');
     list.innerHTML = '';
     for (const [key, def] of Object.entries(OPTIONS[this.tab])) {
-      if (!def.choices.length) continue;
+      if (!def.choices.length && !def.slider) continue;
       const row = document.createElement('div');
       row.className = 'opt';
       const text = document.createElement('div');
@@ -4405,6 +4599,12 @@ class Menu {
       text.innerHTML = `<span class="opt-label"></span>${def.hint ? '<span class="opt-hint"></span>' : ''}`;
       text.querySelector('.opt-label').textContent = def.label;
       if (def.hint) text.querySelector('.opt-hint').textContent = def.hint;
+      if (def.slider) {
+        row.dataset.key = key;
+        row.append(text, this.slider(key, def, settings[key]));
+        list.appendChild(row);
+        continue;
+      }
       const seg = document.createElement('div');
       seg.className = 'seg';
       seg.setAttribute('role', 'radiogroup');
@@ -5305,7 +5505,7 @@ const MAX_EXTRAPOLATE = 0.25;
 // Car state on the wire is a flat array (about half the size of an object
 // with named keys):
 //   [time ms, vehicle, x, y, z, heading, pitch, roll, velX, velY, velZ,
-//    vLong, steer, flags (1 boost, 2 airborne, 4 braking, 8 handbrake), gear, smashed]
+//    vLong, steer, flags (1 boost, 2 airborne, 4 braking, 8 handbrake, 16 flamethrower), gear, points]
 
 /** Start positions in multiplayer: a row along the start line. */
 const SPAWN_SLOTS = [0, -7, 7, -14, 14, -21, 21, -28].map((x) => ({ x, z: -52, heading: 0 }));
@@ -5438,6 +5638,7 @@ class Multiplayer {
       p.vLong = latest.vl;
       p.steer = latest.st;
       p.boosting = !!latest.b;
+      p.firing = !!latest.fi;
       p.airborne = !!latest.a;
       p.braking = latest.br ? 1 : 0;
       p.handbrake = !!latest.hb;
@@ -5461,7 +5662,8 @@ class Multiplayer {
    */
   encode(car, vehicleId, smashed) {
     const now = performance.now();
-    const flags = (car.boosting ? 1 : 0) | (car.airborne ? 2 : 0) | (car.braking > 0.05 ? 4 : 0) | (car.handbrake ? 8 : 0);
+    const flags = (car.boosting ? 1 : 0) | (car.airborne ? 2 : 0) | (car.braking > 0.05 ? 4 : 0) | (car.handbrake ? 8 : 0)
+      | (car.firing ? 16 : 0);
     const s = [
       Math.round(now), vehicleId,
       round(car.x), round(car.y || 0), round(car.z), round(car.heading), round(car.pitch || 0), round(car.roll || 0),
@@ -5504,7 +5706,7 @@ function decodeState(a) {
   return {
     v: a[1], x: a[2], y: a[3], z: a[4], h: a[5], p: a[6], r: a[7],
     vx: a[8], vy: a[9], vz: a[10], vl: a[11], st: a[12],
-    b: f & 1, a: f & 2, br: f & 4, hb: f & 8, g: a[14], sm: a[15] || 0,
+    b: f & 1, a: f & 2, br: f & 4, hb: f & 8, fi: f & 16, g: a[14], sm: a[15] || 0,
   };
 }
 
@@ -6870,6 +7072,270 @@ class ScreenQuake {
   }
 }
 
+// ===== flamethrower.js =====
+// The Inferno pickup's mounted flamethrower. A stream of fire arcs out of a
+// turret over the cab; anything it washes over heats up and, once hot
+// enough (heavier things take longer), burns away as glowing voxels through
+// the same burn effect the Ember GT uses (see Destruction.flameSweep).
+
+const FLAME = {
+  speed: 24,        // m/s out of the nozzle
+  drop: 0.012,      // the stream sags this much per metre², like a real arc of fuel
+  range: 15,        // metres the fire reaches
+  tank: 7,          // seconds of fire on a full tank
+  refill: 9,        // seconds to refill from empty while not firing
+  aimDown: 0.07,    // rad below the car's nose the turret points
+};
+
+const _flameQ = new THREE.Quaternion();
+const _flameE = new THREE.Euler();
+const _flameV = new THREE.Vector3();
+
+/**
+ * Nozzle position and direction in the world for a car state (anything
+ * with x, y, z, heading, pitch, roll) and the vehicle's turret mount.
+ */
+function nozzle(car, mount, out = { pos: new THREE.Vector3(), dir: new THREE.Vector3() }) {
+  _flameE.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
+  _flameQ.setFromEuler(_flameE);
+  out.pos.set(mount[0], mount[1], mount[2]).applyQuaternion(_flameQ);
+  out.pos.x += car.x;
+  out.pos.y += car.y || 0;
+  out.pos.z += car.z;
+  out.dir.set(0, -Math.sin(FLAME.aimDown), Math.cos(FLAME.aimDown)).applyQuaternion(_flameQ);
+  return out;
+}
+
+/** Fuel for the flamethrower, drained while firing and refilled after. */
+class FlameTank {
+  constructor() {
+    this.level = 1;
+    this.firing = false;
+    this.empty = false; // ran dry: must refill a bit before firing again
+  }
+
+  update(dt, wantFire) {
+    if (this.empty && this.level > 0.25) this.empty = false;
+    this.firing = wantFire && !this.empty && this.level > 0;
+    if (this.firing) {
+      this.level = Math.max(0, this.level - dt / FLAME.tank);
+      if (this.level === 0) this.empty = true;
+    } else {
+      this.level = Math.min(1, this.level + dt / FLAME.refill);
+    }
+    return this.firing;
+  }
+}
+
+/** The flames themselves: additive glowing particles with a soft falloff. */
+class FlameFX {
+  constructor(scene, capacity = 700) {
+    this.capacity = capacity;
+    this.pos = new Float32Array(capacity * 3);
+    this.vel = new Float32Array(capacity * 3);
+    this.age = new Float32Array(capacity).fill(1);
+    this.life = new Float32Array(capacity).fill(1);
+    this.next = 0;
+    this.rate = 220; // particles per second per nozzle
+    this.carry = new Map(); // emitter key -> fractional particles owed
+
+    const geo = new THREE.BufferGeometry();
+    this.posAttr = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3).setUsage(THREE.DynamicDrawUsage);
+    this.colAttr = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3).setUsage(THREE.DynamicDrawUsage);
+    this.sizeAttr = new THREE.BufferAttribute(new Float32Array(capacity), 1).setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute('position', this.posAttr);
+    geo.setAttribute('color', this.colAttr);
+    geo.setAttribute('size', this.sizeAttr);
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: `
+        attribute float size;
+        attribute vec3 color;
+        varying vec3 vColor;
+        void main() {
+          vColor = color;
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = size * (420.0 / max(0.1, -mv.z));
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `
+        varying vec3 vColor;
+        void main() {
+          vec2 c = gl_PointCoord - 0.5;
+          float d = dot(c, c) * 4.0;
+          if (d > 1.0) discard;
+          gl_FragColor = vec4(vColor * (1.0 - d) * (1.0 - d), 1.0);
+        }`,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      toneMapped: false,
+    });
+    this.points = new THREE.Points(geo, mat);
+    this.points.frustumCulled = false;
+    scene.add(this.points);
+
+    // A flickering light at each active nozzle (only one, pooled).
+    this.light = new THREE.PointLight(0xff8a2a, 0, 18, 1.6);
+    scene.add(this.light);
+    this.lightLevel = 0;
+  }
+
+  /** Spray fire from `pos` along `dir` for `dt` seconds; `vel` is the car's velocity. */
+  emit(key, pos, dir, vel, dt) {
+    let owed = (this.carry.get(key) || 0) + this.rate * dt;
+    while (owed >= 1) {
+      owed -= 1;
+      const i = this.next;
+      this.next = (this.next + 1) % this.capacity;
+      const spread = 0.09;
+      const t = Math.random() * dt; // spread births over the frame so the stream is continuous
+      const sx = dir.x + (Math.random() - 0.5) * spread * 2;
+      const sy = dir.y + (Math.random() - 0.5) * spread * 2;
+      const sz = dir.z + (Math.random() - 0.5) * spread * 2;
+      const speed = FLAME.speed * (0.85 + Math.random() * 0.3);
+      this.vel[i * 3] = sx * speed + vel.x;
+      this.vel[i * 3 + 1] = sy * speed;
+      this.vel[i * 3 + 2] = sz * speed + vel.z;
+      this.pos[i * 3] = pos.x + this.vel[i * 3] * t;
+      this.pos[i * 3 + 1] = pos.y + this.vel[i * 3 + 1] * t;
+      this.pos[i * 3 + 2] = pos.z + this.vel[i * 3 + 2] * t;
+      this.age[i] = t;
+      this.life[i] = (FLAME.range / FLAME.speed) * (0.75 + Math.random() * 0.5);
+    }
+    this.carry.set(key, owed);
+    this.lightTarget = Math.max(this.lightTarget || 0, 1);
+    this.light.position.copy(pos).addScaledVector(dir, 5);
+  }
+
+  update(dt) {
+    const g = 2 * FLAME.drop * FLAME.speed * FLAME.speed; // matches the stream's sag
+    const P = this.posAttr.array, C = this.colAttr.array, S = this.sizeAttr.array;
+    for (let i = 0; i < this.capacity; i++) {
+      const life = this.life[i];
+      let a = this.age[i];
+      if (a >= life) { S[i] = 0; continue; }
+      a += dt;
+      this.age[i] = a;
+      const k = a / life;
+      const j = i * 3;
+      this.vel[j + 1] -= g * dt * (1 - k * 0.8); // late flame stops falling and lifts
+      if (k > 0.6) this.vel[j + 1] += 6 * dt;
+      // Drag slows the stream as it burns out.
+      const drag = Math.exp(-dt * 1.4);
+      this.vel[j] *= drag; this.vel[j + 2] *= drag;
+      this.pos[j] += this.vel[j] * dt;
+      this.pos[j + 1] += this.vel[j + 1] * dt;
+      this.pos[j + 2] += this.vel[j + 2] * dt;
+      // Fire hitting the ground splashes out along it.
+      if (this.pos[j + 1] < 0.15) {
+        this.pos[j + 1] = 0.15;
+        if (this.vel[j + 1] < 0) {
+          this.vel[j] *= 1.1; this.vel[j + 2] *= 1.1;
+          this.vel[j + 1] = Math.abs(this.vel[j + 1]) * 0.15;
+        }
+      }
+      P[j] = this.pos[j]; P[j + 1] = this.pos[j + 1]; P[j + 2] = this.pos[j + 2];
+      // White-yellow core, orange body, dark red smoky tail.
+      const heat = 1 - k;
+      C[j] = 1.6 * Math.min(1, heat * 2.2 + 0.25);
+      C[j + 1] = 1.25 * heat * heat + 0.12 * heat;
+      C[j + 2] = 0.45 * Math.max(0, heat - 0.7) * 3;
+      S[i] = 0.25 + k * 2.4;
+    }
+    this.posAttr.needsUpdate = this.colAttr.needsUpdate = this.sizeAttr.needsUpdate = true;
+    // Light flickers while anyone is firing.
+    this.lightLevel += ((this.lightTarget || 0) - this.lightLevel) * Math.min(1, dt * 12);
+    this.light.intensity = this.lightLevel * (22 + Math.random() * 14);
+    this.lightTarget = 0;
+  }
+
+  clear() {
+    this.age.fill(1);
+    this.life.fill(1);
+    this.sizeAttr.array.fill(0);
+    this.sizeAttr.needsUpdate = true;
+  }
+}
+
+/** Where the stream is `d` metres along, for the burn query (matches the particles' arc). */
+function streamPoint(pos, dir, d, out = _flameV) {
+  return out.set(pos.x + dir.x * d, pos.y + dir.y * d - FLAME.drop * d * d, pos.z + dir.z * d);
+}
+
+// ===== score.js =====
+// Points for destruction, with a combo multiplier. Every thing you break,
+// burn or blow up scores by how big it was, times the multiplier. Keep the
+// destruction going (each smash within COMBO_WINDOW of the last) and the
+// multiplier climbs, up to ×10; pause too long and the combo cashes in and
+// the multiplier drops back to ×1.
+
+const COMBO_WINDOW = 2.2; // seconds a combo survives without another smash
+// Smashes in a row needed for each multiplier: ×2 at 5, ×3 at 12, ... ×10 at 250.
+const TIERS = [0, 5, 12, 25, 45, 70, 100, 140, 190, 250];
+
+/** Base points for breaking or burning something of `mass` kg. */
+function pointsFor(mass) {
+  return 10 + Math.round(Math.sqrt(mass) * 3);
+}
+const EXPLOSION_POINTS = 250;
+
+class Score {
+  constructor() {
+    this.reset();
+  }
+
+  reset() {
+    this.points = 0;
+    this.combo = 0;      // smashes in the current combo
+    this.comboPoints = 0;
+    this.timer = 0;      // seconds left before the combo ends
+    this.mult = 1;
+    this.best = this.best || 0;
+    this.onComboEnd = this.onComboEnd || null;
+    this.lastGain = 0;
+    this.gainAt = -1;
+  }
+
+  /** Award `base` points (times the multiplier). Returns the points given. */
+  add(base) {
+    this.combo++;
+    this.timer = COMBO_WINDOW;
+    this.mult = multiplierFor(this.combo);
+    const gain = base * this.mult;
+    this.points += gain;
+    this.comboPoints += gain;
+    this.lastGain = gain;
+    this.gainAt = performance.now();
+    return gain;
+  }
+
+  update(dt) {
+    if (this.combo === 0) return;
+    this.timer -= dt;
+    if (this.timer > 0) return;
+    // Combo over: report it and start again at ×1.
+    if (this.combo >= 5) this.onComboEnd?.({ count: this.combo, mult: this.mult, points: this.comboPoints });
+    this.best = Math.max(this.best, this.comboPoints);
+    this.combo = 0;
+    this.comboPoints = 0;
+    this.mult = 1;
+    this.timer = 0;
+  }
+
+  /** Progress (0..1) toward the next multiplier. */
+  get progress() {
+    if (this.mult >= TIERS.length) return 1;
+    const lo = TIERS[this.mult - 1], hi = TIERS[this.mult];
+    return (this.combo - lo) / (hi - lo);
+  }
+}
+
+function multiplierFor(combo) {
+  let m = 1;
+  for (let i = 1; i < TIERS.length; i++) if (combo >= TIERS[i]) m = i + 1;
+  return m;
+}
+
 // ===== main.js =====
 const PHYSICS_DT = 1 / 120;
 // At most this many car steps per frame (2 debris-world steps). A slow
@@ -6962,6 +7428,10 @@ const audio = new CarAudio();
 
 let smashed = 0;
 const quake = new ScreenQuake();
+const flames = new FlameFX(scene);
+const tank = new FlameTank();
+const score = new Score();
+const _nz = { pos: new THREE.Vector3(), dir: new THREE.Vector3() };
 // Multiplayer (peer-to-peer; see net.js and multiplayer.js).
 const net = new Net();
 const mp = new Multiplayer({ scene, destruction, vehicles: VEHICLES });
@@ -6993,7 +7463,7 @@ function creditedToMe(pos) {
 
 destruction.on('fracture', (pos, kind) => {
   const mine = creditedToMe(pos);
-  if (mine) smashed++;
+  if (mine) { smashed++; award(pointsFor(kind.mass)); }
   const base = settings.effects === 'high' ? 2 + Math.round(kind.mass / 60) : 1;
   const n = Math.min(6, base);
   for (let i = 0; i < n; i++) dust.emit(pos, { x: 0, z: 0 }, 0.6 + Math.random() * 0.4, pos.y);
@@ -7003,7 +7473,7 @@ destruction.on('fracture', (pos, kind) => {
 });
 destruction.on('burn', (info) => {
   const mine = creditedToMe(info.pos);
-  if (mine) smashed++;
+  if (mine) { smashed++; award(pointsFor(info.kind.mass)); }
   burnFx.ignite(info);
   const puffs = settings.effects === 'high' ? 3 : 1;
   for (let i = 0; i < puffs; i++) soot.emit(info.pos, { x: 0, z: 0 }, 0.8, info.pos.y + 0.5);
@@ -7017,7 +7487,7 @@ destruction.on('impact', (material, strength, pos) => {
 });
 destruction.on('explode', (pos, distance) => {
   const mine = creditedToMe(pos);
-  if (mine) smashed++;
+  if (mine) { smashed++; award(EXPLOSION_POINTS); }
   burnFx.fireball(pos);
   const puffs = settings.effects === 'high' ? 8 : 3;
   for (let i = 0; i < puffs; i++) {
@@ -7029,6 +7499,15 @@ destruction.on('explode', (pos, distance) => {
   quake.kick(Math.max(0, 1 - distance / 35) * 0.6);
   if (mine) car.boost = Math.min(1, car.boost + 0.05);
 });
+
+/** Destruction points (free roam; football has its own score). */
+function award(base) {
+  if (mode !== 'free' || state === 'menu') return;
+  score.add(base);
+}
+score.onComboEnd = ({ count, mult, points }) => {
+  toast(`Combo over: ${count} smashed at ×${mult}, +${points.toLocaleString('en-US')}`);
+};
 
 // --- Settings ----------------------------------------------------------
 let shadowsWere = null;
@@ -7122,6 +7601,8 @@ function resetAll() {
   burnFx.clear();
   buildArena();
   smashed = 0;
+  score.reset();
+  flames.clear();
   resetCar();
   resetBot();
   // The referee starts a new match; others wait for its kickoff.
@@ -7345,6 +7826,8 @@ const hud = {
   speed: $('speed'), gear: $('gear'), rpmFill: $('rpm-fill'), drift: $('drift'),
   toast: $('toast'), telemetry: $('telemetry'), assists: $('assists'), cam: $('cam'), smashed: $('smashed'),
   vehicle: $('vehicle'), prompt: $('prompt'), fps: $('fps'), boostFill: $('boost-fill'),
+  fuelFill: $('fuel-fill'), points: $('score-points'), mult: $('score-mult'), comboFill: $('score-combo-fill'),
+  comboCount: $('score-count'), gain: $('score-gain'), scorePanel: $('score'),
 };
 let toastTimer = 0;
 function toast(msg) {
@@ -7357,6 +7840,8 @@ function refreshBadges() {
   hud.assists.classList.toggle('off', !settings.assists);
   hud.cam.textContent = `Camera: ${chase.modeName}`;
   hud.vehicle.textContent = active.def.name;
+  // Flamethrower controls and fuel gauge only for a vehicle that has one.
+  document.body.classList.toggle('flamer', !!active.def.flamethrower);
 }
 
 // --- Menus and game state -------------------------------------------------
@@ -7537,9 +8022,9 @@ function refreshPlayers() {
   list.hidden = false;
   const fb = mode === 'football';
   const color = (id, def) => (fb ? TEAM_COLORS[football.teams.get(id) ?? 0] : def.swatch ?? def.color);
-  const score = (id, n) => (fb ? football.goals.get(id) || 0 : n);
-  const rows = [{ name: `${settings.playerName || 'You'} (you)`, color: color(net.id, active.def), smashed: score(net.id, smashed) }];
-  for (const r of mp.remotes.values()) rows.push({ name: r.name, color: color(r.id, r.def), smashed: score(r.id, r.smashed) });
+  const pts = (id, n) => (fb ? football.goals.get(id) || 0 : n);
+  const rows = [{ name: `${settings.playerName || 'You'} (you)`, color: color(net.id, active.def), smashed: pts(net.id, score.points) }];
+  for (const r of mp.remotes.values()) rows.push({ name: r.name, color: color(r.id, r.def), smashed: pts(r.id, r.smashed) });
   refreshTeamGlows();
   rows.sort((a, b) => b.smashed - a.smashed);
   // Only touch the page when something shown actually changed.
@@ -7553,9 +8038,9 @@ function refreshPlayers() {
     dot.style.background = `#${r.color.toString(16).padStart(6, '0')}`;
     const name = document.createElement('span');
     name.textContent = r.name;
-    const score = document.createElement('b');
-    score.textContent = r.smashed;
-    li.append(dot, name, score);
+    const val = document.createElement('b');
+    val.textContent = r.smashed.toLocaleString('en-US');
+    li.append(dot, name, val);
     return li;
   }));
 }
@@ -7591,7 +8076,7 @@ function netTick(dt) {
   netTimer -= dt;
   if (netTimer > 0) return;
   netTimer = Math.max(0, netTimer + SEND_INTERVAL);
-  const own = mp.encode(car, active.def.id, smashed);
+  const own = mp.encode(car, active.def.id, score.points);
   if (net.isHost) {
     net.flush(own, mode === 'football' ? football.snapshot(++matchTicks % 10 === 0) : null);
   } else {
@@ -7600,6 +8085,41 @@ function netTick(dt) {
   }
 }
 let matchTicks = 0;
+
+/** Flame particles and roar for every firing flamethrower; our fuel gauge. */
+function updateFlames(dt) {
+  let roar = 0;
+  if (car.firing) {
+    nozzle(car, active.def.flamethrower.mount, _nz);
+    flames.emit('me', _nz.pos, _nz.dir, { x: car.velX, z: car.velZ }, dt);
+    roar = 1;
+  }
+  for (const rm of mp.remotes.values()) {
+    if (!rm.proxy.firing || !rm.def.flamethrower || !rm.seen) continue;
+    nozzle(rm.proxy, rm.def.flamethrower.mount, _nz);
+    flames.emit(rm.id, _nz.pos, _nz.dir, { x: rm.proxy.velX, z: rm.proxy.velZ }, dt);
+    roar = Math.max(roar, 1 / (1 + (Math.hypot(rm.proxy.x - car.x, rm.proxy.z - car.z) / 15) ** 2));
+  }
+  flames.update(dt);
+  audio.flame(roar);
+  if (car.firing) quake.floor(0.12);
+  hud.fuelFill.style.width = `${tank.level * 100}%`;
+  hud.fuelFill.classList.toggle('empty', tank.empty);
+}
+
+/** Points, multiplier and combo timer (free roam). */
+function updateScoreHud(dt) {
+  score.update(dt);
+  hud.scorePanel.hidden = mode !== 'free';
+  hud.points.textContent = score.points.toLocaleString('en-US');
+  hud.mult.textContent = `×${score.mult}`;
+  hud.mult.dataset.level = Math.min(10, score.mult);
+  hud.scorePanel.classList.toggle('combo', score.combo > 0);
+  hud.comboFill.style.width = `${Math.max(0, score.timer / COMBO_WINDOW) * 100}%`;
+  hud.comboCount.textContent = score.combo > 0 ? `${score.combo} smashed` : '';
+  const since = performance.now() - score.gainAt;
+  hud.gain.textContent = since < 700 ? `+${score.lastGain.toLocaleString('en-US')}` : '';
+}
 
 /** Gameplay keys only act while driving. */
 const playing = (fn) => () => { if (state === 'playing') fn(); };
@@ -7712,6 +8232,8 @@ function frame() {
     const frozen = mode === 'football' && football.phase === 'kickoff';
     const idle = { steer: 0, throttle: 0, brake: 0, handbrake: true, boost: false, jump: false };
     const inputNow = state === 'playing' && !frozen ? controls : idle;
+    // Flamethrower: fuel and firing, once per frame.
+    car.firing = tank.update(dt, !!(active.def.flamethrower && inputNow.fire));
     accumulator += dt;
     let steps = 0;
     while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
@@ -7927,6 +8449,16 @@ function onLanding({ impact, misalign, airTime }) {
 
 function stepWorld() {
   const r = destruction.step(car);
+  // Flamethrowers (ours and other players') set fire to what they reach.
+  if (car.firing) {
+    nozzle(car, active.def.flamethrower.mount, _nz);
+    destruction.flameSweep(_nz.pos, _nz.dir, WORLD_STEP, _nz.pos);
+  }
+  for (const rm of mp.remotes.values()) {
+    if (!rm.proxy.firing || !rm.def.flamethrower || !rm.seen) continue;
+    nozzle(rm.proxy, rm.def.flamethrower.mount, _nz);
+    destruction.flameSweep(_nz.pos, _nz.dir, WORLD_STEP, _nz.pos);
+  }
   if (mode === 'football') football.step(WORLD_STEP);
   if (r.total > 0) {
     const dv = car.applyImpulse(r.jx, r.jz, r.torque);
@@ -7982,6 +8514,8 @@ function updateScene(dt) {
   audio.update(car, squeal);
   if (car.boosting) quake.floor(0.18);
   hud.boostFill.style.width = `${car.boost * 100}%`;
+  updateFlames(dt);
+  updateScoreHud(dt);
   hud.boostFill.classList.toggle('on', car.boosting);
 
   chase.update(car, dt);
@@ -8047,7 +8581,7 @@ openMainMenu();
 window.game = {
   get car() { return car; }, get active() { return active; }, get state() { return state; }, net, mp,
   get renderer() { return renderer; }, get settings() { return settings; },
-  fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu, quake,
+  fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu, quake, score, tank,
   football, get bot() { return bot; }, get mode() { return mode; }, enterMode,
 };
 requestAnimationFrame(frame);
