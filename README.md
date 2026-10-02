@@ -27,6 +27,15 @@ it. Landing flat keeps your speed, while landing on the nose or a corner scrubs 
 sides of a ramp are walls. Ramps are also solid in the physics world (made of convex slices), so debris
 and parked cars slide off them. Airtime is shown on screen, and big air refills boost.
 
+**Screen quake** (`src/quake.js`) grows with how much is being destroyed around you. Every piece
+that breaks or burns adds energy by its mass, explosions add a lot (and are felt from further away),
+and debris crashing down adds a little; things far away count for less, and the total fades over
+about a second. A crate pyramid gives a light tremble, a brick wall a solid rumble, and a collapsing
+building or a chain of fuel drums shakes the whole screen. The motion is a smooth rumble that gets
+faster and stronger as it builds, moving and slightly tilting the camera. Your own crashes and hard
+landings add short jolts on top. A gamepad rumbles along. Options → Game → Screen shake sets it to
+Off, Low, Normal or High.
+
 **Fuel drums** explode when hit hard (or burned by the Ember GT). The blast pushes everything within
 9 m outward and up, shatters things close by, shoves the car, and sets off nearby drums a moment later,
 so a pile goes up in a chain.
@@ -273,6 +282,7 @@ All of it is in `src/destruction.js`.
 - `src/destruction.js`: rigid-body world, fracturing, and instanced rendering
 - `src/effects.js`: skid marks and tire smoke
 - `src/burn.js`: the Ember GT's voxel burn effect
+- `src/quake.js`: screen quake driven by how much destruction is happening
 - `src/net.js`: peer-to-peer rooms (PeerJS), with the host relaying messages
 - `src/multiplayer.js`: other players' cars, smoothing, name tags
 - `src/carCollision.js`: car-to-car collisions with momentum-correct impulses

@@ -18,6 +18,7 @@ import { footprint, yawInertia, overlap, contactImpulse, applyToCar } from './ca
 import { createStadium, kickoffSpot, TEAM_COLORS, PITCH } from './stadium.js';
 import { Football, setTeamGlow, TEAM_NAMES } from './football.js';
 import { Bot } from './bot.js';
+import { ScreenQuake } from './quake.js';
 
 const PHYSICS_DT = 1 / 120;
 // At most this many car steps per frame (2 debris-world steps). A slow
@@ -109,7 +110,7 @@ const input = new Input();
 const audio = new CarAudio();
 
 let smashed = 0;
-let shake = 0;
+const quake = new ScreenQuake();
 // Multiplayer (peer-to-peer; see net.js and multiplayer.js).
 const net = new Net();
 const mp = new Multiplayer({ scene, destruction, vehicles: VEHICLES });
@@ -146,6 +147,7 @@ destruction.on('fracture', (pos, kind) => {
   const n = Math.min(6, base);
   for (let i = 0; i < n; i++) dust.emit(pos, { x: 0, z: 0 }, 0.6 + Math.random() * 0.4, pos.y);
   audio.impact(kind.material, 1, pos);
+  quake.smash(kind.mass, pos, car);
   if (mine) car.boost = Math.min(1, car.boost + 0.015); // smashing refills boost
 });
 destruction.on('burn', (info) => {
@@ -155,9 +157,13 @@ destruction.on('burn', (info) => {
   const puffs = settings.effects === 'high' ? 3 : 1;
   for (let i = 0; i < puffs; i++) soot.emit(info.pos, { x: 0, z: 0 }, 0.8, info.pos.y + 0.5);
   audio.burn(Math.min(1, 0.4 + info.kind.mass / 300), info.pos);
+  quake.smash(info.kind.mass, info.pos, car, 0.6); // burning is quieter than smashing
   if (mine) car.boost = Math.min(1, car.boost + 0.012);
 });
-destruction.on('impact', (material, strength, pos) => audio.impact(material, strength, pos));
+destruction.on('impact', (material, strength, pos) => {
+  audio.impact(material, strength, pos);
+  quake.add(strength * 0.25, pos, car); // debris crashing down adds to the rumble
+});
 destruction.on('explode', (pos, distance) => {
   const mine = creditedToMe(pos);
   if (mine) smashed++;
@@ -168,7 +174,8 @@ destruction.on('explode', (pos, distance) => {
     dust.emit(pos, { x: (Math.random() - 0.5) * 14, z: (Math.random() - 0.5) * 14 }, 1, pos.y);
   }
   audio.explosion(pos, distance);
-  shake = Math.min(1, shake + Math.max(0, 1 - distance / 35));
+  quake.add(12, pos, car, 30); // a blast is felt further away than a smash
+  quake.kick(Math.max(0, 1 - distance / 35) * 0.6);
   if (mine) car.boost = Math.min(1, car.boost + 0.05);
 });
 
@@ -199,6 +206,7 @@ function applySettings({ rebuildRenderer = false } = {}) {
   car.spec.assists = settings.assists;
   audio.setMuted(!settings.sound);
   audio.setVolume(settings.volume);
+  quake.strength = settings.screenShake;
   burnFx.setDetail(settings.effects === 'high' ? 150 : 60, settings.effects === 'high');
   $('fps').hidden = !settings.showFps;
   refreshBadges();
@@ -382,7 +390,7 @@ football.on('goal', (g) => {
   audio.explosion(pos, Math.hypot(car.x - pos.x, car.z - pos.z));
   audio.goalHorn();
   stadium.celebrate();
-  shake = Math.min(1, shake + 0.5);
+  quake.kick(0.5);
   refreshPlayers();
 });
 football.on('overtime', () => {
@@ -822,7 +830,7 @@ function containLot(c) {
 function containCar() {
   const hit = map.contain(car);
   if (hit > 3) {
-    shake = Math.min(1, shake + hit * 0.03);
+    quake.kick(hit * 0.03);
     audio.impact('crash', Math.min(1, hit / 20));
   }
 }
@@ -869,7 +877,7 @@ function frame() {
       resolveCarCollisions();
       if (car.landed) onLanding(car.landed);
       if (car.blocked > 3) {
-        shake = Math.min(1, shake + car.blocked * 0.03);
+        quake.kick(car.blocked * 0.03);
         audio.impact('crash', Math.min(1, car.blocked / 15));
       }
       // The debris world runs at a lower rate than the car's handling.
@@ -1047,7 +1055,7 @@ function collisionFx(speed, px, pz) {
   const pos = { x: px, y: (car.y || 0) + 0.6, z: pz };
   audio.impact('crash', Math.min(1, speed / 14));
   audio.impact('metal', Math.min(1, speed / 18), pos);
-  shake = Math.min(1, shake + speed * 0.05);
+  quake.kick(speed * 0.05);
   const puffs = settings.effects === 'high' ? 4 : 2;
   for (let i = 0; i < puffs; i++) dust.emit(pos, { x: (Math.random() - 0.5) * 4, z: (Math.random() - 0.5) * 4 }, Math.min(1, speed / 12), pos.y);
 }
@@ -1055,7 +1063,7 @@ function collisionFx(speed, px, pz) {
 /** Touchdown: thump, shake, dust off the wheels, and boost for big air. */
 function onLanding({ impact, misalign, airTime }) {
   if (impact > 2.5) {
-    shake = Math.min(1, shake + impact * 0.035 + misalign * 0.2);
+    quake.kick(impact * 0.035 + misalign * 0.2);
     audio.impact('crash', Math.min(1, impact / 14 + misalign * 0.3));
     active.model.contactPoints(contacts);
     for (const p of contacts) dust.emit(p, { x: car.velX * 0.3, z: car.velZ * 0.3 }, Math.min(1, impact / 12), terrain.heightAt(p.x, p.z) + 0.2);
@@ -1071,7 +1079,7 @@ function stepWorld() {
   if (mode === 'football') football.step(WORLD_STEP);
   if (r.total > 0) {
     const dv = car.applyImpulse(r.jx, r.jz, r.torque);
-    shake = Math.min(1, shake + dv * 0.12);
+    quake.kick(dv * 0.12);
     if (dv > 0.6 && crashCooldown <= 0) {
       audio.impact('crash', Math.min(1, dv / 3));
       crashCooldown = 0.12;
@@ -1121,18 +1129,12 @@ function updateScene(dt) {
   soot.update(dt);
   burnFx.update(dt);
   audio.update(car, squeal);
-  if (car.boosting) shake = Math.max(shake, 0.18);
+  if (car.boosting) quake.floor(0.18);
   hud.boostFill.style.width = `${car.boost * 100}%`;
   hud.boostFill.classList.toggle('on', car.boosting);
 
   chase.update(car, dt);
-  if (shake > 0.001) {
-    const a = shake * shake * 0.35;
-    camera.position.x += (Math.random() - 0.5) * a;
-    camera.position.y += (Math.random() - 0.5) * a;
-    camera.position.z += (Math.random() - 0.5) * a;
-    shake *= Math.exp(-dt * 6);
-  }
+  quake.apply(camera, dt);
   world.followSun(active.model.root.position);
   audio.setListener(camera);
   football.update(dt, camera);
@@ -1179,6 +1181,7 @@ function updateScene(dt) {
       `lat G      ${(car.accelLat / 9.81).toFixed(2).padStart(6)}\n` +
       `rpm        ${(car.rpm | 0).toString().padStart(6)}\n` +
       `bodies     ${destruction.bodyCount.toString().padStart(6)}\n` +
+      `quake      ${quake.level.toFixed(2).padStart(6)}  (activity ${quake.activity.toFixed(1)})\n` +
       `res scale  ${pixelRatio().toFixed(2).padStart(6)}`;
   }
 }
@@ -1193,7 +1196,7 @@ openMainMenu();
 window.game = {
   get car() { return car; }, get active() { return active; }, get state() { return state; }, net, mp,
   get renderer() { return renderer; }, get settings() { return settings; },
-  fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu,
+  fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu, quake,
   football, get bot() { return bot; }, get mode() { return mode; }, enterMode,
 };
 requestAnimationFrame(frame);
