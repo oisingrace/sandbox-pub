@@ -105,7 +105,8 @@ floors above collapse.
 
 The vehicles you aren't driving are parked around the start as physics objects that can be pushed, spun
 and flipped. Drive up to one and press **E** to take it over; the vehicle you leave stays parked where
-you stopped. Vehicles are defined in `src/vehicles.js`, each with handling overrides, a collision
+you stopped. Or press **V** (or **Change car** in the pause menu) to open the garage and swap into any
+vehicle on the spot: the car you leave parks where the new one was waiting. This works online too. Vehicles are defined in `src/vehicles.js`, each with handling overrides, a collision
 hitbox, a parking spot, camera settings, and a body builder.
 
 ## Run
@@ -134,7 +135,8 @@ python3 -m http.server 8000
 | Toggle assists | T | B |
 | Cycle camera (chase / far / hood) | C | X |
 | Reset car | R | Y |
-| Drive a nearby vehicle | E | |
+| Change car (garage, anywhere) | V | |
+| Drive a nearby parked vehicle | E | |
 | Rebuild arena | B | |
 | Telemetry overlay | F | |
 | Mute / help | M / H | |

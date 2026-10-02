@@ -192,6 +192,7 @@ const ember = {
   stats: { top: 255, accel: 5.4 },
   burns: true,
   color: 0x1d1f24,
+  swatch: 0xff6a10, // the body is near-black; lists show its glow colour
   length: 4.5,
   width: 1.9,
   spec: {

@@ -210,7 +210,7 @@ function nameTag(name, def) {
   g.beginPath();
   g.roundRect((256 - w) / 2, 8, w, 48, 24);
   g.fill();
-  g.fillStyle = `#${def.color.toString(16).padStart(6, '0')}`;
+  g.fillStyle = `#${(def.swatch ?? def.color).toString(16).padStart(6, '0')}`;
   g.beginPath();
   g.arc((256 - w) / 2 + 22, 32, 7, 0, Math.PI * 2);
   g.fill();

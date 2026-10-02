@@ -228,6 +228,45 @@ function nearbyVehicle() {
 }
 
 /** Leave the current vehicle parked where it is and take over `target`. */
+/**
+ * Swap to any vehicle on the spot (garage / V key). In solo the car we
+ * leave goes back to its parking spot; online, other players see the new
+ * car appear through our state updates.
+ */
+function changeVehicle(def) {
+  const target = fleet.find((v) => v.def === def);
+  if (!target || target === active) return;
+  const pose = { x: car.x, z: car.z, heading: car.heading };
+  const old = active;
+  // The cars trade places: the one we leave parks where the new one was
+  // waiting (never on top of us).
+  let spot = old.def.home;
+  if (target.parked) {
+    const t = target.parked.body.translation();
+    const q = target.parked.body.rotation();
+    const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
+    spot = { x: t.x, z: t.z, heading: Math.atan2(fwd.x, fwd.z) };
+    destruction.removeVehicle(target.parked);
+    target.parked = null;
+  }
+  if (!net.online) old.parked = destruction.spawnVehicle(old.def, spot);
+  old.model.root.visible = !!old.parked;
+
+  active = target;
+  active.model.root.visible = true;
+  car = new CarPhysics({ ...def.spec, assists: settings.assists }, terrain);
+  car.reset(pose.x, pose.z, pose.heading);
+  destruction.createCar(def);
+  destruction.teleportCar(car);
+  skids.clear();
+  chase.setVehicle(def);
+  chase.snap();
+  audio.setVehicle(def);
+  setSetting('startVehicle', def.id);
+  refreshBadges();
+  toast(`Driving: ${def.name}`);
+}
+
 function switchTo(target) {
   const old = active;
   old.parked = destruction.spawnVehicle(
@@ -288,6 +327,8 @@ const menu = new Menu({
   onJoin: (code, name) => joinRoom(code, name),
   onLeave: () => { leaveRoom(); toast('You left the room'); resume(); },
   onCopyCode: () => net.code,
+  currentVehicle: () => active.def.id,
+  onPickVehicle: (def) => { changeVehicle(def); resume(); },
 });
 
 function play(def) {
@@ -412,8 +453,8 @@ function refreshPlayers() {
   const list = $('players');
   if (!net.online) { list.hidden = true; return; }
   list.hidden = false;
-  const rows = [{ name: `${settings.playerName || 'You'} (you)`, color: active.def.color, smashed }];
-  for (const r of mp.remotes.values()) rows.push({ name: r.name, color: r.def.color, smashed: r.smashed });
+  const rows = [{ name: `${settings.playerName || 'You'} (you)`, color: active.def.swatch ?? active.def.color, smashed }];
+  for (const r of mp.remotes.values()) rows.push({ name: r.name, color: r.def.swatch ?? r.def.color, smashed: r.smashed });
   rows.sort((a, b) => b.smashed - a.smashed);
   const ul = $('players-list');
   ul.replaceChildren(...rows.map((r) => {
@@ -457,13 +498,17 @@ const playing = (fn) => () => { if (state === 'playing') fn(); };
 input.onPress('Escape', () => {
   if (state === 'playing') pause();
   else if (state === 'paused' && menu.current === 'pause') resume();
-  else if (menu.current === 'options' || menu.current === 'controls') menu.back();
+  else if (['options', 'controls', 'garage'].includes(menu.current)) menu.back();
 });
 input.onPress('KeyP', () => { if (state === 'playing') pause(); else if (state === 'paused' && menu.current === 'pause') resume(); });
 input.onPress('KeyR', playing(() => { resetCar(); toast('Car reset'); }));
 input.onPress('KeyB', playing(() => rebuildArena()));
 input.onPress('KeyC', playing(() => { chase.cycle(); refreshBadges(); toast(`Camera: ${chase.modeName}`); }));
 input.onPress('KeyE', playing(enterNearby));
+input.onPress('KeyV', () => {
+  if (state === 'playing') { pause(); menu.showGarage(); }
+  else if (menu.current === 'garage') resume();
+});
 input.onPress('KeyT', playing(() => {
   setSetting('assists', !settings.assists);
   toast(settings.assists ? 'Assists ON (traction + countersteer)' : 'Assists OFF: full drift mode');
@@ -492,6 +537,7 @@ if (isTouch) {
   $('touch-reset').addEventListener('click', resetCar);
   $('touch-pause').addEventListener('click', pause);
   $('touch-enter').addEventListener('click', enterNearby);
+  $('touch-garage').addEventListener('click', () => { pause(); menu.showGarage(); });
 }
 
 // Pause when the tab is hidden (also where an ad break would hook in).

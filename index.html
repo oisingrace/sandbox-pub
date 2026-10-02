@@ -198,6 +198,16 @@
     #touch-reset { left: 76px; top: 16px; }
     #touch-pause { left: 136px; top: 16px; }
     #touch-enter { left: 196px; top: 16px; }
+    #touch-garage { left: 256px; top: 16px; }
+    .garage-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+    #menu .garage-card { display: grid; grid-template-columns: 12px 1fr; gap: 4px 10px; align-items: start; padding: 12px 14px; min-width: 0; }
+    #menu .garage-card[aria-current="true"] { border-color: var(--hazard); box-shadow: inset 0 0 0 1px var(--hazard); }
+    .garage-card i { width: 12px; height: 12px; border-radius: 3px; margin-top: 3px; }
+    .garage-card .g-name { font-size: 16px; font-weight: 700; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    .garage-card .g-name small { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hazard); }
+    .garage-card .g-blurb { grid-column: 2; font-size: 13px; font-weight: 400; color: var(--hud-dim); line-height: 1.4; }
+    .garage-card .g-stats { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; font-weight: 400; color: var(--hud-dim); font-variant-numeric: tabular-nums; }
+    .garage-card .g-stats b { color: var(--hud-fg); }
     #t-boost { right: 140px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
   </style>
   <!-- PeerJS: browser-to-browser multiplayer (UMD build, defines window.Peer). -->
@@ -219,7 +229,7 @@
     <div class="row"><kbd>W</kbd><kbd>S</kbd> <b>throttle / brake</b> (hold S to reverse)</div>
     <div class="row"><kbd>A</kbd><kbd>D</kbd> <b>steer</b> &nbsp;<kbd>Space</kbd> <b>handbrake</b> &nbsp;<kbd>Shift</kbd> <b>boost</b></div>
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
-    <div class="row"><kbd>E</kbd> <b>drive a nearby vehicle</b> (4 to try)</div>
+    <div class="row"><kbd>V</kbd> <b>change car</b> &nbsp;<kbd>E</kbd> <b>drive a nearby parked one</b></div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>Esc</kbd> <b>pause</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
@@ -281,6 +291,7 @@
     <section class="screen" data-screen="pause" hidden aria-labelledby="pause-title">
       <h2 id="pause-title" class="screen-title">Paused</h2>
       <button type="button" class="primary" id="btn-resume">Resume</button>
+      <button type="button" id="btn-garage">Change car</button>
       <button type="button" id="btn-pause-options">Options</button>
       <button type="button" id="btn-pause-controls">Controls</button>
       <div id="pause-room" class="room-box" hidden>
@@ -319,6 +330,13 @@
       <button type="button" class="back" data-back>Back</button>
     </section>
 
+    <section class="screen wide" data-screen="garage" hidden aria-labelledby="garage-title">
+      <h2 id="garage-title" class="screen-title">Change car</h2>
+      <p class="online-intro">You swap into the new car right where you are.</p>
+      <div id="garage-list" class="garage-list" role="list"></div>
+      <button type="button" class="back" data-back>Back</button>
+    </section>
+
     <section class="screen wide" data-screen="controls" hidden aria-labelledby="controls-title">
       <h2 id="controls-title" class="screen-title">Controls</h2>
       <table class="controls">
@@ -329,7 +347,8 @@
           <tr><td>Reverse</td><td>Hold <kbd>S</kbd> when stopped</td><td>Hold LT</td></tr>
           <tr><td>Handbrake</td><td><kbd>Space</kbd></td><td>A / RB</td></tr>
           <tr><td>Boost (refills over time and when you smash things)</td><td><kbd>Shift</kbd></td><td>LB</td></tr>
-          <tr><td>Drive a nearby vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
+          <tr><td>Change car (anywhere)</td><td><kbd>V</kbd></td><td>On screen: CAR</td></tr>
+          <tr><td>Drive a nearby parked vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
           <tr><td>Camera (chase, far, hood)</td><td><kbd>C</kbd></td><td>X</td></tr>
           <tr><td>Reset car</td><td><kbd>R</kbd></td><td>Y</td></tr>
           <tr><td>Rebuild arena</td><td><kbd>B</kbd></td><td>Pause menu</td></tr>
@@ -352,6 +371,7 @@
     <div class="tbtn small" id="touch-reset">RST</div>
     <div class="tbtn small" id="touch-pause" aria-label="Pause">II</div>
     <div class="tbtn small" id="touch-enter">IN</div>
+    <div class="tbtn small" id="touch-garage">CAR</div>
     <div class="tbtn" id="t-boost" data-touch="boost">BST</div>
   </div>
 

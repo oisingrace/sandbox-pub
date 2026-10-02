@@ -34,6 +34,7 @@ export class Menu {
     on('btn-options', () => this.show('options', 'main'));
     on('btn-controls', () => this.show('controls', 'main'));
     on('btn-resume', () => opts.onResume());
+    on('btn-garage', () => this.showGarage());
     on('btn-pause-options', () => this.show('options', 'pause'));
     on('btn-pause-controls', () => this.show('controls', 'pause'));
     on('btn-rebuild', () => opts.onRebuild());
@@ -128,6 +129,44 @@ export class Menu {
     this.show(this.backTo);
   }
 
+  /** The in-game garage: pick any vehicle and swap into it on the spot. */
+  showGarage() {
+    const current = this.opts.currentVehicle();
+    const list = document.getElementById('garage-list');
+    list.replaceChildren(...this.opts.vehicles.map((v) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'garage-card';
+      b.setAttribute('role', 'listitem');
+      b.setAttribute('aria-current', String(v.id === current));
+      const dot = document.createElement('i');
+      dot.style.background = `#${(v.swatch ?? v.color).toString(16).padStart(6, '0')}`;
+      const name = document.createElement('span');
+      name.className = 'g-name';
+      name.textContent = v.name;
+      if (v.id === current) {
+        const tag = document.createElement('small');
+        tag.textContent = 'Driving';
+        name.append(tag);
+      }
+      const blurb = document.createElement('span');
+      blurb.className = 'g-blurb';
+      blurb.textContent = v.blurb;
+      const stats = document.createElement('span');
+      stats.className = 'g-stats';
+      stats.innerHTML = `<span><b>${v.stats.top}</b> km/h</span><span><b>${v.stats.accel}</b> s 0–100</span><span><b>${v.spec.mass.toLocaleString('en-US')}</b> kg</span>`;
+      b.append(dot, name, blurb, stats);
+      b.addEventListener('click', () => {
+        this.vehicleIndex = this.opts.vehicles.indexOf(v);
+        this.renderVehicle();
+        this.opts.onPickVehicle(v);
+      });
+      return b;
+    }));
+    this.show('garage', 'pause');
+    list.querySelector('[aria-current="true"]')?.focus({ preventScroll: true });
+  }
+
   pickVehicle(dir) {
     const n = this.opts.vehicles.length;
     this.vehicleIndex = (this.vehicleIndex + dir + n) % n;
@@ -142,7 +181,7 @@ export class Menu {
     const mass = v.spec.mass.toLocaleString('en-US');
     document.getElementById('vehicle-stats').innerHTML =
       `<span><b>${v.stats.top}</b> km/h</span><span><b>${v.stats.accel}</b> s 0–100</span><span><b>${mass}</b> kg</span>`;
-    document.getElementById('vehicle-swatch').style.background = `#${v.color.toString(16).padStart(6, '0')}`;
+    document.getElementById('vehicle-swatch').style.background = `#${(v.swatch ?? v.color).toString(16).padStart(6, '0')}`;
   }
 
   renderTabs() {

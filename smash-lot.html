@@ -198,6 +198,16 @@
     #touch-reset { left: 76px; top: 16px; }
     #touch-pause { left: 136px; top: 16px; }
     #touch-enter { left: 196px; top: 16px; }
+    #touch-garage { left: 256px; top: 16px; }
+    .garage-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+    #menu .garage-card { display: grid; grid-template-columns: 12px 1fr; gap: 4px 10px; align-items: start; padding: 12px 14px; min-width: 0; }
+    #menu .garage-card[aria-current="true"] { border-color: var(--hazard); box-shadow: inset 0 0 0 1px var(--hazard); }
+    .garage-card i { width: 12px; height: 12px; border-radius: 3px; margin-top: 3px; }
+    .garage-card .g-name { font-size: 16px; font-weight: 700; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    .garage-card .g-name small { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hazard); }
+    .garage-card .g-blurb { grid-column: 2; font-size: 13px; font-weight: 400; color: var(--hud-dim); line-height: 1.4; }
+    .garage-card .g-stats { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; font-weight: 400; color: var(--hud-dim); font-variant-numeric: tabular-nums; }
+    .garage-card .g-stats b { color: var(--hud-fg); }
     #t-boost { right: 140px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
   </style>
   <!-- PeerJS: browser-to-browser multiplayer (UMD build, defines window.Peer). -->
@@ -219,7 +229,7 @@
     <div class="row"><kbd>W</kbd><kbd>S</kbd> <b>throttle / brake</b> (hold S to reverse)</div>
     <div class="row"><kbd>A</kbd><kbd>D</kbd> <b>steer</b> &nbsp;<kbd>Space</kbd> <b>handbrake</b> &nbsp;<kbd>Shift</kbd> <b>boost</b></div>
     <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
-    <div class="row"><kbd>E</kbd> <b>drive a nearby vehicle</b> (4 to try)</div>
+    <div class="row"><kbd>V</kbd> <b>change car</b> &nbsp;<kbd>E</kbd> <b>drive a nearby parked one</b></div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>Esc</kbd> <b>pause</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
@@ -281,6 +291,7 @@
     <section class="screen" data-screen="pause" hidden aria-labelledby="pause-title">
       <h2 id="pause-title" class="screen-title">Paused</h2>
       <button type="button" class="primary" id="btn-resume">Resume</button>
+      <button type="button" id="btn-garage">Change car</button>
       <button type="button" id="btn-pause-options">Options</button>
       <button type="button" id="btn-pause-controls">Controls</button>
       <div id="pause-room" class="room-box" hidden>
@@ -319,6 +330,13 @@
       <button type="button" class="back" data-back>Back</button>
     </section>
 
+    <section class="screen wide" data-screen="garage" hidden aria-labelledby="garage-title">
+      <h2 id="garage-title" class="screen-title">Change car</h2>
+      <p class="online-intro">You swap into the new car right where you are.</p>
+      <div id="garage-list" class="garage-list" role="list"></div>
+      <button type="button" class="back" data-back>Back</button>
+    </section>
+
     <section class="screen wide" data-screen="controls" hidden aria-labelledby="controls-title">
       <h2 id="controls-title" class="screen-title">Controls</h2>
       <table class="controls">
@@ -329,7 +347,8 @@
           <tr><td>Reverse</td><td>Hold <kbd>S</kbd> when stopped</td><td>Hold LT</td></tr>
           <tr><td>Handbrake</td><td><kbd>Space</kbd></td><td>A / RB</td></tr>
           <tr><td>Boost (refills over time and when you smash things)</td><td><kbd>Shift</kbd></td><td>LB</td></tr>
-          <tr><td>Drive a nearby vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
+          <tr><td>Change car (anywhere)</td><td><kbd>V</kbd></td><td>On screen: CAR</td></tr>
+          <tr><td>Drive a nearby parked vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
           <tr><td>Camera (chase, far, hood)</td><td><kbd>C</kbd></td><td>X</td></tr>
           <tr><td>Reset car</td><td><kbd>R</kbd></td><td>Y</td></tr>
           <tr><td>Rebuild arena</td><td><kbd>B</kbd></td><td>Pause menu</td></tr>
@@ -352,6 +371,7 @@
     <div class="tbtn small" id="touch-reset">RST</div>
     <div class="tbtn small" id="touch-pause" aria-label="Pause">II</div>
     <div class="tbtn small" id="touch-enter">IN</div>
+    <div class="tbtn small" id="touch-garage">CAR</div>
     <div class="tbtn" id="t-boost" data-touch="boost">BST</div>
   </div>
 
@@ -1325,6 +1345,7 @@ const ember = {
   stats: { top: 255, accel: 5.4 },
   burns: true,
   color: 0x1d1f24,
+  swatch: 0xff6a10, // the body is near-black; lists show its glow colour
   length: 4.5,
   width: 1.9,
   spec: {
@@ -3653,6 +3674,7 @@ class Menu {
     on('btn-options', () => this.show('options', 'main'));
     on('btn-controls', () => this.show('controls', 'main'));
     on('btn-resume', () => opts.onResume());
+    on('btn-garage', () => this.showGarage());
     on('btn-pause-options', () => this.show('options', 'pause'));
     on('btn-pause-controls', () => this.show('controls', 'pause'));
     on('btn-rebuild', () => opts.onRebuild());
@@ -3747,6 +3769,44 @@ class Menu {
     this.show(this.backTo);
   }
 
+  /** The in-game garage: pick any vehicle and swap into it on the spot. */
+  showGarage() {
+    const current = this.opts.currentVehicle();
+    const list = document.getElementById('garage-list');
+    list.replaceChildren(...this.opts.vehicles.map((v) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'garage-card';
+      b.setAttribute('role', 'listitem');
+      b.setAttribute('aria-current', String(v.id === current));
+      const dot = document.createElement('i');
+      dot.style.background = `#${(v.swatch ?? v.color).toString(16).padStart(6, '0')}`;
+      const name = document.createElement('span');
+      name.className = 'g-name';
+      name.textContent = v.name;
+      if (v.id === current) {
+        const tag = document.createElement('small');
+        tag.textContent = 'Driving';
+        name.append(tag);
+      }
+      const blurb = document.createElement('span');
+      blurb.className = 'g-blurb';
+      blurb.textContent = v.blurb;
+      const stats = document.createElement('span');
+      stats.className = 'g-stats';
+      stats.innerHTML = `<span><b>${v.stats.top}</b> km/h</span><span><b>${v.stats.accel}</b> s 0–100</span><span><b>${v.spec.mass.toLocaleString('en-US')}</b> kg</span>`;
+      b.append(dot, name, blurb, stats);
+      b.addEventListener('click', () => {
+        this.vehicleIndex = this.opts.vehicles.indexOf(v);
+        this.renderVehicle();
+        this.opts.onPickVehicle(v);
+      });
+      return b;
+    }));
+    this.show('garage', 'pause');
+    list.querySelector('[aria-current="true"]')?.focus({ preventScroll: true });
+  }
+
   pickVehicle(dir) {
     const n = this.opts.vehicles.length;
     this.vehicleIndex = (this.vehicleIndex + dir + n) % n;
@@ -3761,7 +3821,7 @@ class Menu {
     const mass = v.spec.mass.toLocaleString('en-US');
     document.getElementById('vehicle-stats').innerHTML =
       `<span><b>${v.stats.top}</b> km/h</span><span><b>${v.stats.accel}</b> s 0–100</span><span><b>${mass}</b> kg</span>`;
-    document.getElementById('vehicle-swatch').style.background = `#${v.color.toString(16).padStart(6, '0')}`;
+    document.getElementById('vehicle-swatch').style.background = `#${(v.swatch ?? v.color).toString(16).padStart(6, '0')}`;
   }
 
   renderTabs() {
@@ -4776,7 +4836,7 @@ function nameTag(name, def) {
   g.beginPath();
   g.roundRect((256 - w) / 2, 8, w, 48, 24);
   g.fill();
-  g.fillStyle = `#${def.color.toString(16).padStart(6, '0')}`;
+  g.fillStyle = `#${(def.swatch ?? def.color).toString(16).padStart(6, '0')}`;
   g.beginPath();
   g.arc((256 - w) / 2 + 22, 32, 7, 0, Math.PI * 2);
   g.fill();
@@ -5005,6 +5065,45 @@ function nearbyVehicle() {
 }
 
 /** Leave the current vehicle parked where it is and take over `target`. */
+/**
+ * Swap to any vehicle on the spot (garage / V key). In solo the car we
+ * leave goes back to its parking spot; online, other players see the new
+ * car appear through our state updates.
+ */
+function changeVehicle(def) {
+  const target = fleet.find((v) => v.def === def);
+  if (!target || target === active) return;
+  const pose = { x: car.x, z: car.z, heading: car.heading };
+  const old = active;
+  // The cars trade places: the one we leave parks where the new one was
+  // waiting (never on top of us).
+  let spot = old.def.home;
+  if (target.parked) {
+    const t = target.parked.body.translation();
+    const q = target.parked.body.rotation();
+    const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
+    spot = { x: t.x, z: t.z, heading: Math.atan2(fwd.x, fwd.z) };
+    destruction.removeVehicle(target.parked);
+    target.parked = null;
+  }
+  if (!net.online) old.parked = destruction.spawnVehicle(old.def, spot);
+  old.model.root.visible = !!old.parked;
+
+  active = target;
+  active.model.root.visible = true;
+  car = new CarPhysics({ ...def.spec, assists: settings.assists }, terrain);
+  car.reset(pose.x, pose.z, pose.heading);
+  destruction.createCar(def);
+  destruction.teleportCar(car);
+  skids.clear();
+  chase.setVehicle(def);
+  chase.snap();
+  audio.setVehicle(def);
+  setSetting('startVehicle', def.id);
+  refreshBadges();
+  toast(`Driving: ${def.name}`);
+}
+
 function switchTo(target) {
   const old = active;
   old.parked = destruction.spawnVehicle(
@@ -5065,6 +5164,8 @@ const menu = new Menu({
   onJoin: (code, name) => joinRoom(code, name),
   onLeave: () => { leaveRoom(); toast('You left the room'); resume(); },
   onCopyCode: () => net.code,
+  currentVehicle: () => active.def.id,
+  onPickVehicle: (def) => { changeVehicle(def); resume(); },
 });
 
 function play(def) {
@@ -5189,8 +5290,8 @@ function refreshPlayers() {
   const list = $('players');
   if (!net.online) { list.hidden = true; return; }
   list.hidden = false;
-  const rows = [{ name: `${settings.playerName || 'You'} (you)`, color: active.def.color, smashed }];
-  for (const r of mp.remotes.values()) rows.push({ name: r.name, color: r.def.color, smashed: r.smashed });
+  const rows = [{ name: `${settings.playerName || 'You'} (you)`, color: active.def.swatch ?? active.def.color, smashed }];
+  for (const r of mp.remotes.values()) rows.push({ name: r.name, color: r.def.swatch ?? r.def.color, smashed: r.smashed });
   rows.sort((a, b) => b.smashed - a.smashed);
   const ul = $('players-list');
   ul.replaceChildren(...rows.map((r) => {
@@ -5234,13 +5335,17 @@ const playing = (fn) => () => { if (state === 'playing') fn(); };
 input.onPress('Escape', () => {
   if (state === 'playing') pause();
   else if (state === 'paused' && menu.current === 'pause') resume();
-  else if (menu.current === 'options' || menu.current === 'controls') menu.back();
+  else if (['options', 'controls', 'garage'].includes(menu.current)) menu.back();
 });
 input.onPress('KeyP', () => { if (state === 'playing') pause(); else if (state === 'paused' && menu.current === 'pause') resume(); });
 input.onPress('KeyR', playing(() => { resetCar(); toast('Car reset'); }));
 input.onPress('KeyB', playing(() => rebuildArena()));
 input.onPress('KeyC', playing(() => { chase.cycle(); refreshBadges(); toast(`Camera: ${chase.modeName}`); }));
 input.onPress('KeyE', playing(enterNearby));
+input.onPress('KeyV', () => {
+  if (state === 'playing') { pause(); menu.showGarage(); }
+  else if (menu.current === 'garage') resume();
+});
 input.onPress('KeyT', playing(() => {
   setSetting('assists', !settings.assists);
   toast(settings.assists ? 'Assists ON (traction + countersteer)' : 'Assists OFF: full drift mode');
@@ -5269,6 +5374,7 @@ if (isTouch) {
   $('touch-reset').addEventListener('click', resetCar);
   $('touch-pause').addEventListener('click', pause);
   $('touch-enter').addEventListener('click', enterNearby);
+  $('touch-garage').addEventListener('click', () => { pause(); menu.showGarage(); });
 }
 
 // Pause when the tab is hidden (also where an ad break would hook in).
