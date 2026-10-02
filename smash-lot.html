@@ -1399,6 +1399,12 @@ async function initRapier() {
 
 const FRACTURES_PER_STEP = 10;
 const BURNS_PER_STEP = 24;
+// Collision groups: (membership << 16) | filter. Driven cars and parked
+// vehicles skip each other in Rapier (a kinematic car would shove a bus
+// like it weighed nothing); carCollision.js resolves those pairs with
+// proper masses instead. Both still hit everything else.
+const GROUP_CAR = (0x0002 << 16) | (0xffff & ~0x0004);
+const GROUP_VEHICLE = (0x0004 << 16) | (0xffff & ~0x0002);
 const BLAST_RADIUS = 9;
 const BLAST_SPEED = 16; // m/s of push at the centre
 const MAX_DEBRIS_SPEED = 32;
@@ -1754,7 +1760,7 @@ class Destruction {
     }
     this.carBounds = { lo, hi };
     this.carColliders = def.hitbox.map((h) => this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4),
+      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4).setCollisionGroups(GROUP_CAR),
       this.carBody,
     ));
   }
@@ -1784,14 +1790,16 @@ class Destruction {
       RAPIER.ColliderDesc.cuboid(...b.half).setTranslation(...b.at)
         .setMass(spec.mass * 0.96 * volume(b) / totalVol)
         .setFriction(0.5).setRestitution(0.1)
-        .setActiveEvents(events).setContactForceEventThreshold(spec.mass * 2.5 / STEP),
+        .setActiveEvents(events).setContactForceEventThreshold(spec.mass * 2.5 / STEP)
+        .setCollisionGroups(GROUP_VEHICLE),
       body,
     ));
     const r = spec.wheelRadius;
     const ht = spec.trackWidth / 2;
     for (const [x, z] of [[ht, spec.cgToFront], [-ht, spec.cgToFront], [ht, -spec.cgToRear], [-ht, -spec.cgToRear]]) {
       colliders.push(this.world.createCollider(
-        RAPIER.ColliderDesc.ball(r).setTranslation(x, r, z).setMass(spec.mass * 0.01).setFriction(0.9),
+        RAPIER.ColliderDesc.ball(r).setTranslation(x, r, z).setMass(spec.mass * 0.01).setFriction(0.9)
+          .setCollisionGroups(GROUP_VEHICLE),
         body,
       ));
     }
@@ -1825,7 +1833,7 @@ class Destruction {
     r.body = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased()
       .setTranslation(p.x, p.y || 0, p.z).setRotation(carRotation(p)));
     r.colliders = r.def.hitbox.map((h) => this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4), r.body));
+      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4).setCollisionGroups(GROUP_CAR), r.body));
   }
 
   removeRemoteCar(key) {
@@ -4767,42 +4775,23 @@ class Multiplayer {
   }
 
   /**
-   * Car-to-car contact. Each car is approximated by two circles along its
-   * length. Each player resolves only their own car's bounce, which is
-   * symmetric enough to feel right on both screens. Returns the hit speed.
+   * Where each remote car is *now* (not where it's drawn, 100 ms behind):
+   * its latest snapshot carried forward by its velocity. Used for car-to-car
+   * collisions so hits line up with what the other player sees.
    */
-  bump(car, def) {
-    let hardest = 0;
-    const mine = circles(car, def);
+  collisionTargets() {
+    const out = [];
     for (const r of this.remotes.values()) {
-      if (!r.seen || Math.abs((r.proxy.y || 0) - (car.y || 0)) > 1.6) continue;
-      const theirs = circles(r.proxy, r.def);
-      for (const a of mine) {
-        for (const b of theirs) {
-          const dx = a.x - b.x;
-          const dz = a.z - b.z;
-          const d = Math.hypot(dx, dz);
-          const overlap = a.r + b.r - d;
-          if (overlap <= 0 || d < 1e-4) continue;
-          const nx = dx / d;
-          const nz = dz / d;
-          // Push ourselves out of their car.
-          car.x += nx * overlap * 0.6;
-          car.z += nz * overlap * 0.6;
-          const rel = (car.velX - r.proxy.velX) * nx + (car.velZ - r.proxy.velZ) * nz;
-          if (rel < 0) {
-            const m1 = car.spec.mass;
-            const m2 = r.def.spec.mass;
-            const dv = (-(1 + 0.3) * rel * m2) / (m1 + m2);
-            car.velX += nx * dv;
-            car.velZ += nz * dv;
-            car.yawRate += (Math.random() - 0.5) * Math.min(2, -rel * 0.08);
-            hardest = Math.max(hardest, -rel);
-          }
-        }
-      }
+      const s = r.snaps[r.snaps.length - 1];
+      if (!r.seen || !s) continue;
+      const ahead = Math.min(MAX_EXTRAPOLATE, Math.max(0, this.clock - s.t));
+      out.push({
+        id: r.id, def: r.def,
+        x: s.x + s.vx * ahead, z: s.z + s.vz * ahead, y: s.y,
+        heading: s.h, velX: s.vx, velZ: s.vz, yawRate: 0,
+      });
     }
-    return hardest;
+    return out;
   }
 }
 
@@ -4813,15 +4802,6 @@ function makeProxy(def) {
     boosting: false, airborne: false, landed: null, accelLat: 0, accelLong: 0,
     frontWheelSpeed: 0, rearWheelSpeed: 0, spec: def.spec,
   };
-}
-
-function circles(car, def) {
-  const r = def.width / 2;
-  const off = Math.max(0, def.length / 2 - r);
-  const sx = Math.sin(car.heading);
-  const cz = Math.cos(car.heading);
-  const mid = (def.spec.cgToFront - def.spec.cgToRear) / 2;
-  return [-off, off].map((o) => ({ x: car.x + sx * (mid + o), z: car.z + cz * (mid + o), r }));
 }
 
 /** Floating name label above a remote car. */
@@ -4849,6 +4829,132 @@ function nameTag(name, def) {
   sprite.scale.set(3.2, 0.8, 1);
   sprite.renderOrder = 10;
   return sprite;
+}
+
+// ===== carCollision.js =====
+// Car-to-car collisions, top-down. Every car is an oriented rectangle the
+// size of its footprint; overlaps are found with the separating axis test,
+// and resolved with a rigid-body impulse (mass, yaw inertia, restitution and
+// friction), so a hatchback bounces off a bus while the bus barely moves.
+//
+// Bodies passed in are plain objects:
+//   { x, z, y, heading, velX, velZ, yawRate, mass, inertia, fp }
+// where fp = footprint(def). Positions are the car's CG; fp.offZ is the
+// footprint centre's offset from the CG along the car.
+
+const RESTITUTION = 0.25;
+const FRICTION = 0.35;
+
+/** Rectangle and height span of a vehicle, from its hitbox. */
+function footprint(def) {
+  let minZ = Infinity, maxZ = -Infinity, top = 0, halfW = 0;
+  for (const h of def.hitbox) {
+    minZ = Math.min(minZ, h.at[2] - h.half[2]);
+    maxZ = Math.max(maxZ, h.at[2] + h.half[2]);
+    top = Math.max(top, h.at[1] + h.half[1]);
+    halfW = Math.max(halfW, h.half[0]);
+  }
+  return { halfL: (maxZ - minZ) / 2, halfW, offZ: (maxZ + minZ) / 2, top };
+}
+
+/** Yaw inertia of a rectangle footprint. */
+function yawInertia(mass, fp) {
+  return (mass * ((fp.halfL * 2) ** 2 + (fp.halfW * 2) ** 2)) / 12;
+}
+
+function box(b) {
+  const ux = Math.sin(b.heading), uz = Math.cos(b.heading); // forward
+  const vx = Math.cos(b.heading), vz = -Math.sin(b.heading); // left
+  const cx = b.x + ux * b.fp.offZ;
+  const cz = b.z + uz * b.fp.offZ;
+  return { cx, cz, ux, uz, vx, vz, hl: b.fp.halfL, hw: b.fp.halfW };
+}
+
+function corners(o) {
+  const out = [];
+  for (const a of [-1, 1]) for (const c of [-1, 1]) {
+    out.push({ x: o.cx + o.ux * o.hl * a + o.vx * o.hw * c, z: o.cz + o.uz * o.hl * a + o.vz * o.hw * c });
+  }
+  return out;
+}
+
+function inside(o, p, margin = 0.02) {
+  const dx = p.x - o.cx, dz = p.z - o.cz;
+  return Math.abs(dx * o.ux + dz * o.uz) <= o.hl + margin && Math.abs(dx * o.vx + dz * o.vz) <= o.hw + margin;
+}
+
+/**
+ * Overlap test. Returns { nx, nz, depth, px, pz } with the normal pointing
+ * from B to A, or null when the cars don't touch.
+ */
+function overlap(A, B) {
+  // Different heights (one flying over the other) don't collide.
+  const aLo = A.y || 0, bLo = B.y || 0;
+  if (aLo > bLo + B.fp.top || bLo > aLo + A.fp.top) return null;
+  const a = box(A), b = box(B);
+  const dx = a.cx - b.cx, dz = a.cz - b.cz;
+  let best = Infinity, nx = 0, nz = 0;
+  for (const [ax, az] of [[a.ux, a.uz], [a.vx, a.vz], [b.ux, b.uz], [b.vx, b.vz]]) {
+    const ra = a.hl * Math.abs(a.ux * ax + a.uz * az) + a.hw * Math.abs(a.vx * ax + a.vz * az);
+    const rb = b.hl * Math.abs(b.ux * ax + b.uz * az) + b.hw * Math.abs(b.vx * ax + b.vz * az);
+    const d = dx * ax + dz * az;
+    const o = ra + rb - Math.abs(d);
+    if (o <= 0) return null;
+    if (o < best) {
+      best = o;
+      const s = d >= 0 ? 1 : -1;
+      nx = ax * s;
+      nz = az * s;
+    }
+  }
+  // Contact point: corners of one car inside the other, averaged.
+  let pts = corners(a).filter((p) => inside(b, p));
+  if (!pts.length) pts = corners(b).filter((p) => inside(a, p));
+  const px = pts.length ? pts.reduce((s, p) => s + p.x, 0) / pts.length : (a.cx + b.cx) / 2;
+  const pz = pts.length ? pts.reduce((s, p) => s + p.z, 0) / pts.length : (a.cz + b.cz) / 2;
+  return { nx, nz, depth: best, px, pz };
+}
+
+/**
+ * Impulse that resolves a contact between A and B (B may be immovable to
+ * this caller, but its mass still counts). Returns { jx, jz, speed } where
+ * (jx, jz) is the impulse on A (B gets the opposite), applied at the
+ * contact point, and speed is the closing speed; null if already separating.
+ */
+function contactImpulse(A, B, c) {
+  const rax = c.px - A.x, raz = c.pz - A.z;
+  const rbx = c.px - B.x, rbz = c.pz - B.z;
+  // Velocity of each car at the contact point (yaw spin adds w x r).
+  const vax = A.velX + A.yawRate * raz, vaz = A.velZ - A.yawRate * rax;
+  const vbx = B.velX + B.yawRate * rbz, vbz = B.velZ - B.yawRate * rbx;
+  const rvx = vax - vbx, rvz = vaz - vbz;
+  const vn = rvx * c.nx + rvz * c.nz;
+  if (vn >= 0) return null;
+
+  const k = (rx, rz, nx, nz) => rz * nx - rx * nz; // yaw torque arm
+  const kaN = k(rax, raz, c.nx, c.nz), kbN = k(rbx, rbz, c.nx, c.nz);
+  const denomN = 1 / A.mass + 1 / B.mass + (kaN * kaN) / A.inertia + (kbN * kbN) / B.inertia;
+  const jn = (-(1 + RESTITUTION) * vn) / denomN;
+
+  // Friction along the contact tangent (gives glancing hits their spin).
+  let tx = rvx - vn * c.nx, tz = rvz - vn * c.nz;
+  const tl = Math.hypot(tx, tz);
+  let jt = 0;
+  if (tl > 1e-4) {
+    tx /= tl; tz /= tl;
+    const kaT = k(rax, raz, tx, tz), kbT = k(rbx, rbz, tx, tz);
+    const denomT = 1 / A.mass + 1 / B.mass + (kaT * kaT) / A.inertia + (kbT * kbT) / B.inertia;
+    jt = Math.max(-FRICTION * jn, Math.min(FRICTION * jn, -tl / denomT));
+  }
+  return { jx: c.nx * jn + tx * jt, jz: c.nz * jn + tz * jt, speed: -vn };
+}
+
+/** Apply an impulse (jx, jz) at a point to one of our plain car states. */
+function applyToCar(car, mass, inertia, jx, jz, px, pz) {
+  const rx = px - car.x, rz = pz - car.z;
+  car.velX += jx / mass;
+  car.velZ += jz / mass;
+  car.yawRate += Math.max(-4, Math.min(4, (rz * jx - rx * jz) / inertia));
 }
 
 // ===== main.js =====
@@ -5222,6 +5328,17 @@ net.on('left', (id) => {
 });
 net.on('state', (id, s) => mp.onState(id, s));
 net.on('event', (id, e) => {
+  if (e.type === 'hit' && e.to === net.id) {
+    // Another player hit us: take their impulse now, unless we already
+    // resolved this contact ourselves a moment ago.
+    const now = performance.now() / 1000;
+    if (now - (lastContact.get(id) || -1) < 0.25) return;
+    lastHitFrom.set(id, now);
+    const m = car.spec.mass;
+    applyToCar(car, m, m * car.spec.inertiaScale, e.jx, e.jz, e.px, e.pz);
+    collisionFx(Math.hypot(e.jx, e.jz) / m, e.px, e.pz);
+    return;
+  }
   if (e.type === 'rebuild' && id === 'host') {
     resetAll();
     arenaDirty = true;
@@ -5425,6 +5542,7 @@ function frame() {
     while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
       car.step(PHYSICS_DT, inputNow);
       containCar();
+      resolveCarCollisions();
       if (car.landed) onLanding(car.landed);
       if (car.blocked > 3) {
         shake = Math.min(1, shake + car.blocked * 0.03);
@@ -5442,11 +5560,6 @@ function frame() {
     if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
     if (net.online) {
       mp.update(dt);
-      const hit = mp.bump(car, active.def);
-      if (hit > 2) {
-        shake = Math.min(1, shake + hit * 0.04);
-        audio.impact('crash', Math.min(1, hit / 15));
-      }
       mp.send(net, car, active.def.id, smashed, dt);
       playersTimer -= dt;
       if (playersTimer <= 0) { playersTimer = 0.5; refreshPlayers(); }
@@ -5502,6 +5615,91 @@ function trackPerformance(raw) {
   } else {
     perf.slowFor = perf.fastFor = 0;
   }
+}
+
+// --- Car-to-car collisions ------------------------------------------------
+const footprints = new Map(VEHICLES.map((d) => [d, footprint(d)]));
+const lastContact = new Map(); // remote id -> time we last resolved a hit with them
+const lastHitFrom = new Map(); // remote id -> time they last sent us a hit
+const _hitQ = new THREE.Quaternion();
+const _hitFwd = new THREE.Vector3();
+
+/** Our car as a collision body. */
+function myBody() {
+  const m = car.spec.mass;
+  return {
+    x: car.x, z: car.z, y: car.y, heading: car.heading, velX: car.velX, velZ: car.velZ,
+    yawRate: car.yawRate, mass: m, inertia: m * car.spec.inertiaScale, fp: footprints.get(active.def),
+  };
+}
+
+/**
+ * Resolve our car against parked vehicles (solo) and other players' cars
+ * (online), with momentum-conserving impulses. Runs every physics step.
+ */
+function resolveCarCollisions() {
+  // Parked vehicles are Rapier bodies: push both, by mass.
+  for (const v of fleet) {
+    if (!v.parked) continue;
+    const body = v.parked.body;
+    const t = body.translation();
+    const r = body.rotation();
+    _hitFwd.set(0, 0, 1).applyQuaternion(_hitQ.set(r.x, r.y, r.z, r.w));
+    const lv = body.linvel();
+    const fp = footprints.get(v.def);
+    const mass = body.mass();
+    const B = { x: t.x, z: t.z, y: t.y, heading: Math.atan2(_hitFwd.x, _hitFwd.z), velX: lv.x, velZ: lv.z, yawRate: body.angvel().y, mass, inertia: yawInertia(mass, fp), fp };
+    const A = myBody();
+    const c = overlap(A, B);
+    if (!c) continue;
+    // Separate them in proportion to their masses.
+    const share = (1 / A.mass) / (1 / A.mass + 1 / B.mass);
+    car.x += c.nx * c.depth * share;
+    car.z += c.nz * c.depth * share;
+    body.setTranslation({ x: t.x - c.nx * c.depth * (1 - share), y: t.y, z: t.z - c.nz * c.depth * (1 - share) }, true);
+    const imp = contactImpulse(A, B, c);
+    if (!imp) continue;
+    applyToCar(car, A.mass, A.inertia, imp.jx, imp.jz, c.px, c.pz);
+    body.applyImpulseAtPoint({ x: -imp.jx, y: 0, z: -imp.jz }, { x: c.px, y: t.y + fp.top * 0.4, z: c.pz }, true);
+    collisionFx(imp.speed, c.px, c.pz);
+  }
+
+  // Other players: we can only move our own car; the hit is sent to them.
+  if (!net.online) return;
+  const now = performance.now() / 1000;
+  for (const r of mp.collisionTargets()) {
+    const fp = footprints.get(r.def);
+    const mass = r.def.spec.mass;
+    const B = { ...r, mass, inertia: yawInertia(mass, fp), fp };
+    const A = myBody();
+    const c = overlap(A, B);
+    if (!c) continue;
+    const share = (1 / A.mass) / (1 / A.mass + 1 / B.mass);
+    car.x += c.nx * c.depth * share;
+    car.z += c.nz * c.depth * share;
+    if (now - (lastHitFrom.get(r.id) || -1) < 0.25) continue; // they already hit us
+    const imp = contactImpulse(A, B, c);
+    if (!imp) continue;
+    lastContact.set(r.id, now);
+    applyToCar(car, A.mass, A.inertia, imp.jx, imp.jz, c.px, c.pz);
+    net.sendEvent({ type: 'hit', to: r.id, jx: -imp.jx, jz: -imp.jz, px: c.px, pz: c.pz });
+    collisionFx(imp.speed, c.px, c.pz);
+  }
+}
+
+let collisionFxCooldown = 0;
+/** Crunch, shake and dust, scaled by the closing speed. */
+function collisionFx(speed, px, pz) {
+  if (speed < 1.2) return;
+  const now = performance.now();
+  if (now < collisionFxCooldown) return;
+  collisionFxCooldown = now + 120;
+  const pos = { x: px, y: (car.y || 0) + 0.6, z: pz };
+  audio.impact('crash', Math.min(1, speed / 14));
+  audio.impact('metal', Math.min(1, speed / 18), pos);
+  shake = Math.min(1, shake + speed * 0.05);
+  const puffs = settings.effects === 'high' ? 4 : 2;
+  for (let i = 0; i < puffs; i++) dust.emit(pos, { x: (Math.random() - 0.5) * 4, z: (Math.random() - 0.5) * 4 }, Math.min(1, speed / 12), pos.y);
 }
 
 /** Touchdown: thump, shake, dust off the wheels, and boost for big air. */

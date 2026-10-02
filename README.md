@@ -39,6 +39,19 @@ Everything is synthesised with Web Audio; there are no sound files (`src/audio.j
   explosions briefly duck the engine.
 - **Menus:** button clicks, and a volume setting in Options → Game.
 
+## Car-to-car collisions
+
+`src/carCollision.js` treats every car as a rectangle the size of its footprint, finds overlaps with
+the separating axis test, and resolves them with a rigid-body impulse. The impulse accounts for each
+car's mass and yaw inertia, restitution, and friction at the contact point. So a hatchback bounces off
+the bus while the bus barely moves, and T-bones and glancing hits spin cars.
+
+- Parked vehicles are left out of Rapier's car contacts (collision groups), because a kinematic car
+  would shove them as if it were infinitely heavy. These pairs are resolved here instead, pushing both
+  cars.
+- Online, each player resolves their own car against the other car's current (extrapolated) position,
+  and sends the matching impulse to the car they hit, so both players feel it straight away.
+
 ## Multiplayer (peer-to-peer, no server)
 
 Choose **Play online with friends** on the main menu. One player creates a room and gets a 5-letter
@@ -51,7 +64,7 @@ code; friends type it in to join (up to 8 players). The game runs on everyone's 
 - Each remote car is also a solid body in your own physics world, so their crashes, burns and
   explosions happen on your screen too. Debris is simulated separately on every computer, so it can
   land a little differently for each player.
-- Car-to-car bumps are resolved by each player for their own car. Smashes count for whichever car was
+- Car-to-car hits use real impulses (see above), and the hitter sends the impulse to the car it hit. Smashes count for whichever car was
   closest, and are shown in the room's player list.
 - Only the host can rebuild the arena, and doing so rebuilds it for everyone. A new player joining
   also gives everyone a fresh arena. Online there are no parked vehicles to swap into; pick your car
@@ -193,7 +206,8 @@ All of it is in `src/destruction.js`.
 - `src/effects.js`: skid marks and tire smoke
 - `src/burn.js`: the Ember GT's voxel burn effect
 - `src/net.js`: peer-to-peer rooms (PeerJS), with the host relaying messages
-- `src/multiplayer.js`: other players' cars, smoothing, name tags, bumping
+- `src/multiplayer.js`: other players' cars, smoothing, name tags
+- `src/carCollision.js`: car-to-car collisions with momentum-correct impulses
 - `src/terrain.js`: ramps, the height lookup the car drives on, and their meshes and colliders
 - `src/input.js`: keyboard, gamepad and touch input
 - `src/audio.js`: synthesized engine, tire squeal, and per-material impact sounds

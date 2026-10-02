@@ -12,6 +12,12 @@ export async function initRapier() {
 
 const FRACTURES_PER_STEP = 10;
 const BURNS_PER_STEP = 24;
+// Collision groups: (membership << 16) | filter. Driven cars and parked
+// vehicles skip each other in Rapier (a kinematic car would shove a bus
+// like it weighed nothing); carCollision.js resolves those pairs with
+// proper masses instead. Both still hit everything else.
+const GROUP_CAR = (0x0002 << 16) | (0xffff & ~0x0004);
+const GROUP_VEHICLE = (0x0004 << 16) | (0xffff & ~0x0002);
 const BLAST_RADIUS = 9;
 const BLAST_SPEED = 16; // m/s of push at the centre
 const MAX_DEBRIS_SPEED = 32;
@@ -367,7 +373,7 @@ export class Destruction {
     }
     this.carBounds = { lo, hi };
     this.carColliders = def.hitbox.map((h) => this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4),
+      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4).setCollisionGroups(GROUP_CAR),
       this.carBody,
     ));
   }
@@ -397,14 +403,16 @@ export class Destruction {
       RAPIER.ColliderDesc.cuboid(...b.half).setTranslation(...b.at)
         .setMass(spec.mass * 0.96 * volume(b) / totalVol)
         .setFriction(0.5).setRestitution(0.1)
-        .setActiveEvents(events).setContactForceEventThreshold(spec.mass * 2.5 / STEP),
+        .setActiveEvents(events).setContactForceEventThreshold(spec.mass * 2.5 / STEP)
+        .setCollisionGroups(GROUP_VEHICLE),
       body,
     ));
     const r = spec.wheelRadius;
     const ht = spec.trackWidth / 2;
     for (const [x, z] of [[ht, spec.cgToFront], [-ht, spec.cgToFront], [ht, -spec.cgToRear], [-ht, -spec.cgToRear]]) {
       colliders.push(this.world.createCollider(
-        RAPIER.ColliderDesc.ball(r).setTranslation(x, r, z).setMass(spec.mass * 0.01).setFriction(0.9),
+        RAPIER.ColliderDesc.ball(r).setTranslation(x, r, z).setMass(spec.mass * 0.01).setFriction(0.9)
+          .setCollisionGroups(GROUP_VEHICLE),
         body,
       ));
     }
@@ -438,7 +446,7 @@ export class Destruction {
     r.body = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased()
       .setTranslation(p.x, p.y || 0, p.z).setRotation(carRotation(p)));
     r.colliders = r.def.hitbox.map((h) => this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4), r.body));
+      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4).setCollisionGroups(GROUP_CAR), r.body));
   }
 
   removeRemoteCar(key) {

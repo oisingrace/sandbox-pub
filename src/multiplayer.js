@@ -141,42 +141,23 @@ export class Multiplayer {
   }
 
   /**
-   * Car-to-car contact. Each car is approximated by two circles along its
-   * length. Each player resolves only their own car's bounce, which is
-   * symmetric enough to feel right on both screens. Returns the hit speed.
+   * Where each remote car is *now* (not where it's drawn, 100 ms behind):
+   * its latest snapshot carried forward by its velocity. Used for car-to-car
+   * collisions so hits line up with what the other player sees.
    */
-  bump(car, def) {
-    let hardest = 0;
-    const mine = circles(car, def);
+  collisionTargets() {
+    const out = [];
     for (const r of this.remotes.values()) {
-      if (!r.seen || Math.abs((r.proxy.y || 0) - (car.y || 0)) > 1.6) continue;
-      const theirs = circles(r.proxy, r.def);
-      for (const a of mine) {
-        for (const b of theirs) {
-          const dx = a.x - b.x;
-          const dz = a.z - b.z;
-          const d = Math.hypot(dx, dz);
-          const overlap = a.r + b.r - d;
-          if (overlap <= 0 || d < 1e-4) continue;
-          const nx = dx / d;
-          const nz = dz / d;
-          // Push ourselves out of their car.
-          car.x += nx * overlap * 0.6;
-          car.z += nz * overlap * 0.6;
-          const rel = (car.velX - r.proxy.velX) * nx + (car.velZ - r.proxy.velZ) * nz;
-          if (rel < 0) {
-            const m1 = car.spec.mass;
-            const m2 = r.def.spec.mass;
-            const dv = (-(1 + 0.3) * rel * m2) / (m1 + m2);
-            car.velX += nx * dv;
-            car.velZ += nz * dv;
-            car.yawRate += (Math.random() - 0.5) * Math.min(2, -rel * 0.08);
-            hardest = Math.max(hardest, -rel);
-          }
-        }
-      }
+      const s = r.snaps[r.snaps.length - 1];
+      if (!r.seen || !s) continue;
+      const ahead = Math.min(MAX_EXTRAPOLATE, Math.max(0, this.clock - s.t));
+      out.push({
+        id: r.id, def: r.def,
+        x: s.x + s.vx * ahead, z: s.z + s.vz * ahead, y: s.y,
+        heading: s.h, velX: s.vx, velZ: s.vz, yawRate: 0,
+      });
     }
-    return hardest;
+    return out;
   }
 }
 
@@ -187,15 +168,6 @@ function makeProxy(def) {
     boosting: false, airborne: false, landed: null, accelLat: 0, accelLong: 0,
     frontWheelSpeed: 0, rearWheelSpeed: 0, spec: def.spec,
   };
-}
-
-function circles(car, def) {
-  const r = def.width / 2;
-  const off = Math.max(0, def.length / 2 - r);
-  const sx = Math.sin(car.heading);
-  const cz = Math.cos(car.heading);
-  const mid = (def.spec.cgToFront - def.spec.cgToRear) / 2;
-  return [-off, off].map((o) => ({ x: car.x + sx * (mid + o), z: car.z + cz * (mid + o), r }));
 }
 
 /** Floating name label above a remote car. */
