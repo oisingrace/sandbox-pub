@@ -169,6 +169,14 @@ export class Workshop {
     }
     rows.push(parts);
     rows.push(row('Special', seg('Special ability', ABILITIES, () => d.ability, (v) => { d.ability = v; })));
+    const jump = el('button', { type: 'button', text: d.aerial ? 'On' : 'Off', 'aria-pressed': String(!!d.aerial) });
+    jump.addEventListener('click', () => {
+      d.aerial = !d.aerial;
+      jump.setAttribute('aria-pressed', String(d.aerial));
+      jump.textContent = d.aerial ? 'On' : 'Off';
+      this.changed();
+    });
+    rows.push(row('Jumps and air control', el('div', { class: 'seg' }, jump), 'Like the Striker: Space jumps, double jumps and flips; steer in the air'));
 
     rows.push(head('Engine and handling'));
     rows.push(row('Engine sound', seg('Engine sound', ENGINES, () => d.engine, (v) => { d.engine = v; })));

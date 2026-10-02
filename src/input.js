@@ -8,7 +8,7 @@ const KEYS = {
   down: ['KeyS', 'ArrowDown'],
   handbrake: ['Space'],
   boost: ['ShiftLeft', 'ShiftRight'],
-  // Car football: Space jumps and Q is the powerslide (and air roll).
+  // Cars with jumps (the Striker): Space jumps and Q is the powerslide (and air roll).
   jump: ['Space'],
   powerslide: ['KeyQ'],
   fire: ['KeyX'], // flamethrower (also the left mouse button)
@@ -19,7 +19,7 @@ export class Input {
     this.down = new Set();
     this.touch = { left: false, right: false, up: false, down: false, handbrake: false, boost: false, jump: false, fire: false };
     this.mouseFire = false;
-    this.football = false; // set by the game: changes what Space and the A button do
+    this.aerial = false; // set by the game for cars that jump: changes what Space and the A button do
     this.pressedHandlers = new Map();
     this.kbSteer = 0;
     this.kbThrottle = 0;
@@ -74,9 +74,9 @@ export class Input {
       steer: this.kbSteer,
       throttle: this.kbThrottle,
       brake: this.kbBrake,
-      handbrake: this.football ? this.held('powerslide') || this.touch.handbrake : this.held('handbrake'),
+      handbrake: this.aerial ? this.held('powerslide') || this.touch.handbrake : this.held('handbrake'),
       boost: this.held('boost'),
-      jump: this.football && (this.held('jump') || !!this.jumpLatch),
+      jump: this.aerial && (this.held('jump') || !!this.jumpLatch),
       fire: this.held('fire') || this.mouseFire,
     };
     this.jumpLatch = false;
@@ -90,7 +90,7 @@ export class Input {
       const lt = pad.buttons[6]?.value || 0;
       if (rt > 0.02) out.throttle = rt;
       if (lt > 0.02) out.brake = lt;
-      if (this.football) {
+      if (this.aerial) {
         // Rocket League layout: A jumps, RB powerslides / air rolls, left stick pitches in the air.
         if (pad.buttons[0]?.pressed) out.jump = true;
         if (pad.buttons[5]?.pressed) out.handbrake = true;

@@ -211,4 +211,9 @@ export function arenaRamps(terrain) {
   terrain.addRamp({ x: -12, z: 66, heading: Math.PI / 2, length: 22, width: 7, height: 2.2, profile: 'table', parts: [7, 8] });
   // Mega ramp in the west, aimed at the container yard.
   terrain.addRamp({ x: -64, z: 66, heading: Math.atan2(-15, -62), length: 16, width: 7, height: 4.5, profile: 'kicker' });
+  // Outer districts: a big kicker aimed into the downtown blocks...
+  terrain.addRamp({ x: 123, z: 22, heading: 0, length: 10, width: 6, height: 2.4, profile: 'kicker' });
+  // ...and the south-east ramp park: a launch kicker and a long tabletop.
+  terrain.addRamp({ x: 118, z: -122, heading: 0, length: 8, width: 6, height: 1.8, profile: 'kicker' });
+  terrain.addRamp({ x: 132, z: -62, heading: -Math.PI / 2, length: 24, width: 7, height: 2.4, profile: 'table', parts: [7, 9] });
 }

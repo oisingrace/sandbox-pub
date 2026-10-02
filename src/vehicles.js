@@ -1,4 +1,5 @@
 import { DEFAULT_SPEC } from './physics.js';
+import { compileCar } from './carkit.js';
 
 // The drivable fleet. Each entry carries:
 //   spec    overrides for the handling model (merged over physics.js DEFAULT_SPEC)
@@ -275,7 +276,26 @@ const inferno = {
 };
 
 // Fill in every handling value so models and parked bodies can read them too.
-export const VEHICLES = [sports, hatch, pickup, bus, ember, inferno].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec, body: bodyBox(v.hitbox) } }));
+const BUILT = [sports, hatch, pickup, bus, ember, inferno].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec, body: bodyBox(v.hitbox) } }));
+
+// The Striker: the car football car (everyone drives it there), also a
+// normal car everywhere else. It's built with the custom car kit (see
+// carkit.js) like a player's design; its `aerial` flag gives it jumps,
+// double jumps, flips and air control.
+export const STRIKER_DESIGN = {
+  id: 'striker', name: 'Striker', style: 'striker',
+  color: 0xe9ecef, trim: 0x16181d, accent: 0x38d0ff,
+  size: { length: 0.5, width: 0.5, height: 0.35, ride: 0.55, wheels: 0.55 },
+  tune: { power: 0.6, weight: 0.35, grip: 0.65, balance: 0.45, boost: 0.75 },
+  engine: 'sport', ability: 'none', parts: ['spoiler', 'stripes'], aerial: true,
+};
+const striker = {
+  ...compileCar(STRIKER_DESIGN, { x: -28, z: -52, heading: 0 }),
+  custom: false,
+  blurb: 'Jumps, double jumps and flips; steer it in the air. The car football car.',
+};
+
+export const VEHICLES = [...BUILT, striker];
 
 /** Size of a vehicle's body from its hitbox, for landings and tumbling. */
 function bodyBox(hitbox) {

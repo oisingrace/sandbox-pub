@@ -146,48 +146,48 @@ export const KINDS = {
   brick: { size: [0.6, 0.3, 0.3], mass: 12, colors: BRICK_COLORS, material: 'brick', breakForce: 14000, fracture: { into: 'brickHalf', grid: [2, 1, 1] }, cap: 800 },
   brickHalf: { size: [0.3, 0.3, 0.3], mass: 6, colors: BRICK_COLORS, material: 'brick', cap: 900 },
 
-  crate: { size: [1, 1, 1], mass: 40, colors: WOOD, material: 'wood', breakForce: 26000, fracture: { into: 'crateChunk', grid: [2, 2, 2] }, cap: 60 },
-  crateChunk: { size: [0.5, 0.5, 0.5], mass: 5, colors: WOOD, material: 'wood', cap: 500 },
+  crate: { size: [1, 1, 1], mass: 40, colors: WOOD, material: 'wood', breakForce: 26000, fracture: { into: 'crateChunk', grid: [2, 2, 2] }, cap: 110 },
+  crateChunk: { size: [0.5, 0.5, 0.5], mass: 5, colors: WOOD, material: 'wood', cap: 700 },
 
-  block: { size: [1, 1, 1], mass: 220, colors: CONCRETE, material: 'concrete', breakForce: 150000, fracture: { into: 'blockChunk', grid: [2, 2, 2] }, cap: 200 },
-  lintel: { size: [4, 1, 1], mass: 880, colors: CONCRETE, material: 'concrete', breakForce: 300000, fracture: { into: 'block', grid: [4, 1, 1] }, cap: 4 },
-  blockChunk: { size: [0.5, 0.5, 0.5], mass: 27, colors: CONCRETE, material: 'concrete', cap: 900 },
+  block: { size: [1, 1, 1], mass: 220, colors: CONCRETE, material: 'concrete', breakForce: 150000, fracture: { into: 'blockChunk', grid: [2, 2, 2] }, cap: 950 },
+  lintel: { size: [4, 1, 1], mass: 880, colors: CONCRETE, material: 'concrete', breakForce: 300000, fracture: { into: 'block', grid: [4, 1, 1] }, cap: 14 },
+  blockChunk: { size: [0.5, 0.5, 0.5], mass: 27, colors: CONCRETE, material: 'concrete', cap: 1200 },
 
-  plank: { size: [4.4, 0.2, 1], mass: 60, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankHalf', grid: [2, 1, 1] }, cap: 20 },
-  plankHalf: { size: [2.2, 0.2, 1], mass: 30, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankBit', grid: [2, 1, 1] }, cap: 40 },
-  plankBit: { size: [1.1, 0.2, 1], mass: 15, colors: WOOD, material: 'wood', cap: 80 },
+  plank: { size: [4.4, 0.2, 1], mass: 60, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankHalf', grid: [2, 1, 1] }, cap: 80 },
+  plankHalf: { size: [2.2, 0.2, 1], mass: 30, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankBit', grid: [2, 1, 1] }, cap: 160 },
+  plankBit: { size: [1.1, 0.2, 1], mass: 15, colors: WOOD, material: 'wood', cap: 320 },
 
   slab: { size: [0.3, 2.2, 1.2], mass: 90, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', breakForce: 70000, fracture: { into: 'slabHalf', grid: [1, 2, 1] }, cap: 50 },
   slabHalf: { size: [0.3, 1.1, 1.2], mass: 45, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', cap: 100 },
 
-  barrier: { size: [0.6, 0.9, 3], mass: 700, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', breakForce: 420000, fracture: { into: 'barrierChunk', grid: [1, 1, 3] }, geo: () => barrierProfile(0.6, 0.9, 3, 0.26), cap: 240 },
-  barrierChunk: { size: [0.6, 0.9, 1], mass: 233, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', geo: () => barrierProfile(0.6, 0.9, 1, 0.26), cap: 300 },
+  barrier: { size: [0.6, 0.9, 3], mass: 700, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', breakForce: 420000, fracture: { into: 'barrierChunk', grid: [1, 1, 3] }, geo: () => barrierProfile(0.6, 0.9, 3, 0.26), cap: 420 },
+  barrierChunk: { size: [0.6, 0.9, 1], mass: 233, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', geo: () => barrierProfile(0.6, 0.9, 1, 0.26), cap: 400 },
 
-  barrel: { shape: 'cyl', size: [0.32, 0.95], mass: 22, colors: [0xc8342b, 0x2f6fb3, 0xe0a526, 0x4c8c3a], material: 'metal', restitution: 0.25, cap: 60 },
+  barrel: { shape: 'cyl', size: [0.32, 0.95], mass: 22, colors: [0xc8342b, 0x2f6fb3, 0xe0a526, 0x4c8c3a], material: 'metal', restitution: 0.25, cap: 150 },
   cone: { shape: 'cyl', size: [0.2, 0.6], mass: 3, colors: [0xffffff], material: 'plastic', geo: coneGeo, restitution: 0.3, cap: 60 },
 
-  pole: { shape: 'cyl', size: [0.13, 7], mass: 150, colors: [0xffffff], material: 'metal', breakForce: 90000, fracture: { into: 'poleHalf', grid: [1, 2, 1] }, geo: poleGeo, cap: 40 },
-  poleHalf: { shape: 'cyl', size: [0.13, 3.5], mass: 75, colors: [0x9a9da3], material: 'metal', cap: 80 },
+  pole: { shape: 'cyl', size: [0.13, 7], mass: 150, colors: [0xffffff], material: 'metal', breakForce: 90000, fracture: { into: 'poleHalf', grid: [1, 2, 1] }, geo: poleGeo, cap: 90 },
+  poleHalf: { shape: 'cyl', size: [0.13, 3.5], mass: 75, colors: [0x9a9da3], material: 'metal', cap: 160 },
 
   // Office building pieces.
-  panel: { size: [2, 1.2, 0.4], mass: 500, colors: FACADE, material: 'concrete', breakForce: 250000, fracture: { into: 'panelChunk', grid: [2, 2, 1] }, cap: 100 },
-  panelChunk: { size: [1, 0.6, 0.4], mass: 125, colors: FACADE, material: 'concrete', cap: 300 },
-  pillar: { size: [0.5, 1.5, 0.4], mass: 180, colors: FACADE, material: 'concrete', breakForce: 90000, fracture: { into: 'pillarChunk', grid: [1, 2, 1] }, cap: 100 },
-  pillarChunk: { size: [0.5, 0.75, 0.4], mass: 90, colors: FACADE, material: 'concrete', cap: 120 },
-  floorSlab: { size: [2, 0.3, 6.8], mass: 900, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', breakForce: 400000, fracture: { into: 'floorChunk', grid: [2, 1, 2] }, cap: 30 },
-  floorChunk: { size: [1, 0.3, 3.4], mass: 225, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', cap: 120 },
-  glass: { size: [0.75, 1.44, 0.06], mass: 6, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, breakForce: 1500, fracture: { into: 'shard', grid: [2, 2, 1] }, cap: 180 },
-  shard: { size: [0.375, 0.72, 0.06], mass: 1.5, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, noCcd: true, lifetime: 6, cap: 500 },
+  panel: { size: [2, 1.2, 0.4], mass: 500, colors: FACADE, material: 'concrete', breakForce: 250000, fracture: { into: 'panelChunk', grid: [2, 2, 1] }, cap: 1000 },
+  panelChunk: { size: [1, 0.6, 0.4], mass: 125, colors: FACADE, material: 'concrete', cap: 700 },
+  pillar: { size: [0.5, 1.5, 0.4], mass: 180, colors: FACADE, material: 'concrete', breakForce: 90000, fracture: { into: 'pillarChunk', grid: [1, 2, 1] }, cap: 720 },
+  pillarChunk: { size: [0.5, 0.75, 0.4], mass: 90, colors: FACADE, material: 'concrete', cap: 400 },
+  floorSlab: { size: [2, 0.3, 6.8], mass: 900, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', breakForce: 400000, fracture: { into: 'floorChunk', grid: [2, 1, 2] }, cap: 280 },
+  floorChunk: { size: [1, 0.3, 3.4], mass: 225, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', cap: 360 },
+  glass: { size: [0.75, 1.44, 0.06], mass: 6, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, breakForce: 1500, fracture: { into: 'shard', grid: [2, 2, 1] }, cap: 1250 },
+  shard: { size: [0.375, 0.72, 0.06], mass: 1.5, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, noCcd: true, lifetime: 6, cap: 700 },
 
   // Explosive fuel drums: a hard hit (or the Ember) sets them off.
-  fuel: { shape: 'cyl', size: [0.3, 0.9], mass: 35, colors: [0xffffff], material: 'metal', geo: fuelGeo, explosive: true, breakForce: 9000, cap: 40 },
+  fuel: { shape: 'cyl', size: [0.3, 0.9], mass: 35, colors: [0xffffff], material: 'metal', geo: fuelGeo, explosive: true, breakForce: 9000, cap: 80 },
 
   // Giant bowling pins.
   pin: { shape: 'cyl', size: [0.36, 2.4], mass: 40, colors: [0xffffff], material: 'plastic', geo: pinGeo, restitution: 0.35, cap: 12 },
 
   // Shipping containers split into sections.
-  container: { matte: true, size: [6.1, 2.6, 2.44], mass: 2500, colors: [0xe0583f, 0x4a90dc, 0x48b873, 0xf29a3e, 0x9370cc], material: 'metal', breakForce: 900000, fracture: { into: 'containerSection', grid: [3, 1, 1] }, cap: 30 },
-  containerSection: { matte: true, size: [2.0333, 2.6, 2.44], mass: 833, colors: [0xe0583f, 0x4a90dc, 0x48b873, 0xf29a3e, 0x9370cc], material: 'metal', cap: 90 },
+  container: { matte: true, size: [6.1, 2.6, 2.44], mass: 2500, colors: [0xe0583f, 0x4a90dc, 0x48b873, 0xf29a3e, 0x9370cc], material: 'metal', breakForce: 900000, fracture: { into: 'containerSection', grid: [3, 1, 1] }, cap: 60 },
+  containerSection: { matte: true, size: [2.0333, 2.6, 2.44], mass: 833, colors: [0xe0583f, 0x4a90dc, 0x48b873, 0xf29a3e, 0x9370cc], material: 'metal', cap: 160 },
 
   // Water tower: four legs, a platform and a tank.
   steelLeg: { size: [0.3, 7, 0.3], mass: 140, colors: [0x7d848c], material: 'metal', breakForce: 80000, fracture: { into: 'legHalf', grid: [1, 2, 1] }, cap: 8 },
@@ -198,8 +198,8 @@ export const KINDS = {
   tankChunk: { matte: true, size: [1.6, 1.3, 1.6], mass: 175, colors: [0x7fb0cf], material: 'metal', cap: 16 },
 
   // Picket fence panels.
-  fence: { size: [2, 1, 0.08], mass: 14, colors: [0xffffff], material: 'wood', geo: fenceGeo, breakForce: 2600, fracture: { into: 'fenceBit', grid: [4, 1, 1] }, cap: 40 },
-  fenceBit: { size: [0.5, 1, 0.08], mass: 3.5, colors: [0xf1ece2], material: 'wood', cap: 160 },
+  fence: { size: [2, 1, 0.08], mass: 14, colors: [0xffffff], material: 'wood', geo: fenceGeo, breakForce: 2600, fracture: { into: 'fenceBit', grid: [4, 1, 1] }, cap: 100 },
+  fenceBit: { size: [0.5, 1, 0.08], mass: 3.5, colors: [0xf1ece2], material: 'wood', cap: 300 },
 
   // Gas station.
   canopy: { matte: true, size: [12, 0.5, 8], mass: 3000, colors: [0xffffff], material: 'metal', geo: canopyGeo, breakForce: 900000, fracture: { into: 'canopyChunk', grid: [3, 1, 2] }, cap: 2 },
@@ -209,7 +209,7 @@ export const KINDS = {
   pump: { matte: true, size: [0.8, 1.8, 0.5], mass: 150, colors: [0xffffff], material: 'metal', geo: pumpGeo, breakForce: 50000, fracture: { into: 'pumpChunk', grid: [1, 2, 1] }, cap: 8 },
   pumpChunk: { matte: true, size: [0.8, 0.9, 0.5], mass: 75, colors: [0x2f9e5b], material: 'metal', cap: 16 },
 
-  tree: { shape: 'tree', size: [0.22, 3], mass: 320, colors: [0xffffff], material: 'wood', geo: treeGeo, cap: 40 },
+  tree: { shape: 'tree', size: [0.22, 3], mass: 320, colors: [0xffffff], material: 'wood', geo: treeGeo, cap: 100 },
 };
 
 // --- Instanced rendering pool -------------------------------------------
@@ -294,6 +294,22 @@ function hitboxBounds(def) {
   return { lo, hi };
 }
 
+/** Stand-in for the body of a frozen object (see Destruction.stream). */
+function frozenBody(f) {
+  const zero = { x: 0, y: 0, z: 0 };
+  return {
+    handle: -1,
+    translation: () => ({ x: f.x, y: f.y, z: f.z }),
+    rotation: () => f.q,
+    linvel: () => zero,
+    angvel: () => zero,
+    isSleeping: () => true,
+    isDynamic: () => true,
+    sleep() {},
+    wakeUp() {},
+  };
+}
+
 /** The car's full orientation: heading, plus pitch and roll on ramps and in the air. */
 function carRotation(car) {
   _euler.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
@@ -305,7 +321,7 @@ export class Destruction {
   constructor(scene, groundHalfSize) {
     this.scene = scene;
     this.groundHalfSize = groundHalfSize;
-    this.recycleRange = 140;
+    this.recycleRange = 200;
     this.options = { debrisLimit: 600, breakage: 'detailed', debrisLifetime: 60, physicsQuality: 4 };
     this.pools = {};
     for (const [name, kind] of Object.entries(KINDS)) {
@@ -344,8 +360,20 @@ export class Destruction {
     this.blastJ = { x: 0, z: 0 };
     this.bodyCount = 0;
     this.debrisCount = 0;
+    this.frozenCount = 0;
     this.time = 0;
+    this.sites = [];
+    this.siteNow = null;
+    this.loose = new Set();
     for (const pool of Object.values(this.pools)) pool.clear();
+    // Step without rebuilding the scene-query structure every time (see queries()).
+    const w = this.world;
+    w.step = (events, hooks) => {
+      w.physicsPipeline.step(w.gravity, w.integrationParameters, w.islands, w.broadPhase, w.narrowPhase,
+        w.bodies, w.colliders, w.impulseJoints, w.multibodyJoints, w.ccdSolver, events, hooks);
+      this.queryDirty = true;
+    };
+    this.queryDirty = true;
 
     const ground = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.5, 0));
     this.world.createCollider(
@@ -477,7 +505,46 @@ export class Destruction {
     const pool = this.pools[kindName];
     if (pool.full) return null;
     const q = typeof rot === 'number' ? _q.setFromAxisAngle(_v.set(0, 1, 0), rot) : rot;
+    // While the map is being built, structures far from where play starts
+    // are created already frozen (no physics body at all): much quicker.
+    // The decision is per site (made at its first piece), never half a building.
+    const site = opts.fragment ? null : this.siteNow;
+    let prefrozen = false;
+    if (this.prefreeze && !opts.fragment) {
+      if (site) {
+        site.prefrozen ??= this.farFromAll(pos, this.prefreeze);
+        prefrozen = site.prefrozen;
+      } else {
+        prefrozen = this.farFromAll(pos, this.prefreeze);
+      }
+    }
+    let body, colliders, frozen = null;
+    if (prefrozen) {
+      frozen = { x: pos.x, y: pos.y, z: pos.z, q: { x: q.x, y: q.y, z: q.z, w: q.w } };
+      body = frozenBody(frozen);
+      colliders = [];
+      this.frozenCount++;
+    } else {
+      ({ body, colliders } = this.makeBody(kind, pos, q, opts));
+    }
 
+    const color = opts.color ?? new THREE.Color(kind.colors[(Math.random() * kind.colors.length) | 0]);
+    const entity = { kind, body, colliders, color, dirty: true, born: this.time, alive: true, fragment: !!opts.fragment, frozen };
+    pool.add(entity, color);
+    for (const c of colliders) this.byCollider.set(c.handle, entity);
+    this.bodyCount++;
+    if (entity.fragment) this.debrisCount++;
+    if (opts.fragment) this.fragments.push(entity);
+    // Whole structures (a building, a wall) form a site that freezes and
+    // thaws together; see stream().
+    entity.site = site;
+    if (entity.site) entity.site.members.add(entity);
+    else this.loose.add(entity); // loose things and debris freeze one by one
+    return entity;
+  }
+
+  /** The Rapier body and colliders for one object of `kind`. */
+  makeBody(kind, pos, q, opts = {}) {
     const desc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(pos.x, pos.y, pos.z)
       .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
@@ -508,15 +575,143 @@ export class Destruction {
     } else {
       finish(RAPIER.ColliderDesc.cuboid(kind.size[0] / 2, kind.size[1] / 2, kind.size[2] / 2), kind.mass);
     }
+    return { body, colliders };
+  }
 
-    const color = opts.color ?? new THREE.Color(kind.colors[(Math.random() * kind.colors.length) | 0]);
-    const entity = { kind, body, colliders, color, dirty: true, born: this.time, alive: true, fragment: !!opts.fragment };
-    pool.add(entity, color);
-    for (const c of colliders) this.byCollider.set(c.handle, entity);
-    this.bodyCount++;
-    if (entity.fragment) this.debrisCount++;
-    if (opts.fragment) this.fragments.push(entity);
-    return entity;
+  // --- Streaming: far-away structures leave the physics world ------------
+  //
+  // Rapier's step costs time for every body, asleep or not, so a big map
+  // full of buildings would slow every frame. Structures that are asleep
+  // and far from every car are "frozen": their bodies are removed from the
+  // physics world, but they stay drawn exactly where they are. They thaw
+  // (bodies recreated, still asleep) before any car gets near. A structure
+  // spawned between beginSite() and endSite() freezes and thaws as one, so
+  // a building is never half there.
+
+  beginSite() {
+    this.siteNow = { members: new Set(), frozen: false, x: 0, z: 0, r: 0 };
+    this.sites.push(this.siteNow);
+  }
+
+  endSite() {
+    const site = this.siteNow;
+    this.siteNow = null;
+    if (!site?.prefrozen) return;
+    // Created frozen: work out where it is for the thaw check.
+    let sx = 0, sz = 0, n = 0, r = 0;
+    for (const e of site.members) { sx += e.frozen.x; sz += e.frozen.z; n++; }
+    site.x = sx / n;
+    site.z = sz / n;
+    for (const e of site.members) r = Math.max(r, Math.hypot(e.frozen.x - site.x, e.frozen.z - site.z));
+    site.r = r;
+    site.frozen = true;
+  }
+
+  /** Is `pos` comfortably beyond the freeze distance from every point? */
+  farFromAll(pos, points, margin = 115) {
+    return points.every((p) => Math.hypot(p.x - pos.x, p.z - pos.z) > margin);
+  }
+
+  /**
+   * Freeze and thaw around `points` (cars: {x, z}). Call every frame;
+   * it does its work a few times a second.
+   */
+  stream(points, dt, { freezeAt = 100, thawAt = 82, budget = 110, all = false } = {}) {
+    // Small, frequent passes so thawing a district never lands in one frame.
+    this.streamTimer = (this.streamTimer || 0) - dt;
+    if ((this.streamTimer > 0 && !all) || !points.length) return;
+    this.streamTimer = 0.1;
+    // Thawing is checked every pass (cheap: frozen sites remember where
+    // they are); freezing needs a look at every live body, so only every
+    // fifth pass.
+    this.streamPass = ((this.streamPass || 0) + 1) % 5;
+    const scanLive = this.streamPass === 0 || all;
+    if (all) budget = Infinity;
+    let frozeBodies = 0;
+    const near = (x, z, r) => {
+      let best = Infinity;
+      for (const p of points) best = Math.min(best, Math.hypot(p.x - x, p.z - z));
+      return best - r;
+    };
+    const thaws = [];
+    const units = [...this.sites.filter((s) => s.members.size), ...[...this.loose].map((e) => ({ members: [e], single: e }))];
+    for (const u of units) {
+      const frozen = u.single ? !!u.single.frozen : u.frozen;
+      if (frozen) {
+        const c = u.single ? u.single.frozen : u;
+        const d = near(c.x, c.z, u.single ? 0 : u.r);
+        if (d < thawAt) thaws.push({ u, d });
+        continue;
+      }
+      if (!scanLive || frozeBodies >= budget * 3) continue; // freezing is cheaper than thawing
+      // Live: freeze only if everything in it is asleep and far away.
+      let sx = 0, sz = 0, n = 0, asleep = true;
+      for (const e of u.members) {
+        if (!e.alive) continue;
+        if (!e.body.isSleeping()) { asleep = false; break; }
+        const t = e.body.translation();
+        sx += t.x; sz += t.z; n++;
+      }
+      if (!asleep || !n) continue;
+      const cx = sx / n, cz = sz / n;
+      let r = 0;
+      if (!u.single) for (const e of u.members) if (e.alive) { const t = e.body.translation(); r = Math.max(r, Math.hypot(t.x - cx, t.z - cz)); }
+      if (near(cx, cz, r) > freezeAt) {
+        if (u.single) { this.freeze(u.single); frozeBodies++; }
+        else { u.x = cx; u.z = cz; u.r = r; u.frozen = true; for (const e of u.members) if (e.alive) { this.freeze(e); frozeBodies++; } }
+      }
+    }
+    // Nearest first, a limited number of bodies per pass (it's not free).
+    thaws.sort((a, b) => a.d - b.d);
+    let made = 0;
+    for (const { u } of thaws) {
+      if (made >= budget) break;
+      if (u.single) { this.thaw(u.single); made++; continue; }
+      u.frozen = false;
+      for (const e of u.members) if (e.alive && e.frozen) { this.thaw(e); made++; }
+    }
+  }
+
+  /** Freeze everything far from `points` at once (right after building the map). */
+  streamNow(points) {
+    this.stream(points, 0, { all: true });
+  }
+
+  freeze(e) {
+    const t = e.body.translation(), r = e.body.rotation();
+    e.frozen = { x: t.x, y: t.y, z: t.z, q: { x: r.x, y: r.y, z: r.z, w: r.w } };
+    for (const c of e.colliders) this.byCollider.delete(c.handle);
+    this.world.removeRigidBody(e.body);
+    e.body = frozenBody(e.frozen);
+    e.colliders = [];
+    this.frozenCount = (this.frozenCount || 0) + 1;
+  }
+
+  thaw(e) {
+    const f = e.frozen;
+    const { body, colliders } = this.makeBody(e.kind, f, f.q, { sleep: true, fragment: e.fragment });
+    e.body = body;
+    e.colliders = colliders;
+    e.frozen = null;
+    for (const c of colliders) this.byCollider.set(c.handle, e);
+    this.frozenCount--;
+  }
+
+  /** Thaw everything (e.g. before football's tidy-up, or for a full rebuild). */
+  thawAll() {
+    for (const s of this.sites) s.frozen = false;
+    for (const pool of Object.values(this.pools)) for (const e of pool.entities) if (e.frozen) this.thaw(e);
+  }
+
+  /**
+   * Scene queries need the query structure brought up to date; world.step()
+   * no longer does it every step (it costs time for every body), so
+   * anything that queries calls this first.
+   */
+  queries() {
+    if (!this.queryDirty) return;
+    this.world.queryPipeline.update(this.world.colliders);
+    this.queryDirty = false;
   }
 
   /** Register a body made elsewhere (the football) so it takes part in contacts and blasts. */
@@ -541,7 +736,10 @@ export class Destruction {
     if (!entity.alive) return;
     entity.alive = false;
     for (const c of entity.colliders) this.byCollider.delete(c.handle);
-    this.world.removeRigidBody(entity.body);
+    if (entity.frozen) this.frozenCount--;
+    else this.world.removeRigidBody(entity.body);
+    entity.site?.members.delete(entity);
+    this.loose.delete(entity);
     this.pools[entity.kind.name].remove(entity);
     this.bodyCount--;
     if (entity.fragment) this.debrisCount--;
@@ -736,6 +934,7 @@ export class Destruction {
   /** Push, shatter and set off everything around a point (no sound or flash). */
   blast(t, R = BLAST_RADIUS) {
     const seen = new Set();
+    this.queries();
     this.world.collidersWithAabbIntersectingAabb(t, { x: R, y: R, z: R }, (c) => {
       const body = c.parent();
       if (!body || seen.has(body.handle)) return true;
@@ -792,6 +991,7 @@ export class Destruction {
     const centre = { x: car.x + sinH * localZ, y: (car.y || 0) + (hi[1] + lo[1]) / 2, z: car.z + cosH * localZ };
     const rot = carRotation(car);
     const found = new Set();
+    this.queries();
     this.world.intersectionsWithShape(centre, rot, new RAPIER.Cuboid(half.x, half.y, half.z), (collider) => {
       const e = this.byCollider.get(collider.handle);
       if (e && e.alive && !e.vehicle && !e.kind.noBurn) found.add(e);
@@ -811,6 +1011,7 @@ export class Destruction {
     const ident = { x: 0, y: 0, z: 0, w: 1 };
     this.flameBalls ||= [];
     let grounded = 0;
+    this.queries();
     for (let i = 0, d = 1.2; d <= FLAME.range; i++, d += 1.2) {
       const c = streamPoint(pos, dir, d);
       if (c.y < 0.35) {
@@ -857,6 +1058,7 @@ export class Destruction {
     this.despawn(entity);
     // Wake whatever was resting on it so it falls.
     const r2 = size / 2 + 0.4;
+    this.queries();
     this.world.collidersWithAabbIntersectingAabb(t, { x: r2, y: r2, z: r2 }, (c) => {
       c.parent()?.wakeUp();
       return true;
@@ -899,6 +1101,19 @@ export class Destruction {
       for (const e of pool.entities) {
         const life = this.lifetimeOf(e);
         const left = life ? life - (this.time - e.born) : Infinity;
+        if (e.frozen) {
+          if (e.dirty) {
+            // Created frozen: place it once.
+            e.dirty = false;
+            _p.set(e.frozen.x, e.frozen.y, e.frozen.z);
+            _q.set(e.frozen.q.x, e.frozen.q.y, e.frozen.q.z, e.frozen.q.w);
+            _m.compose(_p, _q, _sv.set(1, 1, 1));
+            pool.mesh.setMatrixAt(e.slot, _m);
+            changed = true;
+          }
+          if (left <= 0) this.despawn(e);
+          continue; // not in the physics world: nothing moves
+        }
         if (!e.dirty && left >= 1 && e.body.isSleeping()) continue;
         e.dirty = false;
         const t = e.body.translation();

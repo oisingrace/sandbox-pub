@@ -244,7 +244,8 @@
     @media (max-width: 560px) { #banner { font-size: 44px; } #banner.count { font-size: 72px; } #scoreboard .team span { display: none; } }
     body:not(.touch) #touch-ballcam { display: none; }
     #touch-ballcam { left: 316px; top: 16px; }
-    body:not(.football) #touch-ballcam, body:not(.football) #t-jump { display: none !important; }
+    body:not(.football) #touch-ballcam, body:not(.aerial) #t-jump { display: none !important; }
+    body.menu-football #menu .vehicle-card { display: none; }
     #t-jump { right: 16px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
     body.football #t-hb { right: 220px; }
     /* --- Destruction points and flamethrower --- */
@@ -312,7 +313,7 @@
     <div class="row"><kbd>V</kbd> <b>change car</b> &nbsp;<kbd>E</kbd> <b>drive a nearby parked one</b></div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
     <div class="row"><kbd>X</kbd> or click <b>flamethrower</b> (Inferno pickup) &nbsp;Keep smashing to raise the <b>multiplier</b></div>
-    <div class="row">Football: <kbd>Space</kbd> <b>jump</b> (again: double jump, or flip with a direction) &nbsp;<kbd>Q</kbd> <b>powerslide</b></div>
+    <div class="row">Striker: <kbd>Space</kbd> <b>jump</b> (again: double jump, or flip with a direction) &nbsp;<kbd>Q</kbd> <b>powerslide</b></div>
     <div class="row">In the air: <kbd>W</kbd><kbd>S</kbd> <b>pitch</b> &nbsp;<kbd>A</kbd><kbd>D</kbd> <b>turn</b> &nbsp;<kbd>Q</kbd>+<kbd>A</kbd><kbd>D</kbd> <b>roll</b> &nbsp;<kbd>Y</kbd> <b>ball cam</b></div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>Esc</kbd> <b>pause</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
@@ -480,9 +481,9 @@
           <tr><td>Reverse</td><td>Hold <kbd>S</kbd> when stopped</td><td>Hold LT</td></tr>
           <tr><td>Handbrake</td><td><kbd>Space</kbd></td><td>A / RB</td></tr>
           <tr><td>Boost (refills over time and when you smash things)</td><td><kbd>Shift</kbd></td><td>LB</td></tr>
-          <tr><td>Football: jump (press again in the air to double jump; with a direction, flip)</td><td><kbd>Space</kbd></td><td>A · On screen: JUMP</td></tr>
-          <tr><td>Football: powerslide (in the air: hold to roll with A/D)</td><td><kbd>Q</kbd></td><td>RB</td></tr>
-          <tr><td>Football, in the air: pitch nose down / up</td><td><kbd>W</kbd> / <kbd>S</kbd></td><td>Left stick up / down</td></tr>
+          <tr><td>Striker (and cars with jumps): jump (press again in the air to double jump; with a direction, flip)</td><td><kbd>Space</kbd></td><td>A · On screen: JUMP</td></tr>
+          <tr><td>Striker: powerslide (in the air: hold to roll with A/D)</td><td><kbd>Q</kbd></td><td>RB</td></tr>
+          <tr><td>Striker, in the air: pitch nose down / up</td><td><kbd>W</kbd> / <kbd>S</kbd></td><td>Left stick up / down</td></tr>
           <tr><td>Ball cam on/off (football)</td><td><kbd>Y</kbd></td><td>On screen: BALL</td></tr>
           <tr><td>Flamethrower (Inferno pickup)</td><td><kbd>X</kbd> or left click</td><td>B · On screen: FIRE</td></tr>
           <tr><td>Change car (anywhere)</td><td><kbd>V</kbd></td><td>On screen: CAR</td></tr>

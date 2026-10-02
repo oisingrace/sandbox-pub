@@ -12,7 +12,7 @@ const TABS = [
 export const MODE_NAMES = { free: 'Free roam', football: 'Car football' };
 const MODE_BLURBS = {
   free: 'Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.',
-  football: 'Knock the ball into the orange goal before the clock runs out. You play Blue against a computer driver, or team up online. The sidelines are lined with things to wreck, and the fuel drums in the corners blow the ball around. Space jumps (twice for a double jump or a flip), W/S pitch in the air, and boost lets you fly. Press Y to toggle ball cam.',
+  football: 'Knock the ball into the orange goal before the clock runs out. Everyone drives the Striker, painted in their team colour. You play Blue against a computer driver, or team up online. The sidelines are lined with things to wreck, and the fuel drums in the corners blow the ball around. Space jumps (twice for a double jump or a flip), W/S pitch in the air, and boost lets you fly. Press Y to toggle ball cam.',
 };
 
 export class Menu {
@@ -79,6 +79,8 @@ export class Menu {
     const mode = this.mode;
     for (const el of this.root.querySelectorAll('[data-mode]')) el.setAttribute('aria-checked', String(el.dataset.mode === mode));
     document.getElementById('mode-blurb').textContent = MODE_BLURBS[mode];
+    // Car football has one car for everyone (the Striker): no picker.
+    document.body.classList.toggle('menu-football', mode === 'football');
     document.getElementById('room-mode-name').textContent = MODE_NAMES[mode];
   }
 
@@ -157,8 +159,17 @@ export class Menu {
     this.show(this.backTo);
   }
 
+  /** Car football has one car: lock the in-game garage (and say why). */
+  setCarLocked(locked) {
+    this.carLocked = locked;
+    const b = document.getElementById('btn-garage');
+    b.disabled = locked;
+    b.textContent = locked ? 'Change car (everyone drives the Striker here)' : 'Change car';
+  }
+
   /** The in-game garage: pick any vehicle and swap into it on the spot. */
   showGarage() {
+    if (this.carLocked) return;
     const current = this.opts.currentVehicle();
     const list = document.getElementById('garage-list');
     list.replaceChildren(...this.opts.vehicles().map((v) => {

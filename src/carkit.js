@@ -14,7 +14,8 @@ import { CarPhysics, DEFAULT_SPEC } from './physics.js';
 //     tune:   { power, weight, grip, balance, boost }  // 0..1, 0.5 is neutral
 //     engine: 'sport' | 'hatch' | 'v8' | 'diesel' | 'ember',
 //     ability: 'none' | 'burner' | 'flamethrower',
-//     parts:  ['spoiler', 'scoop', 'bullbar', 'lightbar', 'stacks', 'stripes', 'cage'] }
+//     parts:  ['spoiler', 'scoop', 'bullbar', 'lightbar', 'stacks', 'stripes', 'cage'],
+//     aerial: true | false }  // jumps, double jumps, flips and air control (Space)
 
 export const STYLES = {
   coupe: { label: 'Coupe', length: 4.3, width: 1.82, roof: 1.3, body: 0.42, ride: 0.2, cabin: [0.24, 0.62], taper: 0.55, wheel: 0.34, engine: 'sport', power: 1 },
@@ -22,6 +23,7 @@ export const STYLES = {
   muscle: { label: 'Muscle', length: 4.8, width: 1.92, roof: 1.33, body: 0.52, ride: 0.2, cabin: [0.24, 0.58], taper: 0.62, wheel: 0.36, engine: 'v8', power: 1.35 },
   pickup: { label: 'Pickup', length: 5.4, width: 1.96, roof: 1.95, body: 0.52, ride: 0.42, cabin: [0.45, 0.72], taper: 0.9, wheel: 0.42, engine: 'v8', bed: true, power: 1.15 },
   van: { label: 'Van', length: 5.0, width: 1.98, roof: 2.15, body: 0.6, ride: 0.3, cabin: [0.02, 0.84], taper: 0.92, wheel: 0.36, engine: 'diesel', power: 0.85 },
+  striker: { label: 'Striker', length: 3.9, width: 1.96, roof: 1.24, body: 0.42, ride: 0.26, cabin: [0.16, 0.56], taper: 0.65, wheel: 0.38, engine: 'sport', power: 1.15 },
   buggy: { label: 'Buggy', length: 3.6, width: 1.9, roof: 1.6, body: 0.34, ride: 0.42, cabin: [0.28, 0.66], taper: 1, wheel: 0.44, engine: 'sport', open: true, power: 0.75 },
 };
 export const ENGINES = { sport: 'Sports', hatch: 'Four-pot', v8: 'V8', diesel: 'Diesel', ember: 'Turbine' };
@@ -43,7 +45,7 @@ export const DEFAULT_DESIGN = {
   name: 'My car', style: 'coupe', color: 0xe8b21c, trim: 0x1c1c22, accent: 0xff6a10,
   size: { length: 0.5, width: 0.5, height: 0.5, ride: 0.5, wheels: 0.5 },
   tune: { power: 0.5, weight: 0.5, grip: 0.5, balance: 0.5, boost: 0.5 },
-  engine: null, ability: 'none', parts: ['stripes'],
+  engine: null, ability: 'none', parts: ['stripes'], aerial: false,
 };
 
 const clamp01 = (v, d = 0.5) => (Number.isFinite(+v) ? Math.max(0, Math.min(1, +v)) : d);
@@ -66,6 +68,7 @@ export function cleanDesign(raw = {}) {
     engine: ENGINES[raw.engine] ? raw.engine : STYLES[style].engine,
     ability: ABILITIES[raw.ability] ? raw.ability : 'none',
     parts: [...new Set((Array.isArray(raw.parts) ? raw.parts : d.parts).filter((p) => PARTS[p]))],
+    aerial: !!raw.aerial,
   };
   for (const k of Object.keys(SIZE_KEYS)) out.size[k] = clamp01(raw.size?.[k]);
   for (const k of Object.keys(TUNE_KEYS)) out.tune[k] = clamp01(raw.tune?.[k]);
@@ -160,7 +163,7 @@ export function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats =
     design: d,
     name: d.name,
     voice: d.engine,
-    blurb: `Custom ${st.label.toLowerCase()}${d.ability !== 'none' ? ` with ${ABILITIES[d.ability].split(' (')[0].toLowerCase()}` : ''}.`,
+    blurb: `Custom ${st.label.toLowerCase()}${d.ability !== 'none' ? ` with ${ABILITIES[d.ability].split(' (')[0].toLowerCase()}` : ''}${d.aerial ? ', jumps and flips' : ''}.`,
     color: d.color,
     trim: d.trim,
     accent: d.accent,
@@ -169,6 +172,7 @@ export function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats =
     width: W,
     suspension: st.open ? 1.3 : roof > 1.8 ? 1.25 : 1,
     burns: d.ability === 'burner',
+    aerial: d.aerial,
     flamethrower: flamer ? { mount: [0, turret.y + 0.32, turret.z + 1.15] } : undefined,
     spec,
     hitbox,

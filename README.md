@@ -1,10 +1,26 @@
 # Smash Lot
 
 A third-person driving sandbox for the browser, built with three.js and the Rapier physics engine,
-with no build step. Pick from six vehicles and drive around a walled arena (180 × 180 m) where everything can be
-smashed: two office buildings with glass windows, a gas station, explosive fuel drums, a shipping
+with no build step. Pick from seven vehicles (or build your own) and drive around a walled map
+(300 × 300 m) where everything can be smashed: two office buildings with glass windows, a gas station, explosive fuel drums, a shipping
 container yard, a water tower, giant bowling pins, a fenced grove, brick walls, concrete sheds, a block
 tower, crate pyramids, barrels, a domino run, light poles, trees, cones, and the barrier ring itself.
+
+Around the original lot are the outer districts: **downtown** (north-east) with eight office blocks
+of two to five storeys and a kicker that launches you into them; **midtown** along the north with
+more offices and houses; a **suburban street** of houses with picket fences in the west; an
+**industrial** strip in the south with five warehouses, a container yard and a fuel depot; a **ramp
+park** in the south-east; a park in the north-west; and a ring road with lamp posts.
+
+**Keeping a big map fast** (`Destruction.stream` in `src/destruction.js`): the physics engine spends
+time on every body each step, even sleeping ones, so a map this size would be slow if it were all
+live. Each structure (a building, a wall, a crate pile) is a *site*. When a whole site is asleep
+and more than 100 m from every car (yours and other players'), its bodies leave the physics world
+but it stays drawn exactly where it is; it comes back (still asleep) once a car is within 82 m,
+nearest first, a little at a time so it never lands in one frame. Structures far from the start
+are created frozen when the map is built. The physics step also no longer rebuilds its
+scene-query structure every step, only when something (fire, explosions) needs it. With 5,000
+objects on the map, the frame cost is lower than the old 1,800-object lot.
 
 **Ramps and jumps** (`src/terrain.js`):
 - A launch kicker off the start line, aimed over the big brick wall.
@@ -69,6 +85,9 @@ Pick **Car football** on the main menu (next to Free roam) for a Blue vs Orange 
   each goal, so hard shots smash through it.
 - **The ball** is a 1.5 m radius Rapier sphere: light, bouncy and a little floaty for aerials. Cars
   hit it through their real hitboxes.
+- **One car for everyone:** car football is played in the **Striker**, a compact car made for it,
+  painted in your team's colour. The Striker is also a normal car in free roam, and *Jumps and air
+  control* is an option for your own designs in the workshop.
 - **The match:** a 3-second countdown at kickoff with cars held on their spots, a 3:00 clock (time
   runs out once the ball is on the ground), golden-goal overtime on a tie, then the winner is shown
   and a new match starts. Each goal sets off a blast in the net, a horn and the crowd; then broken
@@ -82,7 +101,8 @@ Pick **Car football** on the main menu (next to Free roam) for a Blue vs Orange 
   them 20 times a second. Everyone also simulates the ball locally between updates, and when you hit
   it your own result leads for a moment and is sent to the host, so your touches feel instant. Goals
   are credited to the last player to touch the ball, and the player list shows goals.
-- **Jumps and aerials, Rocket League style** (football only, `src/physics.js`):
+- **Jumps and aerials, Rocket League style** (the Striker, or any custom car with *Jumps and air
+  control*; `src/physics.js`):
   - **Space** jumps (hold it a moment to go higher). Press it again in the air within 1.4 s for a
     double jump, or with a direction held for a flip that spins the car and shoves it that way
     (W + double jump is a front flip for speed).
@@ -91,7 +111,7 @@ Pick **Car football** on the main menu (next to Free roam) for a Blue vs Orange 
   - W or S held since take-off don't pitch the car until you release them, so driving off a jump
     with W held doesn't nosedive.
   - Jump on your roof or side to flip back onto your wheels straight away.
-  - **Q** is the powerslide (the handbrake) in football. Gamepad: A jumps, RB powerslides and air
+  - **Q** is the powerslide (the handbrake) in a car that jumps. Gamepad: A jumps, RB powerslides and air
     rolls, the left stick pitches. Touch screens get a JUMP button.
   - The computer driver jumps at high balls and flips into them.
 - **Ball cam** (Y, or BALL on touch screens) is on by default: the camera looks past your car at the
@@ -102,10 +122,11 @@ Pick **Car football** on the main menu (next to Free roam) for a Blue vs Orange 
 
 **Car workshop** (main menu → *Car workshop*) lets players build their own cars:
 
-- **Body:** six styles (coupe, hatchback, muscle, pickup, van, buggy), each with its own shape,
+- **Body:** seven styles (coupe, hatchback, muscle, pickup, van, striker, buggy), each with its own shape,
   engine and base performance. Sliders for length, width, roof height, ride height and wheel size.
 - **Paint:** body, trim and glow colours.
 - **Parts:** rear wing, hood scoop, bull bar, roof lights, exhaust stacks, racing stripes, roll cage.
+- **Jumps and air control:** on or off, like the Striker.
 - **Special:** none, burner (burns through what it hits, like the Ember GT) or a flamethrower turret
   (like the Inferno pickup).
 - **Engine and handling:** engine sound, and sliders for power, weight, grip, balance (planted to
@@ -350,7 +371,7 @@ All of it is in `src/destruction.js`.
 ## Files
 
 - `src/physics.js`: vehicle dynamics
-- `src/vehicles.js`: the six vehicles (handling, hitbox, body builder)
+- `src/vehicles.js`: the built-in vehicles (the Striker is built from a carkit design) (handling, hitbox, body builder)
 - `src/carModel.js`: renders any vehicle, with suspension roll/pitch, wheel spin and steer
 - `src/camera.js`: chase / far / hood cameras
 - `src/world.js`: ground, backdrop, and the free-roam arena layout

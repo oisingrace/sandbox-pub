@@ -6,8 +6,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 // barrier ring is a physics object spawned by `populateArena`.
 
 const SKY = 0x9fc6e8;
-export const ARENA_HALF = 90;      // barrier ring sits here
-export const DRIVE_LIMIT = 94;     // the car is kept inside this square
+export const ARENA_HALF = 150;     // barrier ring sits here
+export const DRIVE_LIMIT = 154;    // the car is kept inside this square
 export const START = { x: 0, z: -52, heading: 0 };
 
 export function createWorld(scene, renderer) {
@@ -63,6 +63,11 @@ export function createWorld(scene, renderer) {
 
   const paint = new THREE.MeshBasicMaterial({ color: 0xf2f2f2, transparent: true, opacity: 0.85, depthWrite: false });
   const yellow = new THREE.MeshBasicMaterial({ color: 0xf2c230, transparent: true, opacity: 0.85, depthWrite: false });
+  const flat2 = (geo, mat) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.renderOrder = 1;
+    arena.add(m);
+  };
   const flat = (geo, mat, x, z, rotY = 0) => {
     const m = new THREE.Mesh(geo, mat);
     m.rotation.set(-Math.PI / 2, 0, rotY);
@@ -83,6 +88,21 @@ export function createWorld(scene, renderer) {
   // Gas station forecourt and parking bays in the container yard.
   flat(new THREE.PlaneGeometry(16, 12), new THREE.MeshBasicMaterial({ color: 0x3b3d42, transparent: true, opacity: 0.6, depthWrite: false }), 74, -20);
   for (let z = -26; z <= 6; z += 8) flat(new THREE.PlaneGeometry(14, 0.2), yellow, -76, z);
+  // Road markings for the outer districts, merged into one mesh (one draw call).
+  const lines = [];
+  const dash = (x, z, alongX) => {
+    const g = new THREE.PlaneGeometry(alongX ? 3 : 0.25, alongX ? 0.25 : 3);
+    g.rotateX(-Math.PI / 2);
+    g.translate(x, 0.02, z);
+    lines.push(g);
+  };
+  for (let u = -128; u <= 128; u += 8) { // the ring road, inside the barriers
+    dash(u, 132, true); dash(u, -132, true); dash(132, u, false); dash(-132, u, false);
+  }
+  for (let u = 46; u <= 128; u += 8) { dash(123, u, false); dash(u, 77, true); dash(u, 108, true); } // downtown streets
+  for (let u = -76; u <= 82; u += 8) dash(-106, u, false); // the suburban street
+  for (let u = -60; u <= 60; u += 8) dash(u, -112, true); // the industrial road
+  flat2(mergeGeometries(lines), paint);
 
   // Distant hills for a horizon.
   const hillMat = new THREE.MeshStandardMaterial({ color: 0x6a8a55, roughness: 1, flatShading: true });
@@ -132,9 +152,12 @@ export function populateArena(d) {
   const rng = mulberry32(11);
   const opts = { sleep: true };
   const gap = 0.002;
+  // Everything a helper builds is one "site" that freezes and thaws
+  // together when it's far from every car (see Destruction.stream).
+  const site = (fn) => (...args) => { d.beginSite(); fn(...args); d.endSite(); };
 
   // Running-bond brick wall: `len` metres long, `rows` high, centred at (x, z).
-  const brickWall = (x, z, yaw, len, rows) => {
+  const brickWall = site((x, z, yaw, len, rows) => {
     const c = Math.cos(yaw), s = Math.sin(yaw);
     const place = (u, y, kind) => d.spawn(kind, { x: x + u * c, y, z: z - u * s }, yaw, opts);
     for (let r = 0; r < rows; r++) {
@@ -144,10 +167,10 @@ export function populateArena(d) {
       while (u + 0.6 <= len / 2 + 1e-6) { place(u + 0.3, y, 'brick'); u += 0.6; }
       if (u < len / 2 - 1e-6) place(u + 0.15, y, 'brickHalf');
     }
-  };
+  });
 
   // Hollow building of concrete blocks with a plank roof.
-  const shed = (x, z, w, depth, h) => {
+  const shed = site((x, z, w, depth, h) => {
     for (let y = 0; y < h; y++) {
       for (let i = 0; i < w; i++) {
         for (let j = 0; j < depth; j++) {
@@ -170,9 +193,9 @@ export function populateArena(d) {
     for (let i = 0; i < w; i++) {
       d.spawn('plank', { x: x + i - (w - 1) / 2, y: h + 0.1 + gap, z }, Math.PI / 2, opts);
     }
-  };
+  });
 
-  const cratePyramid = (x, z, base) => {
+  const cratePyramid = site((x, z, base) => {
     for (let level = 0; level < base; level++) {
       const n = base - level;
       for (let i = 0; i < n; i++) {
@@ -181,14 +204,14 @@ export function populateArena(d) {
         }
       }
     }
-  };
+  });
 
-  const tower = (x, z, size, h) => {
+  const tower = site((x, z, size, h) => {
     for (let y = 0; y < h; y++)
       for (let i = 0; i < size; i++)
         for (let j = 0; j < size; j++)
           d.spawn('block', { x: x + i - (size - 1) / 2, y: 0.5 + y * (1 + gap), z: z + j - (size - 1) / 2 }, 0, opts);
-  };
+  });
 
   // Random points in a box, at least `minDist` apart.
   const scatter = (cx, cz, half, n, minDist) => {
@@ -200,14 +223,14 @@ export function populateArena(d) {
     return pts;
   };
 
-  const barrels = (x, z, n) => {
+  const barrels = site((x, z, n) => {
     for (const p of scatter(x, z, 2.2, n, 0.75)) d.spawn('barrel', { x: p.x, y: 0.475 + gap, z: p.z }, 0, opts);
-  };
+  });
 
   // Three-storey office block, 10 m x 6.8 m.
   // Each storey: a 1.2 m band of wall panels, a 1.5 m band of pillars and
   // glass, then a 0.3 m floor slab spanning front wall to back wall.
-  const building = (cx, cz, floors) => {
+  const building = site((cx, cz, floors) => {
     const halfW = 5;
     const halfD = 3.4;
     let layer = 0;
@@ -247,7 +270,7 @@ export function populateArena(d) {
         d.spawn('floorSlab', { x: cx - halfW + 1 + 2 * i, y: y0 + 2.85 + lift(), z: cz }, 0, opts);
       }
     }
-  };
+  });
   building(22, 50, 3);
 
   // The big wall straight ahead of the start.
@@ -270,6 +293,7 @@ export function populateArena(d) {
   barrels(48, -12, 8);
 
   // Domino arc.
+  d.beginSite();
   const dominoCentre = { x: -46, z: -14 };
   const dominoR = 14;
   for (let a = -1.75; a <= 1.75; a += 0.08) {
@@ -278,6 +302,7 @@ export function populateArena(d) {
     // Slab thickness runs along the arc so each one tips into the next.
     d.spawn('slab', { x, y: 1.1 + gap, z }, -a - Math.PI / 2, opts);
   }
+  d.endSite();
 
   // Cone slalom from the start line.
   // Cones line the run-up to the start kicker.
@@ -295,9 +320,9 @@ export function populateArena(d) {
   }
 
   // Trees in two corners.
-  const grove = (cx, cz, n) => {
+  const grove = site((cx, cz, n) => {
     for (const p of scatter(cx, cz, 7, n, 3.4)) d.spawn('tree', { x: p.x, y: 1.5 + gap, z: p.z }, rng() * Math.PI, opts);
-  };
+  });
   grove(44, -52, 7);
   grove(-42, 52, 7);
 
@@ -308,14 +333,16 @@ export function populateArena(d) {
 
   // Gas station: canopy on four columns, pumps underneath, fuel drums.
   const gx = 74, gz = -20;
+  d.beginSite();
   for (const [dx, dz] of [[-4.5, -3], [4.5, -3], [-4.5, 3], [4.5, 3]]) {
     d.spawn('column', { x: gx + dx, y: 2.25 + gap, z: gz + dz }, 0, opts);
   }
   d.spawn('canopy', { x: gx, y: 4.75 + 2 * gap, z: gz }, 0, opts);
   for (const dx of [-2, 2]) d.spawn('pump', { x: gx + dx, y: 0.9 + gap, z: gz }, 0, opts);
-  const drums = (cx, cz, n, spread = 1.6) => {
+  d.endSite();
+  const drums = site((cx, cz, n, spread = 1.6) => {
     for (const p of scatter(cx, cz, spread, n, 0.7)) d.spawn('fuel', { x: p.x, y: 0.45 + gap, z: p.z }, 0, opts);
-  };
+  });
   drums(83, -8, 8);
   drums(gx - 6, gz + 6, 3, 0.8);
   // A few drums elsewhere to set off chain reactions.
@@ -326,32 +353,41 @@ export function populateArena(d) {
   drums(-30, 71, 3, 0.8);
 
   // Giant bowling pins at the end of the lane (head pin nearest the start).
+  d.beginSite();
   for (let row = 0; row < 4; row++) {
     for (let i = 0; i <= row; i++) {
       d.spawn('pin', { x: -40 + (i - row / 2) * 1.25, y: 1.2 + gap, z: -74 - row * 1.1 }, 0, opts);
     }
   }
+  d.endSite();
 
-  // Container yard: four lanes of containers stacked one to three high.
-  const stacks = [[2, 3, 1], [1, 2, 3], [3, 1, 2], [2, 2, 1]];
-  stacks.forEach((col, ci) => {
-    col.forEach((height, ri) => {
-      for (let level = 0; level < height; level++) {
-        d.spawn('container', { x: -84 + ci * 2.8, y: 1.3 + level * (2.6 + gap), z: -22 + ri * 8 }, Math.PI / 2, opts);
-      }
+  // Container yard: lanes of containers stacked one to three high.
+  const containerYard = site((x0, z0, stacks, yaw = Math.PI / 2) => {
+    stacks.forEach((col, ci) => {
+      col.forEach((height, ri) => {
+        for (let level = 0; level < height; level++) {
+          // Lanes 2.8 m apart, containers 8 m apart along a lane.
+          const p = yaw === 0 ? { x: x0 + ri * 8, z: z0 + ci * 2.8 } : { x: x0 + ci * 2.8, z: z0 + ri * 8 };
+          d.spawn('container', { x: p.x, y: 1.3 + level * (2.6 + gap), z: p.z }, yaw, opts);
+        }
+      });
     });
   });
+  containerYard(-84, -22, [[2, 3, 1], [1, 2, 3], [3, 1, 2], [2, 2, 1]]);
 
   // Water tower.
+  d.beginSite();
   const wx = 72, wz = 72;
   for (const [dx, dz] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) {
     d.spawn('steelLeg', { x: wx + dx, y: 3.5 + gap, z: wz + dz }, 0, opts);
   }
   d.spawn('platform', { x: wx, y: 7.15 + 2 * gap, z: wz }, 0, opts);
   d.spawn('tank', { x: wx, y: 8.6 + 3 * gap, z: wz }, 0, opts);
+  d.endSite();
 
   // Fenced grove in the south-east corner.
   const fx = 62, fz = -76, fw = 16, fd = 12;
+  d.beginSite();
   for (let u = -fw / 2 + 1; u < fw / 2; u += 2) {
     d.spawn('fence', { x: fx + u, y: 0.5 + gap, z: fz - fd / 2 }, 0, opts);
     d.spawn('fence', { x: fx + u, y: 0.5 + gap, z: fz + fd / 2 }, 0, opts);
@@ -361,6 +397,7 @@ export function populateArena(d) {
     d.spawn('fence', { x: fx + fw / 2, y: 0.5 + gap, z: fz + v }, Math.PI / 2, opts);
   }
   for (const p of scatter(fx, fz, 4, 6, 3.4)) d.spawn('tree', { x: p.x, y: 1.5 + gap, z: p.z }, rng() * Math.PI, opts);
+  d.endSite();
 
   // More crates and barrels to plow through on the long runs.
   cratePyramid(-60, -40, 3);
@@ -373,6 +410,86 @@ export function populateArena(d) {
   for (let z = -60; z <= 60; z += 30) {
     d.spawn('pole', { x: -84, y: 3.5 + gap, z }, 0, opts);
     d.spawn('pole', { x: 84, y: 3.5 + gap, z }, Math.PI, opts);
+  }
+
+  // --- The outer districts (beyond the original lot) ----------------------
+
+  // Downtown, north-east: a block of offices of different heights.
+  for (const [x, z, floors] of [[112, 62, 3], [134, 62, 4], [112, 92, 2], [134, 92, 5], [70, 122, 3], [98, 124, 2]]) {
+    building(x, z, floors);
+  }
+  barrels(123, 77, 8);
+  drums(123, 106, 4, 1);
+  cratePyramid(84, 104, 3);
+
+  // Suburbs, west: a street of houses with picket fences and garden trees.
+  const house = site((x, z) => {
+    // Walls of facade panels, two rows high (no doorway: an unsupported
+    // panel over it would fall at the first knock), then a roof of slabs.
+    const halfW = 4, halfD = 3.4; // along z, along x
+    for (let row = 0; row < 2; row++) {
+      const y = 0.6 + row * (1.2 + gap);
+      for (let i = 0; i < 4; i++) {
+        const zz = z - halfW + 1 + 2 * i;
+        d.spawn('panel', { x: x - halfD + 0.2, y, z: zz }, Math.PI / 2, opts);
+        d.spawn('panel', { x: x + halfD - 0.2, y, z: zz }, Math.PI / 2, opts);
+      }
+      for (let j = 0; j < 3; j++) {
+        const xx = x - 3 + 1 + 2 * j;
+        d.spawn('panel', { x: xx, y, z: z - halfW + 0.2 }, 0, opts);
+        d.spawn('panel', { x: xx, y, z: z + halfW - 0.2 }, 0, opts);
+      }
+    }
+    for (let i = 0; i < 4; i++) d.spawn('floorSlab', { x, y: 2.55 + 2 * gap, z: z - halfW + 1 + 2 * i }, Math.PI / 2, opts);
+    for (let i = 0; i < 4; i++) {
+      if (i === 1 || i === 2) continue; // garden gate
+      d.spawn('fence', { x: x + halfD + 4, y: 0.5 + gap, z: z - 3 + 2 * i }, Math.PI / 2, opts);
+    }
+    d.spawn('tree', { x: x + halfD + 2, y: 1.5 + gap, z: z + 5.5 }, rng() * Math.PI, opts);
+  });
+  for (const z of [-62, -36, -10, 16, 42, 68]) house(-124, z);
+  barrels(-104, -24, 6);
+  drums(-104, 30, 3, 0.8);
+
+  // Industrial south: warehouses, a container yard and a fuel depot.
+  shed(-42, -122, 10, 7, 4);
+  shed(-6, -128, 10, 7, 4);
+  shed(30, -122, 10, 7, 4);
+  containerYard(92, -138, [[2, 1, 3], [3, 2, 1], [1, 3, 2]], 0);
+  drums(70, -132, 10, 2.4);
+  cratePyramid(10, -104, 3);
+  cratePyramid(-60, -104, 2);
+  tower(-24, -100, 2, 5);
+
+  // Ramp park, south-east, and the long jump into downtown (see terrain.js).
+  barrels(120, -78, 10);
+  cratePyramid(132, -36, 3);
+  brickWall(102, -54, Math.PI / 2, 10, 5);
+
+  // Park, north-west.
+  grove(-120, 112, 9);
+  grove(-96, 132, 7);
+  cratePyramid(-104, 96, 3);
+  barrels(-130, 132, 8);
+
+  // Midtown, along the north: more offices and a second street of houses.
+  building(-62, 122, 2);
+  building(-30, 128, 3);
+  for (const x of [0, 22, 44]) house(x - 6, 120);
+  barrels(-46, 112, 6);
+  // East side: two more office blocks between downtown and the ramp park.
+  building(140, 2, 2);
+  building(108, -14, 3);
+  drums(124, -8, 3, 0.8);
+  // Two more warehouses at the west end of the industrial road.
+  shed(-80, -128, 10, 7, 4);
+  shed(-116, -120, 8, 6, 3);
+
+  // Lamp posts along the ring road.
+  for (let u = -130; u <= 130; u += 32) {
+    for (const [x, z, yaw] of [[u, 141, 0], [u, -141, 0], [141, u, Math.PI / 2], [-141, u, Math.PI / 2]]) {
+      d.spawn('pole', { x, y: 3.5 + gap, z }, yaw, opts);
+    }
   }
 
   // Ring of heavy jersey barriers.

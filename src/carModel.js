@@ -106,6 +106,7 @@ export class CarModel {
       glow: new THREE.MeshStandardMaterial({ color: 0x2a0d00, emissive: def.accent ?? 0xff6a10, emissiveIntensity: 2.2 }),
     };
     this.glowMat = mats.glow;
+    this.paintMat = mats.paint; // car football repaints it in the team colour
     this.headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4d6, emissiveIntensity: 1.2 });
     this.tailMat = new THREE.MeshStandardMaterial({ color: 0x550000, emissive: 0xff1a1a, emissiveIntensity: 0.4 });
     this.reverseMat = new THREE.MeshStandardMaterial({ color: 0x777777, emissive: 0xffffff, emissiveIntensity: 0 });

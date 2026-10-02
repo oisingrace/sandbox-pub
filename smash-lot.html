@@ -244,7 +244,8 @@
     @media (max-width: 560px) { #banner { font-size: 44px; } #banner.count { font-size: 72px; } #scoreboard .team span { display: none; } }
     body:not(.touch) #touch-ballcam { display: none; }
     #touch-ballcam { left: 316px; top: 16px; }
-    body:not(.football) #touch-ballcam, body:not(.football) #t-jump { display: none !important; }
+    body:not(.football) #touch-ballcam, body:not(.aerial) #t-jump { display: none !important; }
+    body.menu-football #menu .vehicle-card { display: none; }
     #t-jump { right: 16px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
     body.football #t-hb { right: 220px; }
     /* --- Destruction points and flamethrower --- */
@@ -312,7 +313,7 @@
     <div class="row"><kbd>V</kbd> <b>change car</b> &nbsp;<kbd>E</kbd> <b>drive a nearby parked one</b></div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
     <div class="row"><kbd>X</kbd> or click <b>flamethrower</b> (Inferno pickup) &nbsp;Keep smashing to raise the <b>multiplier</b></div>
-    <div class="row">Football: <kbd>Space</kbd> <b>jump</b> (again: double jump, or flip with a direction) &nbsp;<kbd>Q</kbd> <b>powerslide</b></div>
+    <div class="row">Striker: <kbd>Space</kbd> <b>jump</b> (again: double jump, or flip with a direction) &nbsp;<kbd>Q</kbd> <b>powerslide</b></div>
     <div class="row">In the air: <kbd>W</kbd><kbd>S</kbd> <b>pitch</b> &nbsp;<kbd>A</kbd><kbd>D</kbd> <b>turn</b> &nbsp;<kbd>Q</kbd>+<kbd>A</kbd><kbd>D</kbd> <b>roll</b> &nbsp;<kbd>Y</kbd> <b>ball cam</b></div>
     <div class="row"><kbd>F</kbd> <b>telemetry</b> &nbsp;<kbd>M</kbd> <b>sound</b> &nbsp;<kbd>Esc</kbd> <b>pause</b> &nbsp;<kbd>H</kbd> <b>hide help</b></div>
     <div class="row">Gamepad: RT/LT pedals, stick steer, A handbrake</div>
@@ -480,9 +481,9 @@
           <tr><td>Reverse</td><td>Hold <kbd>S</kbd> when stopped</td><td>Hold LT</td></tr>
           <tr><td>Handbrake</td><td><kbd>Space</kbd></td><td>A / RB</td></tr>
           <tr><td>Boost (refills over time and when you smash things)</td><td><kbd>Shift</kbd></td><td>LB</td></tr>
-          <tr><td>Football: jump (press again in the air to double jump; with a direction, flip)</td><td><kbd>Space</kbd></td><td>A · On screen: JUMP</td></tr>
-          <tr><td>Football: powerslide (in the air: hold to roll with A/D)</td><td><kbd>Q</kbd></td><td>RB</td></tr>
-          <tr><td>Football, in the air: pitch nose down / up</td><td><kbd>W</kbd> / <kbd>S</kbd></td><td>Left stick up / down</td></tr>
+          <tr><td>Striker (and cars with jumps): jump (press again in the air to double jump; with a direction, flip)</td><td><kbd>Space</kbd></td><td>A · On screen: JUMP</td></tr>
+          <tr><td>Striker: powerslide (in the air: hold to roll with A/D)</td><td><kbd>Q</kbd></td><td>RB</td></tr>
+          <tr><td>Striker, in the air: pitch nose down / up</td><td><kbd>W</kbd> / <kbd>S</kbd></td><td>Left stick up / down</td></tr>
           <tr><td>Ball cam on/off (football)</td><td><kbd>Y</kbd></td><td>On screen: BALL</td></tr>
           <tr><td>Flamethrower (Inferno pickup)</td><td><kbd>X</kbd> or left click</td><td>B · On screen: FIRE</td></tr>
           <tr><td>Change car (anywhere)</td><td><kbd>V</kbd></td><td>On screen: CAR</td></tr>
@@ -1277,6 +1278,331 @@ class CarPhysics {
   }
 }
 
+// ===== carkit.js =====
+// Custom cars. A custom car is plain data (a "design"): a body style, size,
+// colours, bolt-on parts, an engine sound, a few tuning sliders and an
+// optional special ability. `compileCar` turns a design into a complete
+// vehicle definition, the same shape as the hand-built ones in vehicles.js:
+// handling spec, hitbox, camera, exhaust, stats and a body builder for
+// CarModel. Designs are JSON-safe, so they can be saved, shared as a code
+// and sent to other players; every value is clamped on the way in.
+//
+// Design shape (every field optional; see DEFAULT_DESIGN):
+//   { id, name, style, color, trim, accent,
+//     size:   { length, width, height, ride, wheels }   // 0..1 sliders around the style's base
+//     tune:   { power, weight, grip, balance, boost }  // 0..1, 0.5 is neutral
+//     engine: 'sport' | 'hatch' | 'v8' | 'diesel' | 'ember',
+//     ability: 'none' | 'burner' | 'flamethrower',
+//     parts:  ['spoiler', 'scoop', 'bullbar', 'lightbar', 'stacks', 'stripes', 'cage'],
+//     aerial: true | false }  // jumps, double jumps, flips and air control (Space)
+
+const STYLES = {
+  coupe: { label: 'Coupe', length: 4.3, width: 1.82, roof: 1.3, body: 0.42, ride: 0.2, cabin: [0.24, 0.62], taper: 0.55, wheel: 0.34, engine: 'sport', power: 1 },
+  hatch: { label: 'Hatchback', length: 3.9, width: 1.74, roof: 1.45, body: 0.44, ride: 0.2, cabin: [0.06, 0.64], taper: 0.85, wheel: 0.32, engine: 'hatch', power: 0.7 },
+  muscle: { label: 'Muscle', length: 4.8, width: 1.92, roof: 1.33, body: 0.52, ride: 0.2, cabin: [0.24, 0.58], taper: 0.62, wheel: 0.36, engine: 'v8', power: 1.35 },
+  pickup: { label: 'Pickup', length: 5.4, width: 1.96, roof: 1.95, body: 0.52, ride: 0.42, cabin: [0.45, 0.72], taper: 0.9, wheel: 0.42, engine: 'v8', bed: true, power: 1.15 },
+  van: { label: 'Van', length: 5.0, width: 1.98, roof: 2.15, body: 0.6, ride: 0.3, cabin: [0.02, 0.84], taper: 0.92, wheel: 0.36, engine: 'diesel', power: 0.85 },
+  striker: { label: 'Striker', length: 3.9, width: 1.96, roof: 1.24, body: 0.42, ride: 0.26, cabin: [0.16, 0.56], taper: 0.65, wheel: 0.38, engine: 'sport', power: 1.15 },
+  buggy: { label: 'Buggy', length: 3.6, width: 1.9, roof: 1.6, body: 0.34, ride: 0.42, cabin: [0.28, 0.66], taper: 1, wheel: 0.44, engine: 'sport', open: true, power: 0.75 },
+};
+const ENGINES = { sport: 'Sports', hatch: 'Four-pot', v8: 'V8', diesel: 'Diesel', ember: 'Turbine' };
+const ABILITIES = { none: 'None', burner: 'Burner (burns what it hits)', flamethrower: 'Flamethrower' };
+const PARTS = {
+  spoiler: 'Rear wing', scoop: 'Hood scoop', bullbar: 'Bull bar', lightbar: 'Roof lights',
+  stacks: 'Exhaust stacks', stripes: 'Racing stripes', cage: 'Roll cage',
+};
+const SIZE_KEYS = { length: 'Length', width: 'Width', height: 'Roof height', ride: 'Ride height', wheels: 'Wheel size' };
+const TUNE_KEYS = {
+  power: ['Power', 'More torque: quicker everywhere'],
+  weight: ['Weight', 'Heavier hits harder but is slower'],
+  grip: ['Grip', 'Tyre grip'],
+  balance: ['Balance', 'Low: stable and planted · High: loose, tail-happy'],
+  boost: ['Boost', 'Rocket boost strength'],
+};
+
+const DEFAULT_DESIGN = {
+  name: 'My car', style: 'coupe', color: 0xe8b21c, trim: 0x1c1c22, accent: 0xff6a10,
+  size: { length: 0.5, width: 0.5, height: 0.5, ride: 0.5, wheels: 0.5 },
+  tune: { power: 0.5, weight: 0.5, grip: 0.5, balance: 0.5, boost: 0.5 },
+  engine: null, ability: 'none', parts: ['stripes'], aerial: false,
+};
+
+const clamp01 = (v, d = 0.5) => (Number.isFinite(+v) ? Math.max(0, Math.min(1, +v)) : d);
+const colour = (v, d) => (Number.isFinite(+v) ? Math.max(0, Math.min(0xffffff, Math.round(+v))) : d);
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/** Make any value into a valid design (unknown fields dropped, numbers clamped). */
+function cleanDesign(raw = {}) {
+  const d = DEFAULT_DESIGN;
+  const style = STYLES[raw.style] ? raw.style : d.style;
+  const out = {
+    id: typeof raw.id === 'string' && /^[a-z0-9-]{3,24}$/.test(raw.id) ? raw.id : newDesignId(),
+    name: String(raw.name ?? d.name).replace(/\s+/g, ' ').trim().slice(0, 22) || d.name,
+    style,
+    color: colour(raw.color, d.color),
+    trim: colour(raw.trim, d.trim),
+    accent: colour(raw.accent, d.accent),
+    size: {},
+    tune: {},
+    engine: ENGINES[raw.engine] ? raw.engine : STYLES[style].engine,
+    ability: ABILITIES[raw.ability] ? raw.ability : 'none',
+    parts: [...new Set((Array.isArray(raw.parts) ? raw.parts : d.parts).filter((p) => PARTS[p]))],
+    aerial: !!raw.aerial,
+  };
+  for (const k of Object.keys(SIZE_KEYS)) out.size[k] = clamp01(raw.size?.[k]);
+  for (const k of Object.keys(TUNE_KEYS)) out.tune[k] = clamp01(raw.tune?.[k]);
+  return out;
+}
+
+function newDesignId() {
+  return `c-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/** Share codes: the design as compact URL-safe base64 JSON. */
+function designToCode(design) {
+  const json = JSON.stringify(cleanDesign(design));
+  return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function codeToDesign(code) {
+  const b64 = String(code).trim().replace(/-/g, '+').replace(/_/g, '/');
+  const json = decodeURIComponent(escape(atob(b64)));
+  const d = cleanDesign(JSON.parse(json));
+  d.id = newDesignId(); // an imported copy is its own car
+  return d;
+}
+
+/** Physical layout of a design, in metres (shared by the body, hitbox and handling). */
+function layout(d) {
+  const st = STYLES[d.style];
+  const L = st.length * lerp(0.85, 1.18, d.size.length);
+  const W = st.width * lerp(0.9, 1.1, d.size.width);
+  const ride = st.ride * lerp(0.6, 1.6, d.size.ride);
+  const body = st.body;
+  const roof = ride + body + (st.roof - st.ride - st.body) * lerp(0.82, 1.22, d.size.height);
+  const wheel = st.wheel * lerp(0.82, 1.25, d.size.wheels);
+  const z0 = -L / 2 + st.cabin[0] * L;
+  const z1 = -L / 2 + st.cabin[1] * L;
+  return { st, L, W, ride, body, roof, wheel, z0, z1, deck: ride + body + 0.12 };
+}
+
+/**
+ * Turn a design into a full vehicle definition (see vehicles.js). Pass
+ * `withStats = false` to skip measuring top speed and 0-100 (a few ms).
+ */
+function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats = true) {
+  const d = cleanDesign(raw);
+  const g = layout(d);
+  const { st, L, W, ride, body, roof, wheel, z0, z1 } = g;
+  const t = d.tune;
+
+  // Handling. Mass from size, then the weight slider.
+  const volume = L * W * (roof - ride);
+  const baseMass = volume * (st.open ? 105 : 125);
+  const mass = Math.round(baseMass * lerp(0.75, 1.4, t.weight) / 10) * 10;
+  const cgToFront = L * 0.29;
+  const cgToRear = L * 0.31;
+  const spec = {
+    ...DEFAULT_SPEC,
+    mass,
+    inertiaScale: ((L * L + W * W) / 12) * 0.95,
+    cgToFront, cgToRear,
+    cgHeight: ride + body * 0.55,
+    trackWidth: W - 0.14,
+    wheelRadius: wheel,
+    tireGrip: lerp(0.88, 1.35, t.grip),
+    rearGripBias: lerp(1.45, 1.05, t.balance),
+    maxSteer: Math.max(0.45, 0.66 - L * 0.012),
+    steerSpeed: lerp(2.0, 2.8, 1 - t.weight),
+    brakeForce: mass * 11.5,
+    dragCoef: 0.32 * W * (roof - ride * 0.5) * (st.open ? 1.3 : 1),
+    rollingResistance: 10 + mass / 160,
+    engineBrake: 250 + mass * 0.12,
+    // Each style has its own engine, sized to the car's size (not the
+    // weight slider, so extra weight costs speed), then the power slider.
+    torqueScale: st.power * (baseMass / 1300) ** 0.55 * lerp(0.45, 2.0, t.power),
+    boostAccel: lerp(4, 11, t.boost),
+    engineTone: lerp(1.15, 0.75, Math.min(1, mass / 3000)),
+  };
+  spec.body = { halfW: W / 2, halfL: L / 2, top: roof };
+
+  const flamer = d.ability === 'flamethrower';
+  const cabH = roof - g.deck;
+  const hitbox = [
+    { half: [W / 2, (body + 0.12) / 2, L / 2], at: [0, ride + (body + 0.12) / 2, 0] },
+    { half: [(W - 0.3) / 2, cabH / 2, (z1 - z0) / 2], at: [0, g.deck + cabH / 2, (z0 + z1) / 2] },
+  ];
+  const turret = { z: st.bed ? z0 - 0.55 : (z0 + z1) / 2, y: roof + (st.bed ? -0.1 : 0.1) };
+  if (flamer) hitbox.push({ half: [0.38, 0.28, 0.6], at: [0, turret.y + 0.25, turret.z] });
+
+  const stacks = d.parts.includes('stacks');
+  const def = {
+    id: d.id,
+    custom: true,
+    design: d,
+    name: d.name,
+    voice: d.engine,
+    blurb: `Custom ${st.label.toLowerCase()}${d.ability !== 'none' ? ` with ${ABILITIES[d.ability].split(' (')[0].toLowerCase()}` : ''}${d.aerial ? ', jumps and flips' : ''}.`,
+    color: d.color,
+    trim: d.trim,
+    accent: d.accent,
+    swatch: d.color,
+    length: L,
+    width: W,
+    suspension: st.open ? 1.3 : roof > 1.8 ? 1.25 : 1,
+    burns: d.ability === 'burner',
+    aerial: d.aerial,
+    flamethrower: flamer ? { mount: [0, turret.y + 0.32, turret.z + 1.15] } : undefined,
+    spec,
+    hitbox,
+    home,
+    cam: { scale: Math.max(0.9, Math.min(1.6, (L / 4.3) * 0.6 + (roof / 1.35) * 0.4)), hoodY: roof - 0.12, hoodZ: z1 - 0.25 },
+    exhaust: stacks
+      ? [[W / 2 - 0.2, roof + 0.25, z0 - 0.15], [-(W / 2 - 0.2), roof + 0.25, z0 - 0.15]]
+      : [[W * 0.25, ride + 0.18, -L / 2 - 0.04], [-W * 0.25, ride + 0.18, -L / 2 - 0.04]],
+    wheelWidth: 0.22 + W * 0.04 + (st.open ? 0.08 : 0),
+    build: (kit) => buildBody(kit, d, g, turret),
+  };
+  def.stats = withStats ? measure(spec) : null;
+  return def;
+}
+
+/** The bodywork, from boxes and tapered boxes (CarModel merges them by material). */
+function buildBody({ THREE, box, tapered, add, lights }, d, g, turret) {
+  const { st, L, W, ride, body, roof, z0, z1 } = g;
+  const front = L / 2, rear = -L / 2;
+  const deck = g.deck;
+  const cabH = roof - deck;
+  const parts = new Set(d.parts);
+
+  // Lower body and the shoulder line.
+  box(W, body, L, 'paint', 0, ride + body / 2, 0);
+  tapered(W, 0.12, L - 0.08, W - 0.1, L - 0.35, 0, 'paint', 0, ride + body + 0.06, 0);
+  // Bumpers and sills.
+  box(W + 0.04, 0.18, 0.16, 'dark', 0, ride + 0.1, front);
+  box(W + 0.04, 0.18, 0.16, 'dark', 0, ride + 0.1, rear);
+  box(W - 0.3, 0.04, L - 0.5, 'dark', 0, ride - 0.01, 0);
+
+  if (st.open) {
+    // Buggy: open tub, seats and a tubular cage instead of a cabin.
+    box(W - 0.3, 0.3, z1 - z0, 'dark', 0, deck + 0.05, (z0 + z1) / 2);
+    for (const sx of [-0.35, 0.35]) box(0.42, 0.5, 0.12, 'dark', sx, deck + 0.3, z0 + 0.25);
+    cage({ box }, W - 0.25, z0, z1, deck, roof);
+  } else {
+    // Cabin: glass greenhouse plus a roof panel.
+    const len = z1 - z0;
+    const topLen = len * st.taper * 0.85;
+    const lean = st.bed ? -0.02 : (len - topLen) * -0.18; // windscreen raked more than the back
+    tapered(W - 0.14, cabH - 0.04, len, W - 0.42, topLen, lean, 'glass', 0, deck + (cabH - 0.04) / 2, (z0 + z1) / 2);
+    box(W - 0.4, 0.05, topLen * 0.96, 'paint', 0, roof - 0.02, (z0 + z1) / 2 + lean);
+    // Pillars between the windows read as a car, not a block of glass.
+    for (const sx of [-1, 1]) box(0.04, cabH * 0.75, 0.1, 'paint', sx * (W / 2 - 0.12), deck + cabH * 0.4, (z0 + z1) / 2);
+  }
+  if (st.bed) {
+    // Pickup bed behind the cab.
+    const bedLen = z0 - rear - 0.1;
+    const bz = rear + 0.05 + bedLen / 2;
+    box(W - 0.08, 0.06, bedLen, 'dark', 0, deck + 0.02, bz);
+    for (const sx of [-1, 1]) box(0.08, 0.42, bedLen, 'paint', sx * (W / 2 - 0.04), deck + 0.2, bz);
+    box(W, 0.42, 0.08, 'paint', 0, deck + 0.2, rear + 0.04);
+  }
+
+  // Bolt-ons.
+  if (parts.has('stripes')) {
+    for (const sx of [-0.22, 0.22]) {
+      box(0.16, 0.01, L - 0.5, 'trim', sx * (W / 1.8), ride + body + 0.125, 0);
+      if (!st.open) box(0.16, 0.01, (z1 - z0) * st.taper * 0.8, 'trim', sx * (W / 1.8), roof + 0.006, (z0 + z1) / 2);
+    }
+  }
+  if (parts.has('spoiler')) {
+    const wz = rear + 0.25;
+    const wy = st.bed ? deck + 0.75 : deck + 0.35;
+    box(W * 0.92, 0.05, 0.4, 'trim', 0, wy, wz);
+    for (const sx of [-1, 1]) {
+      box(0.05, wy - deck, 0.12, 'dark', sx * W * 0.3, deck + (wy - deck) / 2, wz);
+      box(0.04, 0.2, 0.42, 'trim', sx * W * 0.46, wy + 0.06, wz);
+    }
+  }
+  if (parts.has('scoop')) {
+    tapered(0.62, 0.18, 0.9, 0.5, 0.6, -0.08, 'trim', 0, ride + body + 0.2, front - (front - z1) / 2);
+    box(0.5, 0.1, 0.03, 'dark', 0, ride + body + 0.24, front - (front - z1) / 2 + 0.44);
+  }
+  if (parts.has('bullbar')) {
+    box(W * 0.8, 0.06, 0.06, 'chrome', 0, ride + body * 0.9, front + 0.2);
+    box(W * 0.8, 0.06, 0.06, 'chrome', 0, ride + 0.25, front + 0.2);
+    for (const sx of [-1, 0, 1]) box(0.06, body * 0.75, 0.06, 'chrome', sx * W * 0.32, ride + body * 0.57, front + 0.2);
+  }
+  if (parts.has('lightbar')) {
+    const ly = st.open ? roof + 0.08 : roof + 0.08;
+    box(W * 0.7, 0.1, 0.12, 'dark', 0, ly, z1 - 0.3);
+    for (let i = -2; i <= 2; i++) add(new THREE.BoxGeometry(0.16, 0.07, 0.02), 'glow', i * W * 0.13, ly, z1 - 0.23);
+  }
+  if (parts.has('stacks')) {
+    for (const sx of [-1, 1]) {
+      add(new THREE.CylinderGeometry(0.07, 0.07, roof + 0.25 - deck, 10), 'chrome', sx * (W / 2 - 0.2), deck + (roof + 0.25 - deck) / 2, z0 - 0.15);
+    }
+  }
+  if (parts.has('cage') && !st.open) cage({ box }, W - 0.3, z0, z1, roof - 0.02, roof + 0.35);
+
+  // Abilities.
+  if (d.ability === 'burner') {
+    for (const sx of [-1, 1]) box(0.03, 0.05, L - 0.8, 'glow', sx * (W / 2 + 0.01), ride + body * 0.5, -0.1);
+    box(W - 0.3, 0.03, 0.04, 'glow', 0, ride + 0.12, front + 0.06);
+  }
+  if (d.ability === 'flamethrower') {
+    box(0.5, 0.18, 0.5, 'dark', 0, turret.y + 0.03, turret.z);
+    box(0.7, 0.36, 1.0, 'dark', 0, turret.y + 0.25, turret.z);
+    box(0.74, 0.06, 1.04, 'trim', 0, turret.y + 0.45, turret.z);
+    box(0.16, 0.16, 1.8, 'chrome', 0, turret.y + 0.32, turret.z + 0.3);
+    box(0.24, 0.24, 0.12, 'dark', 0, turret.y + 0.32, turret.z + 1.12);
+    box(0.16, 0.16, 0.04, 'glow', 0, turret.y + 0.32, turret.z + 1.19);
+  }
+
+  lights({
+    frontZ: front + 0.02, rearZ: rear - 0.02, y: ride + body * 0.62,
+    headX: W * 0.34, tailX: W * 0.36, headW: Math.min(0.42, W * 0.22), tailW: Math.min(0.46, W * 0.24),
+    h: 0.1, rearY: ride + body * 0.7,
+  });
+}
+
+/** Tubular roll cage over a span of the car. */
+function cage({ box }, w, z0, z1, y0, y1) {
+  const h = y1 - y0;
+  for (const z of [z0 + 0.1, z1 - 0.1]) {
+    for (const sx of [-1, 1]) box(0.07, h, 0.07, 'dark', sx * w / 2, y0 + h / 2, z);
+    box(w, 0.07, 0.07, 'dark', 0, y1, z);
+  }
+  for (const sx of [-1, 1]) box(0.07, 0.07, z1 - z0 - 0.2, 'dark', sx * w / 2, y1, (z0 + z1) / 2);
+}
+
+const _statCache = new Map();
+
+/**
+ * Top speed and 0-100 km/h, measured by actually driving the handling
+ * model flat out for a while (so the numbers are honest).
+ */
+function measure(spec) {
+  const key = JSON.stringify(spec);
+  if (_statCache.has(key)) return _statCache.get(key);
+  const car = new CarPhysics({ ...spec, assists: true });
+  const dt = 1 / 120;
+  let accel = null, top = 0, lastCheck = 0;
+  for (let i = 1; i <= 120 * 90; i++) {
+    car.step(dt, { steer: 0, throttle: 1, brake: 0, handbrake: false, boost: false });
+    const v = car.speed;
+    if (accel === null && v >= 100 / 3.6) accel = i * dt;
+    top = Math.max(top, v);
+    // Every second: stop once it has levelled off.
+    if (i % 120 === 0) {
+      if (i > 120 * 10 && top - lastCheck < 0.1) break;
+      lastCheck = top;
+    }
+  }
+  const stats = { top: Math.round(top * 3.6), accel: accel === null ? 99 : Math.round(accel * 10) / 10 };
+  _statCache.set(key, stats);
+  return stats;
+}
+
 // ===== carModel.js =====
 // Renders any vehicle from `vehicles.js`. The root sits on the ground under
 // the CG and faces +Z; the body is a child so it can pitch and roll on its
@@ -1383,6 +1709,7 @@ class CarModel {
       glow: new THREE.MeshStandardMaterial({ color: 0x2a0d00, emissive: def.accent ?? 0xff6a10, emissiveIntensity: 2.2 }),
     };
     this.glowMat = mats.glow;
+    this.paintMat = mats.paint; // car football repaints it in the team colour
     this.headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4d6, emissiveIntensity: 1.2 });
     this.tailMat = new THREE.MeshStandardMaterial({ color: 0x550000, emissive: 0xff1a1a, emissiveIntensity: 0.4 });
     this.reverseMat = new THREE.MeshStandardMaterial({ color: 0x777777, emissive: 0xffffff, emissiveIntensity: 0 });
@@ -1855,7 +2182,26 @@ const inferno = {
 };
 
 // Fill in every handling value so models and parked bodies can read them too.
-const VEHICLES = [sports, hatch, pickup, bus, ember, inferno].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec, body: bodyBox(v.hitbox) } }));
+const BUILT = [sports, hatch, pickup, bus, ember, inferno].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec, body: bodyBox(v.hitbox) } }));
+
+// The Striker: the car football car (everyone drives it there), also a
+// normal car everywhere else. It's built with the custom car kit (see
+// carkit.js) like a player's design; its `aerial` flag gives it jumps,
+// double jumps, flips and air control.
+const STRIKER_DESIGN = {
+  id: 'striker', name: 'Striker', style: 'striker',
+  color: 0xe9ecef, trim: 0x16181d, accent: 0x38d0ff,
+  size: { length: 0.5, width: 0.5, height: 0.35, ride: 0.55, wheels: 0.55 },
+  tune: { power: 0.6, weight: 0.35, grip: 0.65, balance: 0.45, boost: 0.75 },
+  engine: 'sport', ability: 'none', parts: ['spoiler', 'stripes'], aerial: true,
+};
+const striker = {
+  ...compileCar(STRIKER_DESIGN, { x: -28, z: -52, heading: 0 }),
+  custom: false,
+  blurb: 'Jumps, double jumps and flips; steer it in the air. The car football car.',
+};
+
+const VEHICLES = [...BUILT, striker];
 
 /** Size of a vehicle's body from its hitbox, for landings and tumbling. */
 function bodyBox(hitbox) {
@@ -2014,48 +2360,48 @@ const KINDS = {
   brick: { size: [0.6, 0.3, 0.3], mass: 12, colors: BRICK_COLORS, material: 'brick', breakForce: 14000, fracture: { into: 'brickHalf', grid: [2, 1, 1] }, cap: 800 },
   brickHalf: { size: [0.3, 0.3, 0.3], mass: 6, colors: BRICK_COLORS, material: 'brick', cap: 900 },
 
-  crate: { size: [1, 1, 1], mass: 40, colors: WOOD, material: 'wood', breakForce: 26000, fracture: { into: 'crateChunk', grid: [2, 2, 2] }, cap: 60 },
-  crateChunk: { size: [0.5, 0.5, 0.5], mass: 5, colors: WOOD, material: 'wood', cap: 500 },
+  crate: { size: [1, 1, 1], mass: 40, colors: WOOD, material: 'wood', breakForce: 26000, fracture: { into: 'crateChunk', grid: [2, 2, 2] }, cap: 110 },
+  crateChunk: { size: [0.5, 0.5, 0.5], mass: 5, colors: WOOD, material: 'wood', cap: 700 },
 
-  block: { size: [1, 1, 1], mass: 220, colors: CONCRETE, material: 'concrete', breakForce: 150000, fracture: { into: 'blockChunk', grid: [2, 2, 2] }, cap: 200 },
-  lintel: { size: [4, 1, 1], mass: 880, colors: CONCRETE, material: 'concrete', breakForce: 300000, fracture: { into: 'block', grid: [4, 1, 1] }, cap: 4 },
-  blockChunk: { size: [0.5, 0.5, 0.5], mass: 27, colors: CONCRETE, material: 'concrete', cap: 900 },
+  block: { size: [1, 1, 1], mass: 220, colors: CONCRETE, material: 'concrete', breakForce: 150000, fracture: { into: 'blockChunk', grid: [2, 2, 2] }, cap: 950 },
+  lintel: { size: [4, 1, 1], mass: 880, colors: CONCRETE, material: 'concrete', breakForce: 300000, fracture: { into: 'block', grid: [4, 1, 1] }, cap: 14 },
+  blockChunk: { size: [0.5, 0.5, 0.5], mass: 27, colors: CONCRETE, material: 'concrete', cap: 1200 },
 
-  plank: { size: [4.4, 0.2, 1], mass: 60, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankHalf', grid: [2, 1, 1] }, cap: 20 },
-  plankHalf: { size: [2.2, 0.2, 1], mass: 30, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankBit', grid: [2, 1, 1] }, cap: 40 },
-  plankBit: { size: [1.1, 0.2, 1], mass: 15, colors: WOOD, material: 'wood', cap: 80 },
+  plank: { size: [4.4, 0.2, 1], mass: 60, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankHalf', grid: [2, 1, 1] }, cap: 80 },
+  plankHalf: { size: [2.2, 0.2, 1], mass: 30, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankBit', grid: [2, 1, 1] }, cap: 160 },
+  plankBit: { size: [1.1, 0.2, 1], mass: 15, colors: WOOD, material: 'wood', cap: 320 },
 
   slab: { size: [0.3, 2.2, 1.2], mass: 90, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', breakForce: 70000, fracture: { into: 'slabHalf', grid: [1, 2, 1] }, cap: 50 },
   slabHalf: { size: [0.3, 1.1, 1.2], mass: 45, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', cap: 100 },
 
-  barrier: { size: [0.6, 0.9, 3], mass: 700, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', breakForce: 420000, fracture: { into: 'barrierChunk', grid: [1, 1, 3] }, geo: () => barrierProfile(0.6, 0.9, 3, 0.26), cap: 240 },
-  barrierChunk: { size: [0.6, 0.9, 1], mass: 233, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', geo: () => barrierProfile(0.6, 0.9, 1, 0.26), cap: 300 },
+  barrier: { size: [0.6, 0.9, 3], mass: 700, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', breakForce: 420000, fracture: { into: 'barrierChunk', grid: [1, 1, 3] }, geo: () => barrierProfile(0.6, 0.9, 3, 0.26), cap: 420 },
+  barrierChunk: { size: [0.6, 0.9, 1], mass: 233, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', geo: () => barrierProfile(0.6, 0.9, 1, 0.26), cap: 400 },
 
-  barrel: { shape: 'cyl', size: [0.32, 0.95], mass: 22, colors: [0xc8342b, 0x2f6fb3, 0xe0a526, 0x4c8c3a], material: 'metal', restitution: 0.25, cap: 60 },
+  barrel: { shape: 'cyl', size: [0.32, 0.95], mass: 22, colors: [0xc8342b, 0x2f6fb3, 0xe0a526, 0x4c8c3a], material: 'metal', restitution: 0.25, cap: 150 },
   cone: { shape: 'cyl', size: [0.2, 0.6], mass: 3, colors: [0xffffff], material: 'plastic', geo: coneGeo, restitution: 0.3, cap: 60 },
 
-  pole: { shape: 'cyl', size: [0.13, 7], mass: 150, colors: [0xffffff], material: 'metal', breakForce: 90000, fracture: { into: 'poleHalf', grid: [1, 2, 1] }, geo: poleGeo, cap: 40 },
-  poleHalf: { shape: 'cyl', size: [0.13, 3.5], mass: 75, colors: [0x9a9da3], material: 'metal', cap: 80 },
+  pole: { shape: 'cyl', size: [0.13, 7], mass: 150, colors: [0xffffff], material: 'metal', breakForce: 90000, fracture: { into: 'poleHalf', grid: [1, 2, 1] }, geo: poleGeo, cap: 90 },
+  poleHalf: { shape: 'cyl', size: [0.13, 3.5], mass: 75, colors: [0x9a9da3], material: 'metal', cap: 160 },
 
   // Office building pieces.
-  panel: { size: [2, 1.2, 0.4], mass: 500, colors: FACADE, material: 'concrete', breakForce: 250000, fracture: { into: 'panelChunk', grid: [2, 2, 1] }, cap: 100 },
-  panelChunk: { size: [1, 0.6, 0.4], mass: 125, colors: FACADE, material: 'concrete', cap: 300 },
-  pillar: { size: [0.5, 1.5, 0.4], mass: 180, colors: FACADE, material: 'concrete', breakForce: 90000, fracture: { into: 'pillarChunk', grid: [1, 2, 1] }, cap: 100 },
-  pillarChunk: { size: [0.5, 0.75, 0.4], mass: 90, colors: FACADE, material: 'concrete', cap: 120 },
-  floorSlab: { size: [2, 0.3, 6.8], mass: 900, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', breakForce: 400000, fracture: { into: 'floorChunk', grid: [2, 1, 2] }, cap: 30 },
-  floorChunk: { size: [1, 0.3, 3.4], mass: 225, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', cap: 120 },
-  glass: { size: [0.75, 1.44, 0.06], mass: 6, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, breakForce: 1500, fracture: { into: 'shard', grid: [2, 2, 1] }, cap: 180 },
-  shard: { size: [0.375, 0.72, 0.06], mass: 1.5, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, noCcd: true, lifetime: 6, cap: 500 },
+  panel: { size: [2, 1.2, 0.4], mass: 500, colors: FACADE, material: 'concrete', breakForce: 250000, fracture: { into: 'panelChunk', grid: [2, 2, 1] }, cap: 1000 },
+  panelChunk: { size: [1, 0.6, 0.4], mass: 125, colors: FACADE, material: 'concrete', cap: 700 },
+  pillar: { size: [0.5, 1.5, 0.4], mass: 180, colors: FACADE, material: 'concrete', breakForce: 90000, fracture: { into: 'pillarChunk', grid: [1, 2, 1] }, cap: 720 },
+  pillarChunk: { size: [0.5, 0.75, 0.4], mass: 90, colors: FACADE, material: 'concrete', cap: 400 },
+  floorSlab: { size: [2, 0.3, 6.8], mass: 900, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', breakForce: 400000, fracture: { into: 'floorChunk', grid: [2, 1, 2] }, cap: 280 },
+  floorChunk: { size: [1, 0.3, 3.4], mass: 225, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', cap: 360 },
+  glass: { size: [0.75, 1.44, 0.06], mass: 6, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, breakForce: 1500, fracture: { into: 'shard', grid: [2, 2, 1] }, cap: 1250 },
+  shard: { size: [0.375, 0.72, 0.06], mass: 1.5, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, noCcd: true, lifetime: 6, cap: 700 },
 
   // Explosive fuel drums: a hard hit (or the Ember) sets them off.
-  fuel: { shape: 'cyl', size: [0.3, 0.9], mass: 35, colors: [0xffffff], material: 'metal', geo: fuelGeo, explosive: true, breakForce: 9000, cap: 40 },
+  fuel: { shape: 'cyl', size: [0.3, 0.9], mass: 35, colors: [0xffffff], material: 'metal', geo: fuelGeo, explosive: true, breakForce: 9000, cap: 80 },
 
   // Giant bowling pins.
   pin: { shape: 'cyl', size: [0.36, 2.4], mass: 40, colors: [0xffffff], material: 'plastic', geo: pinGeo, restitution: 0.35, cap: 12 },
 
   // Shipping containers split into sections.
-  container: { matte: true, size: [6.1, 2.6, 2.44], mass: 2500, colors: [0xe0583f, 0x4a90dc, 0x48b873, 0xf29a3e, 0x9370cc], material: 'metal', breakForce: 900000, fracture: { into: 'containerSection', grid: [3, 1, 1] }, cap: 30 },
-  containerSection: { matte: true, size: [2.0333, 2.6, 2.44], mass: 833, colors: [0xe0583f, 0x4a90dc, 0x48b873, 0xf29a3e, 0x9370cc], material: 'metal', cap: 90 },
+  container: { matte: true, size: [6.1, 2.6, 2.44], mass: 2500, colors: [0xe0583f, 0x4a90dc, 0x48b873, 0xf29a3e, 0x9370cc], material: 'metal', breakForce: 900000, fracture: { into: 'containerSection', grid: [3, 1, 1] }, cap: 60 },
+  containerSection: { matte: true, size: [2.0333, 2.6, 2.44], mass: 833, colors: [0xe0583f, 0x4a90dc, 0x48b873, 0xf29a3e, 0x9370cc], material: 'metal', cap: 160 },
 
   // Water tower: four legs, a platform and a tank.
   steelLeg: { size: [0.3, 7, 0.3], mass: 140, colors: [0x7d848c], material: 'metal', breakForce: 80000, fracture: { into: 'legHalf', grid: [1, 2, 1] }, cap: 8 },
@@ -2066,8 +2412,8 @@ const KINDS = {
   tankChunk: { matte: true, size: [1.6, 1.3, 1.6], mass: 175, colors: [0x7fb0cf], material: 'metal', cap: 16 },
 
   // Picket fence panels.
-  fence: { size: [2, 1, 0.08], mass: 14, colors: [0xffffff], material: 'wood', geo: fenceGeo, breakForce: 2600, fracture: { into: 'fenceBit', grid: [4, 1, 1] }, cap: 40 },
-  fenceBit: { size: [0.5, 1, 0.08], mass: 3.5, colors: [0xf1ece2], material: 'wood', cap: 160 },
+  fence: { size: [2, 1, 0.08], mass: 14, colors: [0xffffff], material: 'wood', geo: fenceGeo, breakForce: 2600, fracture: { into: 'fenceBit', grid: [4, 1, 1] }, cap: 100 },
+  fenceBit: { size: [0.5, 1, 0.08], mass: 3.5, colors: [0xf1ece2], material: 'wood', cap: 300 },
 
   // Gas station.
   canopy: { matte: true, size: [12, 0.5, 8], mass: 3000, colors: [0xffffff], material: 'metal', geo: canopyGeo, breakForce: 900000, fracture: { into: 'canopyChunk', grid: [3, 1, 2] }, cap: 2 },
@@ -2077,7 +2423,7 @@ const KINDS = {
   pump: { matte: true, size: [0.8, 1.8, 0.5], mass: 150, colors: [0xffffff], material: 'metal', geo: pumpGeo, breakForce: 50000, fracture: { into: 'pumpChunk', grid: [1, 2, 1] }, cap: 8 },
   pumpChunk: { matte: true, size: [0.8, 0.9, 0.5], mass: 75, colors: [0x2f9e5b], material: 'metal', cap: 16 },
 
-  tree: { shape: 'tree', size: [0.22, 3], mass: 320, colors: [0xffffff], material: 'wood', geo: treeGeo, cap: 40 },
+  tree: { shape: 'tree', size: [0.22, 3], mass: 320, colors: [0xffffff], material: 'wood', geo: treeGeo, cap: 100 },
 };
 
 // --- Instanced rendering pool -------------------------------------------
@@ -2162,6 +2508,22 @@ function hitboxBounds(def) {
   return { lo, hi };
 }
 
+/** Stand-in for the body of a frozen object (see Destruction.stream). */
+function frozenBody(f) {
+  const zero = { x: 0, y: 0, z: 0 };
+  return {
+    handle: -1,
+    translation: () => ({ x: f.x, y: f.y, z: f.z }),
+    rotation: () => f.q,
+    linvel: () => zero,
+    angvel: () => zero,
+    isSleeping: () => true,
+    isDynamic: () => true,
+    sleep() {},
+    wakeUp() {},
+  };
+}
+
 /** The car's full orientation: heading, plus pitch and roll on ramps and in the air. */
 function carRotation(car) {
   _euler.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
@@ -2173,7 +2535,7 @@ class Destruction {
   constructor(scene, groundHalfSize) {
     this.scene = scene;
     this.groundHalfSize = groundHalfSize;
-    this.recycleRange = 140;
+    this.recycleRange = 200;
     this.options = { debrisLimit: 600, breakage: 'detailed', debrisLifetime: 60, physicsQuality: 4 };
     this.pools = {};
     for (const [name, kind] of Object.entries(KINDS)) {
@@ -2212,8 +2574,20 @@ class Destruction {
     this.blastJ = { x: 0, z: 0 };
     this.bodyCount = 0;
     this.debrisCount = 0;
+    this.frozenCount = 0;
     this.time = 0;
+    this.sites = [];
+    this.siteNow = null;
+    this.loose = new Set();
     for (const pool of Object.values(this.pools)) pool.clear();
+    // Step without rebuilding the scene-query structure every time (see queries()).
+    const w = this.world;
+    w.step = (events, hooks) => {
+      w.physicsPipeline.step(w.gravity, w.integrationParameters, w.islands, w.broadPhase, w.narrowPhase,
+        w.bodies, w.colliders, w.impulseJoints, w.multibodyJoints, w.ccdSolver, events, hooks);
+      this.queryDirty = true;
+    };
+    this.queryDirty = true;
 
     const ground = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.5, 0));
     this.world.createCollider(
@@ -2345,7 +2719,46 @@ class Destruction {
     const pool = this.pools[kindName];
     if (pool.full) return null;
     const q = typeof rot === 'number' ? _q.setFromAxisAngle(_v.set(0, 1, 0), rot) : rot;
+    // While the map is being built, structures far from where play starts
+    // are created already frozen (no physics body at all): much quicker.
+    // The decision is per site (made at its first piece), never half a building.
+    const site = opts.fragment ? null : this.siteNow;
+    let prefrozen = false;
+    if (this.prefreeze && !opts.fragment) {
+      if (site) {
+        site.prefrozen ??= this.farFromAll(pos, this.prefreeze);
+        prefrozen = site.prefrozen;
+      } else {
+        prefrozen = this.farFromAll(pos, this.prefreeze);
+      }
+    }
+    let body, colliders, frozen = null;
+    if (prefrozen) {
+      frozen = { x: pos.x, y: pos.y, z: pos.z, q: { x: q.x, y: q.y, z: q.z, w: q.w } };
+      body = frozenBody(frozen);
+      colliders = [];
+      this.frozenCount++;
+    } else {
+      ({ body, colliders } = this.makeBody(kind, pos, q, opts));
+    }
 
+    const color = opts.color ?? new THREE.Color(kind.colors[(Math.random() * kind.colors.length) | 0]);
+    const entity = { kind, body, colliders, color, dirty: true, born: this.time, alive: true, fragment: !!opts.fragment, frozen };
+    pool.add(entity, color);
+    for (const c of colliders) this.byCollider.set(c.handle, entity);
+    this.bodyCount++;
+    if (entity.fragment) this.debrisCount++;
+    if (opts.fragment) this.fragments.push(entity);
+    // Whole structures (a building, a wall) form a site that freezes and
+    // thaws together; see stream().
+    entity.site = site;
+    if (entity.site) entity.site.members.add(entity);
+    else this.loose.add(entity); // loose things and debris freeze one by one
+    return entity;
+  }
+
+  /** The Rapier body and colliders for one object of `kind`. */
+  makeBody(kind, pos, q, opts = {}) {
     const desc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(pos.x, pos.y, pos.z)
       .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
@@ -2376,15 +2789,143 @@ class Destruction {
     } else {
       finish(RAPIER.ColliderDesc.cuboid(kind.size[0] / 2, kind.size[1] / 2, kind.size[2] / 2), kind.mass);
     }
+    return { body, colliders };
+  }
 
-    const color = opts.color ?? new THREE.Color(kind.colors[(Math.random() * kind.colors.length) | 0]);
-    const entity = { kind, body, colliders, color, dirty: true, born: this.time, alive: true, fragment: !!opts.fragment };
-    pool.add(entity, color);
-    for (const c of colliders) this.byCollider.set(c.handle, entity);
-    this.bodyCount++;
-    if (entity.fragment) this.debrisCount++;
-    if (opts.fragment) this.fragments.push(entity);
-    return entity;
+  // --- Streaming: far-away structures leave the physics world ------------
+  //
+  // Rapier's step costs time for every body, asleep or not, so a big map
+  // full of buildings would slow every frame. Structures that are asleep
+  // and far from every car are "frozen": their bodies are removed from the
+  // physics world, but they stay drawn exactly where they are. They thaw
+  // (bodies recreated, still asleep) before any car gets near. A structure
+  // spawned between beginSite() and endSite() freezes and thaws as one, so
+  // a building is never half there.
+
+  beginSite() {
+    this.siteNow = { members: new Set(), frozen: false, x: 0, z: 0, r: 0 };
+    this.sites.push(this.siteNow);
+  }
+
+  endSite() {
+    const site = this.siteNow;
+    this.siteNow = null;
+    if (!site?.prefrozen) return;
+    // Created frozen: work out where it is for the thaw check.
+    let sx = 0, sz = 0, n = 0, r = 0;
+    for (const e of site.members) { sx += e.frozen.x; sz += e.frozen.z; n++; }
+    site.x = sx / n;
+    site.z = sz / n;
+    for (const e of site.members) r = Math.max(r, Math.hypot(e.frozen.x - site.x, e.frozen.z - site.z));
+    site.r = r;
+    site.frozen = true;
+  }
+
+  /** Is `pos` comfortably beyond the freeze distance from every point? */
+  farFromAll(pos, points, margin = 115) {
+    return points.every((p) => Math.hypot(p.x - pos.x, p.z - pos.z) > margin);
+  }
+
+  /**
+   * Freeze and thaw around `points` (cars: {x, z}). Call every frame;
+   * it does its work a few times a second.
+   */
+  stream(points, dt, { freezeAt = 100, thawAt = 82, budget = 110, all = false } = {}) {
+    // Small, frequent passes so thawing a district never lands in one frame.
+    this.streamTimer = (this.streamTimer || 0) - dt;
+    if ((this.streamTimer > 0 && !all) || !points.length) return;
+    this.streamTimer = 0.1;
+    // Thawing is checked every pass (cheap: frozen sites remember where
+    // they are); freezing needs a look at every live body, so only every
+    // fifth pass.
+    this.streamPass = ((this.streamPass || 0) + 1) % 5;
+    const scanLive = this.streamPass === 0 || all;
+    if (all) budget = Infinity;
+    let frozeBodies = 0;
+    const near = (x, z, r) => {
+      let best = Infinity;
+      for (const p of points) best = Math.min(best, Math.hypot(p.x - x, p.z - z));
+      return best - r;
+    };
+    const thaws = [];
+    const units = [...this.sites.filter((s) => s.members.size), ...[...this.loose].map((e) => ({ members: [e], single: e }))];
+    for (const u of units) {
+      const frozen = u.single ? !!u.single.frozen : u.frozen;
+      if (frozen) {
+        const c = u.single ? u.single.frozen : u;
+        const d = near(c.x, c.z, u.single ? 0 : u.r);
+        if (d < thawAt) thaws.push({ u, d });
+        continue;
+      }
+      if (!scanLive || frozeBodies >= budget * 3) continue; // freezing is cheaper than thawing
+      // Live: freeze only if everything in it is asleep and far away.
+      let sx = 0, sz = 0, n = 0, asleep = true;
+      for (const e of u.members) {
+        if (!e.alive) continue;
+        if (!e.body.isSleeping()) { asleep = false; break; }
+        const t = e.body.translation();
+        sx += t.x; sz += t.z; n++;
+      }
+      if (!asleep || !n) continue;
+      const cx = sx / n, cz = sz / n;
+      let r = 0;
+      if (!u.single) for (const e of u.members) if (e.alive) { const t = e.body.translation(); r = Math.max(r, Math.hypot(t.x - cx, t.z - cz)); }
+      if (near(cx, cz, r) > freezeAt) {
+        if (u.single) { this.freeze(u.single); frozeBodies++; }
+        else { u.x = cx; u.z = cz; u.r = r; u.frozen = true; for (const e of u.members) if (e.alive) { this.freeze(e); frozeBodies++; } }
+      }
+    }
+    // Nearest first, a limited number of bodies per pass (it's not free).
+    thaws.sort((a, b) => a.d - b.d);
+    let made = 0;
+    for (const { u } of thaws) {
+      if (made >= budget) break;
+      if (u.single) { this.thaw(u.single); made++; continue; }
+      u.frozen = false;
+      for (const e of u.members) if (e.alive && e.frozen) { this.thaw(e); made++; }
+    }
+  }
+
+  /** Freeze everything far from `points` at once (right after building the map). */
+  streamNow(points) {
+    this.stream(points, 0, { all: true });
+  }
+
+  freeze(e) {
+    const t = e.body.translation(), r = e.body.rotation();
+    e.frozen = { x: t.x, y: t.y, z: t.z, q: { x: r.x, y: r.y, z: r.z, w: r.w } };
+    for (const c of e.colliders) this.byCollider.delete(c.handle);
+    this.world.removeRigidBody(e.body);
+    e.body = frozenBody(e.frozen);
+    e.colliders = [];
+    this.frozenCount = (this.frozenCount || 0) + 1;
+  }
+
+  thaw(e) {
+    const f = e.frozen;
+    const { body, colliders } = this.makeBody(e.kind, f, f.q, { sleep: true, fragment: e.fragment });
+    e.body = body;
+    e.colliders = colliders;
+    e.frozen = null;
+    for (const c of colliders) this.byCollider.set(c.handle, e);
+    this.frozenCount--;
+  }
+
+  /** Thaw everything (e.g. before football's tidy-up, or for a full rebuild). */
+  thawAll() {
+    for (const s of this.sites) s.frozen = false;
+    for (const pool of Object.values(this.pools)) for (const e of pool.entities) if (e.frozen) this.thaw(e);
+  }
+
+  /**
+   * Scene queries need the query structure brought up to date; world.step()
+   * no longer does it every step (it costs time for every body), so
+   * anything that queries calls this first.
+   */
+  queries() {
+    if (!this.queryDirty) return;
+    this.world.queryPipeline.update(this.world.colliders);
+    this.queryDirty = false;
   }
 
   /** Register a body made elsewhere (the football) so it takes part in contacts and blasts. */
@@ -2409,7 +2950,10 @@ class Destruction {
     if (!entity.alive) return;
     entity.alive = false;
     for (const c of entity.colliders) this.byCollider.delete(c.handle);
-    this.world.removeRigidBody(entity.body);
+    if (entity.frozen) this.frozenCount--;
+    else this.world.removeRigidBody(entity.body);
+    entity.site?.members.delete(entity);
+    this.loose.delete(entity);
     this.pools[entity.kind.name].remove(entity);
     this.bodyCount--;
     if (entity.fragment) this.debrisCount--;
@@ -2604,6 +3148,7 @@ class Destruction {
   /** Push, shatter and set off everything around a point (no sound or flash). */
   blast(t, R = BLAST_RADIUS) {
     const seen = new Set();
+    this.queries();
     this.world.collidersWithAabbIntersectingAabb(t, { x: R, y: R, z: R }, (c) => {
       const body = c.parent();
       if (!body || seen.has(body.handle)) return true;
@@ -2660,6 +3205,7 @@ class Destruction {
     const centre = { x: car.x + sinH * localZ, y: (car.y || 0) + (hi[1] + lo[1]) / 2, z: car.z + cosH * localZ };
     const rot = carRotation(car);
     const found = new Set();
+    this.queries();
     this.world.intersectionsWithShape(centre, rot, new RAPIER.Cuboid(half.x, half.y, half.z), (collider) => {
       const e = this.byCollider.get(collider.handle);
       if (e && e.alive && !e.vehicle && !e.kind.noBurn) found.add(e);
@@ -2679,6 +3225,7 @@ class Destruction {
     const ident = { x: 0, y: 0, z: 0, w: 1 };
     this.flameBalls ||= [];
     let grounded = 0;
+    this.queries();
     for (let i = 0, d = 1.2; d <= FLAME.range; i++, d += 1.2) {
       const c = streamPoint(pos, dir, d);
       if (c.y < 0.35) {
@@ -2725,6 +3272,7 @@ class Destruction {
     this.despawn(entity);
     // Wake whatever was resting on it so it falls.
     const r2 = size / 2 + 0.4;
+    this.queries();
     this.world.collidersWithAabbIntersectingAabb(t, { x: r2, y: r2, z: r2 }, (c) => {
       c.parent()?.wakeUp();
       return true;
@@ -2767,6 +3315,19 @@ class Destruction {
       for (const e of pool.entities) {
         const life = this.lifetimeOf(e);
         const left = life ? life - (this.time - e.born) : Infinity;
+        if (e.frozen) {
+          if (e.dirty) {
+            // Created frozen: place it once.
+            e.dirty = false;
+            _p.set(e.frozen.x, e.frozen.y, e.frozen.z);
+            _q.set(e.frozen.q.x, e.frozen.q.y, e.frozen.q.z, e.frozen.q.w);
+            _m.compose(_p, _q, _sv.set(1, 1, 1));
+            pool.mesh.setMatrixAt(e.slot, _m);
+            changed = true;
+          }
+          if (left <= 0) this.despawn(e);
+          continue; // not in the physics world: nothing moves
+        }
         if (!e.dirty && left >= 1 && e.body.isSleeping()) continue;
         e.dirty = false;
         const t = e.body.translation();
@@ -2813,8 +3374,8 @@ class Destruction {
 // barrier ring is a physics object spawned by `populateArena`.
 
 const SKY = 0x9fc6e8;
-const ARENA_HALF = 90;      // barrier ring sits here
-const DRIVE_LIMIT = 94;     // the car is kept inside this square
+const ARENA_HALF = 150;     // barrier ring sits here
+const DRIVE_LIMIT = 154;    // the car is kept inside this square
 const START = { x: 0, z: -52, heading: 0 };
 
 function createWorld(scene, renderer) {
@@ -2870,6 +3431,11 @@ function createWorld(scene, renderer) {
 
   const paint = new THREE.MeshBasicMaterial({ color: 0xf2f2f2, transparent: true, opacity: 0.85, depthWrite: false });
   const yellow = new THREE.MeshBasicMaterial({ color: 0xf2c230, transparent: true, opacity: 0.85, depthWrite: false });
+  const flat2 = (geo, mat) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.renderOrder = 1;
+    arena.add(m);
+  };
   const flat = (geo, mat, x, z, rotY = 0) => {
     const m = new THREE.Mesh(geo, mat);
     m.rotation.set(-Math.PI / 2, 0, rotY);
@@ -2890,6 +3456,21 @@ function createWorld(scene, renderer) {
   // Gas station forecourt and parking bays in the container yard.
   flat(new THREE.PlaneGeometry(16, 12), new THREE.MeshBasicMaterial({ color: 0x3b3d42, transparent: true, opacity: 0.6, depthWrite: false }), 74, -20);
   for (let z = -26; z <= 6; z += 8) flat(new THREE.PlaneGeometry(14, 0.2), yellow, -76, z);
+  // Road markings for the outer districts, merged into one mesh (one draw call).
+  const lines = [];
+  const dash = (x, z, alongX) => {
+    const g = new THREE.PlaneGeometry(alongX ? 3 : 0.25, alongX ? 0.25 : 3);
+    g.rotateX(-Math.PI / 2);
+    g.translate(x, 0.02, z);
+    lines.push(g);
+  };
+  for (let u = -128; u <= 128; u += 8) { // the ring road, inside the barriers
+    dash(u, 132, true); dash(u, -132, true); dash(132, u, false); dash(-132, u, false);
+  }
+  for (let u = 46; u <= 128; u += 8) { dash(123, u, false); dash(u, 77, true); dash(u, 108, true); } // downtown streets
+  for (let u = -76; u <= 82; u += 8) dash(-106, u, false); // the suburban street
+  for (let u = -60; u <= 60; u += 8) dash(u, -112, true); // the industrial road
+  flat2(mergeGeometries(lines), paint);
 
   // Distant hills for a horizon.
   const hillMat = new THREE.MeshStandardMaterial({ color: 0x6a8a55, roughness: 1, flatShading: true });
@@ -2939,9 +3520,12 @@ function populateArena(d) {
   const rng = mulberry32(11);
   const opts = { sleep: true };
   const gap = 0.002;
+  // Everything a helper builds is one "site" that freezes and thaws
+  // together when it's far from every car (see Destruction.stream).
+  const site = (fn) => (...args) => { d.beginSite(); fn(...args); d.endSite(); };
 
   // Running-bond brick wall: `len` metres long, `rows` high, centred at (x, z).
-  const brickWall = (x, z, yaw, len, rows) => {
+  const brickWall = site((x, z, yaw, len, rows) => {
     const c = Math.cos(yaw), s = Math.sin(yaw);
     const place = (u, y, kind) => d.spawn(kind, { x: x + u * c, y, z: z - u * s }, yaw, opts);
     for (let r = 0; r < rows; r++) {
@@ -2951,10 +3535,10 @@ function populateArena(d) {
       while (u + 0.6 <= len / 2 + 1e-6) { place(u + 0.3, y, 'brick'); u += 0.6; }
       if (u < len / 2 - 1e-6) place(u + 0.15, y, 'brickHalf');
     }
-  };
+  });
 
   // Hollow building of concrete blocks with a plank roof.
-  const shed = (x, z, w, depth, h) => {
+  const shed = site((x, z, w, depth, h) => {
     for (let y = 0; y < h; y++) {
       for (let i = 0; i < w; i++) {
         for (let j = 0; j < depth; j++) {
@@ -2977,9 +3561,9 @@ function populateArena(d) {
     for (let i = 0; i < w; i++) {
       d.spawn('plank', { x: x + i - (w - 1) / 2, y: h + 0.1 + gap, z }, Math.PI / 2, opts);
     }
-  };
+  });
 
-  const cratePyramid = (x, z, base) => {
+  const cratePyramid = site((x, z, base) => {
     for (let level = 0; level < base; level++) {
       const n = base - level;
       for (let i = 0; i < n; i++) {
@@ -2988,14 +3572,14 @@ function populateArena(d) {
         }
       }
     }
-  };
+  });
 
-  const tower = (x, z, size, h) => {
+  const tower = site((x, z, size, h) => {
     for (let y = 0; y < h; y++)
       for (let i = 0; i < size; i++)
         for (let j = 0; j < size; j++)
           d.spawn('block', { x: x + i - (size - 1) / 2, y: 0.5 + y * (1 + gap), z: z + j - (size - 1) / 2 }, 0, opts);
-  };
+  });
 
   // Random points in a box, at least `minDist` apart.
   const scatter = (cx, cz, half, n, minDist) => {
@@ -3007,14 +3591,14 @@ function populateArena(d) {
     return pts;
   };
 
-  const barrels = (x, z, n) => {
+  const barrels = site((x, z, n) => {
     for (const p of scatter(x, z, 2.2, n, 0.75)) d.spawn('barrel', { x: p.x, y: 0.475 + gap, z: p.z }, 0, opts);
-  };
+  });
 
   // Three-storey office block, 10 m x 6.8 m.
   // Each storey: a 1.2 m band of wall panels, a 1.5 m band of pillars and
   // glass, then a 0.3 m floor slab spanning front wall to back wall.
-  const building = (cx, cz, floors) => {
+  const building = site((cx, cz, floors) => {
     const halfW = 5;
     const halfD = 3.4;
     let layer = 0;
@@ -3054,7 +3638,7 @@ function populateArena(d) {
         d.spawn('floorSlab', { x: cx - halfW + 1 + 2 * i, y: y0 + 2.85 + lift(), z: cz }, 0, opts);
       }
     }
-  };
+  });
   building(22, 50, 3);
 
   // The big wall straight ahead of the start.
@@ -3077,6 +3661,7 @@ function populateArena(d) {
   barrels(48, -12, 8);
 
   // Domino arc.
+  d.beginSite();
   const dominoCentre = { x: -46, z: -14 };
   const dominoR = 14;
   for (let a = -1.75; a <= 1.75; a += 0.08) {
@@ -3085,6 +3670,7 @@ function populateArena(d) {
     // Slab thickness runs along the arc so each one tips into the next.
     d.spawn('slab', { x, y: 1.1 + gap, z }, -a - Math.PI / 2, opts);
   }
+  d.endSite();
 
   // Cone slalom from the start line.
   // Cones line the run-up to the start kicker.
@@ -3102,9 +3688,9 @@ function populateArena(d) {
   }
 
   // Trees in two corners.
-  const grove = (cx, cz, n) => {
+  const grove = site((cx, cz, n) => {
     for (const p of scatter(cx, cz, 7, n, 3.4)) d.spawn('tree', { x: p.x, y: 1.5 + gap, z: p.z }, rng() * Math.PI, opts);
-  };
+  });
   grove(44, -52, 7);
   grove(-42, 52, 7);
 
@@ -3115,14 +3701,16 @@ function populateArena(d) {
 
   // Gas station: canopy on four columns, pumps underneath, fuel drums.
   const gx = 74, gz = -20;
+  d.beginSite();
   for (const [dx, dz] of [[-4.5, -3], [4.5, -3], [-4.5, 3], [4.5, 3]]) {
     d.spawn('column', { x: gx + dx, y: 2.25 + gap, z: gz + dz }, 0, opts);
   }
   d.spawn('canopy', { x: gx, y: 4.75 + 2 * gap, z: gz }, 0, opts);
   for (const dx of [-2, 2]) d.spawn('pump', { x: gx + dx, y: 0.9 + gap, z: gz }, 0, opts);
-  const drums = (cx, cz, n, spread = 1.6) => {
+  d.endSite();
+  const drums = site((cx, cz, n, spread = 1.6) => {
     for (const p of scatter(cx, cz, spread, n, 0.7)) d.spawn('fuel', { x: p.x, y: 0.45 + gap, z: p.z }, 0, opts);
-  };
+  });
   drums(83, -8, 8);
   drums(gx - 6, gz + 6, 3, 0.8);
   // A few drums elsewhere to set off chain reactions.
@@ -3133,32 +3721,41 @@ function populateArena(d) {
   drums(-30, 71, 3, 0.8);
 
   // Giant bowling pins at the end of the lane (head pin nearest the start).
+  d.beginSite();
   for (let row = 0; row < 4; row++) {
     for (let i = 0; i <= row; i++) {
       d.spawn('pin', { x: -40 + (i - row / 2) * 1.25, y: 1.2 + gap, z: -74 - row * 1.1 }, 0, opts);
     }
   }
+  d.endSite();
 
-  // Container yard: four lanes of containers stacked one to three high.
-  const stacks = [[2, 3, 1], [1, 2, 3], [3, 1, 2], [2, 2, 1]];
-  stacks.forEach((col, ci) => {
-    col.forEach((height, ri) => {
-      for (let level = 0; level < height; level++) {
-        d.spawn('container', { x: -84 + ci * 2.8, y: 1.3 + level * (2.6 + gap), z: -22 + ri * 8 }, Math.PI / 2, opts);
-      }
+  // Container yard: lanes of containers stacked one to three high.
+  const containerYard = site((x0, z0, stacks, yaw = Math.PI / 2) => {
+    stacks.forEach((col, ci) => {
+      col.forEach((height, ri) => {
+        for (let level = 0; level < height; level++) {
+          // Lanes 2.8 m apart, containers 8 m apart along a lane.
+          const p = yaw === 0 ? { x: x0 + ri * 8, z: z0 + ci * 2.8 } : { x: x0 + ci * 2.8, z: z0 + ri * 8 };
+          d.spawn('container', { x: p.x, y: 1.3 + level * (2.6 + gap), z: p.z }, yaw, opts);
+        }
+      });
     });
   });
+  containerYard(-84, -22, [[2, 3, 1], [1, 2, 3], [3, 1, 2], [2, 2, 1]]);
 
   // Water tower.
+  d.beginSite();
   const wx = 72, wz = 72;
   for (const [dx, dz] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) {
     d.spawn('steelLeg', { x: wx + dx, y: 3.5 + gap, z: wz + dz }, 0, opts);
   }
   d.spawn('platform', { x: wx, y: 7.15 + 2 * gap, z: wz }, 0, opts);
   d.spawn('tank', { x: wx, y: 8.6 + 3 * gap, z: wz }, 0, opts);
+  d.endSite();
 
   // Fenced grove in the south-east corner.
   const fx = 62, fz = -76, fw = 16, fd = 12;
+  d.beginSite();
   for (let u = -fw / 2 + 1; u < fw / 2; u += 2) {
     d.spawn('fence', { x: fx + u, y: 0.5 + gap, z: fz - fd / 2 }, 0, opts);
     d.spawn('fence', { x: fx + u, y: 0.5 + gap, z: fz + fd / 2 }, 0, opts);
@@ -3168,6 +3765,7 @@ function populateArena(d) {
     d.spawn('fence', { x: fx + fw / 2, y: 0.5 + gap, z: fz + v }, Math.PI / 2, opts);
   }
   for (const p of scatter(fx, fz, 4, 6, 3.4)) d.spawn('tree', { x: p.x, y: 1.5 + gap, z: p.z }, rng() * Math.PI, opts);
+  d.endSite();
 
   // More crates and barrels to plow through on the long runs.
   cratePyramid(-60, -40, 3);
@@ -3180,6 +3778,86 @@ function populateArena(d) {
   for (let z = -60; z <= 60; z += 30) {
     d.spawn('pole', { x: -84, y: 3.5 + gap, z }, 0, opts);
     d.spawn('pole', { x: 84, y: 3.5 + gap, z }, Math.PI, opts);
+  }
+
+  // --- The outer districts (beyond the original lot) ----------------------
+
+  // Downtown, north-east: a block of offices of different heights.
+  for (const [x, z, floors] of [[112, 62, 3], [134, 62, 4], [112, 92, 2], [134, 92, 5], [70, 122, 3], [98, 124, 2]]) {
+    building(x, z, floors);
+  }
+  barrels(123, 77, 8);
+  drums(123, 106, 4, 1);
+  cratePyramid(84, 104, 3);
+
+  // Suburbs, west: a street of houses with picket fences and garden trees.
+  const house = site((x, z) => {
+    // Walls of facade panels, two rows high (no doorway: an unsupported
+    // panel over it would fall at the first knock), then a roof of slabs.
+    const halfW = 4, halfD = 3.4; // along z, along x
+    for (let row = 0; row < 2; row++) {
+      const y = 0.6 + row * (1.2 + gap);
+      for (let i = 0; i < 4; i++) {
+        const zz = z - halfW + 1 + 2 * i;
+        d.spawn('panel', { x: x - halfD + 0.2, y, z: zz }, Math.PI / 2, opts);
+        d.spawn('panel', { x: x + halfD - 0.2, y, z: zz }, Math.PI / 2, opts);
+      }
+      for (let j = 0; j < 3; j++) {
+        const xx = x - 3 + 1 + 2 * j;
+        d.spawn('panel', { x: xx, y, z: z - halfW + 0.2 }, 0, opts);
+        d.spawn('panel', { x: xx, y, z: z + halfW - 0.2 }, 0, opts);
+      }
+    }
+    for (let i = 0; i < 4; i++) d.spawn('floorSlab', { x, y: 2.55 + 2 * gap, z: z - halfW + 1 + 2 * i }, Math.PI / 2, opts);
+    for (let i = 0; i < 4; i++) {
+      if (i === 1 || i === 2) continue; // garden gate
+      d.spawn('fence', { x: x + halfD + 4, y: 0.5 + gap, z: z - 3 + 2 * i }, Math.PI / 2, opts);
+    }
+    d.spawn('tree', { x: x + halfD + 2, y: 1.5 + gap, z: z + 5.5 }, rng() * Math.PI, opts);
+  });
+  for (const z of [-62, -36, -10, 16, 42, 68]) house(-124, z);
+  barrels(-104, -24, 6);
+  drums(-104, 30, 3, 0.8);
+
+  // Industrial south: warehouses, a container yard and a fuel depot.
+  shed(-42, -122, 10, 7, 4);
+  shed(-6, -128, 10, 7, 4);
+  shed(30, -122, 10, 7, 4);
+  containerYard(92, -138, [[2, 1, 3], [3, 2, 1], [1, 3, 2]], 0);
+  drums(70, -132, 10, 2.4);
+  cratePyramid(10, -104, 3);
+  cratePyramid(-60, -104, 2);
+  tower(-24, -100, 2, 5);
+
+  // Ramp park, south-east, and the long jump into downtown (see terrain.js).
+  barrels(120, -78, 10);
+  cratePyramid(132, -36, 3);
+  brickWall(102, -54, Math.PI / 2, 10, 5);
+
+  // Park, north-west.
+  grove(-120, 112, 9);
+  grove(-96, 132, 7);
+  cratePyramid(-104, 96, 3);
+  barrels(-130, 132, 8);
+
+  // Midtown, along the north: more offices and a second street of houses.
+  building(-62, 122, 2);
+  building(-30, 128, 3);
+  for (const x of [0, 22, 44]) house(x - 6, 120);
+  barrels(-46, 112, 6);
+  // East side: two more office blocks between downtown and the ramp park.
+  building(140, 2, 2);
+  building(108, -14, 3);
+  drums(124, -8, 3, 0.8);
+  // Two more warehouses at the west end of the industrial road.
+  shed(-80, -128, 10, 7, 4);
+  shed(-116, -120, 8, 6, 3);
+
+  // Lamp posts along the ring road.
+  for (let u = -130; u <= 130; u += 32) {
+    for (const [x, z, yaw] of [[u, 141, 0], [u, -141, 0], [141, u, Math.PI / 2], [-141, u, Math.PI / 2]]) {
+      d.spawn('pole', { x, y: 3.5 + gap, z }, yaw, opts);
+    }
   }
 
   // Ring of heavy jersey barriers.
@@ -3522,7 +4200,7 @@ const KEYS = {
   down: ['KeyS', 'ArrowDown'],
   handbrake: ['Space'],
   boost: ['ShiftLeft', 'ShiftRight'],
-  // Car football: Space jumps and Q is the powerslide (and air roll).
+  // Cars with jumps (the Striker): Space jumps and Q is the powerslide (and air roll).
   jump: ['Space'],
   powerslide: ['KeyQ'],
   fire: ['KeyX'], // flamethrower (also the left mouse button)
@@ -3533,7 +4211,7 @@ class Input {
     this.down = new Set();
     this.touch = { left: false, right: false, up: false, down: false, handbrake: false, boost: false, jump: false, fire: false };
     this.mouseFire = false;
-    this.football = false; // set by the game: changes what Space and the A button do
+    this.aerial = false; // set by the game for cars that jump: changes what Space and the A button do
     this.pressedHandlers = new Map();
     this.kbSteer = 0;
     this.kbThrottle = 0;
@@ -3588,9 +4266,9 @@ class Input {
       steer: this.kbSteer,
       throttle: this.kbThrottle,
       brake: this.kbBrake,
-      handbrake: this.football ? this.held('powerslide') || this.touch.handbrake : this.held('handbrake'),
+      handbrake: this.aerial ? this.held('powerslide') || this.touch.handbrake : this.held('handbrake'),
       boost: this.held('boost'),
-      jump: this.football && (this.held('jump') || !!this.jumpLatch),
+      jump: this.aerial && (this.held('jump') || !!this.jumpLatch),
       fire: this.held('fire') || this.mouseFire,
     };
     this.jumpLatch = false;
@@ -3604,7 +4282,7 @@ class Input {
       const lt = pad.buttons[6]?.value || 0;
       if (rt > 0.02) out.throttle = rt;
       if (lt > 0.02) out.brake = lt;
-      if (this.football) {
+      if (this.aerial) {
         // Rocket League layout: A jumps, RB powerslides / air rolls, left stick pitches in the air.
         if (pad.buttons[0]?.pressed) out.jump = true;
         if (pad.buttons[5]?.pressed) out.handbrake = true;
@@ -4408,7 +5086,7 @@ const TABS = [
 const MODE_NAMES = { free: 'Free roam', football: 'Car football' };
 const MODE_BLURBS = {
   free: 'Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.',
-  football: 'Knock the ball into the orange goal before the clock runs out. You play Blue against a computer driver, or team up online. The sidelines are lined with things to wreck, and the fuel drums in the corners blow the ball around. Space jumps (twice for a double jump or a flip), W/S pitch in the air, and boost lets you fly. Press Y to toggle ball cam.',
+  football: 'Knock the ball into the orange goal before the clock runs out. Everyone drives the Striker, painted in their team colour. You play Blue against a computer driver, or team up online. The sidelines are lined with things to wreck, and the fuel drums in the corners blow the ball around. Space jumps (twice for a double jump or a flip), W/S pitch in the air, and boost lets you fly. Press Y to toggle ball cam.',
 };
 
 class Menu {
@@ -4475,6 +5153,8 @@ class Menu {
     const mode = this.mode;
     for (const el of this.root.querySelectorAll('[data-mode]')) el.setAttribute('aria-checked', String(el.dataset.mode === mode));
     document.getElementById('mode-blurb').textContent = MODE_BLURBS[mode];
+    // Car football has one car for everyone (the Striker): no picker.
+    document.body.classList.toggle('menu-football', mode === 'football');
     document.getElementById('room-mode-name').textContent = MODE_NAMES[mode];
   }
 
@@ -4553,8 +5233,17 @@ class Menu {
     this.show(this.backTo);
   }
 
+  /** Car football has one car: lock the in-game garage (and say why). */
+  setCarLocked(locked) {
+    this.carLocked = locked;
+    const b = document.getElementById('btn-garage');
+    b.disabled = locked;
+    b.textContent = locked ? 'Change car (everyone drives the Striker here)' : 'Change car';
+  }
+
   /** The in-game garage: pick any vehicle and swap into it on the spot. */
   showGarage() {
+    if (this.carLocked) return;
     const current = this.opts.currentVehicle();
     const list = document.getElementById('garage-list');
     list.replaceChildren(...this.opts.vehicles().map((v) => {
@@ -5228,6 +5917,11 @@ function arenaRamps(terrain) {
   terrain.addRamp({ x: -12, z: 66, heading: Math.PI / 2, length: 22, width: 7, height: 2.2, profile: 'table', parts: [7, 8] });
   // Mega ramp in the west, aimed at the container yard.
   terrain.addRamp({ x: -64, z: 66, heading: Math.atan2(-15, -62), length: 16, width: 7, height: 4.5, profile: 'kicker' });
+  // Outer districts: a big kicker aimed into the downtown blocks...
+  terrain.addRamp({ x: 123, z: 22, heading: 0, length: 10, width: 6, height: 2.4, profile: 'kicker' });
+  // ...and the south-east ramp park: a launch kicker and a long tabletop.
+  terrain.addRamp({ x: 118, z: -122, heading: 0, length: 8, width: 6, height: 1.8, profile: 'kicker' });
+  terrain.addRamp({ x: 132, z: -62, heading: -Math.PI / 2, length: 24, width: 7, height: 2.4, profile: 'table', parts: [7, 9] });
 }
 
 // ===== net.js =====
@@ -6894,6 +7588,9 @@ function groundMarker() {
   return ring;
 }
 
+/** Car body colours for the two teams (a bit deeper than the glow). */
+const TEAM_PAINT = [0x2563d9, 0xe8670f];
+
 /** Coloured glow under a car showing its team. */
 function teamGlow(def, team) {
   const c = document.createElement('canvas');
@@ -6923,6 +7620,8 @@ function setTeamGlow(model, def, team) {
   if (old && old.userData.team === team) return;
   if (old) model.root.remove(old);
   model.teamGlow = null;
+  // The body takes the team colour too (back to its own paint off the pitch).
+  model.paintMat?.color.setHex(team == null ? def.color : TEAM_PAINT[team]);
   if (team == null) return;
   const glow = teamGlow(def, team);
   glow.userData.team = team;
@@ -7407,327 +8106,6 @@ function multiplierFor(combo) {
   return m;
 }
 
-// ===== carkit.js =====
-// Custom cars. A custom car is plain data (a "design"): a body style, size,
-// colours, bolt-on parts, an engine sound, a few tuning sliders and an
-// optional special ability. `compileCar` turns a design into a complete
-// vehicle definition, the same shape as the hand-built ones in vehicles.js:
-// handling spec, hitbox, camera, exhaust, stats and a body builder for
-// CarModel. Designs are JSON-safe, so they can be saved, shared as a code
-// and sent to other players; every value is clamped on the way in.
-//
-// Design shape (every field optional; see DEFAULT_DESIGN):
-//   { id, name, style, color, trim, accent,
-//     size:   { length, width, height, ride, wheels }   // 0..1 sliders around the style's base
-//     tune:   { power, weight, grip, balance, boost }  // 0..1, 0.5 is neutral
-//     engine: 'sport' | 'hatch' | 'v8' | 'diesel' | 'ember',
-//     ability: 'none' | 'burner' | 'flamethrower',
-//     parts:  ['spoiler', 'scoop', 'bullbar', 'lightbar', 'stacks', 'stripes', 'cage'] }
-
-const STYLES = {
-  coupe: { label: 'Coupe', length: 4.3, width: 1.82, roof: 1.3, body: 0.42, ride: 0.2, cabin: [0.24, 0.62], taper: 0.55, wheel: 0.34, engine: 'sport', power: 1 },
-  hatch: { label: 'Hatchback', length: 3.9, width: 1.74, roof: 1.45, body: 0.44, ride: 0.2, cabin: [0.06, 0.64], taper: 0.85, wheel: 0.32, engine: 'hatch', power: 0.7 },
-  muscle: { label: 'Muscle', length: 4.8, width: 1.92, roof: 1.33, body: 0.52, ride: 0.2, cabin: [0.24, 0.58], taper: 0.62, wheel: 0.36, engine: 'v8', power: 1.35 },
-  pickup: { label: 'Pickup', length: 5.4, width: 1.96, roof: 1.95, body: 0.52, ride: 0.42, cabin: [0.45, 0.72], taper: 0.9, wheel: 0.42, engine: 'v8', bed: true, power: 1.15 },
-  van: { label: 'Van', length: 5.0, width: 1.98, roof: 2.15, body: 0.6, ride: 0.3, cabin: [0.02, 0.84], taper: 0.92, wheel: 0.36, engine: 'diesel', power: 0.85 },
-  buggy: { label: 'Buggy', length: 3.6, width: 1.9, roof: 1.6, body: 0.34, ride: 0.42, cabin: [0.28, 0.66], taper: 1, wheel: 0.44, engine: 'sport', open: true, power: 0.75 },
-};
-const ENGINES = { sport: 'Sports', hatch: 'Four-pot', v8: 'V8', diesel: 'Diesel', ember: 'Turbine' };
-const ABILITIES = { none: 'None', burner: 'Burner (burns what it hits)', flamethrower: 'Flamethrower' };
-const PARTS = {
-  spoiler: 'Rear wing', scoop: 'Hood scoop', bullbar: 'Bull bar', lightbar: 'Roof lights',
-  stacks: 'Exhaust stacks', stripes: 'Racing stripes', cage: 'Roll cage',
-};
-const SIZE_KEYS = { length: 'Length', width: 'Width', height: 'Roof height', ride: 'Ride height', wheels: 'Wheel size' };
-const TUNE_KEYS = {
-  power: ['Power', 'More torque: quicker everywhere'],
-  weight: ['Weight', 'Heavier hits harder but is slower'],
-  grip: ['Grip', 'Tyre grip'],
-  balance: ['Balance', 'Low: stable and planted · High: loose, tail-happy'],
-  boost: ['Boost', 'Rocket boost strength'],
-};
-
-const DEFAULT_DESIGN = {
-  name: 'My car', style: 'coupe', color: 0xe8b21c, trim: 0x1c1c22, accent: 0xff6a10,
-  size: { length: 0.5, width: 0.5, height: 0.5, ride: 0.5, wheels: 0.5 },
-  tune: { power: 0.5, weight: 0.5, grip: 0.5, balance: 0.5, boost: 0.5 },
-  engine: null, ability: 'none', parts: ['stripes'],
-};
-
-const clamp01 = (v, d = 0.5) => (Number.isFinite(+v) ? Math.max(0, Math.min(1, +v)) : d);
-const colour = (v, d) => (Number.isFinite(+v) ? Math.max(0, Math.min(0xffffff, Math.round(+v))) : d);
-const lerp = (a, b, t) => a + (b - a) * t;
-
-/** Make any value into a valid design (unknown fields dropped, numbers clamped). */
-function cleanDesign(raw = {}) {
-  const d = DEFAULT_DESIGN;
-  const style = STYLES[raw.style] ? raw.style : d.style;
-  const out = {
-    id: typeof raw.id === 'string' && /^[a-z0-9-]{3,24}$/.test(raw.id) ? raw.id : newDesignId(),
-    name: String(raw.name ?? d.name).replace(/\s+/g, ' ').trim().slice(0, 22) || d.name,
-    style,
-    color: colour(raw.color, d.color),
-    trim: colour(raw.trim, d.trim),
-    accent: colour(raw.accent, d.accent),
-    size: {},
-    tune: {},
-    engine: ENGINES[raw.engine] ? raw.engine : STYLES[style].engine,
-    ability: ABILITIES[raw.ability] ? raw.ability : 'none',
-    parts: [...new Set((Array.isArray(raw.parts) ? raw.parts : d.parts).filter((p) => PARTS[p]))],
-  };
-  for (const k of Object.keys(SIZE_KEYS)) out.size[k] = clamp01(raw.size?.[k]);
-  for (const k of Object.keys(TUNE_KEYS)) out.tune[k] = clamp01(raw.tune?.[k]);
-  return out;
-}
-
-function newDesignId() {
-  return `c-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-/** Share codes: the design as compact URL-safe base64 JSON. */
-function designToCode(design) {
-  const json = JSON.stringify(cleanDesign(design));
-  return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function codeToDesign(code) {
-  const b64 = String(code).trim().replace(/-/g, '+').replace(/_/g, '/');
-  const json = decodeURIComponent(escape(atob(b64)));
-  const d = cleanDesign(JSON.parse(json));
-  d.id = newDesignId(); // an imported copy is its own car
-  return d;
-}
-
-/** Physical layout of a design, in metres (shared by the body, hitbox and handling). */
-function layout(d) {
-  const st = STYLES[d.style];
-  const L = st.length * lerp(0.85, 1.18, d.size.length);
-  const W = st.width * lerp(0.9, 1.1, d.size.width);
-  const ride = st.ride * lerp(0.6, 1.6, d.size.ride);
-  const body = st.body;
-  const roof = ride + body + (st.roof - st.ride - st.body) * lerp(0.82, 1.22, d.size.height);
-  const wheel = st.wheel * lerp(0.82, 1.25, d.size.wheels);
-  const z0 = -L / 2 + st.cabin[0] * L;
-  const z1 = -L / 2 + st.cabin[1] * L;
-  return { st, L, W, ride, body, roof, wheel, z0, z1, deck: ride + body + 0.12 };
-}
-
-/**
- * Turn a design into a full vehicle definition (see vehicles.js). Pass
- * `withStats = false` to skip measuring top speed and 0-100 (a few ms).
- */
-function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats = true) {
-  const d = cleanDesign(raw);
-  const g = layout(d);
-  const { st, L, W, ride, body, roof, wheel, z0, z1 } = g;
-  const t = d.tune;
-
-  // Handling. Mass from size, then the weight slider.
-  const volume = L * W * (roof - ride);
-  const baseMass = volume * (st.open ? 105 : 125);
-  const mass = Math.round(baseMass * lerp(0.75, 1.4, t.weight) / 10) * 10;
-  const cgToFront = L * 0.29;
-  const cgToRear = L * 0.31;
-  const spec = {
-    ...DEFAULT_SPEC,
-    mass,
-    inertiaScale: ((L * L + W * W) / 12) * 0.95,
-    cgToFront, cgToRear,
-    cgHeight: ride + body * 0.55,
-    trackWidth: W - 0.14,
-    wheelRadius: wheel,
-    tireGrip: lerp(0.88, 1.35, t.grip),
-    rearGripBias: lerp(1.45, 1.05, t.balance),
-    maxSteer: Math.max(0.45, 0.66 - L * 0.012),
-    steerSpeed: lerp(2.0, 2.8, 1 - t.weight),
-    brakeForce: mass * 11.5,
-    dragCoef: 0.32 * W * (roof - ride * 0.5) * (st.open ? 1.3 : 1),
-    rollingResistance: 10 + mass / 160,
-    engineBrake: 250 + mass * 0.12,
-    // Each style has its own engine, sized to the car's size (not the
-    // weight slider, so extra weight costs speed), then the power slider.
-    torqueScale: st.power * (baseMass / 1300) ** 0.55 * lerp(0.45, 2.0, t.power),
-    boostAccel: lerp(4, 11, t.boost),
-    engineTone: lerp(1.15, 0.75, Math.min(1, mass / 3000)),
-  };
-  spec.body = { halfW: W / 2, halfL: L / 2, top: roof };
-
-  const flamer = d.ability === 'flamethrower';
-  const cabH = roof - g.deck;
-  const hitbox = [
-    { half: [W / 2, (body + 0.12) / 2, L / 2], at: [0, ride + (body + 0.12) / 2, 0] },
-    { half: [(W - 0.3) / 2, cabH / 2, (z1 - z0) / 2], at: [0, g.deck + cabH / 2, (z0 + z1) / 2] },
-  ];
-  const turret = { z: st.bed ? z0 - 0.55 : (z0 + z1) / 2, y: roof + (st.bed ? -0.1 : 0.1) };
-  if (flamer) hitbox.push({ half: [0.38, 0.28, 0.6], at: [0, turret.y + 0.25, turret.z] });
-
-  const stacks = d.parts.includes('stacks');
-  const def = {
-    id: d.id,
-    custom: true,
-    design: d,
-    name: d.name,
-    voice: d.engine,
-    blurb: `Custom ${st.label.toLowerCase()}${d.ability !== 'none' ? ` with ${ABILITIES[d.ability].split(' (')[0].toLowerCase()}` : ''}.`,
-    color: d.color,
-    trim: d.trim,
-    accent: d.accent,
-    swatch: d.color,
-    length: L,
-    width: W,
-    suspension: st.open ? 1.3 : roof > 1.8 ? 1.25 : 1,
-    burns: d.ability === 'burner',
-    flamethrower: flamer ? { mount: [0, turret.y + 0.32, turret.z + 1.15] } : undefined,
-    spec,
-    hitbox,
-    home,
-    cam: { scale: Math.max(0.9, Math.min(1.6, (L / 4.3) * 0.6 + (roof / 1.35) * 0.4)), hoodY: roof - 0.12, hoodZ: z1 - 0.25 },
-    exhaust: stacks
-      ? [[W / 2 - 0.2, roof + 0.25, z0 - 0.15], [-(W / 2 - 0.2), roof + 0.25, z0 - 0.15]]
-      : [[W * 0.25, ride + 0.18, -L / 2 - 0.04], [-W * 0.25, ride + 0.18, -L / 2 - 0.04]],
-    wheelWidth: 0.22 + W * 0.04 + (st.open ? 0.08 : 0),
-    build: (kit) => buildBody(kit, d, g, turret),
-  };
-  def.stats = withStats ? measure(spec) : null;
-  return def;
-}
-
-/** The bodywork, from boxes and tapered boxes (CarModel merges them by material). */
-function buildBody({ THREE, box, tapered, add, lights }, d, g, turret) {
-  const { st, L, W, ride, body, roof, z0, z1 } = g;
-  const front = L / 2, rear = -L / 2;
-  const deck = g.deck;
-  const cabH = roof - deck;
-  const parts = new Set(d.parts);
-
-  // Lower body and the shoulder line.
-  box(W, body, L, 'paint', 0, ride + body / 2, 0);
-  tapered(W, 0.12, L - 0.08, W - 0.1, L - 0.35, 0, 'paint', 0, ride + body + 0.06, 0);
-  // Bumpers and sills.
-  box(W + 0.04, 0.18, 0.16, 'dark', 0, ride + 0.1, front);
-  box(W + 0.04, 0.18, 0.16, 'dark', 0, ride + 0.1, rear);
-  box(W - 0.3, 0.04, L - 0.5, 'dark', 0, ride - 0.01, 0);
-
-  if (st.open) {
-    // Buggy: open tub, seats and a tubular cage instead of a cabin.
-    box(W - 0.3, 0.3, z1 - z0, 'dark', 0, deck + 0.05, (z0 + z1) / 2);
-    for (const sx of [-0.35, 0.35]) box(0.42, 0.5, 0.12, 'dark', sx, deck + 0.3, z0 + 0.25);
-    cage({ box }, W - 0.25, z0, z1, deck, roof);
-  } else {
-    // Cabin: glass greenhouse plus a roof panel.
-    const len = z1 - z0;
-    const topLen = len * st.taper * 0.85;
-    const lean = st.bed ? -0.02 : (len - topLen) * -0.18; // windscreen raked more than the back
-    tapered(W - 0.14, cabH - 0.04, len, W - 0.42, topLen, lean, 'glass', 0, deck + (cabH - 0.04) / 2, (z0 + z1) / 2);
-    box(W - 0.4, 0.05, topLen * 0.96, 'paint', 0, roof - 0.02, (z0 + z1) / 2 + lean);
-    // Pillars between the windows read as a car, not a block of glass.
-    for (const sx of [-1, 1]) box(0.04, cabH * 0.75, 0.1, 'paint', sx * (W / 2 - 0.12), deck + cabH * 0.4, (z0 + z1) / 2);
-  }
-  if (st.bed) {
-    // Pickup bed behind the cab.
-    const bedLen = z0 - rear - 0.1;
-    const bz = rear + 0.05 + bedLen / 2;
-    box(W - 0.08, 0.06, bedLen, 'dark', 0, deck + 0.02, bz);
-    for (const sx of [-1, 1]) box(0.08, 0.42, bedLen, 'paint', sx * (W / 2 - 0.04), deck + 0.2, bz);
-    box(W, 0.42, 0.08, 'paint', 0, deck + 0.2, rear + 0.04);
-  }
-
-  // Bolt-ons.
-  if (parts.has('stripes')) {
-    for (const sx of [-0.22, 0.22]) {
-      box(0.16, 0.01, L - 0.5, 'trim', sx * (W / 1.8), ride + body + 0.125, 0);
-      if (!st.open) box(0.16, 0.01, (z1 - z0) * st.taper * 0.8, 'trim', sx * (W / 1.8), roof + 0.006, (z0 + z1) / 2);
-    }
-  }
-  if (parts.has('spoiler')) {
-    const wz = rear + 0.25;
-    const wy = st.bed ? deck + 0.75 : deck + 0.35;
-    box(W * 0.92, 0.05, 0.4, 'trim', 0, wy, wz);
-    for (const sx of [-1, 1]) {
-      box(0.05, wy - deck, 0.12, 'dark', sx * W * 0.3, deck + (wy - deck) / 2, wz);
-      box(0.04, 0.2, 0.42, 'trim', sx * W * 0.46, wy + 0.06, wz);
-    }
-  }
-  if (parts.has('scoop')) {
-    tapered(0.62, 0.18, 0.9, 0.5, 0.6, -0.08, 'trim', 0, ride + body + 0.2, front - (front - z1) / 2);
-    box(0.5, 0.1, 0.03, 'dark', 0, ride + body + 0.24, front - (front - z1) / 2 + 0.44);
-  }
-  if (parts.has('bullbar')) {
-    box(W * 0.8, 0.06, 0.06, 'chrome', 0, ride + body * 0.9, front + 0.2);
-    box(W * 0.8, 0.06, 0.06, 'chrome', 0, ride + 0.25, front + 0.2);
-    for (const sx of [-1, 0, 1]) box(0.06, body * 0.75, 0.06, 'chrome', sx * W * 0.32, ride + body * 0.57, front + 0.2);
-  }
-  if (parts.has('lightbar')) {
-    const ly = st.open ? roof + 0.08 : roof + 0.08;
-    box(W * 0.7, 0.1, 0.12, 'dark', 0, ly, z1 - 0.3);
-    for (let i = -2; i <= 2; i++) add(new THREE.BoxGeometry(0.16, 0.07, 0.02), 'glow', i * W * 0.13, ly, z1 - 0.23);
-  }
-  if (parts.has('stacks')) {
-    for (const sx of [-1, 1]) {
-      add(new THREE.CylinderGeometry(0.07, 0.07, roof + 0.25 - deck, 10), 'chrome', sx * (W / 2 - 0.2), deck + (roof + 0.25 - deck) / 2, z0 - 0.15);
-    }
-  }
-  if (parts.has('cage') && !st.open) cage({ box }, W - 0.3, z0, z1, roof - 0.02, roof + 0.35);
-
-  // Abilities.
-  if (d.ability === 'burner') {
-    for (const sx of [-1, 1]) box(0.03, 0.05, L - 0.8, 'glow', sx * (W / 2 + 0.01), ride + body * 0.5, -0.1);
-    box(W - 0.3, 0.03, 0.04, 'glow', 0, ride + 0.12, front + 0.06);
-  }
-  if (d.ability === 'flamethrower') {
-    box(0.5, 0.18, 0.5, 'dark', 0, turret.y + 0.03, turret.z);
-    box(0.7, 0.36, 1.0, 'dark', 0, turret.y + 0.25, turret.z);
-    box(0.74, 0.06, 1.04, 'trim', 0, turret.y + 0.45, turret.z);
-    box(0.16, 0.16, 1.8, 'chrome', 0, turret.y + 0.32, turret.z + 0.3);
-    box(0.24, 0.24, 0.12, 'dark', 0, turret.y + 0.32, turret.z + 1.12);
-    box(0.16, 0.16, 0.04, 'glow', 0, turret.y + 0.32, turret.z + 1.19);
-  }
-
-  lights({
-    frontZ: front + 0.02, rearZ: rear - 0.02, y: ride + body * 0.62,
-    headX: W * 0.34, tailX: W * 0.36, headW: Math.min(0.42, W * 0.22), tailW: Math.min(0.46, W * 0.24),
-    h: 0.1, rearY: ride + body * 0.7,
-  });
-}
-
-/** Tubular roll cage over a span of the car. */
-function cage({ box }, w, z0, z1, y0, y1) {
-  const h = y1 - y0;
-  for (const z of [z0 + 0.1, z1 - 0.1]) {
-    for (const sx of [-1, 1]) box(0.07, h, 0.07, 'dark', sx * w / 2, y0 + h / 2, z);
-    box(w, 0.07, 0.07, 'dark', 0, y1, z);
-  }
-  for (const sx of [-1, 1]) box(0.07, 0.07, z1 - z0 - 0.2, 'dark', sx * w / 2, y1, (z0 + z1) / 2);
-}
-
-const _statCache = new Map();
-
-/**
- * Top speed and 0-100 km/h, measured by actually driving the handling
- * model flat out for a while (so the numbers are honest).
- */
-function measure(spec) {
-  const key = JSON.stringify(spec);
-  if (_statCache.has(key)) return _statCache.get(key);
-  const car = new CarPhysics({ ...spec, assists: true });
-  const dt = 1 / 120;
-  let accel = null, top = 0, lastCheck = 0;
-  for (let i = 1; i <= 120 * 90; i++) {
-    car.step(dt, { steer: 0, throttle: 1, brake: 0, handbrake: false, boost: false });
-    const v = car.speed;
-    if (accel === null && v >= 100 / 3.6) accel = i * dt;
-    top = Math.max(top, v);
-    // Every second: stop once it has levelled off.
-    if (i % 120 === 0) {
-      if (i > 120 * 10 && top - lastCheck < 0.1) break;
-      lastCheck = top;
-    }
-  }
-  const stats = { top: Math.round(top * 3.6), accel: accel === null ? 99 : Math.round(accel * 10) / 10 };
-  _statCache.set(key, stats);
-  return stats;
-}
-
 // ===== customs.js =====
 // The vehicle registry: the built-in fleet plus custom cars. Your own
 // designs are saved in this browser; other players' designs (received
@@ -7977,6 +8355,14 @@ class Workshop {
     }
     rows.push(parts);
     rows.push(row('Special', seg('Special ability', ABILITIES, () => d.ability, (v) => { d.ability = v; })));
+    const jump = el('button', { type: 'button', text: d.aerial ? 'On' : 'Off', 'aria-pressed': String(!!d.aerial) });
+    jump.addEventListener('click', () => {
+      d.aerial = !d.aerial;
+      jump.setAttribute('aria-pressed', String(d.aerial));
+      jump.textContent = d.aerial ? 'On' : 'Off';
+      this.changed();
+    });
+    rows.push(row('Jumps and air control', el('div', { class: 'seg' }, jump), 'Like the Striker: Space jumps, double jumps and flips; steer in the air'));
 
     rows.push(head('Engine and handling'));
     rows.push(row('Engine sound', seg('Engine sound', ENGINES, () => d.engine, (v) => { d.engine = v; })));
@@ -8102,7 +8488,7 @@ lotTerrain.buildMeshes(world.arena);
 const stadium = createStadium(scene, renderer);
 const MAPS = {
   free: {
-    name: 'lot', group: world.arena, terrain: lotTerrain, orbit: { radius: 82, height: 34 },
+    name: 'lot', group: world.arena, terrain: lotTerrain, orbit: { radius: 135, height: 60 },
     addColliders: (w) => lotTerrain.addColliders(w), populate: populateArena, contain: containLot,
   },
   football: stadium,
@@ -8251,13 +8637,19 @@ function setSetting(key, value) {
 function buildArena() {
   destruction.createWorld();
   destruction.createCar(active.def);
+  // Big map: anything far from where we start is created frozen (see Destruction.stream).
+  destruction.prefreeze = mode === 'free' ? [homeSpot()] : null;
   map.populate(destruction);
+  destruction.prefreeze = null;
   // Parked vehicles to swap into (free roam, solo only: they can't be kept
   // in sync online).
   const parking = !net.online && mode === 'free';
   for (const v of fleet) v.parked = v === active || !parking ? null : destruction.spawnVehicle(v.def, v.def.home);
   for (const v of fleet) v.model.root.visible = v === active || !!v.parked;
   if (mode === 'football') football.spawnBall();
+  // Big map: everything far from where we start leaves the physics world
+  // straight away (it thaws as we drive up to it).
+  else destruction.streamNow([homeSpot()]);
   arenaDirty = false;
 }
 
@@ -8317,7 +8709,7 @@ function setMode(next) {
   destruction.statics = map;
   for (const m of Object.values(MAPS)) m.group.visible = m === map;
   football.setActive(mode === 'football');
-  input.football = mode === 'football';
+  menu.setCarLocked(mode === 'football');
   football.referee = !net.online || net.isHost;
   football.myId = myId();
   document.body.classList.toggle('football', mode === 'football');
@@ -8362,7 +8754,7 @@ function enterMode(next) {
 
 function ensureBot() {
   if (bot) return;
-  const def = VEHICLES.find((v) => v.id === (active.def.id === 'hatch' ? 'sports' : 'hatch'));
+  const def = VEHICLES.find((v) => v.id === 'striker'); // everyone drives the Striker in football
   bot = new Bot(def, terrain, 1);
   const tag = nameTag('Bot', def, TEAM_COLORS[1]);
   tag.position.set(0, Math.max(...def.hitbox.map((h) => h.at[1] + h.half[1])) + 1.1, 0);
@@ -8456,6 +8848,10 @@ function nearbyVehicle() {
  * car appear through our state updates.
  */
 function changeVehicle(def) {
+  if (mode === 'football') {
+    toast('In car football everyone drives the Striker');
+    return;
+  }
   const target = fleet.find((v) => v.def === def);
   if (!target || target === active) return;
   const pose = { x: car.x, z: car.z, heading: car.heading };
@@ -8539,8 +8935,11 @@ function refreshBadges() {
   hud.assists.classList.toggle('off', !settings.assists);
   hud.cam.textContent = `Camera: ${chase.modeName}`;
   hud.vehicle.textContent = active.def.name;
-  // Flamethrower controls and fuel gauge only for a vehicle that has one.
+  // Flamethrower controls and fuel gauge only for a vehicle that has one;
+  // jump controls (Space jumps, Q powerslides) for a car that jumps.
   document.body.classList.toggle('flamer', !!active.def.flamethrower);
+  input.aerial = !!active.def.aerial;
+  document.body.classList.toggle('aerial', input.aerial);
 }
 
 // --- Menus and game state -------------------------------------------------
@@ -8681,9 +9080,10 @@ function updatePreview(dt) {
 function play(def) {
   audio.start();
   audio.setPaused(false);
-  const chosen = fleet.find((v) => v.def === def) || active;
   // Online, the room's mode wins (the host picked it).
   const wanted = net.online && !net.isHost ? net.mode : menu.mode;
+  // Car football is played in the Striker, whatever's picked for free roam.
+  const chosen = wanted === 'football' ? fleet.find((v) => v.def.id === 'striker') : fleet.find((v) => v.def === def) || active;
   if (chosen !== active) {
     for (const v of fleet) setTeamGlow(v.model, v.def, null);
     active = chosen;
@@ -8960,7 +9360,8 @@ input.onPress('KeyB', playing(() => rebuildArena()));
 input.onPress('KeyC', playing(() => { chase.cycle(); refreshBadges(); toast(`Camera: ${chase.modeName}`); }));
 input.onPress('KeyE', playing(enterNearby));
 input.onPress('KeyV', () => {
-  if (state === 'playing') { pause(); menu.showGarage(); }
+  if (state === 'playing' && mode === 'football') toast('In car football everyone drives the Striker');
+  else if (state === 'playing') { pause(); menu.showGarage(); }
   else if (menu.current === 'garage') resume();
 });
 input.onPress('KeyT', playing(() => {
@@ -8999,7 +9400,11 @@ if (isTouch) {
   $('touch-reset').addEventListener('click', resetCar);
   $('touch-pause').addEventListener('click', pause);
   $('touch-enter').addEventListener('click', enterNearby);
-  $('touch-garage').addEventListener('click', () => { pause(); menu.showGarage(); });
+  $('touch-garage').addEventListener('click', () => {
+    if (mode === 'football') { toast('In car football everyone drives the Striker'); return; }
+    pause();
+    menu.showGarage();
+  });
   $('touch-ballcam').addEventListener('click', toggleBallCam);
 }
 
@@ -9041,6 +9446,7 @@ let worldClock = 0;
 let menuOrbit = 0;
 let pausedRedraw = 0;
 const contacts = [];
+const streamPoints = [];
 const perf = { avg: 1 / 60, slowFor: 0, fastFor: 0, fpsTimer: 0, frames: 0 };
 
 function frame() {
@@ -9062,7 +9468,7 @@ function frame() {
     accumulator += dt;
     let steps = 0;
     while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
-      car.aerial = mode === 'football'; // jumps, flips and air control
+      car.aerial = !!active.def.aerial; // jumps, flips and air control (the Striker)
       car.step(PHYSICS_DT, inputNow);
       containCar();
       if (bot) {
@@ -9088,6 +9494,14 @@ function frame() {
       steps++;
     }
     if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
+    // Big map: take sleeping structures far from every car out of the
+    // physics world, and bring them back as cars approach.
+    if (mode === 'free') {
+      streamPoints.length = 0;
+      streamPoints.push(car);
+      for (const r of mp.remotes.values()) if (r.seen) streamPoints.push(r.proxy);
+      destruction.stream(streamPoints, dt);
+    }
     if (net.online) {
       mp.update(dt);
       netTick(dt);
@@ -9396,7 +9810,7 @@ function updateScene(dt) {
       `yaw rate   ${deg(car.yawRate)}°/s\n` +
       `lat G      ${(car.accelLat / 9.81).toFixed(2).padStart(6)}\n` +
       `rpm        ${(car.rpm | 0).toString().padStart(6)}\n` +
-      `bodies     ${destruction.bodyCount.toString().padStart(6)}\n` +
+      `bodies     ${destruction.bodyCount.toString().padStart(6)}  (${destruction.frozenCount} frozen)\n` +
       `quake      ${quake.level.toFixed(2).padStart(6)}  (activity ${quake.activity.toFixed(1)})\n` +
       `res scale  ${pixelRatio().toFixed(2).padStart(6)}`;
   }

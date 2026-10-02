@@ -484,6 +484,9 @@ function groundMarker() {
   return ring;
 }
 
+/** Car body colours for the two teams (a bit deeper than the glow). */
+const TEAM_PAINT = [0x2563d9, 0xe8670f];
+
 /** Coloured glow under a car showing its team. */
 export function teamGlow(def, team) {
   const c = document.createElement('canvas');
@@ -513,6 +516,8 @@ export function setTeamGlow(model, def, team) {
   if (old && old.userData.team === team) return;
   if (old) model.root.remove(old);
   model.teamGlow = null;
+  // The body takes the team colour too (back to its own paint off the pitch).
+  model.paintMat?.color.setHex(team == null ? def.color : TEAM_PAINT[team]);
   if (team == null) return;
   const glow = teamGlow(def, team);
   glow.userData.team = team;
