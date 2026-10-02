@@ -8605,13 +8605,50 @@ function announceCar(def) {
   if (net.online && def.custom) net.sendEvent({ type: 'cardef', car: def.design });
 }
 
-// The workshop preview: the design being edited, on a turntable behind the menu.
-const SHOWROOM = { x: 0, z: -80 };
+// The workshop preview: the design being edited, on a turntable in a
+// showroom of its own (a separate scene, so no map scenery, parked cars or
+// stadium stands can get between the camera and the car).
+const SHOWROOM = { x: 0, z: 0 };
 let preview = null; // { model, def }
 let previewSpin = 0;
+let showroom = null;
+
+function buildShowroom() {
+  const room = new THREE.Scene();
+  room.background = new THREE.Color(0x1b1f27);
+  room.fog = new THREE.Fog(0x1b1f27, 18, 45);
+  room.add(new THREE.HemisphereLight(0xe8eefc, 0x2a2622, 1.1));
+  const key = new THREE.DirectionalLight(0xfff2e0, 2.4);
+  key.position.set(-6, 10, 5);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  Object.assign(key.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: 1, far: 30 });
+  key.shadow.bias = -0.0005;
+  key.shadow.normalBias = 0.03;
+  room.add(key);
+  const rim = new THREE.DirectionalLight(0x9fc6ff, 1.2);
+  rim.position.set(6, 4, -8);
+  room.add(rim);
+  // Floor and a turntable disc with a light ring round its edge.
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(40, 64), new THREE.MeshStandardMaterial({ color: 0x23262d, roughness: 0.9 }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -0.06; // below the turntable's top, so they don't fight
+  floor.receiveShadow = true;
+  room.add(floor);
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.3, 0.06, 64), new THREE.MeshStandardMaterial({ color: 0x3a3f49, roughness: 0.7 }));
+  disc.position.y = -0.03;
+  disc.receiveShadow = true;
+  room.add(disc);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(4.25, 0.03, 8, 96), new THREE.MeshBasicMaterial({ color: 0xffd23f, toneMapped: false }));
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 0.01;
+  room.add(ring);
+  return room;
+}
+
 function showPreview(design) {
   if (preview) {
-    scene.remove(preview.model.root);
+    showroom.remove(preview.model.root);
     preview.model.dispose();
     preview = null;
   }
@@ -8621,7 +8658,8 @@ function showPreview(design) {
   }
   const def = compileCar(design, SHOWROOM, false);
   const model = new CarModel(def);
-  scene.add(model.root);
+  showroom ||= buildShowroom();
+  showroom.add(model.root);
   preview = { model, def, pose: { x: SHOWROOM.x, y: 0, z: SHOWROOM.z, heading: 0, pitch: 0, roll: 0, velX: 0, velZ: 0, vLong: 0, steer: 0, braking: 0, handbrake: false, gear: 1, boosting: false, airborne: false, accelLat: 0, accelLong: 0, frontWheelSpeed: 0, rearWheelSpeed: 0, spec: def.spec } };
   model.update(preview.pose, 0);
 }
@@ -8638,7 +8676,6 @@ function updatePreview(dt) {
   if (w > 760) camera.setViewOffset(w, h, -w * 0.2, 0, w, h);
   else camera.clearViewOffset();
   preview.model.update(preview.pose, dt);
-  world.followSun(new THREE.Vector3(SHOWROOM.x, 0, SHOWROOM.z));
 }
 
 function play(def) {
@@ -9082,7 +9119,7 @@ function frame() {
     if (pausedRedraw > 0) return;
     pausedRedraw = 0.25;
   }
-  renderer.render(scene, camera);
+  renderer.render(preview && state === 'menu' ? showroom : scene, camera);
 }
 
 /** FPS readout and dynamic resolution. */
