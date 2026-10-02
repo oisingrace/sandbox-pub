@@ -111,6 +111,35 @@
     .controls td:first-child { font-weight: 600; }
     #menu kbd { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 4px; background: rgba(255,255,255,0.14); font: 600 12px/20px ui-monospace, monospace; text-align: center; }
     .screen.wide:has(table) { overflow-x: auto; }
+    /* --- Online --- */
+    #menu button.secondary { border-color: rgba(255, 210, 63, 0.55); color: var(--hazard); font-weight: 700; }
+    #menu button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .online-intro { margin: 0 0 4px; font-size: 13px; line-height: 1.5; color: var(--hud-dim); max-width: 60ch; }
+    .field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hud-dim); }
+    .field input { font: 600 16px system-ui, sans-serif; color: var(--hud-fg); background: rgba(255,255,255,0.06); border: 1px solid var(--menu-line); border-radius: 8px; padding: 11px 12px; text-transform: none; letter-spacing: normal; min-width: 0; }
+    #join-code { font: 700 20px ui-monospace, monospace; letter-spacing: 0.3em; text-transform: uppercase; }
+    .field input:focus-visible { outline: 3px solid var(--hazard); outline-offset: 1px; }
+    .online-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 6px; }
+    .online-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--menu-line); border-radius: 12px; min-width: 0; }
+    .online-card h3 { margin: 0; font: 400 18px var(--font-display); text-transform: uppercase; letter-spacing: 0.04em; }
+    .online-card p { margin: 0; font-size: 13px; color: var(--hud-dim); }
+    .online-card .primary { margin-top: auto; }
+    .online-status { min-height: 1.4em; margin: 2px 0 0; font-size: 14px; color: var(--hud-fg); }
+    .online-status.error { color: #ff8a8a; }
+    .room-box { background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 10px; padding: 12px 14px; font-size: 13px; color: var(--hud-dim); display: flex; flex-direction: column; gap: 6px; }
+    .room-code-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .room-code-row b { font: 700 26px ui-monospace, monospace; letter-spacing: 0.25em; color: var(--hazard); user-select: text; -webkit-user-select: text; }
+    #menu .room-code-row button { padding: 8px 12px; font-size: 13px; }
+    #players { left: 16px; top: 16px; padding: 10px 12px; min-width: 170px; max-width: calc(100vw - 32px); font-size: 13px; }
+    body.touch #players { top: 84px; }
+    .players-head { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hud-dim); margin-bottom: 6px; }
+    .players-head b { color: var(--hazard, #ffd23f); font: 700 13px ui-monospace, monospace; letter-spacing: 0.15em; margin-left: 4px; }
+    #players-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+    #players-list li { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px; }
+    #players-list i { width: 10px; height: 10px; border-radius: 3px; }
+    #players-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #players-list b { font-variant-numeric: tabular-nums; color: #ffd23f; }
+    body.in-menu #players { display: none; }
     #fps { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 30; padding: 4px 10px; border-radius: 999px; background: var(--hud-bg); font: 600 12px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
     @media (max-width: 560px) {
       #menu { background: rgba(8, 10, 14, 0.7); }
@@ -171,6 +200,8 @@
     #touch-enter { left: 196px; top: 16px; }
     #t-boost { right: 140px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
   </style>
+  <!-- PeerJS: browser-to-browser multiplayer (UMD build, defines window.Peer). -->
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script type="importmap">
     { "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -215,6 +246,10 @@
   <div id="prompt"></div>
   <pre id="telemetry" class="panel hidden"></pre>
   <div id="fps" hidden></div>
+  <div id="players" class="panel" hidden>
+    <div class="players-head">Room <b id="room-code"></b></div>
+    <ol id="players-list"></ol>
+  </div>
 
   <div id="menu" hidden>
     <section class="screen" data-screen="main" aria-labelledby="logo">
@@ -235,6 +270,7 @@
       </div>
 
       <button type="button" class="primary" id="btn-play">Play</button>
+      <button type="button" class="secondary" id="btn-online">Play online with friends</button>
       <div class="btn-row">
         <button type="button" id="btn-options">Options</button>
         <button type="button" id="btn-controls">Controls</button>
@@ -247,8 +283,33 @@
       <button type="button" class="primary" id="btn-resume">Resume</button>
       <button type="button" id="btn-pause-options">Options</button>
       <button type="button" id="btn-pause-controls">Controls</button>
+      <div id="pause-room" class="room-box" hidden>
+        <div><span id="pause-role">You are hosting</span>. Room code</div>
+        <div class="room-code-row"><b id="pause-code"></b><button type="button" id="btn-copy-code">Copy</button></div>
+      </div>
       <button type="button" id="btn-rebuild">Rebuild arena</button>
+      <button type="button" id="btn-leave" hidden>Leave room</button>
       <button type="button" id="btn-quit">Main menu</button>
+    </section>
+
+    <section class="screen wide" data-screen="online" hidden aria-labelledby="online-title">
+      <h2 id="online-title" class="screen-title">Play online</h2>
+      <p class="online-intro">Up to 8 players. The game runs on everyone's own computer and players connect directly, so there's no server. Your vehicle is the one picked on the main menu.</p>
+      <label class="field"><span>Your name</span><input id="player-name" type="text" maxlength="16" autocomplete="nickname" placeholder="Driver"></label>
+      <div class="online-actions">
+        <div class="online-card">
+          <h3>Start a room</h3>
+          <p>You get a code to send to friends.</p>
+          <button type="button" class="primary" id="btn-host">Create room</button>
+        </div>
+        <div class="online-card">
+          <h3>Join a room</h3>
+          <label class="field"><span>Room code</span><input id="join-code" type="text" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCDE"></label>
+          <button type="button" id="btn-join">Join</button>
+        </div>
+      </div>
+      <p id="online-status" class="online-status" role="status" aria-live="polite"></p>
+      <button type="button" class="back" data-back>Back</button>
     </section>
 
     <section class="screen wide" data-screen="options" hidden aria-labelledby="options-title">

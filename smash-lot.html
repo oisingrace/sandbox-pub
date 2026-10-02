@@ -111,6 +111,35 @@
     .controls td:first-child { font-weight: 600; }
     #menu kbd { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 4px; background: rgba(255,255,255,0.14); font: 600 12px/20px ui-monospace, monospace; text-align: center; }
     .screen.wide:has(table) { overflow-x: auto; }
+    /* --- Online --- */
+    #menu button.secondary { border-color: rgba(255, 210, 63, 0.55); color: var(--hazard); font-weight: 700; }
+    #menu button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .online-intro { margin: 0 0 4px; font-size: 13px; line-height: 1.5; color: var(--hud-dim); max-width: 60ch; }
+    .field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hud-dim); }
+    .field input { font: 600 16px system-ui, sans-serif; color: var(--hud-fg); background: rgba(255,255,255,0.06); border: 1px solid var(--menu-line); border-radius: 8px; padding: 11px 12px; text-transform: none; letter-spacing: normal; min-width: 0; }
+    #join-code { font: 700 20px ui-monospace, monospace; letter-spacing: 0.3em; text-transform: uppercase; }
+    .field input:focus-visible { outline: 3px solid var(--hazard); outline-offset: 1px; }
+    .online-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 6px; }
+    .online-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--menu-line); border-radius: 12px; min-width: 0; }
+    .online-card h3 { margin: 0; font: 400 18px var(--font-display); text-transform: uppercase; letter-spacing: 0.04em; }
+    .online-card p { margin: 0; font-size: 13px; color: var(--hud-dim); }
+    .online-card .primary { margin-top: auto; }
+    .online-status { min-height: 1.4em; margin: 2px 0 0; font-size: 14px; color: var(--hud-fg); }
+    .online-status.error { color: #ff8a8a; }
+    .room-box { background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 10px; padding: 12px 14px; font-size: 13px; color: var(--hud-dim); display: flex; flex-direction: column; gap: 6px; }
+    .room-code-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .room-code-row b { font: 700 26px ui-monospace, monospace; letter-spacing: 0.25em; color: var(--hazard); user-select: text; -webkit-user-select: text; }
+    #menu .room-code-row button { padding: 8px 12px; font-size: 13px; }
+    #players { left: 16px; top: 16px; padding: 10px 12px; min-width: 170px; max-width: calc(100vw - 32px); font-size: 13px; }
+    body.touch #players { top: 84px; }
+    .players-head { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hud-dim); margin-bottom: 6px; }
+    .players-head b { color: var(--hazard, #ffd23f); font: 700 13px ui-monospace, monospace; letter-spacing: 0.15em; margin-left: 4px; }
+    #players-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+    #players-list li { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px; }
+    #players-list i { width: 10px; height: 10px; border-radius: 3px; }
+    #players-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #players-list b { font-variant-numeric: tabular-nums; color: #ffd23f; }
+    body.in-menu #players { display: none; }
     #fps { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 30; padding: 4px 10px; border-radius: 999px; background: var(--hud-bg); font: 600 12px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
     @media (max-width: 560px) {
       #menu { background: rgba(8, 10, 14, 0.7); }
@@ -171,6 +200,8 @@
     #touch-enter { left: 196px; top: 16px; }
     #t-boost { right: 140px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
   </style>
+  <!-- PeerJS: browser-to-browser multiplayer (UMD build, defines window.Peer). -->
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script type="importmap">
     { "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -215,6 +246,10 @@
   <div id="prompt"></div>
   <pre id="telemetry" class="panel hidden"></pre>
   <div id="fps" hidden></div>
+  <div id="players" class="panel" hidden>
+    <div class="players-head">Room <b id="room-code"></b></div>
+    <ol id="players-list"></ol>
+  </div>
 
   <div id="menu" hidden>
     <section class="screen" data-screen="main" aria-labelledby="logo">
@@ -235,6 +270,7 @@
       </div>
 
       <button type="button" class="primary" id="btn-play">Play</button>
+      <button type="button" class="secondary" id="btn-online">Play online with friends</button>
       <div class="btn-row">
         <button type="button" id="btn-options">Options</button>
         <button type="button" id="btn-controls">Controls</button>
@@ -247,8 +283,33 @@
       <button type="button" class="primary" id="btn-resume">Resume</button>
       <button type="button" id="btn-pause-options">Options</button>
       <button type="button" id="btn-pause-controls">Controls</button>
+      <div id="pause-room" class="room-box" hidden>
+        <div><span id="pause-role">You are hosting</span>. Room code</div>
+        <div class="room-code-row"><b id="pause-code"></b><button type="button" id="btn-copy-code">Copy</button></div>
+      </div>
       <button type="button" id="btn-rebuild">Rebuild arena</button>
+      <button type="button" id="btn-leave" hidden>Leave room</button>
       <button type="button" id="btn-quit">Main menu</button>
+    </section>
+
+    <section class="screen wide" data-screen="online" hidden aria-labelledby="online-title">
+      <h2 id="online-title" class="screen-title">Play online</h2>
+      <p class="online-intro">Up to 8 players. The game runs on everyone's own computer and players connect directly, so there's no server. Your vehicle is the one picked on the main menu.</p>
+      <label class="field"><span>Your name</span><input id="player-name" type="text" maxlength="16" autocomplete="nickname" placeholder="Driver"></label>
+      <div class="online-actions">
+        <div class="online-card">
+          <h3>Start a room</h3>
+          <p>You get a code to send to friends.</p>
+          <button type="button" class="primary" id="btn-host">Create room</button>
+        </div>
+        <div class="online-card">
+          <h3>Join a room</h3>
+          <label class="field"><span>Room code</span><input id="join-code" type="text" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCDE"></label>
+          <button type="button" id="btn-join">Join</button>
+        </div>
+      </div>
+      <p id="online-status" class="online-status" role="status" aria-live="polite"></p>
+      <button type="button" class="back" data-back>Back</button>
     </section>
 
     <section class="screen wide" data-screen="options" hidden aria-labelledby="options-title">
@@ -1579,6 +1640,19 @@ const _sv = new THREE.Vector3();
 const _euler = new THREE.Euler();
 const _carQ = new THREE.Quaternion();
 
+/** Bounds of a vehicle's hitbox in its own frame. */
+function hitboxBounds(def) {
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  for (const h of def.hitbox) {
+    for (let i = 0; i < 3; i++) {
+      lo[i] = Math.min(lo[i], h.at[i] - h.half[i]);
+      hi[i] = Math.max(hi[i], h.at[i] + h.half[i]);
+    }
+  }
+  return { lo, hi };
+}
+
 /** The car's full orientation: heading, plus pitch and roll on ramps and in the air. */
 function carRotation(car) {
   _euler.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
@@ -1638,6 +1712,8 @@ class Destruction {
     );
     this.terrain?.addColliders(this.world); // ramps
     this.carBody = null;
+    // Remote players' cars survive a rebuild: recreate their bodies.
+    for (const r of this.remoteCars?.values() || []) this.buildRemoteBody(r);
   }
 
   /** Kinematic stand-in for the vehicle being driven (it pushes; we read reactions). */
@@ -1708,6 +1784,34 @@ class Destruction {
     entity.alive = false;
     for (const c of entity.colliders) this.byCollider.delete(c.handle);
     this.world.removeRigidBody(entity.body);
+  }
+
+  /**
+   * Another player's car (multiplayer): a kinematic body driven by their
+   * network updates. It pushes, smashes and (for the Ember) burns things in
+   * our world just like our own car, so their destruction shows up here too.
+   */
+  addRemoteCar(key, def, proxy) {
+    this.removeRemoteCar(key);
+    const r = { def, proxy, burner: !!def.burns, bounds: hitboxBounds(def) };
+    (this.remoteCars ||= new Map()).set(key, r);
+    this.buildRemoteBody(r);
+    return r;
+  }
+
+  buildRemoteBody(r) {
+    const p = r.proxy;
+    r.body = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased()
+      .setTranslation(p.x, p.y || 0, p.z).setRotation(carRotation(p)));
+    r.colliders = r.def.hitbox.map((h) => this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4), r.body));
+  }
+
+  removeRemoteCar(key) {
+    const r = this.remoteCars?.get(key);
+    if (!r) return;
+    if (r.body && this.world.getRigidBody(r.body.handle)) this.world.removeRigidBody(r.body);
+    this.remoteCars.delete(key);
   }
 
   teleportCar(car) {
@@ -1857,6 +1961,12 @@ class Destruction {
     }
 
     if (this.burner) this.burnAround(car);
+    for (const r of this.remoteCars?.values() || []) {
+      const p = r.proxy;
+      r.body.setNextKinematicTranslation({ x: p.x, y: p.y || 0, z: p.z });
+      r.body.setNextKinematicRotation(carRotation(p));
+      if (r.burner) this.burnAround(p, r.bounds);
+    }
     this.world.step(this.eventQueue);
 
     // Reaction on the car (read before fractures remove any colliders).
@@ -1994,8 +2104,8 @@ class Destruction {
    * the distance it covers this step) burns away before the solver can
    * push it, so the car slices through instead of bulldozing.
    */
-  burnAround(car) {
-    const { lo, hi } = this.carBounds;
+  burnAround(car, bounds = this.carBounds) {
+    const { lo, hi } = bounds;
     const ahead = Math.abs(car.vLong) * STEP * 2 + 0.3;
     const dir = car.vLong >= 0 ? 1 : -1;
     const half = { x: (hi[0] - lo[0]) / 2 + 0.25, y: (hi[1] - lo[1]) / 2 + 0.2, z: (hi[2] - lo[2]) / 2 + 0.25 + ahead / 2 };
@@ -3441,6 +3551,7 @@ const OPTIONS = {
     sound: { label: 'Sound', choices: [[true, 'On'], [false, 'Off']] },
     volume: { label: 'Volume', choices: [[0.25, '25%'], [0.5, '50%'], [0.75, '75%'], [1, '100%']] },
     startVehicle: { label: 'Vehicle', choices: [] },
+    playerName: { label: 'Name', choices: [] },
   },
 };
 
@@ -3457,6 +3568,7 @@ const DEFAULTS = {
   sound: true,
   volume: 0.75,
   startVehicle: 'sports',
+  playerName: '',
 };
 
 /** A sensible first-run preset from what the device reports. */
@@ -3545,12 +3657,60 @@ class Menu {
     on('btn-pause-controls', () => this.show('controls', 'pause'));
     on('btn-rebuild', () => opts.onRebuild());
     on('btn-quit', () => opts.onQuit());
+    on('btn-online', () => this.show('online', 'main'));
+    on('btn-host', () => opts.onHost(this.playerName()));
+    on('btn-join', () => opts.onJoin(document.getElementById('join-code').value, this.playerName()));
+    document.getElementById('join-code').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') opts.onJoin(e.target.value, this.playerName());
+    });
+    on('btn-leave', () => opts.onLeave());
+    on('btn-copy-code', () => this.copyCode());
     on('btn-prev-vehicle', () => this.pickVehicle(-1));
     on('btn-next-vehicle', () => this.pickVehicle(1));
     for (const el of this.root.querySelectorAll('[data-back]')) el.addEventListener('click', () => this.back());
 
     this.renderVehicle();
     this.renderTabs();
+    document.getElementById('player-name').value = opts.getSettings().playerName || '';
+  }
+
+  /** The name typed on the online screen (or a generated one). */
+  playerName() {
+    const input = document.getElementById('player-name');
+    let name = input.value.trim().slice(0, 16);
+    if (!name) {
+      name = `Driver ${Math.floor(10 + Math.random() * 90)}`;
+      input.value = name;
+    }
+    return name;
+  }
+
+  setOnlineStatus(message, isError = false) {
+    const el = document.getElementById('online-status');
+    el.textContent = message;
+    el.classList.toggle('error', isError);
+  }
+
+  /** Show room details in the pause menu while online. */
+  setOnline(online, code, isHost) {
+    document.getElementById('pause-room').hidden = !online;
+    document.getElementById('btn-leave').hidden = !online;
+    document.getElementById('pause-code').textContent = code || '';
+    document.getElementById('pause-role').textContent = isHost ? 'You are hosting' : 'Joined';
+    document.getElementById('btn-rebuild').disabled = online && !isHost;
+  }
+
+  copyCode() {
+    const code = this.opts.onCopyCode();
+    const btn = document.getElementById('btn-copy-code');
+    const done = () => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy'; }, 1500); };
+    navigator.clipboard?.writeText(code).then(done, () => {
+      // Clipboard blocked: select the code so it can be copied by hand.
+      const range = document.createRange();
+      range.selectNodeContents(document.getElementById('pause-code'));
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    });
   }
 
   get vehicle() {
@@ -4190,6 +4350,447 @@ function arenaRamps(terrain) {
   terrain.addRamp({ x: -64, z: 66, heading: Math.atan2(-15, -62), length: 16, width: 7, height: 4.5, profile: 'kicker' });
 }
 
+// ===== net.js =====
+// Peer-to-peer multiplayer over WebRTC (PeerJS). No game server: the
+// player who creates a room is the host, everyone else connects straight
+// to the host's browser, and the host relays messages between players.
+// PeerJS's free public broker is only used to introduce browsers to each
+// other when someone joins.
+//
+// Messages are small JSON objects:
+//   hello   { name, vehicle }            client -> host on connect
+//   welcome { id, players }              host -> client
+//   joined  { id, name, vehicle }        host -> everyone
+//   left    { id }                       host -> everyone
+//   state   { id, s }                    car state, ~20 per second
+//   event   { id, e }                    one-off events (arena rebuild, ...)
+
+const PREFIX = 'smashlot-';
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O
+
+function randomCode() {
+  let s = '';
+  for (let i = 0; i < 5; i++) s += CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0];
+  return s;
+}
+
+/** PeerJS options. `?peerhost=host:port` points at a self-hosted broker (for testing). */
+function peerOptions() {
+  const custom = new URLSearchParams(location.search).get('peerhost');
+  if (!custom) return { debug: 0 };
+  const [host, port] = custom.split(':');
+  return { host, port: Number(port) || 9000, path: '/', secure: false, debug: 0, config: { iceServers: [] } };
+}
+
+class Net {
+  constructor() {
+    this.peer = null;
+    this.isHost = false;
+    this.code = null;
+    this.id = null;
+    this.conns = new Map(); // host: peerId -> connection; client: 'host' -> connection
+    this.players = new Map(); // id -> { name, vehicle }
+    this.handlers = {};
+  }
+
+  get online() {
+    return !!this.peer && !!this.id;
+  }
+
+  on(event, fn) {
+    (this.handlers[event] ||= []).push(fn);
+  }
+
+  emit(event, ...args) {
+    for (const fn of this.handlers[event] || []) fn(...args);
+  }
+
+  /** Create a room. Resolves with the room code. */
+  host(name, vehicle) {
+    if (!window.Peer) return Promise.reject(new Error('Multiplayer library failed to load.'));
+    return new Promise((resolve, reject) => {
+      const attempt = (tries) => {
+        const code = randomCode();
+        const peer = new window.Peer(PREFIX + code, peerOptions());
+        peer.on('open', () => {
+          this.peer = peer;
+          this.isHost = true;
+          this.code = code;
+          this.id = 'host';
+          this.players.set('host', { name, vehicle });
+          peer.on('connection', (conn) => this.acceptClient(conn));
+          resolve(code);
+        });
+        peer.on('error', (err) => {
+          if (err.type === 'unavailable-id' && tries < 5) {
+            peer.destroy();
+            attempt(tries + 1);
+          } else if (!this.peer) {
+            peer.destroy();
+            reject(friendlyError(err));
+          } else {
+            this.emit('error', friendlyError(err));
+          }
+        });
+        peer.on('disconnected', () => peer.reconnect?.());
+      };
+      attempt(0);
+    });
+  }
+
+  /** Host side: a new player connected. */
+  acceptClient(conn) {
+    conn.on('data', (msg) => {
+      if (msg.t === 'hello') {
+        const id = conn.peer;
+        this.conns.set(id, conn);
+        const players = Object.fromEntries(this.players);
+        this.players.set(id, { name: msg.name, vehicle: msg.vehicle });
+        conn.send({ t: 'welcome', id, players });
+        this.relay({ t: 'joined', id, name: msg.name, vehicle: msg.vehicle }, id);
+        this.emit('joined', id, msg.name, msg.vehicle);
+      } else if (msg.t === 'state' || msg.t === 'event') {
+        msg.id = conn.peer; // trust the connection, not the message
+        this.relay(msg, conn.peer);
+        this.dispatch(msg);
+      }
+    });
+    const drop = () => {
+      if (!this.conns.has(conn.peer)) return;
+      this.conns.delete(conn.peer);
+      this.players.delete(conn.peer);
+      this.relay({ t: 'left', id: conn.peer });
+      this.emit('left', conn.peer);
+    };
+    conn.on('close', drop);
+    conn.on('error', drop);
+  }
+
+  /** Join a room by code. Resolves once the host has welcomed us. */
+  join(code, name, vehicle) {
+    if (!window.Peer) return Promise.reject(new Error('Multiplayer library failed to load.'));
+    code = code.trim().toUpperCase();
+    return new Promise((resolve, reject) => {
+      const peer = new window.Peer(undefined, peerOptions());
+      let settled = false;
+      const fail = (err) => {
+        if (settled) return;
+        settled = true;
+        peer.destroy();
+        reject(err);
+      };
+      const timer = setTimeout(() => fail(new Error('Could not reach that room. Check the code and try again.')), 15000);
+      peer.on('error', (err) => {
+        if (!settled) { clearTimeout(timer); fail(friendlyError(err)); } else this.emit('error', friendlyError(err));
+      });
+      peer.on('open', () => {
+        const conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'json' });
+        conn.on('open', () => conn.send({ t: 'hello', name, vehicle }));
+        conn.on('data', (msg) => {
+          if (msg.t === 'welcome' && !settled) {
+            settled = true;
+            clearTimeout(timer);
+            this.peer = peer;
+            this.isHost = false;
+            this.code = code;
+            this.id = msg.id;
+            this.conns.set('host', conn);
+            this.players = new Map(Object.entries(msg.players));
+            this.players.set(msg.id, { name, vehicle });
+            resolve(code);
+            for (const [id, p] of Object.entries(msg.players)) this.emit('joined', id, p.name, p.vehicle);
+            return;
+          }
+          if (msg.t === 'joined') {
+            this.players.set(msg.id, { name: msg.name, vehicle: msg.vehicle });
+            this.emit('joined', msg.id, msg.name, msg.vehicle);
+          } else if (msg.t === 'left') {
+            this.players.delete(msg.id);
+            this.emit('left', msg.id);
+          } else {
+            this.dispatch(msg);
+          }
+        });
+        conn.on('close', () => {
+          if (!settled) return;
+          this.emit('hostLeft');
+          this.leave();
+        });
+      });
+    });
+  }
+
+  dispatch(msg) {
+    if (msg.t === 'state') this.emit('state', msg.id, msg.s);
+    else if (msg.t === 'event') this.emit('event', msg.id, msg.e);
+  }
+
+  /** Host: send to every client except `except`. */
+  relay(msg, except) {
+    for (const [id, conn] of this.conns) if (id !== except && conn.open) conn.send(msg);
+  }
+
+  /** Send our car state (host broadcasts it; clients send it to the host). */
+  sendState(s) {
+    const msg = { t: 'state', id: this.id, s };
+    if (this.isHost) this.relay(msg);
+    else this.conns.get('host')?.open && this.conns.get('host').send(msg);
+  }
+
+  sendEvent(e) {
+    const msg = { t: 'event', id: this.id, e };
+    if (this.isHost) this.relay(msg);
+    else this.conns.get('host')?.open && this.conns.get('host').send(msg);
+  }
+
+  leave() {
+    for (const conn of this.conns.values()) conn.close();
+    this.conns.clear();
+    this.players.clear();
+    this.peer?.destroy();
+    this.peer = null;
+    this.id = null;
+    this.code = null;
+    this.isHost = false;
+  }
+}
+
+function friendlyError(err) {
+  const messages = {
+    'peer-unavailable': 'No room with that code. Check it and try again.',
+    network: 'Could not reach the multiplayer service. Check your connection.',
+    'server-error': 'The multiplayer service is having trouble. Try again in a moment.',
+    'socket-error': 'Could not reach the multiplayer service. Check your connection.',
+    'browser-incompatible': 'This browser does not support multiplayer.',
+  };
+  return new Error(messages[err?.type] || err?.message || 'Something went wrong with multiplayer.');
+}
+
+// ===== multiplayer.js =====
+// Other players' cars. Each one is drawn from network snapshots, smoothed by
+// rendering slightly in the past (INTERP_DELAY) and interpolating between
+// the two snapshots around that moment. Each also has a kinematic body in
+// our own physics world, so their crashes, burns and explosions happen on
+// our screen too. Debris is simulated locally on every computer, so it can
+// land a little differently for each player.
+
+const SEND_INTERVAL = 1 / 20;
+const INTERP_DELAY = 0.1;   // seconds behind real time we draw remote cars
+const MAX_EXTRAPOLATE = 0.25;
+
+/** Start positions in multiplayer: a row along the start line. */
+const SPAWN_SLOTS = [0, -7, 7, -14, 14, -21, 21, -28].map((x) => ({ x, z: -52, heading: 0 }));
+
+const round = (v) => Math.round(v * 100) / 100;
+const wrapMp = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
+class Multiplayer {
+  constructor({ scene, destruction, vehicles }) {
+    this.scene = scene;
+    this.destruction = destruction;
+    this.vehicles = vehicles;
+    this.remotes = new Map();
+    this.sendTimer = 0;
+    this.clock = 0;
+  }
+
+  get count() {
+    return this.remotes.size;
+  }
+
+  addPlayer(id, name, vehicleId) {
+    this.removePlayer(id);
+    const def = this.vehicles.find((v) => v.id === vehicleId) || this.vehicles[0];
+    const model = new CarModel(def);
+    model.root.visible = false;
+    const proxy = makeProxy(def);
+    const tag = nameTag(name, def);
+    const top = Math.max(...def.hitbox.map((h) => h.at[1] + h.half[1]));
+    tag.position.set(0, top + 1.1, 0);
+    model.root.add(tag);
+    this.scene.add(model.root);
+    this.destruction.addRemoteCar(id, def, proxy);
+    const remote = { id, name, def, model, proxy, snaps: [], smashed: 0, seen: false };
+    this.remotes.set(id, remote);
+    return remote;
+  }
+
+  removePlayer(id) {
+    const r = this.remotes.get(id);
+    if (!r) return;
+    this.scene.remove(r.model.root);
+    this.destruction.removeRemoteCar(id);
+    this.remotes.delete(id);
+  }
+
+  clear() {
+    for (const id of [...this.remotes.keys()]) this.removePlayer(id);
+  }
+
+  /** A state snapshot arrived from another player. */
+  onState(id, s) {
+    let r = this.remotes.get(id);
+    if (!r) return;
+    if (s.v && s.v !== r.def.id) r = this.addPlayer(id, r.name, s.v); // they changed vehicle
+    r.snaps.push({ t: this.clock, ...s });
+    if (r.snaps.length > 30) r.snaps.splice(0, r.snaps.length - 30);
+    r.smashed = s.sm || 0;
+  }
+
+  /** Move remote cars to where they were INTERP_DELAY ago. */
+  update(dt) {
+    this.clock += dt;
+    const rt = this.clock - INTERP_DELAY;
+    for (const r of this.remotes.values()) {
+      const snaps = r.snaps;
+      if (!snaps.length) continue;
+      let a = snaps[0];
+      let b = null;
+      for (let i = snaps.length - 1; i >= 0; i--) {
+        if (snaps[i].t <= rt) { a = snaps[i]; b = snaps[i + 1] || null; break; }
+      }
+      const p = r.proxy;
+      if (b) {
+        const k = (rt - a.t) / Math.max(1e-6, b.t - a.t);
+        p.x = a.x + (b.x - a.x) * k;
+        p.y = a.y + (b.y - a.y) * k;
+        p.z = a.z + (b.z - a.z) * k;
+        p.heading = a.h + wrapMp(b.h - a.h) * k;
+        p.pitch = a.p + (b.p - a.p) * k;
+        p.roll = a.r + (b.r - a.r) * k;
+      } else {
+        // Ran out of snapshots: carry on along the last known velocity briefly.
+        const ahead = Math.min(MAX_EXTRAPOLATE, Math.max(0, rt - a.t));
+        p.x = a.x + a.vx * ahead;
+        p.y = Math.max(0, a.y + a.vy * ahead);
+        p.z = a.z + a.vz * ahead;
+        p.heading = a.h;
+        p.pitch = a.p;
+        p.roll = a.r;
+      }
+      const latest = snaps[snaps.length - 1];
+      p.velX = latest.vx;
+      p.velZ = latest.vz;
+      p.vLong = latest.vl;
+      p.steer = latest.st;
+      p.boosting = !!latest.b;
+      p.airborne = !!latest.a;
+      p.braking = latest.br ? 1 : 0;
+      p.handbrake = !!latest.hb;
+      p.gear = latest.g;
+      p.frontWheelSpeed = p.rearWheelSpeed = latest.vl;
+      if (!r.seen) {
+        // First sighting: place the body directly instead of sweeping it
+        // across the map from wherever it started.
+        const body = this.destruction.remoteCars?.get(r.id)?.body;
+        body?.setTranslation({ x: p.x, y: p.y, z: p.z }, true);
+        r.model.root.visible = true;
+        r.seen = true;
+      }
+      r.model.update(p, dt);
+    }
+  }
+
+  /** Send our own car's state, throttled to SEND_INTERVAL. */
+  send(net, car, vehicleId, smashed, dt) {
+    this.sendTimer -= dt;
+    if (this.sendTimer > 0) return;
+    this.sendTimer = SEND_INTERVAL;
+    net.sendState({
+      v: vehicleId,
+      x: round(car.x), y: round(car.y || 0), z: round(car.z),
+      h: round(car.heading), p: round(car.pitch || 0), r: round(car.roll || 0),
+      vx: round(car.velX), vy: round(car.velY || 0), vz: round(car.velZ), vl: round(car.vLong),
+      st: round(car.steer), b: car.boosting ? 1 : 0, a: car.airborne ? 1 : 0,
+      br: car.braking > 0.05 ? 1 : 0, hb: car.handbrake ? 1 : 0, g: car.gear, sm: smashed,
+    });
+  }
+
+  /**
+   * Car-to-car contact. Each car is approximated by two circles along its
+   * length. Each player resolves only their own car's bounce, which is
+   * symmetric enough to feel right on both screens. Returns the hit speed.
+   */
+  bump(car, def) {
+    let hardest = 0;
+    const mine = circles(car, def);
+    for (const r of this.remotes.values()) {
+      if (!r.seen || Math.abs((r.proxy.y || 0) - (car.y || 0)) > 1.6) continue;
+      const theirs = circles(r.proxy, r.def);
+      for (const a of mine) {
+        for (const b of theirs) {
+          const dx = a.x - b.x;
+          const dz = a.z - b.z;
+          const d = Math.hypot(dx, dz);
+          const overlap = a.r + b.r - d;
+          if (overlap <= 0 || d < 1e-4) continue;
+          const nx = dx / d;
+          const nz = dz / d;
+          // Push ourselves out of their car.
+          car.x += nx * overlap * 0.6;
+          car.z += nz * overlap * 0.6;
+          const rel = (car.velX - r.proxy.velX) * nx + (car.velZ - r.proxy.velZ) * nz;
+          if (rel < 0) {
+            const m1 = car.spec.mass;
+            const m2 = r.def.spec.mass;
+            const dv = (-(1 + 0.3) * rel * m2) / (m1 + m2);
+            car.velX += nx * dv;
+            car.velZ += nz * dv;
+            car.yawRate += (Math.random() - 0.5) * Math.min(2, -rel * 0.08);
+            hardest = Math.max(hardest, -rel);
+          }
+        }
+      }
+    }
+    return hardest;
+  }
+}
+
+function makeProxy(def) {
+  return {
+    x: 0, y: -50, z: 0, heading: 0, pitch: 0, roll: 0,
+    velX: 0, velZ: 0, vLong: 0, steer: 0, braking: 0, handbrake: false, gear: 1,
+    boosting: false, airborne: false, landed: null, accelLat: 0, accelLong: 0,
+    frontWheelSpeed: 0, rearWheelSpeed: 0, spec: def.spec,
+  };
+}
+
+function circles(car, def) {
+  const r = def.width / 2;
+  const off = Math.max(0, def.length / 2 - r);
+  const sx = Math.sin(car.heading);
+  const cz = Math.cos(car.heading);
+  const mid = (def.spec.cgToFront - def.spec.cgToRear) / 2;
+  return [-off, off].map((o) => ({ x: car.x + sx * (mid + o), z: car.z + cz * (mid + o), r }));
+}
+
+/** Floating name label above a remote car. */
+function nameTag(name, def) {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 64;
+  const g = c.getContext('2d');
+  g.font = '600 30px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  const w = Math.min(240, g.measureText(name).width + 40);
+  g.fillStyle = 'rgba(12, 14, 18, 0.7)';
+  g.beginPath();
+  g.roundRect((256 - w) / 2, 8, w, 48, 24);
+  g.fill();
+  g.fillStyle = `#${def.color.toString(16).padStart(6, '0')}`;
+  g.beginPath();
+  g.arc((256 - w) / 2 + 22, 32, 7, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#f4f5f7';
+  g.textBaseline = 'middle';
+  g.fillText(name, (256 - w) / 2 + 36, 33, w - 46);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  sprite.scale.set(3.2, 0.8, 1);
+  sprite.renderOrder = 10;
+  return sprite;
+}
+
 // ===== main.js =====
 const PHYSICS_DT = 1 / 120;
 // At most this many car steps per frame (2 debris-world steps). A slow
@@ -4270,28 +4871,48 @@ const audio = new CarAudio();
 
 let smashed = 0;
 let shake = 0;
+// Multiplayer (peer-to-peer; see net.js and multiplayer.js).
+const net = new Net();
+const mp = new Multiplayer({ scene, destruction, vehicles: VEHICLES });
+let slot = 0; // our start position in a room
 let state = 'menu'; // 'menu' | 'playing' | 'paused'
 let arenaDirty = false; // has the arena been played in since it was built?
 
+/**
+ * Online, everyone's cars break things on every screen; only count (and
+ * reward boost for) the ones our own car was closest to.
+ */
+function creditedToMe(pos) {
+  if (!net.online) return true;
+  const mine = Math.hypot(pos.x - car.x, pos.z - car.z);
+  for (const r of mp.remotes.values()) {
+    if (r.seen && Math.hypot(pos.x - r.proxy.x, pos.z - r.proxy.z) < mine) return false;
+  }
+  return true;
+}
+
 destruction.on('fracture', (pos, kind) => {
-  smashed++;
+  const mine = creditedToMe(pos);
+  if (mine) smashed++;
   const base = settings.effects === 'high' ? 2 + Math.round(kind.mass / 60) : 1;
   const n = Math.min(6, base);
   for (let i = 0; i < n; i++) dust.emit(pos, { x: 0, z: 0 }, 0.6 + Math.random() * 0.4, pos.y);
   audio.impact(kind.material, 1, pos);
-  car.boost = Math.min(1, car.boost + 0.015); // smashing refills boost
+  if (mine) car.boost = Math.min(1, car.boost + 0.015); // smashing refills boost
 });
 destruction.on('burn', (info) => {
-  smashed++;
+  const mine = creditedToMe(info.pos);
+  if (mine) smashed++;
   burnFx.ignite(info);
   const puffs = settings.effects === 'high' ? 3 : 1;
   for (let i = 0; i < puffs; i++) soot.emit(info.pos, { x: 0, z: 0 }, 0.8, info.pos.y + 0.5);
   audio.burn(Math.min(1, 0.4 + info.kind.mass / 300), info.pos);
-  car.boost = Math.min(1, car.boost + 0.012);
+  if (mine) car.boost = Math.min(1, car.boost + 0.012);
 });
 destruction.on('impact', (material, strength, pos) => audio.impact(material, strength, pos));
 destruction.on('explode', (pos, distance) => {
-  smashed++;
+  const mine = creditedToMe(pos);
+  if (mine) smashed++;
   burnFx.fireball(pos);
   const puffs = settings.effects === 'high' ? 8 : 3;
   for (let i = 0; i < puffs; i++) {
@@ -4300,7 +4921,7 @@ destruction.on('explode', (pos, distance) => {
   }
   audio.explosion(pos, distance);
   shake = Math.min(1, shake + Math.max(0, 1 - distance / 35));
-  car.boost = Math.min(1, car.boost + 0.05);
+  if (mine) car.boost = Math.min(1, car.boost + 0.05);
 });
 
 // --- Settings ----------------------------------------------------------
@@ -4348,12 +4969,14 @@ function buildArena() {
   destruction.createWorld();
   destruction.createCar(active.def);
   populateArena(destruction);
-  for (const v of fleet) v.parked = v === active ? null : destruction.spawnVehicle(v.def, v.def.home);
+  // Parked vehicles to swap into (solo only: they can't be kept in sync online).
+  for (const v of fleet) v.parked = v === active || net.online ? null : destruction.spawnVehicle(v.def, v.def.home);
+  for (const v of fleet) v.model.root.visible = v === active || !!v.parked;
   arenaDirty = false;
 }
 
 function resetCar() {
-  const { home } = active.def;
+  const home = net.online ? SPAWN_SLOTS[slot % SPAWN_SLOTS.length] : active.def.home;
   car.reset(home.x, home.z, home.heading);
   destruction.teleportCar(car);
   skids.clear();
@@ -4436,8 +5059,12 @@ const menu = new Menu({
   onSetting: setSetting,
   onPlay: (def) => play(def),
   onResume: () => resume(),
-  onRebuild: () => { resetAll(); resume(); toast('Arena rebuilt'); },
-  onQuit: () => openMainMenu(),
+  onRebuild: () => { if (rebuildArena()) resume(); },
+  onQuit: () => { leaveRoom(); openMainMenu(); },
+  onHost: (name) => hostRoom(name),
+  onJoin: (code, name) => joinRoom(code, name),
+  onLeave: () => { leaveRoom(); toast('You left the room'); resume(); },
+  onCopyCode: () => net.code,
 });
 
 function play(def) {
@@ -4458,6 +5085,125 @@ function play(def) {
   state = 'playing';
   clock.getDelta();
   accumulator = 0;
+}
+
+/** Rebuild the arena; online, only the host can, and it rebuilds for everyone. */
+function rebuildArena() {
+  if (net.online && !net.isHost) {
+    toast('Only the host can rebuild the arena');
+    return false;
+  }
+  resetAll();
+  arenaDirty = true;
+  if (net.online) net.sendEvent({ type: 'rebuild' });
+  toast('Arena rebuilt');
+  return true;
+}
+
+// --- Online play -------------------------------------------------------------
+net.on('joined', (id, name, vehicle) => {
+  if (id === net.id) return;
+  mp.addPlayer(id, name, vehicle);
+  toast(`${name} joined`);
+  // Give everyone the same fresh arena when someone new arrives.
+  if (net.isHost) {
+    resetAll();
+    arenaDirty = true;
+    net.sendEvent({ type: 'rebuild' });
+  }
+  refreshPlayers();
+});
+net.on('left', (id) => {
+  const p = mp.remotes.get(id);
+  mp.removePlayer(id);
+  if (p) toast(`${p.name} left`);
+  refreshPlayers();
+});
+net.on('state', (id, s) => mp.onState(id, s));
+net.on('event', (id, e) => {
+  if (e.type === 'rebuild' && id === 'host') {
+    resetAll();
+    arenaDirty = true;
+    toast('The host rebuilt the arena');
+  }
+});
+net.on('hostLeft', () => {
+  mp.clear();
+  toast('The host left. You are playing solo now.');
+  resetAll();
+  updateOnlineUi();
+});
+
+async function hostRoom(name) {
+  setSetting('playerName', name);
+  menu.setOnlineStatus('Creating a room…');
+  try {
+    await net.host(name, menu.vehicle.id);
+    slot = 0;
+    startOnline();
+  } catch (err) {
+    menu.setOnlineStatus(err.message, true);
+  }
+}
+
+async function joinRoom(code, name) {
+  if (!code.trim()) {
+    menu.setOnlineStatus('Type the room code your friend gave you.', true);
+    return;
+  }
+  setSetting('playerName', name);
+  menu.setOnlineStatus('Joining…');
+  try {
+    await net.join(code, name, menu.vehicle.id);
+    slot = Math.max(1, net.players.size - 1);
+    startOnline();
+  } catch (err) {
+    menu.setOnlineStatus(err.message, true);
+  }
+}
+
+function startOnline() {
+  menu.setOnlineStatus('');
+  arenaDirty = true; // start from a fresh arena
+  play(menu.vehicle);
+  updateOnlineUi();
+  toast(net.isHost ? `Room ${net.code} created: share the code` : `Joined room ${net.code}`);
+}
+
+function leaveRoom() {
+  if (!net.online) return;
+  net.leave();
+  mp.clear();
+  updateOnlineUi();
+}
+
+function updateOnlineUi() {
+  document.body.classList.toggle('online', net.online);
+  $('room-code').textContent = net.code || '';
+  menu.setOnline(net.online, net.code, net.isHost);
+  refreshPlayers();
+}
+
+let playersTimer = 0;
+function refreshPlayers() {
+  const list = $('players');
+  if (!net.online) { list.hidden = true; return; }
+  list.hidden = false;
+  const rows = [{ name: `${settings.playerName || 'You'} (you)`, color: active.def.color, smashed }];
+  for (const r of mp.remotes.values()) rows.push({ name: r.name, color: r.def.color, smashed: r.smashed });
+  rows.sort((a, b) => b.smashed - a.smashed);
+  const ul = $('players-list');
+  ul.replaceChildren(...rows.map((r) => {
+    const li = document.createElement('li');
+    const dot = document.createElement('i');
+    dot.style.background = `#${r.color.toString(16).padStart(6, '0')}`;
+    const name = document.createElement('span');
+    name.textContent = r.name;
+    const score = document.createElement('b');
+    score.textContent = r.smashed;
+    li.append(dot, name, score);
+    return li;
+  }));
 }
 
 function pause() {
@@ -4492,7 +5238,7 @@ input.onPress('Escape', () => {
 });
 input.onPress('KeyP', () => { if (state === 'playing') pause(); else if (state === 'paused' && menu.current === 'pause') resume(); });
 input.onPress('KeyR', playing(() => { resetCar(); toast('Car reset'); }));
-input.onPress('KeyB', playing(() => { resetAll(); arenaDirty = true; toast('Arena rebuilt'); }));
+input.onPress('KeyB', playing(() => rebuildArena()));
 input.onPress('KeyC', playing(() => { chase.cycle(); refreshBadges(); toast(`Camera: ${chase.modeName}`); }));
 input.onPress('KeyE', playing(enterNearby));
 input.onPress('KeyT', playing(() => {
@@ -4563,11 +5309,15 @@ function frame() {
   trackPerformance(raw);
   const controls = input.read(dt); // polled every frame so the gamepad can pause/resume
 
-  if (state === 'playing') {
+  // Online, the world keeps running behind the pause menu (others are still
+  // driving); our own car just gets no input.
+  const simulate = state === 'playing' || (state === 'paused' && net.online);
+  if (simulate) {
+    const inputNow = state === 'playing' ? controls : { steer: 0, throttle: 0, brake: 0, handbrake: true, boost: false };
     accumulator += dt;
     let steps = 0;
     while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
-      car.step(PHYSICS_DT, controls);
+      car.step(PHYSICS_DT, inputNow);
       containCar();
       if (car.landed) onLanding(car.landed);
       if (car.blocked > 3) {
@@ -4584,6 +5334,17 @@ function frame() {
       steps++;
     }
     if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
+    if (net.online) {
+      mp.update(dt);
+      const hit = mp.bump(car, active.def);
+      if (hit > 2) {
+        shake = Math.min(1, shake + hit * 0.04);
+        audio.impact('crash', Math.min(1, hit / 15));
+      }
+      mp.send(net, car, active.def.id, smashed, dt);
+      playersTimer -= dt;
+      if (playersTimer <= 0) { playersTimer = 0.5; refreshPlayers(); }
+    }
     updateScene(dt);
   } else if (state === 'menu') {
     // Slow orbit over the arena behind the main menu.
@@ -4597,7 +5358,7 @@ function frame() {
   }
   // Paused: redraw the frozen frame only a few times a second (enough to
   // show settings changes behind the menu) to save battery.
-  if (state === 'paused') {
+  if (state === 'paused' && !net.online) {
     pausedRedraw -= raw;
     if (pausedRedraw > 0) return;
     pausedRedraw = 0.25;
@@ -4764,7 +5525,7 @@ applySettings();
 openMainMenu();
 
 window.game = {
-  get car() { return car; }, get active() { return active; }, get state() { return state; },
+  get car() { return car; }, get active() { return active; }, get state() { return state; }, net, mp,
   get renderer() { return renderer; }, get settings() { return settings; },
   fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu,
 };

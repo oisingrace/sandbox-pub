@@ -32,6 +32,7 @@ export const OPTIONS = {
     sound: { label: 'Sound', choices: [[true, 'On'], [false, 'Off']] },
     volume: { label: 'Volume', choices: [[0.25, '25%'], [0.5, '50%'], [0.75, '75%'], [1, '100%']] },
     startVehicle: { label: 'Vehicle', choices: [] },
+    playerName: { label: 'Name', choices: [] },
   },
 };
 
@@ -48,6 +49,7 @@ export const DEFAULTS = {
   sound: true,
   volume: 0.75,
   startVehicle: 'sports',
+  playerName: '',
 };
 
 /** A sensible first-run preset from what the device reports. */

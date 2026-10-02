@@ -39,6 +39,30 @@ Everything is synthesised with Web Audio; there are no sound files (`src/audio.j
   explosions briefly duck the engine.
 - **Menus:** button clicks, and a volume setting in Options → Game.
 
+## Multiplayer (peer-to-peer, no server)
+
+Choose **Play online with friends** on the main menu. One player creates a room and gets a 5-letter
+code; friends type it in to join (up to 8 players). The game runs on everyone's own computer.
+
+- Browsers connect directly to the host over WebRTC using PeerJS. PeerJS's free public broker only
+  introduces players when someone joins; there's no game server to host or pay for.
+- Each player sends their car's state 20 times a second (`src/net.js`). Other players' cars are drawn
+  100 ms behind and smoothed between updates (`src/multiplayer.js`).
+- Each remote car is also a solid body in your own physics world, so their crashes, burns and
+  explosions happen on your screen too. Debris is simulated separately on every computer, so it can
+  land a little differently for each player.
+- Car-to-car bumps are resolved by each player for their own car. Smashes count for whichever car was
+  closest, and are shown in the room's player list.
+- Only the host can rebuild the arena, and doing so rebuilds it for everyone. A new player joining
+  also gives everyone a fresh arena. Online there are no parked vehicles to swap into; pick your car
+  on the main menu.
+- Some strict networks (some schools, offices and mobile carriers) block direct browser-to-browser
+  connections. Getting those players connected would need a paid relay (TURN) server.
+- Multiplayer doesn't work inside the claude.ai artifact viewer, which blocks WebRTC. Use the
+  downloaded file or a normal web host.
+- For local testing, run a PeerJS server (`npx peerjs --port 9000 --host 127.0.0.1`) and open the game
+  with `?peerhost=127.0.0.1:9000`.
+
 ## Menus and options
 
 The game opens on a main menu: pick a vehicle, then Play. Esc (or P, or Start on a gamepad) pauses,
@@ -166,6 +190,8 @@ All of it is in `src/destruction.js`.
 - `src/destruction.js`: rigid-body world, fracturing, and instanced rendering
 - `src/effects.js`: skid marks and tire smoke
 - `src/burn.js`: the Ember GT's voxel burn effect
+- `src/net.js`: peer-to-peer rooms (PeerJS), with the host relaying messages
+- `src/multiplayer.js`: other players' cars, smoothing, name tags, bumping
 - `src/terrain.js`: ramps, the height lookup the car drives on, and their meshes and colliders
 - `src/input.js`: keyboard, gamepad and touch input
 - `src/audio.js`: synthesized engine, tire squeal, and per-material impact sounds

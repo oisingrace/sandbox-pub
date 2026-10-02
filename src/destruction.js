@@ -274,6 +274,19 @@ const _sv = new THREE.Vector3();
 const _euler = new THREE.Euler();
 const _carQ = new THREE.Quaternion();
 
+/** Bounds of a vehicle's hitbox in its own frame. */
+function hitboxBounds(def) {
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  for (const h of def.hitbox) {
+    for (let i = 0; i < 3; i++) {
+      lo[i] = Math.min(lo[i], h.at[i] - h.half[i]);
+      hi[i] = Math.max(hi[i], h.at[i] + h.half[i]);
+    }
+  }
+  return { lo, hi };
+}
+
 /** The car's full orientation: heading, plus pitch and roll on ramps and in the air. */
 function carRotation(car) {
   _euler.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
@@ -333,6 +346,8 @@ export class Destruction {
     );
     this.terrain?.addColliders(this.world); // ramps
     this.carBody = null;
+    // Remote players' cars survive a rebuild: recreate their bodies.
+    for (const r of this.remoteCars?.values() || []) this.buildRemoteBody(r);
   }
 
   /** Kinematic stand-in for the vehicle being driven (it pushes; we read reactions). */
@@ -403,6 +418,34 @@ export class Destruction {
     entity.alive = false;
     for (const c of entity.colliders) this.byCollider.delete(c.handle);
     this.world.removeRigidBody(entity.body);
+  }
+
+  /**
+   * Another player's car (multiplayer): a kinematic body driven by their
+   * network updates. It pushes, smashes and (for the Ember) burns things in
+   * our world just like our own car, so their destruction shows up here too.
+   */
+  addRemoteCar(key, def, proxy) {
+    this.removeRemoteCar(key);
+    const r = { def, proxy, burner: !!def.burns, bounds: hitboxBounds(def) };
+    (this.remoteCars ||= new Map()).set(key, r);
+    this.buildRemoteBody(r);
+    return r;
+  }
+
+  buildRemoteBody(r) {
+    const p = r.proxy;
+    r.body = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased()
+      .setTranslation(p.x, p.y || 0, p.z).setRotation(carRotation(p)));
+    r.colliders = r.def.hitbox.map((h) => this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4), r.body));
+  }
+
+  removeRemoteCar(key) {
+    const r = this.remoteCars?.get(key);
+    if (!r) return;
+    if (r.body && this.world.getRigidBody(r.body.handle)) this.world.removeRigidBody(r.body);
+    this.remoteCars.delete(key);
   }
 
   teleportCar(car) {
@@ -552,6 +595,12 @@ export class Destruction {
     }
 
     if (this.burner) this.burnAround(car);
+    for (const r of this.remoteCars?.values() || []) {
+      const p = r.proxy;
+      r.body.setNextKinematicTranslation({ x: p.x, y: p.y || 0, z: p.z });
+      r.body.setNextKinematicRotation(carRotation(p));
+      if (r.burner) this.burnAround(p, r.bounds);
+    }
     this.world.step(this.eventQueue);
 
     // Reaction on the car (read before fractures remove any colliders).
@@ -689,8 +738,8 @@ export class Destruction {
    * the distance it covers this step) burns away before the solver can
    * push it, so the car slices through instead of bulldozing.
    */
-  burnAround(car) {
-    const { lo, hi } = this.carBounds;
+  burnAround(car, bounds = this.carBounds) {
+    const { lo, hi } = bounds;
     const ahead = Math.abs(car.vLong) * STEP * 2 + 0.3;
     const dir = car.vLong >= 0 ? 1 : -1;
     const half = { x: (hi[0] - lo[0]) / 2 + 0.25, y: (hi[1] - lo[1]) / 2 + 0.2, z: (hi[2] - lo[2]) / 2 + 0.25 + ahead / 2 };

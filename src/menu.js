@@ -38,12 +38,60 @@ export class Menu {
     on('btn-pause-controls', () => this.show('controls', 'pause'));
     on('btn-rebuild', () => opts.onRebuild());
     on('btn-quit', () => opts.onQuit());
+    on('btn-online', () => this.show('online', 'main'));
+    on('btn-host', () => opts.onHost(this.playerName()));
+    on('btn-join', () => opts.onJoin(document.getElementById('join-code').value, this.playerName()));
+    document.getElementById('join-code').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') opts.onJoin(e.target.value, this.playerName());
+    });
+    on('btn-leave', () => opts.onLeave());
+    on('btn-copy-code', () => this.copyCode());
     on('btn-prev-vehicle', () => this.pickVehicle(-1));
     on('btn-next-vehicle', () => this.pickVehicle(1));
     for (const el of this.root.querySelectorAll('[data-back]')) el.addEventListener('click', () => this.back());
 
     this.renderVehicle();
     this.renderTabs();
+    document.getElementById('player-name').value = opts.getSettings().playerName || '';
+  }
+
+  /** The name typed on the online screen (or a generated one). */
+  playerName() {
+    const input = document.getElementById('player-name');
+    let name = input.value.trim().slice(0, 16);
+    if (!name) {
+      name = `Driver ${Math.floor(10 + Math.random() * 90)}`;
+      input.value = name;
+    }
+    return name;
+  }
+
+  setOnlineStatus(message, isError = false) {
+    const el = document.getElementById('online-status');
+    el.textContent = message;
+    el.classList.toggle('error', isError);
+  }
+
+  /** Show room details in the pause menu while online. */
+  setOnline(online, code, isHost) {
+    document.getElementById('pause-room').hidden = !online;
+    document.getElementById('btn-leave').hidden = !online;
+    document.getElementById('pause-code').textContent = code || '';
+    document.getElementById('pause-role').textContent = isHost ? 'You are hosting' : 'Joined';
+    document.getElementById('btn-rebuild').disabled = online && !isHost;
+  }
+
+  copyCode() {
+    const code = this.opts.onCopyCode();
+    const btn = document.getElementById('btn-copy-code');
+    const done = () => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy'; }, 1500); };
+    navigator.clipboard?.writeText(code).then(done, () => {
+      // Clipboard blocked: select the code so it can be copied by hand.
+      const range = document.createRange();
+      range.selectNodeContents(document.getElementById('pause-code'));
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    });
   }
 
   get vehicle() {

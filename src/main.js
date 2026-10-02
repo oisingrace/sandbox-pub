@@ -12,6 +12,8 @@ import { loadSettings, saveSettings, changeSetting } from './settings.js';
 import { Menu } from './menu.js';
 import { BurnEffect } from './burn.js';
 import { Terrain, arenaRamps } from './terrain.js';
+import { Net } from './net.js';
+import { Multiplayer, SPAWN_SLOTS } from './multiplayer.js';
 
 const PHYSICS_DT = 1 / 120;
 // At most this many car steps per frame (2 debris-world steps). A slow
@@ -92,28 +94,48 @@ const audio = new CarAudio();
 
 let smashed = 0;
 let shake = 0;
+// Multiplayer (peer-to-peer; see net.js and multiplayer.js).
+const net = new Net();
+const mp = new Multiplayer({ scene, destruction, vehicles: VEHICLES });
+let slot = 0; // our start position in a room
 let state = 'menu'; // 'menu' | 'playing' | 'paused'
 let arenaDirty = false; // has the arena been played in since it was built?
 
+/**
+ * Online, everyone's cars break things on every screen; only count (and
+ * reward boost for) the ones our own car was closest to.
+ */
+function creditedToMe(pos) {
+  if (!net.online) return true;
+  const mine = Math.hypot(pos.x - car.x, pos.z - car.z);
+  for (const r of mp.remotes.values()) {
+    if (r.seen && Math.hypot(pos.x - r.proxy.x, pos.z - r.proxy.z) < mine) return false;
+  }
+  return true;
+}
+
 destruction.on('fracture', (pos, kind) => {
-  smashed++;
+  const mine = creditedToMe(pos);
+  if (mine) smashed++;
   const base = settings.effects === 'high' ? 2 + Math.round(kind.mass / 60) : 1;
   const n = Math.min(6, base);
   for (let i = 0; i < n; i++) dust.emit(pos, { x: 0, z: 0 }, 0.6 + Math.random() * 0.4, pos.y);
   audio.impact(kind.material, 1, pos);
-  car.boost = Math.min(1, car.boost + 0.015); // smashing refills boost
+  if (mine) car.boost = Math.min(1, car.boost + 0.015); // smashing refills boost
 });
 destruction.on('burn', (info) => {
-  smashed++;
+  const mine = creditedToMe(info.pos);
+  if (mine) smashed++;
   burnFx.ignite(info);
   const puffs = settings.effects === 'high' ? 3 : 1;
   for (let i = 0; i < puffs; i++) soot.emit(info.pos, { x: 0, z: 0 }, 0.8, info.pos.y + 0.5);
   audio.burn(Math.min(1, 0.4 + info.kind.mass / 300), info.pos);
-  car.boost = Math.min(1, car.boost + 0.012);
+  if (mine) car.boost = Math.min(1, car.boost + 0.012);
 });
 destruction.on('impact', (material, strength, pos) => audio.impact(material, strength, pos));
 destruction.on('explode', (pos, distance) => {
-  smashed++;
+  const mine = creditedToMe(pos);
+  if (mine) smashed++;
   burnFx.fireball(pos);
   const puffs = settings.effects === 'high' ? 8 : 3;
   for (let i = 0; i < puffs; i++) {
@@ -122,7 +144,7 @@ destruction.on('explode', (pos, distance) => {
   }
   audio.explosion(pos, distance);
   shake = Math.min(1, shake + Math.max(0, 1 - distance / 35));
-  car.boost = Math.min(1, car.boost + 0.05);
+  if (mine) car.boost = Math.min(1, car.boost + 0.05);
 });
 
 // --- Settings ----------------------------------------------------------
@@ -170,12 +192,14 @@ function buildArena() {
   destruction.createWorld();
   destruction.createCar(active.def);
   populateArena(destruction);
-  for (const v of fleet) v.parked = v === active ? null : destruction.spawnVehicle(v.def, v.def.home);
+  // Parked vehicles to swap into (solo only: they can't be kept in sync online).
+  for (const v of fleet) v.parked = v === active || net.online ? null : destruction.spawnVehicle(v.def, v.def.home);
+  for (const v of fleet) v.model.root.visible = v === active || !!v.parked;
   arenaDirty = false;
 }
 
 function resetCar() {
-  const { home } = active.def;
+  const home = net.online ? SPAWN_SLOTS[slot % SPAWN_SLOTS.length] : active.def.home;
   car.reset(home.x, home.z, home.heading);
   destruction.teleportCar(car);
   skids.clear();
@@ -258,8 +282,12 @@ const menu = new Menu({
   onSetting: setSetting,
   onPlay: (def) => play(def),
   onResume: () => resume(),
-  onRebuild: () => { resetAll(); resume(); toast('Arena rebuilt'); },
-  onQuit: () => openMainMenu(),
+  onRebuild: () => { if (rebuildArena()) resume(); },
+  onQuit: () => { leaveRoom(); openMainMenu(); },
+  onHost: (name) => hostRoom(name),
+  onJoin: (code, name) => joinRoom(code, name),
+  onLeave: () => { leaveRoom(); toast('You left the room'); resume(); },
+  onCopyCode: () => net.code,
 });
 
 function play(def) {
@@ -280,6 +308,125 @@ function play(def) {
   state = 'playing';
   clock.getDelta();
   accumulator = 0;
+}
+
+/** Rebuild the arena; online, only the host can, and it rebuilds for everyone. */
+function rebuildArena() {
+  if (net.online && !net.isHost) {
+    toast('Only the host can rebuild the arena');
+    return false;
+  }
+  resetAll();
+  arenaDirty = true;
+  if (net.online) net.sendEvent({ type: 'rebuild' });
+  toast('Arena rebuilt');
+  return true;
+}
+
+// --- Online play -------------------------------------------------------------
+net.on('joined', (id, name, vehicle) => {
+  if (id === net.id) return;
+  mp.addPlayer(id, name, vehicle);
+  toast(`${name} joined`);
+  // Give everyone the same fresh arena when someone new arrives.
+  if (net.isHost) {
+    resetAll();
+    arenaDirty = true;
+    net.sendEvent({ type: 'rebuild' });
+  }
+  refreshPlayers();
+});
+net.on('left', (id) => {
+  const p = mp.remotes.get(id);
+  mp.removePlayer(id);
+  if (p) toast(`${p.name} left`);
+  refreshPlayers();
+});
+net.on('state', (id, s) => mp.onState(id, s));
+net.on('event', (id, e) => {
+  if (e.type === 'rebuild' && id === 'host') {
+    resetAll();
+    arenaDirty = true;
+    toast('The host rebuilt the arena');
+  }
+});
+net.on('hostLeft', () => {
+  mp.clear();
+  toast('The host left. You are playing solo now.');
+  resetAll();
+  updateOnlineUi();
+});
+
+async function hostRoom(name) {
+  setSetting('playerName', name);
+  menu.setOnlineStatus('Creating a room…');
+  try {
+    await net.host(name, menu.vehicle.id);
+    slot = 0;
+    startOnline();
+  } catch (err) {
+    menu.setOnlineStatus(err.message, true);
+  }
+}
+
+async function joinRoom(code, name) {
+  if (!code.trim()) {
+    menu.setOnlineStatus('Type the room code your friend gave you.', true);
+    return;
+  }
+  setSetting('playerName', name);
+  menu.setOnlineStatus('Joining…');
+  try {
+    await net.join(code, name, menu.vehicle.id);
+    slot = Math.max(1, net.players.size - 1);
+    startOnline();
+  } catch (err) {
+    menu.setOnlineStatus(err.message, true);
+  }
+}
+
+function startOnline() {
+  menu.setOnlineStatus('');
+  arenaDirty = true; // start from a fresh arena
+  play(menu.vehicle);
+  updateOnlineUi();
+  toast(net.isHost ? `Room ${net.code} created: share the code` : `Joined room ${net.code}`);
+}
+
+function leaveRoom() {
+  if (!net.online) return;
+  net.leave();
+  mp.clear();
+  updateOnlineUi();
+}
+
+function updateOnlineUi() {
+  document.body.classList.toggle('online', net.online);
+  $('room-code').textContent = net.code || '';
+  menu.setOnline(net.online, net.code, net.isHost);
+  refreshPlayers();
+}
+
+let playersTimer = 0;
+function refreshPlayers() {
+  const list = $('players');
+  if (!net.online) { list.hidden = true; return; }
+  list.hidden = false;
+  const rows = [{ name: `${settings.playerName || 'You'} (you)`, color: active.def.color, smashed }];
+  for (const r of mp.remotes.values()) rows.push({ name: r.name, color: r.def.color, smashed: r.smashed });
+  rows.sort((a, b) => b.smashed - a.smashed);
+  const ul = $('players-list');
+  ul.replaceChildren(...rows.map((r) => {
+    const li = document.createElement('li');
+    const dot = document.createElement('i');
+    dot.style.background = `#${r.color.toString(16).padStart(6, '0')}`;
+    const name = document.createElement('span');
+    name.textContent = r.name;
+    const score = document.createElement('b');
+    score.textContent = r.smashed;
+    li.append(dot, name, score);
+    return li;
+  }));
 }
 
 function pause() {
@@ -314,7 +461,7 @@ input.onPress('Escape', () => {
 });
 input.onPress('KeyP', () => { if (state === 'playing') pause(); else if (state === 'paused' && menu.current === 'pause') resume(); });
 input.onPress('KeyR', playing(() => { resetCar(); toast('Car reset'); }));
-input.onPress('KeyB', playing(() => { resetAll(); arenaDirty = true; toast('Arena rebuilt'); }));
+input.onPress('KeyB', playing(() => rebuildArena()));
 input.onPress('KeyC', playing(() => { chase.cycle(); refreshBadges(); toast(`Camera: ${chase.modeName}`); }));
 input.onPress('KeyE', playing(enterNearby));
 input.onPress('KeyT', playing(() => {
@@ -385,11 +532,15 @@ function frame() {
   trackPerformance(raw);
   const controls = input.read(dt); // polled every frame so the gamepad can pause/resume
 
-  if (state === 'playing') {
+  // Online, the world keeps running behind the pause menu (others are still
+  // driving); our own car just gets no input.
+  const simulate = state === 'playing' || (state === 'paused' && net.online);
+  if (simulate) {
+    const inputNow = state === 'playing' ? controls : { steer: 0, throttle: 0, brake: 0, handbrake: true, boost: false };
     accumulator += dt;
     let steps = 0;
     while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
-      car.step(PHYSICS_DT, controls);
+      car.step(PHYSICS_DT, inputNow);
       containCar();
       if (car.landed) onLanding(car.landed);
       if (car.blocked > 3) {
@@ -406,6 +557,17 @@ function frame() {
       steps++;
     }
     if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
+    if (net.online) {
+      mp.update(dt);
+      const hit = mp.bump(car, active.def);
+      if (hit > 2) {
+        shake = Math.min(1, shake + hit * 0.04);
+        audio.impact('crash', Math.min(1, hit / 15));
+      }
+      mp.send(net, car, active.def.id, smashed, dt);
+      playersTimer -= dt;
+      if (playersTimer <= 0) { playersTimer = 0.5; refreshPlayers(); }
+    }
     updateScene(dt);
   } else if (state === 'menu') {
     // Slow orbit over the arena behind the main menu.
@@ -419,7 +581,7 @@ function frame() {
   }
   // Paused: redraw the frozen frame only a few times a second (enough to
   // show settings changes behind the menu) to save battery.
-  if (state === 'paused') {
+  if (state === 'paused' && !net.online) {
     pausedRedraw -= raw;
     if (pausedRedraw > 0) return;
     pausedRedraw = 0.25;
@@ -586,7 +748,7 @@ applySettings();
 openMainMenu();
 
 window.game = {
-  get car() { return car; }, get active() { return active; }, get state() { return state; },
+  get car() { return car; }, get active() { return active; }, get state() { return state; }, net, mp,
   get renderer() { return renderer; }, get settings() { return settings; },
   fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu,
 };
