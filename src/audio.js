@@ -1,22 +1,49 @@
-// Synthesised engine + tire squeal. Created lazily on first user gesture
-// because browsers block audio until then.
+// All game audio, synthesised with Web Audio (no sound files). Created on
+// the first user gesture because browsers block audio until then.
+//
+//   engine/loops ──► loopBus ─┐
+//   one-shots ────► sfxBus ───┼──► master (volume) ──► compressor ──► out
+//                   reverb ◄──┘ (send)  └─► ┘
+//
+// One-shots in the world (impacts, burns, explosions) go through a panner
+// so they come from where they happen; the listener follows the camera.
 
 const IMPACTS = {
   brick: { filter: 'lowpass', freq: 1100, q: 0.8, decay: 0.2, gain: 0.5, tones: [90], toneGain: 0.5, toneDecay: 0.6 },
   concrete: { filter: 'lowpass', freq: 600, q: 0.7, decay: 0.32, gain: 0.7, tones: [60], toneGain: 0.9, toneDecay: 0.8 },
   wood: { filter: 'bandpass', freq: 750, q: 1.4, decay: 0.16, gain: 0.7, tones: [210, 330], toneGain: 0.35, toneDecay: 0.5 },
   metal: { filter: 'bandpass', freq: 2200, q: 9, decay: 0.55, gain: 0.45, tones: [420, 1130], toneGain: 0.35, toneDecay: 1 },
-  plastic: { filter: 'highpass', freq: 1400, q: 0.7, decay: 0.08, gain: 0.35, tones: [], toneGain: 0, toneDecay: 0 },
+  plastic: { filter: 'highpass', freq: 1400, q: 0.7, decay: 0.08, gain: 0.35, tones: [180], toneGain: 0.2, toneDecay: 0.4 },
   glass: { filter: 'highpass', freq: 3200, q: 1.5, decay: 0.35, gain: 0.45, tones: [2600, 3900, 5300], toneGain: 0.18, toneDecay: 0.7 },
   crash: { filter: 'lowpass', freq: 420, q: 1, decay: 0.45, gain: 0.9, tones: [48], toneGain: 1, toneDecay: 0.9 },
 };
+
+// Engine characters. fund/sub/harm: oscillator mix (firing frequency,
+// half, double). drive: distortion. cut*: filter cutoff (Hz) at idle and
+// the extra opened by throttle. am: "burble" (amplitude wobble at half the
+// firing rate). noise: intake/mechanical noise. whine: turbine-like tone.
+const VOICES = {
+  sport: { fund: 0.55, sub: 0.25, harm: 0.2, drive: 2.5, q: 5, cutBase: 350, cutThrottle: 1900, am: 0.08, noise: 0.05, pops: true, whine: 0 },
+  hatch: { fund: 0.45, sub: 0.12, harm: 0.32, drive: 1.8, q: 3, cutBase: 520, cutThrottle: 2300, am: 0, noise: 0.07, pops: false, whine: 0 },
+  v8: { fund: 0.45, sub: 0.6, harm: 0.1, drive: 3.5, q: 6, cutBase: 220, cutThrottle: 1100, am: 0.5, noise: 0.04, pops: true, whine: 0 },
+  diesel: { fund: 0.4, sub: 0.5, harm: 0.16, drive: 5, q: 2, cutBase: 170, cutThrottle: 900, am: 0.35, noise: 0.2, pops: false, whine: 0 },
+  ember: { fund: 0.38, sub: 0.2, harm: 0.22, drive: 2, q: 4, cutBase: 420, cutThrottle: 2100, am: 0, noise: 0.05, pops: true, whine: 0.09 },
+};
+
+const MAX_VOICES = 16;
 
 export class CarAudio {
   constructor() {
     this.ctx = null;
     this.muted = false;
+    this.volume = 0.75;
+    this.paused = true;
+    this.voice = VOICES.sport;
+    this.prevGear = 1;
+    this.prevThrottle = 0;
   }
 
+  /** Create (or resume) the audio context. Must run inside a user gesture. */
   start() {
     if (this.ctx) {
       this.ctx.resume();
@@ -25,74 +52,215 @@ export class CarAudio {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const ctx = (this.ctx = new AC());
-    this.master = ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : 0.5;
-    this.master.connect(ctx.destination);
 
-    // Engine: two detuned oscillators through a throttle-driven lowpass.
+    // Output chain: master volume -> gentle bus compressor -> speakers.
+    this.compressor = ctx.createDynamicsCompressor();
+    this.compressor.threshold.value = -16;
+    this.compressor.knee.value = 12;
+    this.compressor.ratio.value = 4;
+    this.compressor.attack.value = 0.004;
+    this.compressor.release.value = 0.2;
+    this.compressor.connect(ctx.destination);
+    this.master = ctx.createGain();
+    this.master.connect(this.compressor);
+    this.applyVolume();
+
+    this.sfxBus = ctx.createGain();
+    this.sfxBus.connect(this.master);
+    this.loopBus = ctx.createGain();
+    this.loopBus.gain.value = this.paused ? 0 : 1;
+    this.loopBus.connect(this.master);
+
+    // Reverb send: a generated decaying-noise impulse response.
+    this.reverb = ctx.createConvolver();
+    this.reverb.buffer = this.impulseResponse(1.8, 2.6);
+    this.reverbSend = ctx.createGain();
+    this.reverbSend.gain.value = 0.35;
+    this.reverbSend.connect(this.reverb).connect(this.master);
+
+    this.buildEngine();
+    this.buildLoops();
+  }
+
+  buildEngine() {
+    const ctx = this.ctx;
     this.engineFilter = ctx.createBiquadFilter();
     this.engineFilter.type = 'lowpass';
-    this.engineFilter.Q.value = 4;
+    this.shaper = ctx.createWaveShaper();
+    this.shaper.oversample = '2x';
+    this.engineMix = ctx.createGain(); // amplitude-modulated by the burble LFO
     this.engineGain = ctx.createGain();
     this.engineGain.gain.value = 0;
-    this.engineFilter.connect(this.engineGain).connect(this.master);
-    this.osc1 = ctx.createOscillator();
-    this.osc1.type = 'sawtooth';
-    this.osc2 = ctx.createOscillator();
-    this.osc2.type = 'square';
-    const g2 = ctx.createGain();
-    g2.gain.value = 0.5;
-    this.osc1.connect(this.engineFilter);
-    this.osc2.connect(g2).connect(this.engineFilter);
-    this.osc1.start();
-    this.osc2.start();
+    this.engineMix.connect(this.shaper).connect(this.engineFilter).connect(this.engineGain).connect(this.loopBus);
 
-    // Tire squeal: band-passed noise.
-    const len = ctx.sampleRate * 2;
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
-    const noise = ctx.createBufferSource();
-    noise.buffer = buf;
-    noise.loop = true;
-    this.squealFilter = ctx.createBiquadFilter();
-    this.squealFilter.type = 'bandpass';
-    this.squealFilter.frequency.value = 900;
-    this.squealFilter.Q.value = 6;
-    this.squealGain = ctx.createGain();
-    this.squealGain.gain.value = 0;
-    noise.connect(this.squealFilter).connect(this.squealGain).connect(this.master);
-    noise.start();
+    const osc = (type) => {
+      const o = ctx.createOscillator();
+      o.type = type;
+      const g = ctx.createGain();
+      o.connect(g).connect(this.engineMix);
+      o.start();
+      return { o, g };
+    };
+    this.oscFund = osc('sawtooth');
+    this.oscSub = osc('square');
+    this.oscHarm = osc('triangle');
+    this.oscWhine = osc('sine');
 
-    // Boost: a roaring, band-passed noise bed.
-    this.boostFilter = ctx.createBiquadFilter();
-    this.boostFilter.type = 'bandpass';
-    this.boostFilter.frequency.value = 500;
-    this.boostFilter.Q.value = 0.8;
-    this.boostGain = ctx.createGain();
-    this.boostGain.gain.value = 0;
-    noise.connect(this.boostFilter).connect(this.boostGain).connect(this.master);
+    this.amOsc = ctx.createOscillator();
+    this.amDepth = ctx.createGain();
+    this.amOsc.connect(this.amDepth).connect(this.engineMix.gain);
+    this.amOsc.start();
+
+    // Intake / mechanical noise.
+    this.intakeFilter = ctx.createBiquadFilter();
+    this.intakeFilter.type = 'bandpass';
+    this.intakeFilter.Q.value = 1.2;
+    this.intakeGain = ctx.createGain();
+    this.intakeGain.gain.value = 0;
+    this.noiseSource().connect(this.intakeFilter).connect(this.intakeGain).connect(this.engineGain);
+
+    this.applyVoice();
+  }
+
+  buildLoops() {
+    const ctx = this.ctx;
+    const loop = (type, freq, q) => {
+      const f = ctx.createBiquadFilter();
+      f.type = type;
+      f.frequency.value = freq;
+      f.Q.value = q;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      this.noiseSource().connect(f).connect(g).connect(this.loopBus);
+      return { f, g };
+    };
+    this.squealA = loop('bandpass', 900, 7);
+    this.squealB = loop('bandpass', 1850, 9);
+    this.boost = loop('bandpass', 500, 0.8);
+    this.rumble = loop('lowpass', 160, 0.7);
+    this.wind = loop('bandpass', 650, 0.4);
+  }
+
+  /** Pick the engine character for a vehicle (see `voice` in vehicles.js). */
+  setVehicle(def) {
+    this.voice = VOICES[def.voice] || VOICES.sport;
+    if (this.ctx) this.applyVoice();
+  }
+
+  applyVoice() {
+    const v = this.voice;
+    const t = this.ctx.currentTime;
+    this.oscFund.g.gain.setTargetAtTime(v.fund, t, 0.05);
+    this.oscSub.g.gain.setTargetAtTime(v.sub, t, 0.05);
+    this.oscHarm.g.gain.setTargetAtTime(v.harm, t, 0.05);
+    this.oscWhine.g.gain.setTargetAtTime(v.whine, t, 0.05);
+    this.engineMix.gain.value = 1 - v.am / 2;
+    this.amDepth.gain.value = v.am / 2;
+    this.engineFilter.Q.value = v.q;
+    this.shaper.curve = distortionCurve(v.drive);
+  }
+
+  /** Pausing silences the car but keeps one-shots (menu clicks) working. */
+  setPaused(paused) {
+    this.paused = paused;
+    if (!this.ctx) return;
+    if (!paused) this.ctx.resume();
+    this.loopBus.gain.setTargetAtTime(paused ? 0 : 1, this.ctx.currentTime, 0.08);
+  }
+
+  setVolume(volume) {
+    this.volume = volume;
+    this.applyVolume();
+  }
+
+  setMuted(muted) {
+    this.muted = muted;
+    this.applyVolume();
+  }
+
+  applyVolume() {
+    if (this.master) this.master.gain.value = this.muted ? 0 : this.volume * 0.7;
+  }
+
+  /** Follow the camera so positional sounds pan and fade correctly. */
+  setListener(camera) {
+    if (!this.ctx) return;
+    const l = this.ctx.listener;
+    const p = camera.position;
+    const e = camera.matrixWorld.elements; // camera looks down its local -Z
+    const f = { x: -e[8], y: -e[9], z: -e[10] };
+    if (l.positionX) {
+      const t = this.ctx.currentTime;
+      l.positionX.setValueAtTime(p.x, t); l.positionY.setValueAtTime(p.y, t); l.positionZ.setValueAtTime(p.z, t);
+      l.forwardX.setValueAtTime(f.x, t); l.forwardY.setValueAtTime(f.y, t); l.forwardZ.setValueAtTime(f.z, t);
+      l.upX.setValueAtTime(0, t); l.upY.setValueAtTime(1, t); l.upZ.setValueAtTime(0, t);
+    } else {
+      l.setPosition(p.x, p.y, p.z);
+      l.setOrientation(f.x, f.y, f.z, 0, 1, 0);
+    }
+    this.listenerPos = p;
+  }
+
+  /** Output node for a one-shot: panned in the world if `pos` is given. */
+  outputFor(pos, reverb = 0.3) {
+    const ctx = this.ctx;
+    const out = ctx.createGain();
+    if (pos) {
+      const panner = ctx.createPanner();
+      panner.panningModel = 'equalpower';
+      panner.distanceModel = 'inverse';
+      panner.refDistance = 7;
+      panner.rolloffFactor = 1.1;
+      panner.maxDistance = 250;
+      if (panner.positionX) {
+        panner.positionX.value = pos.x; panner.positionY.value = pos.y; panner.positionZ.value = pos.z;
+      } else {
+        panner.setPosition(pos.x, pos.y, pos.z);
+      }
+      out.connect(panner).connect(this.sfxBus);
+    } else {
+      out.connect(this.sfxBus);
+    }
+    if (reverb > 0) {
+      const send = ctx.createGain();
+      send.gain.value = reverb;
+      out.connect(send).connect(this.reverbSend);
+    }
+    return out;
+  }
+
+  /** Is a world position close enough to bother playing? */
+  audible(pos, range = 140) {
+    if (!pos || !this.listenerPos) return true;
+    const p = this.listenerPos;
+    return Math.hypot(pos.x - p.x, pos.y - p.y, pos.z - p.z) < range;
+  }
+
+  /** Reserve a voice; loud sounds may still play when we're near the cap. */
+  claimVoice(duration, strength) {
+    const now = this.ctx.currentTime;
+    this.voices = (this.voices || []).filter((t) => t > now);
+    if (this.voices.length >= MAX_VOICES || (this.voices.length > MAX_VOICES * 0.6 && strength < 0.35)) return false;
+    this.voices.push(now + duration);
+    return true;
   }
 
   /**
-   * One-shot collision sound. `strength` is 0..1. Calls are rate limited
-   * so a collapsing wall doesn't stack hundreds of voices.
+   * One-shot collision sound. `strength` is 0..1; `pos` places it in the
+   * world (omit for sounds on the player's own car).
    */
-  impact(material, strength) {
-    if (!this.ctx || this.muted || strength < 0.05) return;
+  impact(material, strength, pos) {
+    if (!this.ctx || this.muted || strength < 0.05 || !this.audible(pos)) return;
     const ctx = this.ctx;
     const now = ctx.currentTime;
-    this.voices = (this.voices || []).filter((t) => t > now);
-    if (this.voices.length > 10) return;
     const preset = IMPACTS[material] || IMPACTS.concrete;
     const dur = preset.decay * (0.6 + strength);
-    this.voices.push(now + dur);
+    if (!this.claimVoice(dur, strength)) return;
 
-    const gain = ctx.createGain();
+    const out = this.outputFor(pos, material === 'crash' ? 0.25 : 0.4);
     const peak = Math.min(0.9, preset.gain * (0.25 + strength));
-    gain.gain.setValueAtTime(peak, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
-    gain.connect(this.master);
+    out.gain.setValueAtTime(peak, now);
+    out.gain.exponentialRampToValueAtTime(0.001, now + dur);
 
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuffer();
@@ -101,7 +269,7 @@ export class CarAudio {
     filter.type = preset.filter;
     filter.frequency.value = preset.freq * (0.85 + Math.random() * 0.3);
     filter.Q.value = preset.q;
-    src.connect(filter).connect(gain);
+    src.connect(filter).connect(out);
     src.start(now, Math.random());
     src.stop(now + dur);
 
@@ -113,21 +281,23 @@ export class CarAudio {
       osc.frequency.setValueAtTime(f * 1.4, now);
       osc.frequency.exponentialRampToValueAtTime(f, now + 0.05);
       const g = ctx.createGain();
-      g.gain.setValueAtTime(peak * preset.toneGain, now);
+      g.gain.setValueAtTime(preset.toneGain, now);
       g.gain.exponentialRampToValueAtTime(0.001, now + dur * preset.toneDecay);
-      osc.connect(g).connect(this.master);
+      osc.connect(g).connect(out);
       osc.start(now);
       osc.stop(now + dur * preset.toneDecay);
     }
   }
 
   /** Whoosh and crackle of something catching fire. */
-  burn(strength = 1) {
-    if (!this.ctx || this.muted) return;
+  burn(strength = 1, pos) {
+    if (!this.ctx || this.muted || !this.audible(pos)) return;
     const ctx = this.ctx;
     const now = ctx.currentTime;
     if (this.lastBurn && now - this.lastBurn < 0.05) return;
+    if (!this.claimVoice(1, strength)) return;
     this.lastBurn = now;
+    const out = this.outputFor(pos, 0.3);
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuffer();
     const filter = ctx.createBiquadFilter();
@@ -136,29 +306,165 @@ export class CarAudio {
     filter.frequency.setValueAtTime(350, now);
     filter.frequency.exponentialRampToValueAtTime(2400, now + 0.18);
     filter.frequency.exponentialRampToValueAtTime(600, now + 0.9);
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.5 * strength, now + 0.06);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
-    src.connect(filter).connect(gain).connect(this.master);
+    out.gain.setValueAtTime(0.0001, now);
+    out.gain.exponentialRampToValueAtTime(0.5 * strength, now + 0.06);
+    out.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+    src.connect(filter).connect(out);
     src.start(now, Math.random());
     src.stop(now + 1);
-    // A few crackles.
-    for (let i = 0; i < 4; i++) {
-      const t0 = now + 0.1 + Math.random() * 0.6;
+    this.crackles(out, now + 0.1, 4, 0.5);
+  }
+
+  /** Fuel drum explosion: deep boom, blast noise, crackle and a long tail. */
+  explosion(pos, distance = 20) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    if (this.lastBoom && now - this.lastBoom < 0.04) return;
+    this.lastBoom = now;
+    const out = this.outputFor(pos, 0.9);
+    out.gain.value = 1;
+
+    // Sub-bass thump sweeping down.
+    const boom = ctx.createOscillator();
+    boom.type = 'sine';
+    boom.frequency.setValueAtTime(95, now);
+    boom.frequency.exponentialRampToValueAtTime(28, now + 1.1);
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.0001, now);
+    bg.gain.exponentialRampToValueAtTime(1.2, now + 0.015);
+    bg.gain.exponentialRampToValueAtTime(0.001, now + 1.3);
+    boom.connect(bg).connect(out);
+    boom.start(now);
+    boom.stop(now + 1.35);
+
+    // Blast: wide noise burst that darkens as it decays.
+    const blast = ctx.createBufferSource();
+    blast.buffer = this.noiseBuffer();
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(5000, now);
+    lp.frequency.exponentialRampToValueAtTime(300, now + 1.4);
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.9, now);
+    ng.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+    blast.connect(lp).connect(ng).connect(out);
+    blast.start(now, Math.random());
+    blast.stop(now + 1.7);
+
+    this.crackles(out, now + 0.15, 7, 0.6);
+    // Close blasts briefly duck the engine so they hit harder.
+    if (distance < 25) {
+      const g = this.loopBus.gain;
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(this.paused ? 0 : 0.35, now);
+      g.setTargetAtTime(this.paused ? 0 : 1, now + 0.15, 0.35);
+    }
+  }
+
+  crackles(out, start, count, level) {
+    const ctx = this.ctx;
+    for (let i = 0; i < count; i++) {
+      const t0 = start + Math.random() * 0.6;
       const c = ctx.createBufferSource();
       c.buffer = this.noiseBuffer();
       const hp = ctx.createBiquadFilter();
       hp.type = 'highpass';
-      hp.frequency.value = 2500;
+      hp.frequency.value = 2000 + Math.random() * 1500;
       const g = ctx.createGain();
-      g.gain.setValueAtTime(0.25 * strength, t0);
+      g.gain.setValueAtTime(level * (0.4 + Math.random() * 0.6), t0);
       g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.03);
-      c.connect(hp).connect(g).connect(this.master);
+      c.connect(hp).connect(g).connect(out);
       c.start(t0, Math.random());
       c.stop(t0 + 0.04);
     }
   }
+
+  /** Exhaust pops when lifting off at high revs. */
+  pops() {
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const n = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) {
+      const t0 = now + 0.05 + i * (0.06 + Math.random() * 0.1);
+      const src = ctx.createBufferSource();
+      src.buffer = this.noiseBuffer();
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 700 + Math.random() * 600;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.55 * (0.5 + Math.random() * 0.5), t0 + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.07);
+      src.connect(f).connect(g).connect(this.loopBus);
+      src.start(t0, Math.random());
+      src.stop(t0 + 0.08);
+    }
+  }
+
+  /** Short tick for menu buttons. */
+  ui() {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(1400, now);
+    o.frequency.exponentialRampToValueAtTime(900, now + 0.04);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.18, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    o.connect(g).connect(this.sfxBus);
+    o.start(now);
+    o.stop(now + 0.07);
+  }
+
+  /** Per-frame update of the continuous sounds. */
+  update(car, skid) {
+    if (!this.ctx || this.paused) return;
+    const t = this.ctx.currentTime;
+    const v = this.voice;
+    const firing = (car.rpm / 60) * 2 * (car.spec.engineTone ?? 1); // 4-cylinder firing frequency
+
+    // Gear changes: a short dip in volume as the clutch goes in.
+    let dip = 1;
+    if (car.gear !== this.prevGear) {
+      this.shiftAt = t;
+      this.prevGear = car.gear;
+    }
+    if (this.shiftAt && t - this.shiftAt < 0.14) dip = 0.45;
+
+    this.oscFund.o.frequency.setTargetAtTime(firing, t, 0.03);
+    this.oscSub.o.frequency.setTargetAtTime(firing * 0.5 * 1.006, t, 0.03);
+    this.oscHarm.o.frequency.setTargetAtTime(firing * 2.01, t, 0.03);
+    this.oscWhine.o.frequency.setTargetAtTime(600 + car.rpm * 0.55 + car.speed * 8, t, 0.08);
+    this.amOsc.frequency.setTargetAtTime(Math.max(4, firing * 0.25), t, 0.05);
+    const load = car.throttle;
+    this.engineFilter.frequency.setTargetAtTime(v.cutBase + load * v.cutThrottle + car.rpm * 0.12, t, 0.05);
+    this.engineGain.gain.setTargetAtTime((0.1 + load * 0.14 + (car.rpm / 7000) * 0.05) * dip, t, 0.04);
+    this.intakeFilter.frequency.setTargetAtTime(500 + car.rpm * 0.3, t, 0.05);
+    this.intakeGain.gain.setTargetAtTime(v.noise * (0.2 + load) * (car.rpm / 5000), t, 0.05);
+
+    // Lift-off at high revs: crackle and pop.
+    if (v.pops && this.prevThrottle > 0.7 && load < 0.1 && car.rpm > 4500 && car.gear > 0) this.pops();
+    this.prevThrottle = load;
+
+    const squeal = Math.min(0.35, skid * 0.4);
+    this.squealA.g.gain.setTargetAtTime(squeal, t, 0.05);
+    this.squealB.g.gain.setTargetAtTime(squeal * 0.35, t, 0.05);
+    this.squealA.f.frequency.setTargetAtTime(700 + skid * 500, t, 0.1);
+
+    this.boost.g.gain.setTargetAtTime(car.boosting ? 0.32 : 0, t, car.boosting ? 0.05 : 0.15);
+    this.boost.f.frequency.setTargetAtTime(car.boosting ? 380 + car.speed * 14 : 300, t, 0.2);
+
+    // Road rumble and wind rise with speed, so speed is audible.
+    const sp = car.speed;
+    this.rumble.g.gain.setTargetAtTime(Math.min(0.28, sp * 0.009), t, 0.1);
+    this.wind.g.gain.setTargetAtTime(Math.min(0.3, (sp / 55) ** 2 * 0.3), t, 0.1);
+    this.wind.f.frequency.setTargetAtTime(450 + sp * 12, t, 0.2);
+  }
+
+  // --- Helpers ---------------------------------------------------------------
 
   noiseBuffer() {
     if (!this._noise) {
@@ -170,33 +476,32 @@ export class CarAudio {
     return this._noise;
   }
 
-  /** Silence everything while a menu is open. */
-  suspend() {
-    this.ctx?.suspend();
+  noiseSource() {
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer();
+    src.loop = true;
+    src.start(0, Math.random() * 2);
+    return src;
   }
 
-  setMuted(muted) {
-    this.muted = muted;
-    if (this.master) this.master.gain.value = muted ? 0 : 0.5;
+  impulseResponse(seconds, decay) {
+    const rate = this.ctx.sampleRate;
+    const len = Math.floor(rate * seconds);
+    const buf = this.ctx.createBuffer(2, len, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** decay;
+    }
+    return buf;
   }
+}
 
-  toggleMute() {
-    this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
-    return this.muted;
+function distortionCurve(amount) {
+  const n = 1024;
+  const curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1;
+    curve[i] = Math.tanh(x * amount) / Math.tanh(amount);
   }
-
-  update(car, skid) {
-    if (!this.ctx) return;
-    const t = this.ctx.currentTime;
-    const firing = (car.rpm / 60) * 2 * (car.spec.engineTone ?? 1); // 4-cylinder firing frequency
-    this.osc1.frequency.setTargetAtTime(firing, t, 0.03);
-    this.osc2.frequency.setTargetAtTime(firing * 0.5 * 1.01, t, 0.03);
-    this.engineFilter.frequency.setTargetAtTime(300 + car.throttle * 1400 + car.rpm * 0.15, t, 0.05);
-    this.engineGain.gain.setTargetAtTime(0.12 + car.throttle * 0.16, t, 0.05);
-    this.squealGain.gain.setTargetAtTime(Math.min(0.35, skid * 0.4), t, 0.05);
-    this.squealFilter.frequency.setTargetAtTime(700 + skid * 500, t, 0.1);
-    this.boostGain.gain.setTargetAtTime(car.boosting ? 0.32 : 0, t, car.boosting ? 0.05 : 0.15);
-    this.boostFilter.frequency.setTargetAtTime(car.boosting ? 380 + car.speed * 14 : 300, t, 0.2);
-  }
+  return curve;
 }

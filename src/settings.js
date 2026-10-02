@@ -30,6 +30,7 @@ export const OPTIONS = {
   game: {
     assists: { label: 'Driving assists', hint: 'Traction control and countersteer', choices: [[true, 'On'], [false, 'Off']] },
     sound: { label: 'Sound', choices: [[true, 'On'], [false, 'Off']] },
+    volume: { label: 'Volume', choices: [[0.25, '25%'], [0.5, '50%'], [0.75, '75%'], [1, '100%']] },
     startVehicle: { label: 'Vehicle', choices: [] },
   },
 };
@@ -45,6 +46,7 @@ export const DEFAULTS = {
   physicsQuality: 4,
   assists: true,
   sound: true,
+  volume: 0.75,
   startVehicle: 'sports',
 };
 

@@ -927,6 +927,7 @@ function blobTexture() {
 const sports = {
   id: 'sports',
   name: 'Sports coupe',
+  voice: 'sport',
   blurb: 'Quick, grippy and happy to drift.',
   stats: { top: 245, accel: 5.1 },
   color: 0xd7263d,
@@ -967,6 +968,7 @@ const sports = {
 const hatch = {
   id: 'hatch',
   name: 'Hatchback',
+  voice: 'hatch',
   blurb: 'Light and nimble. Tail-happy with assists off.',
   stats: { top: 178, accel: 7.2 },
   color: 0x2f7bd6,
@@ -1006,6 +1008,7 @@ const hatch = {
 const pickup = {
   id: 'pickup',
   name: 'Pickup truck',
+  voice: 'v8',
   blurb: 'Torquey and heavy. Hits harder than it looks.',
   stats: { top: 197, accel: 6.4 },
   color: 0x2d6a4f,
@@ -1055,6 +1058,7 @@ const pickup = {
 const bus = {
   id: 'bus',
   name: 'School bus',
+  voice: 'diesel',
   blurb: 'Slow to start, impossible to stop. Built for buildings.',
   stats: { top: 133, accel: 18 },
   color: 0xf2b705,
@@ -1099,6 +1103,7 @@ const bus = {
 const ember = {
   id: 'ember',
   name: 'Ember GT',
+  voice: 'ember',
   blurb: 'Does not crash into things. Burns straight through them.',
   stats: { top: 255, accel: 5.4 },
   burns: true,
@@ -1156,6 +1161,8 @@ async function initRapier() {
 
 const FRACTURES_PER_STEP = 10;
 const BURNS_PER_STEP = 24;
+const BLAST_RADIUS = 9;
+const BLAST_SPEED = 16; // m/s of push at the centre
 const MAX_DEBRIS_SPEED = 32;
 // Rapier treats the kinematic car as infinitely heavy; scaling the reaction
 // makes hits feel weighty without making the car bounce off bricks.
@@ -1226,6 +1233,49 @@ function treeGeo() {
   return merge([trunk, colored(f1, 0x3f7a3a), colored(f2, 0x4f8f45)]);
 }
 
+function fuelGeo() {
+  const body = colored(new THREE.CylinderGeometry(0.3, 0.3, 0.9, 18), 0xc81e1e);
+  const band = new THREE.CylinderGeometry(0.305, 0.305, 0.18, 18); band.translate(0, 0.05, 0);
+  const rings = [-0.3, 0.38].map((y) => { const g = new THREE.CylinderGeometry(0.31, 0.31, 0.04, 18); g.translate(0, y, 0); return colored(g, 0x2a1a1a); });
+  return merge([body, colored(band, 0xf2c230), ...rings]);
+}
+
+function pinGeo() {
+  const profile = [[0.001, -1.2], [0.26, -1.2], [0.36, -0.85], [0.38, -0.55], [0.3, -0.1], [0.17, 0.3],
+    [0.16, 0.45], [0.22, 0.75], [0.24, 0.95], [0.18, 1.12], [0.001, 1.2]].map(([r, y]) => new THREE.Vector2(r, y));
+  const body = colored(new THREE.LatheGeometry(profile, 16), 0xf6f3ec);
+  const stripes = [0.33, 0.47].map((y) => { const g = new THREE.CylinderGeometry(0.172, 0.168, 0.06, 16); g.translate(0, y, 0); return colored(g, 0xc8242b); });
+  return merge([body, ...stripes]);
+}
+
+function fenceGeo() {
+  const parts = [];
+  for (let i = 0; i < 6; i++) {
+    const picket = new THREE.BoxGeometry(0.14, 1.0, 0.04);
+    picket.translate(-0.83 + i * 0.333, 0, 0);
+    parts.push(colored(picket, 0xf1ece2));
+  }
+  for (const y of [-0.25, 0.25]) {
+    const rail = new THREE.BoxGeometry(2.0, 0.09, 0.04);
+    rail.translate(0, y, -0.035);
+    parts.push(colored(rail, 0xd8d0c2));
+  }
+  return merge(parts);
+}
+
+function canopyGeo() {
+  const roof = colored(new THREE.BoxGeometry(12, 0.5, 8), 0xf4f4f2);
+  const fascia = new THREE.BoxGeometry(12.04, 0.22, 8.04); fascia.translate(0, 0.08, 0);
+  return merge([roof, colored(fascia, 0xd7263d)]);
+}
+
+function pumpGeo() {
+  const body = colored(new THREE.BoxGeometry(0.8, 1.8, 0.5), 0x2f9e5b);
+  const face = new THREE.BoxGeometry(0.6, 0.5, 0.52); face.translate(0, 0.45, 0);
+  const top = new THREE.BoxGeometry(0.84, 0.16, 0.54); top.translate(0, 0.86, 0);
+  return merge([body, colored(face, 0x1b1d22), colored(top, 0xf4f4f2)]);
+}
+
 // --- Object kinds ------------------------------------------------------
 // size = full extents of the collider box (or [radius, height] for cylinders).
 
@@ -1235,13 +1285,14 @@ const WOOD = [0xb58a52, 0xa77d48, 0xc0965c];
 const FACADE = [0xd9cbb3, 0xcfc0a6, 0xe0d3bd];
 
 const KINDS = {
-  brick: { size: [0.6, 0.3, 0.3], mass: 12, colors: BRICK_COLORS, material: 'brick', breakForce: 14000, fracture: { into: 'brickHalf', grid: [2, 1, 1] }, cap: 600 },
+  brick: { size: [0.6, 0.3, 0.3], mass: 12, colors: BRICK_COLORS, material: 'brick', breakForce: 14000, fracture: { into: 'brickHalf', grid: [2, 1, 1] }, cap: 800 },
   brickHalf: { size: [0.3, 0.3, 0.3], mass: 6, colors: BRICK_COLORS, material: 'brick', cap: 900 },
 
   crate: { size: [1, 1, 1], mass: 40, colors: WOOD, material: 'wood', breakForce: 26000, fracture: { into: 'crateChunk', grid: [2, 2, 2] }, cap: 60 },
   crateChunk: { size: [0.5, 0.5, 0.5], mass: 5, colors: WOOD, material: 'wood', cap: 500 },
 
   block: { size: [1, 1, 1], mass: 220, colors: CONCRETE, material: 'concrete', breakForce: 150000, fracture: { into: 'blockChunk', grid: [2, 2, 2] }, cap: 200 },
+  lintel: { size: [4, 1, 1], mass: 880, colors: CONCRETE, material: 'concrete', breakForce: 300000, fracture: { into: 'block', grid: [4, 1, 1] }, cap: 4 },
   blockChunk: { size: [0.5, 0.5, 0.5], mass: 27, colors: CONCRETE, material: 'concrete', cap: 900 },
 
   plank: { size: [4.4, 0.2, 1], mass: 60, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankHalf', grid: [2, 1, 1] }, cap: 20 },
@@ -1251,7 +1302,7 @@ const KINDS = {
   slab: { size: [0.3, 2.2, 1.2], mass: 90, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', breakForce: 70000, fracture: { into: 'slabHalf', grid: [1, 2, 1] }, cap: 50 },
   slabHalf: { size: [0.3, 1.1, 1.2], mass: 45, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', cap: 100 },
 
-  barrier: { size: [0.6, 0.9, 3], mass: 700, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', breakForce: 420000, fracture: { into: 'barrierChunk', grid: [1, 1, 3] }, geo: () => barrierProfile(0.6, 0.9, 3, 0.26), cap: 180 },
+  barrier: { size: [0.6, 0.9, 3], mass: 700, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', breakForce: 420000, fracture: { into: 'barrierChunk', grid: [1, 1, 3] }, geo: () => barrierProfile(0.6, 0.9, 3, 0.26), cap: 240 },
   barrierChunk: { size: [0.6, 0.9, 1], mass: 233, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', geo: () => barrierProfile(0.6, 0.9, 1, 0.26), cap: 300 },
 
   barrel: { shape: 'cyl', size: [0.32, 0.95], mass: 22, colors: [0xc8342b, 0x2f6fb3, 0xe0a526, 0x4c8c3a], material: 'metal', restitution: 0.25, cap: 60 },
@@ -1261,16 +1312,46 @@ const KINDS = {
   poleHalf: { shape: 'cyl', size: [0.13, 3.5], mass: 75, colors: [0x9a9da3], material: 'metal', cap: 80 },
 
   // Office building pieces.
-  panel: { size: [2, 1.2, 0.4], mass: 500, colors: FACADE, material: 'concrete', breakForce: 250000, fracture: { into: 'panelChunk', grid: [2, 2, 1] }, cap: 60 },
-  panelChunk: { size: [1, 0.6, 0.4], mass: 125, colors: FACADE, material: 'concrete', cap: 240 },
-  pillar: { size: [0.5, 1.5, 0.4], mass: 180, colors: FACADE, material: 'concrete', breakForce: 90000, fracture: { into: 'pillarChunk', grid: [1, 2, 1] }, cap: 60 },
+  panel: { size: [2, 1.2, 0.4], mass: 500, colors: FACADE, material: 'concrete', breakForce: 250000, fracture: { into: 'panelChunk', grid: [2, 2, 1] }, cap: 100 },
+  panelChunk: { size: [1, 0.6, 0.4], mass: 125, colors: FACADE, material: 'concrete', cap: 300 },
+  pillar: { size: [0.5, 1.5, 0.4], mass: 180, colors: FACADE, material: 'concrete', breakForce: 90000, fracture: { into: 'pillarChunk', grid: [1, 2, 1] }, cap: 100 },
   pillarChunk: { size: [0.5, 0.75, 0.4], mass: 90, colors: FACADE, material: 'concrete', cap: 120 },
-  floorSlab: { size: [2, 0.3, 6.8], mass: 900, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', breakForce: 400000, fracture: { into: 'floorChunk', grid: [2, 1, 2] }, cap: 20 },
-  floorChunk: { size: [1, 0.3, 3.4], mass: 225, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', cap: 80 },
-  glass: { size: [0.75, 1.44, 0.06], mass: 6, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, breakForce: 1500, fracture: { into: 'shard', grid: [2, 2, 1] }, cap: 100 },
-  shard: { size: [0.375, 0.72, 0.06], mass: 1.5, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, noCcd: true, lifetime: 6, cap: 420 },
+  floorSlab: { size: [2, 0.3, 6.8], mass: 900, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', breakForce: 400000, fracture: { into: 'floorChunk', grid: [2, 1, 2] }, cap: 30 },
+  floorChunk: { size: [1, 0.3, 3.4], mass: 225, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', cap: 120 },
+  glass: { size: [0.75, 1.44, 0.06], mass: 6, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, breakForce: 1500, fracture: { into: 'shard', grid: [2, 2, 1] }, cap: 180 },
+  shard: { size: [0.375, 0.72, 0.06], mass: 1.5, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, noCcd: true, lifetime: 6, cap: 500 },
 
-  tree: { shape: 'tree', size: [0.22, 3], mass: 320, colors: [0xffffff], material: 'wood', geo: treeGeo, cap: 30 },
+  // Explosive fuel drums: a hard hit (or the Ember) sets them off.
+  fuel: { shape: 'cyl', size: [0.3, 0.9], mass: 35, colors: [0xffffff], material: 'metal', geo: fuelGeo, explosive: true, breakForce: 9000, cap: 40 },
+
+  // Giant bowling pins.
+  pin: { shape: 'cyl', size: [0.36, 2.4], mass: 40, colors: [0xffffff], material: 'plastic', geo: pinGeo, restitution: 0.35, cap: 12 },
+
+  // Shipping containers split into sections.
+  container: { matte: true, size: [6.1, 2.6, 2.44], mass: 2500, colors: [0xe0583f, 0x4a90dc, 0x48b873, 0xf29a3e, 0x9370cc], material: 'metal', breakForce: 900000, fracture: { into: 'containerSection', grid: [3, 1, 1] }, cap: 30 },
+  containerSection: { matte: true, size: [2.0333, 2.6, 2.44], mass: 833, colors: [0xe0583f, 0x4a90dc, 0x48b873, 0xf29a3e, 0x9370cc], material: 'metal', cap: 90 },
+
+  // Water tower: four legs, a platform and a tank.
+  steelLeg: { size: [0.3, 7, 0.3], mass: 140, colors: [0x7d848c], material: 'metal', breakForce: 80000, fracture: { into: 'legHalf', grid: [1, 2, 1] }, cap: 8 },
+  legHalf: { size: [0.3, 3.5, 0.3], mass: 70, colors: [0x7d848c], material: 'metal', cap: 16 },
+  platform: { matte: true, size: [3.6, 0.3, 3.6], mass: 600, colors: [0x6c737b], material: 'metal', breakForce: 260000, fracture: { into: 'platformChunk', grid: [2, 1, 2] }, cap: 2 },
+  platformChunk: { matte: true, size: [1.8, 0.3, 1.8], mass: 150, colors: [0x6c737b], material: 'metal', cap: 8 },
+  tank: { matte: true, shape: 'cyl', size: [1.6, 2.6], mass: 1400, colors: [0x7fb0cf], material: 'metal', breakForce: 650000, fracture: { into: 'tankChunk', grid: [2, 2, 2] }, cap: 2 },
+  tankChunk: { matte: true, size: [1.6, 1.3, 1.6], mass: 175, colors: [0x7fb0cf], material: 'metal', cap: 16 },
+
+  // Picket fence panels.
+  fence: { size: [2, 1, 0.08], mass: 14, colors: [0xffffff], material: 'wood', geo: fenceGeo, breakForce: 2600, fracture: { into: 'fenceBit', grid: [4, 1, 1] }, cap: 40 },
+  fenceBit: { size: [0.5, 1, 0.08], mass: 3.5, colors: [0xf1ece2], material: 'wood', cap: 160 },
+
+  // Gas station.
+  canopy: { matte: true, size: [12, 0.5, 8], mass: 3000, colors: [0xffffff], material: 'metal', geo: canopyGeo, breakForce: 900000, fracture: { into: 'canopyChunk', grid: [3, 1, 2] }, cap: 2 },
+  canopyChunk: { matte: true, size: [4, 0.5, 4], mass: 500, colors: [0xf4f4f2], material: 'metal', cap: 12 },
+  column: { size: [0.5, 4.5, 0.5], mass: 400, colors: [0xe6e2d8], material: 'concrete', breakForce: 140000, fracture: { into: 'columnChunk', grid: [1, 3, 1] }, cap: 8 },
+  columnChunk: { size: [0.5, 1.5, 0.5], mass: 133, colors: [0xe6e2d8], material: 'concrete', cap: 24 },
+  pump: { matte: true, size: [0.8, 1.8, 0.5], mass: 150, colors: [0xffffff], material: 'metal', geo: pumpGeo, breakForce: 50000, fracture: { into: 'pumpChunk', grid: [1, 2, 1] }, cap: 8 },
+  pumpChunk: { matte: true, size: [0.8, 0.9, 0.5], mass: 75, colors: [0x2f9e5b], material: 'metal', cap: 16 },
+
+  tree: { shape: 'tree', size: [0.22, 3], mass: 320, colors: [0xffffff], material: 'wood', geo: treeGeo, cap: 40 },
 };
 
 // --- Instanced rendering pool -------------------------------------------
@@ -1285,8 +1366,9 @@ class Pool {
     const mat = kind.glass
       ? new THREE.MeshStandardMaterial({ roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.45, depthWrite: false })
       : new THREE.MeshStandardMaterial({
-        roughness: kind.material === 'metal' ? 0.45 : 0.85,
-        metalness: kind.material === 'metal' ? 0.35 : 0,
+        // Painted metal (containers, tanks) reads better matte without reflections.
+        roughness: kind.material === 'metal' && !kind.matte ? 0.45 : 0.85,
+        metalness: kind.material === 'metal' && !kind.matte ? 0.35 : 0,
         vertexColors: !!geo.attributes.color,
       });
     this.mesh = new THREE.InstancedMesh(geo, mat, kind.cap);
@@ -1343,14 +1425,14 @@ class Destruction {
   constructor(scene, groundHalfSize) {
     this.scene = scene;
     this.groundHalfSize = groundHalfSize;
-    this.recycleRange = 110;
+    this.recycleRange = 140;
     this.options = { debrisLimit: 600, breakage: 'detailed', debrisLifetime: 60, physicsQuality: 4 };
     this.pools = {};
     for (const [name, kind] of Object.entries(KINDS)) {
       kind.name = name;
       this.pools[name] = new Pool(scene, kind);
     }
-    this.listeners = { impact: [], fracture: [], burn: [] };
+    this.listeners = { impact: [], fracture: [], burn: [], explode: [] };
     this.createWorld();
   }
 
@@ -1378,6 +1460,7 @@ class Destruction {
     this.byCollider = new Map();
     this.fragments = [];
     this.breakQueue = [];
+    this.pendingBlasts = [];
     this.bodyCount = 0;
     this.debrisCount = 0;
     this.time = 0;
@@ -1587,6 +1670,13 @@ class Destruction {
     this.time += STEP;
     this.car = car;
     this.breakDrag = 0;
+    this.blastJ = { x: 0, z: 0 };
+    // Chain reactions: detonate drums whose fuse ran out.
+    if (this.pendingBlasts.length) {
+      const due = this.pendingBlasts.filter((b) => b.at <= this.time);
+      this.pendingBlasts = this.pendingBlasts.filter((b) => b.at > this.time);
+      for (const b of due) if (b.entity.alive) this.explode(b.entity);
+    }
     // Only move the kinematic body when the car actually moved: Rapier
     // treats every kinematic update as motion and wakes whatever touches it.
     const h = car.heading;
@@ -1627,6 +1717,7 @@ class Destruction {
 
     // Breakage and impact sounds.
     const toBreak = new Set(this.breakQueue);
+    const toExplode = new Set();
     const settling = this.time < 0.6;
     this.eventQueue.drainContactForceEvents((ev) => {
       const force = ev.totalForceMagnitude();
@@ -1634,7 +1725,10 @@ class Destruction {
       const b = this.byCollider.get(ev.collider2());
       for (const e of [a, b]) {
         if (!e || !e.alive) continue;
-        if (!settling && this.canBreak(e) && force * STEP > breakImpulse(e.kind)) toBreak.add(e);
+        if (!settling && force * STEP > breakImpulse(e.kind)) {
+          if (e.kind.explosive) toExplode.add(e);
+          else if (this.canBreak(e)) toBreak.add(e);
+        }
         const dv = (force * STEP) / e.kind.mass;
         if (dv > 2.5) {
           const t = e.body.translation();
@@ -1642,6 +1736,10 @@ class Destruction {
         }
       }
     });
+    for (const e of toExplode) if (e.alive) this.explode(e);
+    for (const e of this.blastBreaks || []) if (e.alive && this.canBreak(e)) toBreak.add(e);
+    this.blastBreaks = [];
+
     // Spread big collapses over several steps to avoid frame spikes.
     this.breakQueue = [];
     let budget = FRACTURES_PER_STEP;
@@ -1662,7 +1760,64 @@ class Destruction {
       jz -= (car.velZ / speed) * this.breakDrag;
       total += this.breakDrag;
     }
+    if (this.blastJ.x || this.blastJ.z) {
+      jx += this.blastJ.x;
+      jz += this.blastJ.z;
+      total += Math.hypot(this.blastJ.x, this.blastJ.z);
+    }
     return { jx, jz, torque, total };
+  }
+
+  /**
+   * Fuel drum explosion: pushes everything within BLAST_RADIUS outward and
+   * up, shatters breakable things close by, lights the fuse on nearby
+   * drums (chain reactions) and shoves the car.
+   */
+  explode(entity) {
+    const t = entity.body.translation();
+    const centre = new THREE.Vector3(t.x, t.y, t.z);
+    this.despawn(entity);
+    const R = BLAST_RADIUS;
+    const seen = new Set();
+    this.world.collidersWithAabbIntersectingAabb(t, { x: R, y: R, z: R }, (c) => {
+      const body = c.parent();
+      if (!body || seen.has(body.handle)) return true;
+      seen.add(body.handle);
+      if (!body.isDynamic()) return true;
+      const p = body.translation();
+      const dx = p.x - t.x, dy = p.y - t.y + 1.2, dz = p.z - t.z;
+      const d = Math.hypot(dx, dy, dz);
+      if (d > R) return true;
+      const falloff = 1 - d / R;
+      const e = this.byCollider.get(c.handle);
+      if (e?.kind.explosive) {
+        if (!this.pendingBlasts.some((b) => b.entity === e)) {
+          this.pendingBlasts.push({ entity: e, at: this.time + 0.12 + Math.random() * 0.2 });
+        }
+        return true;
+      }
+      // Velocity change rather than raw impulse, so light and heavy things
+      // both fly believably (heavy ones less).
+      const dv = BLAST_SPEED * falloff * (e ? Math.min(1, 300 / e.kind.mass + 0.15) : 0.4);
+      const m = body.mass();
+      const inv = 1 / (d || 1);
+      body.applyImpulse({ x: dx * inv * dv * m, y: (dy * inv + 0.6) * dv * m, z: dz * inv * dv * m }, true);
+      body.applyTorqueImpulse({ x: (Math.random() - 0.5) * m * dv, y: (Math.random() - 0.5) * m * dv, z: (Math.random() - 0.5) * m * dv }, true);
+      if (e && falloff > 0.45) (this.blastBreaks ||= []).push(e);
+      return true;
+    });
+    // The car isn't a dynamic body; push it through the reaction channel.
+    const car = this.car;
+    if (car) {
+      const dx = car.x - t.x, dz = car.z - t.z;
+      const d = Math.hypot(dx, dz);
+      if (d < R) {
+        const dv = BLAST_SPEED * 0.35 * (1 - d / R) * Math.min(1, 1600 / car.spec.mass);
+        this.blastJ.x += (dx / (d || 1)) * dv * car.spec.mass;
+        this.blastJ.z += (dz / (d || 1)) * dv * car.spec.mass;
+      }
+    }
+    this.emit('explode', centre, car ? Math.hypot(car.x - t.x, car.z - t.z) : 99);
   }
 
   /**
@@ -1690,6 +1845,10 @@ class Destruction {
   }
 
   burn(entity, car) {
+    if (entity.kind.explosive) {
+      this.explode(entity);
+      return;
+    }
     const t = entity.body.translation();
     const r = entity.body.rotation();
     const info = {
@@ -1792,13 +1951,13 @@ class Destruction {
 // barrier ring is a physics object spawned by `populateArena`.
 
 const SKY = 0x9fc6e8;
-const ARENA_HALF = 64;      // barrier ring sits here
-const DRIVE_LIMIT = 68;     // the car is kept inside this square
+const ARENA_HALF = 90;      // barrier ring sits here
+const DRIVE_LIMIT = 94;     // the car is kept inside this square
 const START = { x: 0, z: -52, heading: 0 };
 
 function createWorld(scene, renderer) {
   scene.background = new THREE.Color(SKY);
-  scene.fog = new THREE.Fog(SKY, 110, 380);
+  scene.fog = new THREE.Fog(SKY, 130, 420);
 
   scene.add(new THREE.HemisphereLight(0xdcecff, 0x4a4237, 0.9));
 
@@ -1858,6 +2017,12 @@ function createWorld(scene, renderer) {
   // Centre circle and hazard stripes in front of the big wall.
   flat(new THREE.RingGeometry(9.8, 10.2, 96), paint, 0, 5);
   for (let x = -9; x <= 9; x += 2) flat(new THREE.PlaneGeometry(0.6, 3), yellow, x, -24, 0.6);
+  // Bowling lane leading to the giant pins.
+  for (const x of [-43.2, -36.8]) flat(new THREE.PlaneGeometry(0.25, 30), paint, x, -70);
+  for (let i = 0; i < 5; i++) flat(new THREE.CircleGeometry(0.3, 12), paint, -42 + i, -62);
+  // Gas station forecourt and parking bays in the container yard.
+  flat(new THREE.PlaneGeometry(16, 12), new THREE.MeshBasicMaterial({ color: 0x3b3d42, transparent: true, opacity: 0.6, depthWrite: false }), 74, -20);
+  for (let z = -26; z <= 6; z += 8) flat(new THREE.PlaneGeometry(14, 0.2), yellow, -76, z);
 
   // Distant hills for a horizon.
   const hillMat = new THREE.MeshStandardMaterial({ color: 0x6a8a55, roughness: 1, flatShading: true });
@@ -1927,8 +2092,16 @@ function populateArena(d) {
         for (let j = 0; j < depth; j++) {
           const edge = i === 0 || j === 0 || i === w - 1 || j === depth - 1;
           if (!edge) continue;
-          const door = j === 0 && y < 2 && (i === Math.floor(w / 2) || i === Math.floor(w / 2) - 1);
+          const mid = Math.floor(w / 2);
+          const door = j === 0 && y < 2 && (i === mid || i === mid - 1);
           if (door) continue;
+          // Over the door, one lintel spans from the block left of the
+          // opening to the block right of it.
+          const lintelRow = j === 0 && y === 2 && i >= mid - 2 && i <= mid + 1;
+          if (lintelRow) {
+            if (i === mid - 2) d.spawn('lintel', { x: x + (mid - 0.5) - (w - 1) / 2, y: 0.5 + y * (1 + gap), z: z - (depth - 1) / 2 }, 0, opts);
+            continue;
+          }
           d.spawn('block', { x: x + i - (w - 1) / 2, y: 0.5 + y * (1 + gap), z: z + j - (depth - 1) / 2 }, 0, opts);
         }
       }
@@ -2065,6 +2238,80 @@ function populateArena(d) {
   };
   grove(44, -52, 7);
   grove(-42, 52, 7);
+
+  // --- Outer ring ---------------------------------------------------------
+
+  // A second, smaller office block.
+  building(-30, 76, 2);
+
+  // Gas station: canopy on four columns, pumps underneath, fuel drums.
+  const gx = 74, gz = -20;
+  for (const [dx, dz] of [[-4.5, -3], [4.5, -3], [-4.5, 3], [4.5, 3]]) {
+    d.spawn('column', { x: gx + dx, y: 2.25 + gap, z: gz + dz }, 0, opts);
+  }
+  d.spawn('canopy', { x: gx, y: 4.75 + 2 * gap, z: gz }, 0, opts);
+  for (const dx of [-2, 2]) d.spawn('pump', { x: gx + dx, y: 0.9 + gap, z: gz }, 0, opts);
+  const drums = (cx, cz, n, spread = 1.6) => {
+    for (const p of scatter(cx, cz, spread, n, 0.7)) d.spawn('fuel', { x: p.x, y: 0.45 + gap, z: p.z }, 0, opts);
+  };
+  drums(83, -8, 8);
+  drums(gx - 6, gz + 6, 3, 0.8);
+  // A few drums elsewhere to set off chain reactions.
+  drums(11, -21.2, 2, 0.5);
+  drums(-11, -21.2, 2, 0.5);
+  drums(4, 26, 2, 0.5);
+  drums(-30, 26.5, 2, 0.5);
+  drums(-30, 71, 3, 0.8);
+
+  // Giant bowling pins at the end of the lane (head pin nearest the start).
+  for (let row = 0; row < 4; row++) {
+    for (let i = 0; i <= row; i++) {
+      d.spawn('pin', { x: -40 + (i - row / 2) * 1.25, y: 1.2 + gap, z: -74 - row * 1.1 }, 0, opts);
+    }
+  }
+
+  // Container yard: four lanes of containers stacked one to three high.
+  const stacks = [[2, 3, 1], [1, 2, 3], [3, 1, 2], [2, 2, 1]];
+  stacks.forEach((col, ci) => {
+    col.forEach((height, ri) => {
+      for (let level = 0; level < height; level++) {
+        d.spawn('container', { x: -84 + ci * 2.8, y: 1.3 + level * (2.6 + gap), z: -22 + ri * 8 }, Math.PI / 2, opts);
+      }
+    });
+  });
+
+  // Water tower.
+  const wx = 72, wz = 72;
+  for (const [dx, dz] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) {
+    d.spawn('steelLeg', { x: wx + dx, y: 3.5 + gap, z: wz + dz }, 0, opts);
+  }
+  d.spawn('platform', { x: wx, y: 7.15 + 2 * gap, z: wz }, 0, opts);
+  d.spawn('tank', { x: wx, y: 8.6 + 3 * gap, z: wz }, 0, opts);
+
+  // Fenced grove in the south-east corner.
+  const fx = 62, fz = -76, fw = 16, fd = 12;
+  for (let u = -fw / 2 + 1; u < fw / 2; u += 2) {
+    d.spawn('fence', { x: fx + u, y: 0.5 + gap, z: fz - fd / 2 }, 0, opts);
+    d.spawn('fence', { x: fx + u, y: 0.5 + gap, z: fz + fd / 2 }, 0, opts);
+  }
+  for (let v = -fd / 2 + 2; v <= fd / 2 - 2; v += 2) { // gap at the corners so panels don't overlap
+    d.spawn('fence', { x: fx - fw / 2, y: 0.5 + gap, z: fz + v }, Math.PI / 2, opts);
+    d.spawn('fence', { x: fx + fw / 2, y: 0.5 + gap, z: fz + v }, Math.PI / 2, opts);
+  }
+  for (const p of scatter(fx, fz, 4, 6, 3.4)) d.spawn('tree', { x: p.x, y: 1.5 + gap, z: p.z }, rng() * Math.PI, opts);
+
+  // More crates and barrels to plow through on the long runs.
+  cratePyramid(-60, -40, 3);
+  cratePyramid(60, 20, 2);
+  barrels(-62, 30, 8);
+  barrels(30, 80, 8);
+  brickWall(0, 84, 0, 24, 6);
+
+  // Outer light poles.
+  for (let z = -60; z <= 60; z += 30) {
+    d.spawn('pole', { x: -84, y: 3.5 + gap, z }, 0, opts);
+    d.spawn('pole', { x: 84, y: 3.5 + gap, z }, Math.PI, opts);
+  }
 
   // Ring of heavy jersey barriers.
   const seg = 3.15;
@@ -2479,25 +2726,52 @@ function approach(v, target, maxDelta) {
 }
 
 // ===== audio.js =====
-// Synthesised engine + tire squeal. Created lazily on first user gesture
-// because browsers block audio until then.
+// All game audio, synthesised with Web Audio (no sound files). Created on
+// the first user gesture because browsers block audio until then.
+//
+//   engine/loops ──► loopBus ─┐
+//   one-shots ────► sfxBus ───┼──► master (volume) ──► compressor ──► out
+//                   reverb ◄──┘ (send)  └─► ┘
+//
+// One-shots in the world (impacts, burns, explosions) go through a panner
+// so they come from where they happen; the listener follows the camera.
 
 const IMPACTS = {
   brick: { filter: 'lowpass', freq: 1100, q: 0.8, decay: 0.2, gain: 0.5, tones: [90], toneGain: 0.5, toneDecay: 0.6 },
   concrete: { filter: 'lowpass', freq: 600, q: 0.7, decay: 0.32, gain: 0.7, tones: [60], toneGain: 0.9, toneDecay: 0.8 },
   wood: { filter: 'bandpass', freq: 750, q: 1.4, decay: 0.16, gain: 0.7, tones: [210, 330], toneGain: 0.35, toneDecay: 0.5 },
   metal: { filter: 'bandpass', freq: 2200, q: 9, decay: 0.55, gain: 0.45, tones: [420, 1130], toneGain: 0.35, toneDecay: 1 },
-  plastic: { filter: 'highpass', freq: 1400, q: 0.7, decay: 0.08, gain: 0.35, tones: [], toneGain: 0, toneDecay: 0 },
+  plastic: { filter: 'highpass', freq: 1400, q: 0.7, decay: 0.08, gain: 0.35, tones: [180], toneGain: 0.2, toneDecay: 0.4 },
   glass: { filter: 'highpass', freq: 3200, q: 1.5, decay: 0.35, gain: 0.45, tones: [2600, 3900, 5300], toneGain: 0.18, toneDecay: 0.7 },
   crash: { filter: 'lowpass', freq: 420, q: 1, decay: 0.45, gain: 0.9, tones: [48], toneGain: 1, toneDecay: 0.9 },
 };
+
+// Engine characters. fund/sub/harm: oscillator mix (firing frequency,
+// half, double). drive: distortion. cut*: filter cutoff (Hz) at idle and
+// the extra opened by throttle. am: "burble" (amplitude wobble at half the
+// firing rate). noise: intake/mechanical noise. whine: turbine-like tone.
+const VOICES = {
+  sport: { fund: 0.55, sub: 0.25, harm: 0.2, drive: 2.5, q: 5, cutBase: 350, cutThrottle: 1900, am: 0.08, noise: 0.05, pops: true, whine: 0 },
+  hatch: { fund: 0.45, sub: 0.12, harm: 0.32, drive: 1.8, q: 3, cutBase: 520, cutThrottle: 2300, am: 0, noise: 0.07, pops: false, whine: 0 },
+  v8: { fund: 0.45, sub: 0.6, harm: 0.1, drive: 3.5, q: 6, cutBase: 220, cutThrottle: 1100, am: 0.5, noise: 0.04, pops: true, whine: 0 },
+  diesel: { fund: 0.4, sub: 0.5, harm: 0.16, drive: 5, q: 2, cutBase: 170, cutThrottle: 900, am: 0.35, noise: 0.2, pops: false, whine: 0 },
+  ember: { fund: 0.38, sub: 0.2, harm: 0.22, drive: 2, q: 4, cutBase: 420, cutThrottle: 2100, am: 0, noise: 0.05, pops: true, whine: 0.09 },
+};
+
+const MAX_VOICES = 16;
 
 class CarAudio {
   constructor() {
     this.ctx = null;
     this.muted = false;
+    this.volume = 0.75;
+    this.paused = true;
+    this.voice = VOICES.sport;
+    this.prevGear = 1;
+    this.prevThrottle = 0;
   }
 
+  /** Create (or resume) the audio context. Must run inside a user gesture. */
   start() {
     if (this.ctx) {
       this.ctx.resume();
@@ -2506,74 +2780,215 @@ class CarAudio {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const ctx = (this.ctx = new AC());
-    this.master = ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : 0.5;
-    this.master.connect(ctx.destination);
 
-    // Engine: two detuned oscillators through a throttle-driven lowpass.
+    // Output chain: master volume -> gentle bus compressor -> speakers.
+    this.compressor = ctx.createDynamicsCompressor();
+    this.compressor.threshold.value = -16;
+    this.compressor.knee.value = 12;
+    this.compressor.ratio.value = 4;
+    this.compressor.attack.value = 0.004;
+    this.compressor.release.value = 0.2;
+    this.compressor.connect(ctx.destination);
+    this.master = ctx.createGain();
+    this.master.connect(this.compressor);
+    this.applyVolume();
+
+    this.sfxBus = ctx.createGain();
+    this.sfxBus.connect(this.master);
+    this.loopBus = ctx.createGain();
+    this.loopBus.gain.value = this.paused ? 0 : 1;
+    this.loopBus.connect(this.master);
+
+    // Reverb send: a generated decaying-noise impulse response.
+    this.reverb = ctx.createConvolver();
+    this.reverb.buffer = this.impulseResponse(1.8, 2.6);
+    this.reverbSend = ctx.createGain();
+    this.reverbSend.gain.value = 0.35;
+    this.reverbSend.connect(this.reverb).connect(this.master);
+
+    this.buildEngine();
+    this.buildLoops();
+  }
+
+  buildEngine() {
+    const ctx = this.ctx;
     this.engineFilter = ctx.createBiquadFilter();
     this.engineFilter.type = 'lowpass';
-    this.engineFilter.Q.value = 4;
+    this.shaper = ctx.createWaveShaper();
+    this.shaper.oversample = '2x';
+    this.engineMix = ctx.createGain(); // amplitude-modulated by the burble LFO
     this.engineGain = ctx.createGain();
     this.engineGain.gain.value = 0;
-    this.engineFilter.connect(this.engineGain).connect(this.master);
-    this.osc1 = ctx.createOscillator();
-    this.osc1.type = 'sawtooth';
-    this.osc2 = ctx.createOscillator();
-    this.osc2.type = 'square';
-    const g2 = ctx.createGain();
-    g2.gain.value = 0.5;
-    this.osc1.connect(this.engineFilter);
-    this.osc2.connect(g2).connect(this.engineFilter);
-    this.osc1.start();
-    this.osc2.start();
+    this.engineMix.connect(this.shaper).connect(this.engineFilter).connect(this.engineGain).connect(this.loopBus);
 
-    // Tire squeal: band-passed noise.
-    const len = ctx.sampleRate * 2;
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
-    const noise = ctx.createBufferSource();
-    noise.buffer = buf;
-    noise.loop = true;
-    this.squealFilter = ctx.createBiquadFilter();
-    this.squealFilter.type = 'bandpass';
-    this.squealFilter.frequency.value = 900;
-    this.squealFilter.Q.value = 6;
-    this.squealGain = ctx.createGain();
-    this.squealGain.gain.value = 0;
-    noise.connect(this.squealFilter).connect(this.squealGain).connect(this.master);
-    noise.start();
+    const osc = (type) => {
+      const o = ctx.createOscillator();
+      o.type = type;
+      const g = ctx.createGain();
+      o.connect(g).connect(this.engineMix);
+      o.start();
+      return { o, g };
+    };
+    this.oscFund = osc('sawtooth');
+    this.oscSub = osc('square');
+    this.oscHarm = osc('triangle');
+    this.oscWhine = osc('sine');
 
-    // Boost: a roaring, band-passed noise bed.
-    this.boostFilter = ctx.createBiquadFilter();
-    this.boostFilter.type = 'bandpass';
-    this.boostFilter.frequency.value = 500;
-    this.boostFilter.Q.value = 0.8;
-    this.boostGain = ctx.createGain();
-    this.boostGain.gain.value = 0;
-    noise.connect(this.boostFilter).connect(this.boostGain).connect(this.master);
+    this.amOsc = ctx.createOscillator();
+    this.amDepth = ctx.createGain();
+    this.amOsc.connect(this.amDepth).connect(this.engineMix.gain);
+    this.amOsc.start();
+
+    // Intake / mechanical noise.
+    this.intakeFilter = ctx.createBiquadFilter();
+    this.intakeFilter.type = 'bandpass';
+    this.intakeFilter.Q.value = 1.2;
+    this.intakeGain = ctx.createGain();
+    this.intakeGain.gain.value = 0;
+    this.noiseSource().connect(this.intakeFilter).connect(this.intakeGain).connect(this.engineGain);
+
+    this.applyVoice();
+  }
+
+  buildLoops() {
+    const ctx = this.ctx;
+    const loop = (type, freq, q) => {
+      const f = ctx.createBiquadFilter();
+      f.type = type;
+      f.frequency.value = freq;
+      f.Q.value = q;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      this.noiseSource().connect(f).connect(g).connect(this.loopBus);
+      return { f, g };
+    };
+    this.squealA = loop('bandpass', 900, 7);
+    this.squealB = loop('bandpass', 1850, 9);
+    this.boost = loop('bandpass', 500, 0.8);
+    this.rumble = loop('lowpass', 160, 0.7);
+    this.wind = loop('bandpass', 650, 0.4);
+  }
+
+  /** Pick the engine character for a vehicle (see `voice` in vehicles.js). */
+  setVehicle(def) {
+    this.voice = VOICES[def.voice] || VOICES.sport;
+    if (this.ctx) this.applyVoice();
+  }
+
+  applyVoice() {
+    const v = this.voice;
+    const t = this.ctx.currentTime;
+    this.oscFund.g.gain.setTargetAtTime(v.fund, t, 0.05);
+    this.oscSub.g.gain.setTargetAtTime(v.sub, t, 0.05);
+    this.oscHarm.g.gain.setTargetAtTime(v.harm, t, 0.05);
+    this.oscWhine.g.gain.setTargetAtTime(v.whine, t, 0.05);
+    this.engineMix.gain.value = 1 - v.am / 2;
+    this.amDepth.gain.value = v.am / 2;
+    this.engineFilter.Q.value = v.q;
+    this.shaper.curve = distortionCurve(v.drive);
+  }
+
+  /** Pausing silences the car but keeps one-shots (menu clicks) working. */
+  setPaused(paused) {
+    this.paused = paused;
+    if (!this.ctx) return;
+    if (!paused) this.ctx.resume();
+    this.loopBus.gain.setTargetAtTime(paused ? 0 : 1, this.ctx.currentTime, 0.08);
+  }
+
+  setVolume(volume) {
+    this.volume = volume;
+    this.applyVolume();
+  }
+
+  setMuted(muted) {
+    this.muted = muted;
+    this.applyVolume();
+  }
+
+  applyVolume() {
+    if (this.master) this.master.gain.value = this.muted ? 0 : this.volume * 0.7;
+  }
+
+  /** Follow the camera so positional sounds pan and fade correctly. */
+  setListener(camera) {
+    if (!this.ctx) return;
+    const l = this.ctx.listener;
+    const p = camera.position;
+    const e = camera.matrixWorld.elements; // camera looks down its local -Z
+    const f = { x: -e[8], y: -e[9], z: -e[10] };
+    if (l.positionX) {
+      const t = this.ctx.currentTime;
+      l.positionX.setValueAtTime(p.x, t); l.positionY.setValueAtTime(p.y, t); l.positionZ.setValueAtTime(p.z, t);
+      l.forwardX.setValueAtTime(f.x, t); l.forwardY.setValueAtTime(f.y, t); l.forwardZ.setValueAtTime(f.z, t);
+      l.upX.setValueAtTime(0, t); l.upY.setValueAtTime(1, t); l.upZ.setValueAtTime(0, t);
+    } else {
+      l.setPosition(p.x, p.y, p.z);
+      l.setOrientation(f.x, f.y, f.z, 0, 1, 0);
+    }
+    this.listenerPos = p;
+  }
+
+  /** Output node for a one-shot: panned in the world if `pos` is given. */
+  outputFor(pos, reverb = 0.3) {
+    const ctx = this.ctx;
+    const out = ctx.createGain();
+    if (pos) {
+      const panner = ctx.createPanner();
+      panner.panningModel = 'equalpower';
+      panner.distanceModel = 'inverse';
+      panner.refDistance = 7;
+      panner.rolloffFactor = 1.1;
+      panner.maxDistance = 250;
+      if (panner.positionX) {
+        panner.positionX.value = pos.x; panner.positionY.value = pos.y; panner.positionZ.value = pos.z;
+      } else {
+        panner.setPosition(pos.x, pos.y, pos.z);
+      }
+      out.connect(panner).connect(this.sfxBus);
+    } else {
+      out.connect(this.sfxBus);
+    }
+    if (reverb > 0) {
+      const send = ctx.createGain();
+      send.gain.value = reverb;
+      out.connect(send).connect(this.reverbSend);
+    }
+    return out;
+  }
+
+  /** Is a world position close enough to bother playing? */
+  audible(pos, range = 140) {
+    if (!pos || !this.listenerPos) return true;
+    const p = this.listenerPos;
+    return Math.hypot(pos.x - p.x, pos.y - p.y, pos.z - p.z) < range;
+  }
+
+  /** Reserve a voice; loud sounds may still play when we're near the cap. */
+  claimVoice(duration, strength) {
+    const now = this.ctx.currentTime;
+    this.voices = (this.voices || []).filter((t) => t > now);
+    if (this.voices.length >= MAX_VOICES || (this.voices.length > MAX_VOICES * 0.6 && strength < 0.35)) return false;
+    this.voices.push(now + duration);
+    return true;
   }
 
   /**
-   * One-shot collision sound. `strength` is 0..1. Calls are rate limited
-   * so a collapsing wall doesn't stack hundreds of voices.
+   * One-shot collision sound. `strength` is 0..1; `pos` places it in the
+   * world (omit for sounds on the player's own car).
    */
-  impact(material, strength) {
-    if (!this.ctx || this.muted || strength < 0.05) return;
+  impact(material, strength, pos) {
+    if (!this.ctx || this.muted || strength < 0.05 || !this.audible(pos)) return;
     const ctx = this.ctx;
     const now = ctx.currentTime;
-    this.voices = (this.voices || []).filter((t) => t > now);
-    if (this.voices.length > 10) return;
     const preset = IMPACTS[material] || IMPACTS.concrete;
     const dur = preset.decay * (0.6 + strength);
-    this.voices.push(now + dur);
+    if (!this.claimVoice(dur, strength)) return;
 
-    const gain = ctx.createGain();
+    const out = this.outputFor(pos, material === 'crash' ? 0.25 : 0.4);
     const peak = Math.min(0.9, preset.gain * (0.25 + strength));
-    gain.gain.setValueAtTime(peak, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
-    gain.connect(this.master);
+    out.gain.setValueAtTime(peak, now);
+    out.gain.exponentialRampToValueAtTime(0.001, now + dur);
 
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuffer();
@@ -2582,7 +2997,7 @@ class CarAudio {
     filter.type = preset.filter;
     filter.frequency.value = preset.freq * (0.85 + Math.random() * 0.3);
     filter.Q.value = preset.q;
-    src.connect(filter).connect(gain);
+    src.connect(filter).connect(out);
     src.start(now, Math.random());
     src.stop(now + dur);
 
@@ -2594,21 +3009,23 @@ class CarAudio {
       osc.frequency.setValueAtTime(f * 1.4, now);
       osc.frequency.exponentialRampToValueAtTime(f, now + 0.05);
       const g = ctx.createGain();
-      g.gain.setValueAtTime(peak * preset.toneGain, now);
+      g.gain.setValueAtTime(preset.toneGain, now);
       g.gain.exponentialRampToValueAtTime(0.001, now + dur * preset.toneDecay);
-      osc.connect(g).connect(this.master);
+      osc.connect(g).connect(out);
       osc.start(now);
       osc.stop(now + dur * preset.toneDecay);
     }
   }
 
   /** Whoosh and crackle of something catching fire. */
-  burn(strength = 1) {
-    if (!this.ctx || this.muted) return;
+  burn(strength = 1, pos) {
+    if (!this.ctx || this.muted || !this.audible(pos)) return;
     const ctx = this.ctx;
     const now = ctx.currentTime;
     if (this.lastBurn && now - this.lastBurn < 0.05) return;
+    if (!this.claimVoice(1, strength)) return;
     this.lastBurn = now;
+    const out = this.outputFor(pos, 0.3);
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuffer();
     const filter = ctx.createBiquadFilter();
@@ -2617,29 +3034,165 @@ class CarAudio {
     filter.frequency.setValueAtTime(350, now);
     filter.frequency.exponentialRampToValueAtTime(2400, now + 0.18);
     filter.frequency.exponentialRampToValueAtTime(600, now + 0.9);
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.5 * strength, now + 0.06);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
-    src.connect(filter).connect(gain).connect(this.master);
+    out.gain.setValueAtTime(0.0001, now);
+    out.gain.exponentialRampToValueAtTime(0.5 * strength, now + 0.06);
+    out.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+    src.connect(filter).connect(out);
     src.start(now, Math.random());
     src.stop(now + 1);
-    // A few crackles.
-    for (let i = 0; i < 4; i++) {
-      const t0 = now + 0.1 + Math.random() * 0.6;
+    this.crackles(out, now + 0.1, 4, 0.5);
+  }
+
+  /** Fuel drum explosion: deep boom, blast noise, crackle and a long tail. */
+  explosion(pos, distance = 20) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    if (this.lastBoom && now - this.lastBoom < 0.04) return;
+    this.lastBoom = now;
+    const out = this.outputFor(pos, 0.9);
+    out.gain.value = 1;
+
+    // Sub-bass thump sweeping down.
+    const boom = ctx.createOscillator();
+    boom.type = 'sine';
+    boom.frequency.setValueAtTime(95, now);
+    boom.frequency.exponentialRampToValueAtTime(28, now + 1.1);
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.0001, now);
+    bg.gain.exponentialRampToValueAtTime(1.2, now + 0.015);
+    bg.gain.exponentialRampToValueAtTime(0.001, now + 1.3);
+    boom.connect(bg).connect(out);
+    boom.start(now);
+    boom.stop(now + 1.35);
+
+    // Blast: wide noise burst that darkens as it decays.
+    const blast = ctx.createBufferSource();
+    blast.buffer = this.noiseBuffer();
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(5000, now);
+    lp.frequency.exponentialRampToValueAtTime(300, now + 1.4);
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.9, now);
+    ng.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+    blast.connect(lp).connect(ng).connect(out);
+    blast.start(now, Math.random());
+    blast.stop(now + 1.7);
+
+    this.crackles(out, now + 0.15, 7, 0.6);
+    // Close blasts briefly duck the engine so they hit harder.
+    if (distance < 25) {
+      const g = this.loopBus.gain;
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(this.paused ? 0 : 0.35, now);
+      g.setTargetAtTime(this.paused ? 0 : 1, now + 0.15, 0.35);
+    }
+  }
+
+  crackles(out, start, count, level) {
+    const ctx = this.ctx;
+    for (let i = 0; i < count; i++) {
+      const t0 = start + Math.random() * 0.6;
       const c = ctx.createBufferSource();
       c.buffer = this.noiseBuffer();
       const hp = ctx.createBiquadFilter();
       hp.type = 'highpass';
-      hp.frequency.value = 2500;
+      hp.frequency.value = 2000 + Math.random() * 1500;
       const g = ctx.createGain();
-      g.gain.setValueAtTime(0.25 * strength, t0);
+      g.gain.setValueAtTime(level * (0.4 + Math.random() * 0.6), t0);
       g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.03);
-      c.connect(hp).connect(g).connect(this.master);
+      c.connect(hp).connect(g).connect(out);
       c.start(t0, Math.random());
       c.stop(t0 + 0.04);
     }
   }
+
+  /** Exhaust pops when lifting off at high revs. */
+  pops() {
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const n = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) {
+      const t0 = now + 0.05 + i * (0.06 + Math.random() * 0.1);
+      const src = ctx.createBufferSource();
+      src.buffer = this.noiseBuffer();
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 700 + Math.random() * 600;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.55 * (0.5 + Math.random() * 0.5), t0 + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.07);
+      src.connect(f).connect(g).connect(this.loopBus);
+      src.start(t0, Math.random());
+      src.stop(t0 + 0.08);
+    }
+  }
+
+  /** Short tick for menu buttons. */
+  ui() {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(1400, now);
+    o.frequency.exponentialRampToValueAtTime(900, now + 0.04);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.18, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    o.connect(g).connect(this.sfxBus);
+    o.start(now);
+    o.stop(now + 0.07);
+  }
+
+  /** Per-frame update of the continuous sounds. */
+  update(car, skid) {
+    if (!this.ctx || this.paused) return;
+    const t = this.ctx.currentTime;
+    const v = this.voice;
+    const firing = (car.rpm / 60) * 2 * (car.spec.engineTone ?? 1); // 4-cylinder firing frequency
+
+    // Gear changes: a short dip in volume as the clutch goes in.
+    let dip = 1;
+    if (car.gear !== this.prevGear) {
+      this.shiftAt = t;
+      this.prevGear = car.gear;
+    }
+    if (this.shiftAt && t - this.shiftAt < 0.14) dip = 0.45;
+
+    this.oscFund.o.frequency.setTargetAtTime(firing, t, 0.03);
+    this.oscSub.o.frequency.setTargetAtTime(firing * 0.5 * 1.006, t, 0.03);
+    this.oscHarm.o.frequency.setTargetAtTime(firing * 2.01, t, 0.03);
+    this.oscWhine.o.frequency.setTargetAtTime(600 + car.rpm * 0.55 + car.speed * 8, t, 0.08);
+    this.amOsc.frequency.setTargetAtTime(Math.max(4, firing * 0.25), t, 0.05);
+    const load = car.throttle;
+    this.engineFilter.frequency.setTargetAtTime(v.cutBase + load * v.cutThrottle + car.rpm * 0.12, t, 0.05);
+    this.engineGain.gain.setTargetAtTime((0.1 + load * 0.14 + (car.rpm / 7000) * 0.05) * dip, t, 0.04);
+    this.intakeFilter.frequency.setTargetAtTime(500 + car.rpm * 0.3, t, 0.05);
+    this.intakeGain.gain.setTargetAtTime(v.noise * (0.2 + load) * (car.rpm / 5000), t, 0.05);
+
+    // Lift-off at high revs: crackle and pop.
+    if (v.pops && this.prevThrottle > 0.7 && load < 0.1 && car.rpm > 4500 && car.gear > 0) this.pops();
+    this.prevThrottle = load;
+
+    const squeal = Math.min(0.35, skid * 0.4);
+    this.squealA.g.gain.setTargetAtTime(squeal, t, 0.05);
+    this.squealB.g.gain.setTargetAtTime(squeal * 0.35, t, 0.05);
+    this.squealA.f.frequency.setTargetAtTime(700 + skid * 500, t, 0.1);
+
+    this.boost.g.gain.setTargetAtTime(car.boosting ? 0.32 : 0, t, car.boosting ? 0.05 : 0.15);
+    this.boost.f.frequency.setTargetAtTime(car.boosting ? 380 + car.speed * 14 : 300, t, 0.2);
+
+    // Road rumble and wind rise with speed, so speed is audible.
+    const sp = car.speed;
+    this.rumble.g.gain.setTargetAtTime(Math.min(0.28, sp * 0.009), t, 0.1);
+    this.wind.g.gain.setTargetAtTime(Math.min(0.3, (sp / 55) ** 2 * 0.3), t, 0.1);
+    this.wind.f.frequency.setTargetAtTime(450 + sp * 12, t, 0.2);
+  }
+
+  // --- Helpers ---------------------------------------------------------------
 
   noiseBuffer() {
     if (!this._noise) {
@@ -2651,35 +3204,34 @@ class CarAudio {
     return this._noise;
   }
 
-  /** Silence everything while a menu is open. */
-  suspend() {
-    this.ctx?.suspend();
+  noiseSource() {
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer();
+    src.loop = true;
+    src.start(0, Math.random() * 2);
+    return src;
   }
 
-  setMuted(muted) {
-    this.muted = muted;
-    if (this.master) this.master.gain.value = muted ? 0 : 0.5;
+  impulseResponse(seconds, decay) {
+    const rate = this.ctx.sampleRate;
+    const len = Math.floor(rate * seconds);
+    const buf = this.ctx.createBuffer(2, len, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** decay;
+    }
+    return buf;
   }
+}
 
-  toggleMute() {
-    this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
-    return this.muted;
+function distortionCurve(amount) {
+  const n = 1024;
+  const curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1;
+    curve[i] = Math.tanh(x * amount) / Math.tanh(amount);
   }
-
-  update(car, skid) {
-    if (!this.ctx) return;
-    const t = this.ctx.currentTime;
-    const firing = (car.rpm / 60) * 2 * (car.spec.engineTone ?? 1); // 4-cylinder firing frequency
-    this.osc1.frequency.setTargetAtTime(firing, t, 0.03);
-    this.osc2.frequency.setTargetAtTime(firing * 0.5 * 1.01, t, 0.03);
-    this.engineFilter.frequency.setTargetAtTime(300 + car.throttle * 1400 + car.rpm * 0.15, t, 0.05);
-    this.engineGain.gain.setTargetAtTime(0.12 + car.throttle * 0.16, t, 0.05);
-    this.squealGain.gain.setTargetAtTime(Math.min(0.35, skid * 0.4), t, 0.05);
-    this.squealFilter.frequency.setTargetAtTime(700 + skid * 500, t, 0.1);
-    this.boostGain.gain.setTargetAtTime(car.boosting ? 0.32 : 0, t, car.boosting ? 0.05 : 0.15);
-    this.boostFilter.frequency.setTargetAtTime(car.boosting ? 380 + car.speed * 14 : 300, t, 0.2);
-  }
+  return curve;
 }
 
 // ===== settings.js =====
@@ -2715,6 +3267,7 @@ const OPTIONS = {
   game: {
     assists: { label: 'Driving assists', hint: 'Traction control and countersteer', choices: [[true, 'On'], [false, 'Off']] },
     sound: { label: 'Sound', choices: [[true, 'On'], [false, 'Off']] },
+    volume: { label: 'Volume', choices: [[0.25, '25%'], [0.5, '50%'], [0.75, '75%'], [1, '100%']] },
     startVehicle: { label: 'Vehicle', choices: [] },
   },
 };
@@ -2730,6 +3283,7 @@ const DEFAULTS = {
   physicsQuality: 4,
   assists: true,
   sound: true,
+  volume: 0.75,
   startVehicle: 'sports',
 };
 
@@ -3039,6 +3593,36 @@ class BurnEffect {
     flash.t = 0.7;
   }
 
+  /** Fuel-drum fireball: a burst of white-hot voxels flung outward. */
+  fireball(centre) {
+    const n = Math.round(this.maxPerObject * 1.6);
+    for (let k = 0; k < n; k++) {
+      const i = this.next;
+      this.next = (this.next + 1) % this.capacity;
+      if (!this.alive[i]) this.active++;
+      this.alive[i] = 1;
+      this.high = Math.max(this.high, i + 1);
+      // Random direction, biased upward; faster near the core.
+      const u = Math.random() * 2 - 1;
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(1 - u * u);
+      const dir = [r * Math.cos(a), Math.abs(u) * 0.8 + 0.2, r * Math.sin(a)];
+      const speed = 3 + Math.random() * 9;
+      const start = Math.random() * 0.5;
+      this.pos.set([centre.x + dir[0] * start, centre.y + 0.3 + dir[1] * start, centre.z + dir[2] * start], i * 3);
+      this.vel.set([dir[0] * speed, dir[1] * speed, dir[2] * speed], i * 3);
+      this.start[i] = this.time + Math.random() * 0.05;
+      this.life[i] = 0.5 + Math.random() * 0.9;
+      this.size[i] = 0.18 + Math.random() * 0.32;
+      this.base.set([1, 0.6, 0.2], i * 3);
+    }
+    this.mesh.count = this.high;
+    const flash = this.lights[this.lightIndex];
+    this.lightIndex = (this.lightIndex + 1) % this.lights.length;
+    flash.light.position.copy(centre).setY(centre.y + 1.5);
+    flash.t = 1.1;
+  }
+
   /** Voxel cells filling a kind's shape, cached per kind and detail level. */
   shapeFor(kind) {
     const key = `${kind.name}:${this.maxPerObject}`;
@@ -3094,7 +3678,12 @@ class BurnEffect {
           const c = stops[Math.floor(x) + 1];
           const f = x - Math.floor(x);
           r = a[0] + (c[0] - a[0]) * f; g = a[1] + (c[1] - a[1]) * f; b = a[2] + (c[2] - a[2]) * f;
-          // Drift up and shrink over the second half of its life.
+          // Air drag slows fast voxels; heat makes them rise.
+          const drag = Math.exp(-dt * 2.2);
+          this.vel[p] *= drag;
+          this.vel[p + 1] = this.vel[p + 1] * drag + 1.2 * dt;
+          this.vel[p + 2] *= drag;
+          // Drift and shrink over the second half of its life.
           this.pos[p] += this.vel[p] * dt;
           this.pos[p + 1] += this.vel[p + 1] * dt;
           this.pos[p + 2] += this.vel[p + 2] * dt;
@@ -3297,7 +3886,7 @@ destruction.on('fracture', (pos, kind) => {
   const base = settings.effects === 'high' ? 2 + Math.round(kind.mass / 60) : 1;
   const n = Math.min(6, base);
   for (let i = 0; i < n; i++) dust.emit(pos, { x: 0, z: 0 }, 0.6 + Math.random() * 0.4, pos.y);
-  audio.impact(kind.material, 1);
+  audio.impact(kind.material, 1, pos);
   car.boost = Math.min(1, car.boost + 0.015); // smashing refills boost
 });
 destruction.on('burn', (info) => {
@@ -3305,10 +3894,22 @@ destruction.on('burn', (info) => {
   burnFx.ignite(info);
   const puffs = settings.effects === 'high' ? 3 : 1;
   for (let i = 0; i < puffs; i++) soot.emit(info.pos, { x: 0, z: 0 }, 0.8, info.pos.y + 0.5);
-  audio.burn(Math.min(1, 0.4 + info.kind.mass / 300));
+  audio.burn(Math.min(1, 0.4 + info.kind.mass / 300), info.pos);
   car.boost = Math.min(1, car.boost + 0.012);
 });
-destruction.on('impact', (material, strength) => audio.impact(material, strength));
+destruction.on('impact', (material, strength, pos) => audio.impact(material, strength, pos));
+destruction.on('explode', (pos, distance) => {
+  smashed++;
+  burnFx.fireball(pos);
+  const puffs = settings.effects === 'high' ? 8 : 3;
+  for (let i = 0; i < puffs; i++) {
+    soot.emit(pos, { x: (Math.random() - 0.5) * 10, z: (Math.random() - 0.5) * 10 }, 1, pos.y + 0.5 + Math.random() * 2);
+    dust.emit(pos, { x: (Math.random() - 0.5) * 14, z: (Math.random() - 0.5) * 14 }, 1, pos.y);
+  }
+  audio.explosion(pos, distance);
+  shake = Math.min(1, shake + Math.max(0, 1 - distance / 35));
+  car.boost = Math.min(1, car.boost + 0.05);
+});
 
 // --- Settings ----------------------------------------------------------
 let shadowsWere = null;
@@ -3336,6 +3937,7 @@ function applySettings({ rebuildRenderer = false } = {}) {
   });
   car.spec.assists = settings.assists;
   audio.setMuted(!settings.sound);
+  audio.setVolume(settings.volume);
   burnFx.setDetail(settings.effects === 'high' ? 150 : 60, settings.effects === 'high');
   $('fps').hidden = !settings.showFps;
   refreshBadges();
@@ -3411,6 +4013,7 @@ function switchTo(target) {
   skids.clear();
   chase.setVehicle(target.def);
   chase.snap();
+  audio.setVehicle(target.def);
   refreshBadges();
   toast(`Driving: ${target.def.name}`);
 }
@@ -3447,6 +4050,7 @@ const menu = new Menu({
 
 function play(def) {
   audio.start();
+  audio.setPaused(false);
   const chosen = fleet.find((v) => v.def === def) || active;
   if (chosen !== active || arenaDirty) {
     active = chosen;
@@ -3456,6 +4060,7 @@ function play(def) {
     resetCar();
   }
   arenaDirty = true;
+  audio.setVehicle(active.def);
   refreshBadges();
   menu.hide();
   state = 'playing';
@@ -3466,7 +4071,7 @@ function play(def) {
 function pause() {
   if (state !== 'playing') return;
   state = 'paused';
-  audio.suspend();
+  audio.setPaused(true);
   menu.show('pause');
 }
 
@@ -3474,13 +4079,14 @@ function resume() {
   menu.hide();
   state = 'playing';
   audio.start();
+  audio.setPaused(false);
   clock.getDelta(); // don't count the time spent paused
   accumulator = 0;
 }
 
 function openMainMenu() {
   state = 'menu';
-  audio.suspend();
+  audio.setPaused(true);
   menu.show('main');
 }
 
@@ -3509,6 +4115,13 @@ function enterNearby() {
   const v = nearbyVehicle();
   if (v) switchTo(v);
 }
+
+// Menu buttons click (and the first click unlocks audio).
+$('menu').addEventListener('click', (e) => {
+  if (!e.target.closest('button')) return;
+  audio.start();
+  audio.ui();
+});
 
 const isTouch = matchMedia('(pointer: coarse)').matches;
 if (isTouch) {
@@ -3578,7 +4191,7 @@ function frame() {
   } else if (state === 'menu') {
     // Slow orbit over the arena behind the main menu.
     menuOrbit += dt * 0.06;
-    camera.position.set(Math.sin(menuOrbit) * 58, 26, Math.cos(menuOrbit) * 58);
+    camera.position.set(Math.sin(menuOrbit) * 82, 34, Math.cos(menuOrbit) * 82);
     camera.lookAt(0, 2, 0);
     destruction.sync();
     for (const v of fleet) if (v.parked) v.model.updateParked(v.parked.body, dt);
@@ -3685,6 +4298,7 @@ function updateScene(dt) {
     shake *= Math.exp(-dt * 6);
   }
   world.followSun(active.model.root.position);
+  audio.setListener(camera);
 
   // HUD.
   hud.speed.textContent = Math.round(speed * 3.6);

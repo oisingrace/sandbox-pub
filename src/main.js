@@ -92,7 +92,7 @@ destruction.on('fracture', (pos, kind) => {
   const base = settings.effects === 'high' ? 2 + Math.round(kind.mass / 60) : 1;
   const n = Math.min(6, base);
   for (let i = 0; i < n; i++) dust.emit(pos, { x: 0, z: 0 }, 0.6 + Math.random() * 0.4, pos.y);
-  audio.impact(kind.material, 1);
+  audio.impact(kind.material, 1, pos);
   car.boost = Math.min(1, car.boost + 0.015); // smashing refills boost
 });
 destruction.on('burn', (info) => {
@@ -100,10 +100,22 @@ destruction.on('burn', (info) => {
   burnFx.ignite(info);
   const puffs = settings.effects === 'high' ? 3 : 1;
   for (let i = 0; i < puffs; i++) soot.emit(info.pos, { x: 0, z: 0 }, 0.8, info.pos.y + 0.5);
-  audio.burn(Math.min(1, 0.4 + info.kind.mass / 300));
+  audio.burn(Math.min(1, 0.4 + info.kind.mass / 300), info.pos);
   car.boost = Math.min(1, car.boost + 0.012);
 });
-destruction.on('impact', (material, strength) => audio.impact(material, strength));
+destruction.on('impact', (material, strength, pos) => audio.impact(material, strength, pos));
+destruction.on('explode', (pos, distance) => {
+  smashed++;
+  burnFx.fireball(pos);
+  const puffs = settings.effects === 'high' ? 8 : 3;
+  for (let i = 0; i < puffs; i++) {
+    soot.emit(pos, { x: (Math.random() - 0.5) * 10, z: (Math.random() - 0.5) * 10 }, 1, pos.y + 0.5 + Math.random() * 2);
+    dust.emit(pos, { x: (Math.random() - 0.5) * 14, z: (Math.random() - 0.5) * 14 }, 1, pos.y);
+  }
+  audio.explosion(pos, distance);
+  shake = Math.min(1, shake + Math.max(0, 1 - distance / 35));
+  car.boost = Math.min(1, car.boost + 0.05);
+});
 
 // --- Settings ----------------------------------------------------------
 let shadowsWere = null;
@@ -131,6 +143,7 @@ function applySettings({ rebuildRenderer = false } = {}) {
   });
   car.spec.assists = settings.assists;
   audio.setMuted(!settings.sound);
+  audio.setVolume(settings.volume);
   burnFx.setDetail(settings.effects === 'high' ? 150 : 60, settings.effects === 'high');
   $('fps').hidden = !settings.showFps;
   refreshBadges();
@@ -206,6 +219,7 @@ function switchTo(target) {
   skids.clear();
   chase.setVehicle(target.def);
   chase.snap();
+  audio.setVehicle(target.def);
   refreshBadges();
   toast(`Driving: ${target.def.name}`);
 }
@@ -242,6 +256,7 @@ const menu = new Menu({
 
 function play(def) {
   audio.start();
+  audio.setPaused(false);
   const chosen = fleet.find((v) => v.def === def) || active;
   if (chosen !== active || arenaDirty) {
     active = chosen;
@@ -251,6 +266,7 @@ function play(def) {
     resetCar();
   }
   arenaDirty = true;
+  audio.setVehicle(active.def);
   refreshBadges();
   menu.hide();
   state = 'playing';
@@ -261,7 +277,7 @@ function play(def) {
 function pause() {
   if (state !== 'playing') return;
   state = 'paused';
-  audio.suspend();
+  audio.setPaused(true);
   menu.show('pause');
 }
 
@@ -269,13 +285,14 @@ function resume() {
   menu.hide();
   state = 'playing';
   audio.start();
+  audio.setPaused(false);
   clock.getDelta(); // don't count the time spent paused
   accumulator = 0;
 }
 
 function openMainMenu() {
   state = 'menu';
-  audio.suspend();
+  audio.setPaused(true);
   menu.show('main');
 }
 
@@ -304,6 +321,13 @@ function enterNearby() {
   const v = nearbyVehicle();
   if (v) switchTo(v);
 }
+
+// Menu buttons click (and the first click unlocks audio).
+$('menu').addEventListener('click', (e) => {
+  if (!e.target.closest('button')) return;
+  audio.start();
+  audio.ui();
+});
 
 const isTouch = matchMedia('(pointer: coarse)').matches;
 if (isTouch) {
@@ -373,7 +397,7 @@ function frame() {
   } else if (state === 'menu') {
     // Slow orbit over the arena behind the main menu.
     menuOrbit += dt * 0.06;
-    camera.position.set(Math.sin(menuOrbit) * 58, 26, Math.cos(menuOrbit) * 58);
+    camera.position.set(Math.sin(menuOrbit) * 82, 34, Math.cos(menuOrbit) * 82);
     camera.lookAt(0, 2, 0);
     destruction.sync();
     for (const v of fleet) if (v.parked) v.model.updateParked(v.parked.body, dt);
@@ -480,6 +504,7 @@ function updateScene(dt) {
     shake *= Math.exp(-dt * 6);
   }
   world.followSun(active.model.root.position);
+  audio.setListener(camera);
 
   // HUD.
   hud.speed.textContent = Math.round(speed * 3.6);

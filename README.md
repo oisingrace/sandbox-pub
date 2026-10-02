@@ -1,10 +1,29 @@
 # Smash Lot
 
 A third-person driving sandbox for the browser, built with three.js and the Rapier physics engine,
-with no build step. Pick from four vehicles and drive around a compact walled arena where everything
-can be smashed: a three-storey office building with glass windows, brick walls, concrete sheds, a
-block tower, crate pyramids, barrels, a domino run, light poles, trees, cones, and the barrier ring
-itself.
+with no build step. Pick from five vehicles and drive around a walled arena (180 × 180 m) where everything can be
+smashed: two office buildings with glass windows, a gas station, explosive fuel drums, a shipping
+container yard, a water tower, giant bowling pins, a fenced grove, brick walls, concrete sheds, a block
+tower, crate pyramids, barrels, a domino run, light poles, trees, cones, and the barrier ring itself.
+
+**Fuel drums** explode when hit hard (or burned by the Ember GT). The blast pushes everything within
+9 m outward and up, shatters things close by, shoves the car, and sets off nearby drums a moment later,
+so a pile goes up in a chain.
+
+## Audio
+
+Everything is synthesised with Web Audio; there are no sound files (`src/audio.js`).
+
+- **Engines:** three oscillators through distortion and a load-dependent filter, plus intake noise.
+  Each vehicle has its own voice: the coupe rasps, the hatchback buzzes, the pickup has a V8 burble,
+  the bus clatters like a diesel, and the Ember GT adds a turbine whine. There's a dip on gear shifts,
+  and exhaust pops when you lift off at high revs.
+- **Speed:** tyre rumble and wind noise rise with speed, plus a boost roar and two-layer tyre squeal.
+- **World sounds:** impacts (with a sound per material), burns and explosions are positioned in 3D
+  around the camera, so distant crashes are quieter and come from the right side.
+- **Mix:** a reverb send for a sense of space, a bus compressor so big pile-ups don't clip, and close
+  explosions briefly duck the engine.
+- **Menus:** button clicks, and a volume setting in Options → Game.
 
 ## Menus and options
 

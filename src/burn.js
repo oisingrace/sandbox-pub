@@ -105,6 +105,36 @@ export class BurnEffect {
     flash.t = 0.7;
   }
 
+  /** Fuel-drum fireball: a burst of white-hot voxels flung outward. */
+  fireball(centre) {
+    const n = Math.round(this.maxPerObject * 1.6);
+    for (let k = 0; k < n; k++) {
+      const i = this.next;
+      this.next = (this.next + 1) % this.capacity;
+      if (!this.alive[i]) this.active++;
+      this.alive[i] = 1;
+      this.high = Math.max(this.high, i + 1);
+      // Random direction, biased upward; faster near the core.
+      const u = Math.random() * 2 - 1;
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(1 - u * u);
+      const dir = [r * Math.cos(a), Math.abs(u) * 0.8 + 0.2, r * Math.sin(a)];
+      const speed = 3 + Math.random() * 9;
+      const start = Math.random() * 0.5;
+      this.pos.set([centre.x + dir[0] * start, centre.y + 0.3 + dir[1] * start, centre.z + dir[2] * start], i * 3);
+      this.vel.set([dir[0] * speed, dir[1] * speed, dir[2] * speed], i * 3);
+      this.start[i] = this.time + Math.random() * 0.05;
+      this.life[i] = 0.5 + Math.random() * 0.9;
+      this.size[i] = 0.18 + Math.random() * 0.32;
+      this.base.set([1, 0.6, 0.2], i * 3);
+    }
+    this.mesh.count = this.high;
+    const flash = this.lights[this.lightIndex];
+    this.lightIndex = (this.lightIndex + 1) % this.lights.length;
+    flash.light.position.copy(centre).setY(centre.y + 1.5);
+    flash.t = 1.1;
+  }
+
   /** Voxel cells filling a kind's shape, cached per kind and detail level. */
   shapeFor(kind) {
     const key = `${kind.name}:${this.maxPerObject}`;
@@ -160,7 +190,12 @@ export class BurnEffect {
           const c = stops[Math.floor(x) + 1];
           const f = x - Math.floor(x);
           r = a[0] + (c[0] - a[0]) * f; g = a[1] + (c[1] - a[1]) * f; b = a[2] + (c[2] - a[2]) * f;
-          // Drift up and shrink over the second half of its life.
+          // Air drag slows fast voxels; heat makes them rise.
+          const drag = Math.exp(-dt * 2.2);
+          this.vel[p] *= drag;
+          this.vel[p + 1] = this.vel[p + 1] * drag + 1.2 * dt;
+          this.vel[p + 2] *= drag;
+          // Drift and shrink over the second half of its life.
           this.pos[p] += this.vel[p] * dt;
           this.pos[p + 1] += this.vel[p + 1] * dt;
           this.pos[p + 2] += this.vel[p + 2] * dt;

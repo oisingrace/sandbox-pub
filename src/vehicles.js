@@ -11,6 +11,7 @@ import { DEFAULT_SPEC } from './physics.js';
 const sports = {
   id: 'sports',
   name: 'Sports coupe',
+  voice: 'sport',
   blurb: 'Quick, grippy and happy to drift.',
   stats: { top: 245, accel: 5.1 },
   color: 0xd7263d,
@@ -51,6 +52,7 @@ const sports = {
 const hatch = {
   id: 'hatch',
   name: 'Hatchback',
+  voice: 'hatch',
   blurb: 'Light and nimble. Tail-happy with assists off.',
   stats: { top: 178, accel: 7.2 },
   color: 0x2f7bd6,
@@ -90,6 +92,7 @@ const hatch = {
 const pickup = {
   id: 'pickup',
   name: 'Pickup truck',
+  voice: 'v8',
   blurb: 'Torquey and heavy. Hits harder than it looks.',
   stats: { top: 197, accel: 6.4 },
   color: 0x2d6a4f,
@@ -139,6 +142,7 @@ const pickup = {
 const bus = {
   id: 'bus',
   name: 'School bus',
+  voice: 'diesel',
   blurb: 'Slow to start, impossible to stop. Built for buildings.',
   stats: { top: 133, accel: 18 },
   color: 0xf2b705,
@@ -183,6 +187,7 @@ const bus = {
 const ember = {
   id: 'ember',
   name: 'Ember GT',
+  voice: 'ember',
   blurb: 'Does not crash into things. Burns straight through them.',
   stats: { top: 255, accel: 5.4 },
   burns: true,
