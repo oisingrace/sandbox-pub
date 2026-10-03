@@ -315,7 +315,9 @@
     #vs-hud[hidden], #vs-top[hidden], #vs-board[hidden], #vs-feed[hidden], #vs-lock[hidden] { display: none; }
     body.in-menu #vs-hud, body.in-menu #vs-top, body.in-menu #vs-side, body.in-menu #vs-lock, body.in-menu #vs-wrecked, body.in-menu #vs-vignette { display: none !important; }
     body.versus #players, body.versus #dash .smash, body.versus #prompt, body.versus #dash .fuel { display: none !important; }
-    body.touch.versus #t-fire { display: flex; }
+    body.touch.versus #t-fire, body.touch.armed #t-fire { display: flex; }
+    #vs-hud.sandbox #vs-health, #vs-hud.sandbox #vs-buffs { display: none; }
+    body:not(.versus) #vs-hud.sandbox { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); width: min(260px, calc(100% - 32px)); }
     body.touch #vs-hud { width: min(300px, calc(100% - 200px)); }
     @media (max-width: 560px) { #vs-wrecked { font-size: 34px; } #vs-side { width: 160px; } }
     /* --- Car workshop --- */
@@ -1351,7 +1353,8 @@ class CarPhysics {
 //     size:   { length, width, height, ride, wheels }   // 0..1 sliders around the style's base
 //     tune:   { power, weight, grip, balance, boost }  // 0..1, 0.5 is neutral
 //     engine: 'sport' | 'hatch' | 'v8' | 'diesel' | 'ember',
-//     ability: 'none' | 'burner' | 'flamethrower',
+//     ability: 'none' | 'burner',
+//     weapon: 'mg' | 'rockets' | 'salvo' | 'flamethrower' | 'mines',  // the roof-mounted weapon
 //     parts:  ['spoiler', 'scoop', 'bullbar', 'lightbar', 'stacks', 'stripes', 'cage'],
 //     aerial: true | false }  // jumps, double jumps, flips and air control (Space)
 
@@ -1365,7 +1368,9 @@ const STYLES = {
   buggy: { label: 'Buggy', length: 3.6, width: 1.9, roof: 1.6, body: 0.34, ride: 0.42, cabin: [0.28, 0.66], taper: 1, wheel: 0.44, engine: 'sport', open: true, power: 0.75 },
 };
 const ENGINES = { sport: 'Sports', hatch: 'Four-pot', v8: 'V8', diesel: 'Diesel', ember: 'Turbine' };
-const ABILITIES = { none: 'None', burner: 'Burner (burns what it hits)', flamethrower: 'Flamethrower' };
+const ABILITIES = { none: 'None', burner: 'Burner (burns what it hits)' };
+/** Roof weapons a custom car can carry (fired with X / click; see weapons.js). */
+const WEAPON_MOUNTS = { mg: 'Machine gun', rockets: 'Rockets', salvo: 'Rocket salvo', flamethrower: 'Flamethrower', mines: 'Mines' };
 const PARTS = {
   spoiler: 'Rear wing', scoop: 'Hood scoop', bullbar: 'Bull bar', lightbar: 'Roof lights',
   stacks: 'Exhaust stacks', stripes: 'Racing stripes', cage: 'Roll cage',
@@ -1383,7 +1388,7 @@ const DEFAULT_DESIGN = {
   name: 'My car', style: 'coupe', color: 0xe8b21c, trim: 0x1c1c22, accent: 0xff6a10,
   size: { length: 0.5, width: 0.5, height: 0.5, ride: 0.5, wheels: 0.5 },
   tune: { power: 0.5, weight: 0.5, grip: 0.5, balance: 0.5, boost: 0.5 },
-  engine: null, ability: 'none', parts: ['stripes'], aerial: false,
+  engine: null, ability: 'none', weapon: 'mg', parts: ['stripes'], aerial: false,
 };
 
 const clamp01 = (v, d = 0.5) => (Number.isFinite(+v) ? Math.max(0, Math.min(1, +v)) : d);
@@ -1405,6 +1410,8 @@ function cleanDesign(raw = {}) {
     tune: {},
     engine: ENGINES[raw.engine] ? raw.engine : STYLES[style].engine,
     ability: ABILITIES[raw.ability] ? raw.ability : 'none',
+    // Older designs had the flamethrower as a special ability.
+    weapon: WEAPON_MOUNTS[raw.weapon] ? raw.weapon : raw.ability === 'flamethrower' ? 'flamethrower' : 'mg',
     parts: [...new Set((Array.isArray(raw.parts) ? raw.parts : d.parts).filter((p) => PARTS[p]))],
     aerial: !!raw.aerial,
   };
@@ -1485,7 +1492,7 @@ function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats = true) 
   };
   spec.body = { halfW: W / 2, halfL: L / 2, top: roof };
 
-  const flamer = d.ability === 'flamethrower';
+  const flamer = d.weapon === 'flamethrower';
   const cabH = roof - g.deck;
   const hitbox = [
     { half: [W / 2, (body + 0.12) / 2, L / 2], at: [0, ride + (body + 0.12) / 2, 0] },
@@ -1501,7 +1508,7 @@ function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats = true) 
     design: d,
     name: d.name,
     voice: d.engine,
-    blurb: `Custom ${st.label.toLowerCase()}${d.ability !== 'none' ? ` with ${ABILITIES[d.ability].split(' (')[0].toLowerCase()}` : ''}${d.aerial ? ', jumps and flips' : ''}.`,
+    blurb: `Custom ${st.label.toLowerCase()} with ${[WEAPON_MOUNTS[d.weapon].toLowerCase(), d.ability !== 'none' && ABILITIES[d.ability].split(' (')[0].toLowerCase()].filter(Boolean).join(' and ')}${d.aerial ? ', jumps and flips' : ''}.`,
     color: d.color,
     trim: d.trim,
     accent: d.accent,
@@ -1512,6 +1519,9 @@ function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats = true) 
     burns: d.ability === 'burner',
     aerial: d.aerial,
     flamethrower: flamer ? { mount: [0, turret.y + 0.32, turret.z + 1.15] } : undefined,
+    // Other weapons: a turret on the roof (built by CarModel, fired by versus.js).
+    weapon: flamer ? undefined : d.weapon,
+    turretMount: [0, turret.y - 0.05, turret.z],
     spec,
     hitbox,
     home,
@@ -1608,7 +1618,11 @@ function buildBody({ THREE, box, tapered, add, lights }, d, g, turret) {
     for (const sx of [-1, 1]) box(0.03, 0.05, L - 0.8, 'glow', sx * (W / 2 + 0.01), ride + body * 0.5, -0.1);
     box(W - 0.3, 0.03, 0.04, 'glow', 0, ride + 0.12, front + 0.06);
   }
-  if (d.ability === 'flamethrower') {
+  if (st.bed && d.weapon !== 'flamethrower') {
+    // A post in the bed for the roof weapon to sit on.
+    box(0.36, turret.y - 0.05 - deck, 0.36, 'dark', 0, deck + (turret.y - 0.05 - deck) / 2, turret.z);
+  }
+  if (d.weapon === 'flamethrower') {
     box(0.5, 0.18, 0.5, 'dark', 0, turret.y + 0.03, turret.z);
     box(0.7, 0.36, 1.0, 'dark', 0, turret.y + 0.25, turret.z);
     box(0.74, 0.06, 1.04, 'trim', 0, turret.y + 0.45, turret.z);
@@ -1797,6 +1811,8 @@ class CarModel {
     };
     def.build(kit);
     mergeByMaterial(this.body);
+    // Custom cars' roof weapon (Versus aims it; the Inferno's flamethrower is part of its body).
+    this.weaponTurret = def.weapon ? mountTurret(this.root, def, def.weapon) : null;
 
     // Boost flames: additive cones out of each exhaust, hidden until used.
     this.flames = [];
@@ -4449,6 +4465,12 @@ const VOICES = {
 
 const MAX_VOICES = 16;
 
+// Every value sent to Web Audio goes through these: a single NaN or
+// Infinity reaching a filter or the compressor can silence the whole
+// graph for good in some browsers.
+const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+const clampA = (v, lo, hi, d = lo) => Math.max(lo, Math.min(hi, fin(v, d)));
+
 class CarAudio {
   constructor() {
     this.ctx = null;
@@ -4497,6 +4519,81 @@ class CarAudio {
 
     this.buildEngine();
     this.buildLoops();
+
+    // Watchdog taps (see checkHealth): what the engine bus carries, and
+    // what actually leaves the compressor.
+    this.tapIn = ctx.createAnalyser();
+    this.tapIn.fftSize = 256;
+    this.loopBus.connect(this.tapIn);
+    this.tapOut = ctx.createAnalyser();
+    this.tapOut.fftSize = 256;
+    this.compressor.connect(this.tapOut);
+    this.tapBuf = new Float32Array(256);
+    this.healthTimer = 0;
+    this.badChecks = 0;
+    this.lastCheck = performance.now();
+    // Browsers can suspend audio (another tab took the output, a phone
+    // call, a device change): resume on the next tap or key press.
+    if (!this.resumeHooked) {
+      this.resumeHooked = true;
+      const wake = () => { if (this.ctx && this.ctx.state !== 'running' && !this.paused) this.ctx.resume(); };
+      addEventListener('pointerdown', wake, true);
+      addEventListener('keydown', wake, true);
+    }
+  }
+
+  /**
+   * Twice a second: make sure sound is still coming out. A suspended
+   * context is resumed; a graph that has stopped producing sound (or is
+   * producing garbage) while the engine should be audible is thrown away
+   * and rebuilt, so audio never stays dead until a reload.
+   */
+  checkHealth() {
+    const now = performance.now();
+    if (now - this.lastCheck < 500) return;
+    this.lastCheck = now;
+    const ctx = this.ctx;
+    if (!ctx || this.paused) { this.badChecks = 0; return; }
+    if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+      ctx.resume().catch(() => {});
+      return;
+    }
+    if (ctx.state !== 'running') return;
+    const level = (an) => {
+      an.getFloatTimeDomainData(this.tapBuf);
+      let peak = 0;
+      for (const x of this.tapBuf) {
+        if (!Number.isFinite(x)) return NaN;
+        peak = Math.max(peak, Math.abs(x));
+      }
+      return peak;
+    };
+    const into = level(this.tapIn);
+    const out = level(this.tapOut);
+    const audible = !this.muted && this.volume > 0.01;
+    // The engine always makes some sound while driving, so a silent (or
+    // NaN) engine bus is broken; so is a silent output when sound goes in.
+    const broken = Number.isNaN(into) || Number.isNaN(out) || into < 1e-7 || (audible && into > 1e-3 && out < 1e-7);
+    this.badChecks = broken ? this.badChecks + 1 : 0;
+    if (this.badChecks >= 3) this.rebuild();
+  }
+
+  /** Throw away the audio graph and build a fresh one (same settings). */
+  rebuild() {
+    console.warn('Audio stopped working; restarting it');
+    const old = this.ctx;
+    this.ctx = null;
+    this._noise = null;
+    this.flameOut = null;
+    this.flameLfo = null;
+    this.voices = [];
+    this.lastBoom = this.lastBurn = this.lastTick = 0;
+    this.badChecks = 0;
+    old?.close().catch(() => {});
+    this.start();
+    if (!this.ctx) return;
+    this.loopBus.gain.value = this.paused ? 0 : 1;
+    this.rebuilds = (this.rebuilds || 0) + 1;
   }
 
   buildEngine() {
@@ -4606,14 +4703,18 @@ class CarAudio {
     const p = camera.position;
     const e = camera.matrixWorld.elements; // camera looks down its local -Z
     const f = { x: -e[8], y: -e[9], z: -e[10] };
+    // The camera's own up vector: always at right angles to where it looks
+    // (a fixed world "up" breaks the panning maths when looking straight down).
+    const u = { x: e[4], y: e[5], z: e[6] };
+    if (![p.x, p.y, p.z, f.x, f.y, f.z, u.x, u.y, u.z].every(Number.isFinite)) return;
     if (l.positionX) {
       const t = this.ctx.currentTime;
       l.positionX.setValueAtTime(p.x, t); l.positionY.setValueAtTime(p.y, t); l.positionZ.setValueAtTime(p.z, t);
       l.forwardX.setValueAtTime(f.x, t); l.forwardY.setValueAtTime(f.y, t); l.forwardZ.setValueAtTime(f.z, t);
-      l.upX.setValueAtTime(0, t); l.upY.setValueAtTime(1, t); l.upZ.setValueAtTime(0, t);
+      l.upX.setValueAtTime(u.x, t); l.upY.setValueAtTime(u.y, t); l.upZ.setValueAtTime(u.z, t);
     } else {
       l.setPosition(p.x, p.y, p.z);
-      l.setOrientation(f.x, f.y, f.z, 0, 1, 0);
+      l.setOrientation(f.x, f.y, f.z, u.x, u.y, u.z);
     }
     this.listenerPos = p;
   }
@@ -4622,6 +4723,7 @@ class CarAudio {
   outputFor(pos, reverb = 0.3) {
     const ctx = this.ctx;
     const out = ctx.createGain();
+    if (pos && !(Number.isFinite(pos.x) && Number.isFinite(pos.y) && Number.isFinite(pos.z))) pos = null;
     if (pos) {
       const panner = ctx.createPanner();
       panner.panningModel = 'equalpower';
@@ -4667,7 +4769,8 @@ class CarAudio {
    * world (omit for sounds on the player's own car).
    */
   impact(material, strength, pos) {
-    if (!this.ctx || this.muted || strength < 0.05 || !this.audible(pos)) return;
+    if (!this.ctx || this.muted || !(strength >= 0.05) || !this.audible(pos)) return;
+    strength = Math.min(1, strength);
     const ctx = this.ctx;
     const now = ctx.currentTime;
     const preset = IMPACTS[material] || IMPACTS.concrete;
@@ -4709,6 +4812,7 @@ class CarAudio {
   /** Whoosh and crackle of something catching fire. */
   burn(strength = 1, pos) {
     if (!this.ctx || this.muted || !this.audible(pos)) return;
+    strength = clampA(strength, 0, 1, 0.5);
     const ctx = this.ctx;
     const now = ctx.currentTime;
     if (this.lastBurn && now - this.lastBurn < 0.05) return;
@@ -4735,6 +4839,7 @@ class CarAudio {
   /** Fuel drum explosion: deep boom, blast noise, crackle and a long tail. */
   explosion(pos, distance = 20) {
     if (!this.ctx || this.muted) return;
+    distance = fin(distance, 20);
     const ctx = this.ctx;
     const now = ctx.currentTime;
     if (this.lastBoom && now - this.lastBoom < 0.04) return;
@@ -4847,6 +4952,7 @@ class CarAudio {
   /** One machine-gun shot: a sharp crack with a low thump. */
   gun(pos, strength = 1) {
     if (!this.ctx || this.muted || !this.audible(pos, 120)) return;
+    strength = clampA(strength, 0, 1, 1);
     const ctx = this.ctx;
     const now = ctx.currentTime;
     if (!this.claimVoice(0.12, 0.3 * strength)) return;
@@ -5040,7 +5146,7 @@ class CarAudio {
       lfo.start();
       this.flameLfo = depth;
     }
-    const target = this.muted ? 0 : Math.min(1, level) * 0.55;
+    const target = this.muted ? 0 : clampA(level, 0, 1) * 0.55;
     this.flameOut.gain.setTargetAtTime(target, ctx.currentTime, target > (this.flameLevel || 0) ? 0.03 : 0.12);
     this.flameLfo.gain.setTargetAtTime(target * 0.35, ctx.currentTime, 0.05);
     this.flameLevel = target;
@@ -5065,10 +5171,19 @@ class CarAudio {
 
   /** Per-frame update of the continuous sounds. */
   update(car, skid) {
+    if (!this.ctx) return;
+    this.checkHealth();
     if (!this.ctx || this.paused) return;
     const t = this.ctx.currentTime;
     const v = this.voice;
-    const firing = (car.rpm / 60) * 2 * (car.spec.engineTone ?? 1); // 4-cylinder firing frequency
+    // Everything from the car is checked and kept in range (see fin).
+    const nyq = this.ctx.sampleRate * 0.45;
+    const hz = (x) => clampA(x, 10, nyq, 10);
+    const rpm = clampA(car.rpm, 0, 12000, 1000);
+    const sp = clampA(car.speed, 0, 400);
+    const load = clampA(car.throttle, 0, 1);
+    skid = clampA(skid, 0, 1);
+    const firing = (rpm / 60) * 2 * fin(car.spec.engineTone, 1); // 4-cylinder firing frequency
 
     // Gear changes: a short dip in volume as the clutch goes in.
     let dip = 1;
@@ -5078,34 +5193,35 @@ class CarAudio {
     }
     if (this.shiftAt && t - this.shiftAt < 0.14) dip = 0.45;
 
-    this.oscFund.o.frequency.setTargetAtTime(firing, t, 0.03);
-    this.oscSub.o.frequency.setTargetAtTime(firing * 0.5 * 1.006, t, 0.03);
-    this.oscHarm.o.frequency.setTargetAtTime(firing * 2.01, t, 0.03);
-    this.oscWhine.o.frequency.setTargetAtTime(600 + car.rpm * 0.55 + car.speed * 8, t, 0.08);
-    this.amOsc.frequency.setTargetAtTime(Math.max(4, firing * 0.25), t, 0.05);
-    const load = car.throttle;
-    this.engineFilter.frequency.setTargetAtTime(v.cutBase + load * v.cutThrottle + car.rpm * 0.12, t, 0.05);
-    this.engineGain.gain.setTargetAtTime((0.1 + load * 0.14 + (car.rpm / 7000) * 0.05) * dip, t, 0.04);
-    this.intakeFilter.frequency.setTargetAtTime(500 + car.rpm * 0.3, t, 0.05);
-    this.intakeGain.gain.setTargetAtTime(v.noise * (0.2 + load) * (car.rpm / 5000), t, 0.05);
+    this.oscFund.o.frequency.setTargetAtTime(hz(firing), t, 0.03);
+    this.oscSub.o.frequency.setTargetAtTime(hz(firing * 0.5 * 1.006), t, 0.03);
+    this.oscHarm.o.frequency.setTargetAtTime(hz(firing * 2.01), t, 0.03);
+    this.oscWhine.o.frequency.setTargetAtTime(hz(600 + rpm * 0.55 + sp * 8), t, 0.08);
+    this.amOsc.frequency.setTargetAtTime(hz(Math.max(4, firing * 0.25)), t, 0.05);
+    this.engineFilter.frequency.setTargetAtTime(hz(v.cutBase + load * v.cutThrottle + rpm * 0.12), t, 0.05);
+    this.engineGain.gain.setTargetAtTime(clampA((0.1 + load * 0.14 + (rpm / 7000) * 0.05) * dip, 0, 0.5), t, 0.04);
+    this.intakeFilter.frequency.setTargetAtTime(hz(500 + rpm * 0.3), t, 0.05);
+    this.intakeGain.gain.setTargetAtTime(clampA(v.noise * (0.2 + load) * (rpm / 5000), 0, 0.5), t, 0.05);
 
-    // Lift-off at high revs: crackle and pop.
-    if (v.pops && this.prevThrottle > 0.7 && load < 0.1 && car.rpm > 4500 && car.gear > 0) this.pops();
+    // Lift-off at high revs: crackle and pop (not more than a few times a second).
+    if (v.pops && this.prevThrottle > 0.7 && load < 0.1 && rpm > 4500 && car.gear > 0 && t - (this.lastPops || 0) > 0.4) {
+      this.lastPops = t;
+      this.pops();
+    }
     this.prevThrottle = load;
 
     const squeal = Math.min(0.35, skid * 0.4);
     this.squealA.g.gain.setTargetAtTime(squeal, t, 0.05);
     this.squealB.g.gain.setTargetAtTime(squeal * 0.35, t, 0.05);
-    this.squealA.f.frequency.setTargetAtTime(700 + skid * 500, t, 0.1);
+    this.squealA.f.frequency.setTargetAtTime(hz(700 + skid * 500), t, 0.1);
 
     this.boost.g.gain.setTargetAtTime(car.boosting ? 0.32 : 0, t, car.boosting ? 0.05 : 0.15);
-    this.boost.f.frequency.setTargetAtTime(car.boosting ? 380 + car.speed * 14 : 300, t, 0.2);
+    this.boost.f.frequency.setTargetAtTime(hz(car.boosting ? 380 + sp * 14 : 300), t, 0.2);
 
     // Road rumble and wind rise with speed, so speed is audible.
-    const sp = car.speed;
     this.rumble.g.gain.setTargetAtTime(Math.min(0.28, sp * 0.009), t, 0.1);
     this.wind.g.gain.setTargetAtTime(Math.min(0.3, (sp / 55) ** 2 * 0.3), t, 0.1);
-    this.wind.f.frequency.setTargetAtTime(450 + sp * 12, t, 0.2);
+    this.wind.f.frequency.setTargetAtTime(hz(450 + sp * 12), t, 0.2);
   }
 
   // --- Helpers ---------------------------------------------------------------
@@ -8654,15 +8770,18 @@ function corrugationTexture() {
 // live in versus.js; this file is the hardware.
 
 /**
- * Weapons. `ammo` is shots (rockets, mines), salvos, or seconds of fire
- * (flamethrower); the machine gun never runs out. Damage is in hit points.
+ * Weapons. `ammo` is what a Versus pickup gives: shots (rockets, mines),
+ * salvos, or seconds of fire (flamethrower); the machine gun never runs
+ * out. A custom car built with rockets, a salvo or mines carries a
+ * magazine of `mag` that refills one every `reload` seconds. Damage is in
+ * hit points.
  */
 const WEAPONS = {
   mg: { label: 'Machine gun', interval: 1 / 9, damage: 5, range: 70, spread: 0.02, color: 0xffd23f },
-  rockets: { label: 'Rockets', interval: 0.6, ammo: 8, damage: 45, radius: 7, speed: 45, turn: 2.4, range: 90, color: 0xff5a36 },
-  salvo: { label: 'Rocket salvo', interval: 0.95, ammo: 4, perShot: 3, damage: 32, radius: 6.5, speed: 42, turn: 2.8, range: 90, color: 0xff2d55 },
+  rockets: { label: 'Rockets', interval: 0.6, ammo: 8, mag: 3, reload: 2.5, damage: 45, radius: 7, speed: 45, turn: 2.4, range: 90, color: 0xff5a36 },
+  salvo: { label: 'Rocket salvo', interval: 0.95, ammo: 4, mag: 2, reload: 4.5, perShot: 3, damage: 32, radius: 6.5, speed: 42, turn: 2.8, range: 90, color: 0xff2d55 },
   flamer: { label: 'Flamethrower', ammo: 8, dps: 36, range: 15, color: 0xff9a1f },
-  mines: { label: 'Mines', interval: 0.5, ammo: 4, damage: 55, radius: 6.5, trigger: 3.5, arm: 0.8, color: 0xffd23f },
+  mines: { label: 'Mines', interval: 0.5, ammo: 4, mag: 3, reload: 3.5, damage: 55, radius: 6.5, trigger: 3.5, arm: 0.8, color: 0xffd23f },
   inferno: { label: 'Flamethrower', dps: 36, range: 15, color: 0xff9a1f }, // the Inferno's own, on its tank
 };
 /** Weapon order on the wire (index = code). */
@@ -8748,7 +8867,25 @@ function carBounds(def) {
 
 const turretMats = {};
 function tMat(key, color, emissive = 0, intensity = 0) {
-  return (turretMats[key] ||= new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity, metalness: 0.55, roughness: 0.45 }));
+  if (!turretMats[key]) {
+    turretMats[key] = new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity, metalness: 0.55, roughness: 0.45 });
+    turretMats[key].userData.shared = true; // CarModel.dispose leaves it alone
+  }
+  return turretMats[key];
+}
+
+/**
+ * Put a weapon's turret on a car (`parent` is the car model's root): on
+ * the roof, or a mine dispenser at the back. Returns the turret.
+ */
+function mountTurret(parent, def, weapon) {
+  const t = makeTurret(weapon);
+  t.key = weapon;
+  const m = turretMount(def);
+  if (weapon === 'mines') t.root.position.set(m[0], Math.max(0.9, m[1] * 0.6), carBounds(def).lo[2] + 0.4);
+  else t.root.position.set(m[0], m[1], m[2]);
+  parent.add(t.root);
+  return t;
 }
 
 /**
@@ -9132,23 +9269,29 @@ class Versus {
     return this.net.online ? this.net.id : 'me';
   }
 
-  setActive(on) {
+  /**
+   * Turn Versus on or off. `sandbox` is free roam: only weapons (for cars
+   * that have one fitted), fired at the scenery; no health, pads or match.
+   */
+  setActive(on, sandbox = false) {
+    const was = this.active && !this.sandbox;
+    this.arsenal.clear();
+    if (!on || sandbox) this.removeBots();
+    for (const f of this.fighters.values()) this.dropFighter(f);
+    this.fighters.clear();
     this.active = on;
-    this.hud.root.hidden = !on;
-    this.hud.top.hidden = !on;
-    this.hud.board.hidden = !on;
-    this.hud.feed.hidden = !on;
-    for (const p of this.pads) p.group.visible = on;
-    if (!on) {
-      this.arsenal.clear();
-      this.removeBots();
-      for (const f of this.fighters.values()) this.dropFighter(f);
-      this.fighters.clear();
-      this.hud.lock.hidden = true;
-      this.hud.wrecked.classList.remove('show');
-      this.hud.vignette.style.opacity = 0;
-      this.setBanner('');
-    }
+    this.sandbox = on && sandbox;
+    const match = on && !sandbox;
+    this.hud.root.hidden = !match;
+    this.hud.root.classList.toggle('sandbox', this.sandbox);
+    this.hud.top.hidden = !match;
+    this.hud.board.hidden = !match;
+    this.hud.feed.hidden = !match;
+    for (const p of this.pads) p.group.visible = match;
+    this.hud.lock.hidden = true;
+    this.hud.wrecked.classList.remove('show');
+    this.hud.vignette.style.opacity = 0;
+    if (was && !match) this.setBanner('');
   }
 
   // --- Match ----------------------------------------------------------------
@@ -9170,7 +9313,7 @@ class Versus {
     this.arsenal.clear();
     this.resetMatch();
     const terrain = this.terrain();
-    for (const p of this.pads) {
+    for (const p of this.sandbox ? [] : this.pads) {
       p.y = terrain.heightAt(p.x, p.z);
       p.group.position.set(p.x, p.y, p.z);
       this.setPadItem(p, this.authority ? this.randomItem(0, null) : null);
@@ -9260,12 +9403,18 @@ class Versus {
       buffs: { armour: 0, double: 0, nitro: 0 }, invuln: 0, wrecked: false, respawnIn: 0,
       lastBy: null, lastAt: -99, smokeT: 0, turretKey: null, turret: null, bar: makeBar(this.scene),
       tank: def.flamethrower ? new FlameTank() : null,
+      mag: WEAPONS[def.weapon]?.mag ?? 0, // the car's own rockets/mines: a magazine that refills
     };
     return f;
   }
 
   dropFighter(f) {
-    if (f.turret) f.turret.root.parent?.remove(f.turret.root);
+    if (f.turret && f.turret !== f.model.weaponTurret) f.turret.root.parent?.remove(f.turret.root);
+    if (f.model.weaponTurret) {
+      f.model.weaponTurret.root.visible = true;
+      f.model.weaponTurret.yaw.rotation.y = 0;
+      f.model.weaponTurret.pitch.rotation.x = 0;
+    }
     f.turret = null;
     f.turretKey = null;
     this.scene.remove(f.bar.bg, f.bar.fill);
@@ -9309,6 +9458,7 @@ class Versus {
     f.invuln = VS.invuln;
     f.lastBy = null;
     if (f.tank) f.tank.level = 1;
+    f.mag = WEAPONS[f.def.weapon]?.mag ?? 0;
   }
 
   placeFighter(f, spot) {
@@ -9337,7 +9487,8 @@ class Versus {
   /** The weapon a fighter fires right now: its pickup while it has ammo, else its own. */
   weaponOf(f) {
     if (f.special && f.ammo > 0) return f.special;
-    return f.def.flamethrower ? 'inferno' : 'mg';
+    if (f.def.flamethrower) return 'inferno';
+    return WEAPONS[f.def.weapon] ? f.def.weapon : 'mg';
   }
 
   centreOf(f, out) {
@@ -9347,6 +9498,7 @@ class Versus {
 
   /** Auto-aim: the enemy most in front of us, within range and a forward cone. */
   pickTarget(f, range) {
+    if (this.sandbox) return null; // free roam: just shoot where you're pointing
     const c = f.car;
     const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
     let best = null, bestScore = Infinity;
@@ -9367,7 +9519,7 @@ class Versus {
 
   /** `amount` of damage to fighter `o`, credited to `by` (a fighter id, or null). */
   hurt(o, amount, by, kind = '') {
-    if (!o || o.wrecked || !(amount > 0) || this.phase !== 'play') return;
+    if (!o || o.wrecked || !(amount > 0) || this.phase !== 'play' || this.sandbox) return;
     if (by === this.myId && !o.me) {
       this.hitFlash = 0.12;
       if (kind !== 'blast') this.audio.hitTick();
@@ -9707,8 +9859,8 @@ class Versus {
     this.syncFighters();
     this.time += dt;
 
-    // The referee runs the clock.
-    if (this.authority) {
+    // The referee runs the clock (not in free roam).
+    if (this.authority && !this.sandbox) {
       if (this.phase === 'play') {
         this.timeLeft = Math.max(0, this.timeLeft - dt);
         if (this.timeLeft <= 0) {
@@ -9724,19 +9876,19 @@ class Versus {
     // Better upgrades as the match goes on.
     const played = VS.matchTime - this.timeLeft;
     const tier = VS_TIERS.filter((t) => played >= t).length - 1;
-    if (tier > this.tier) {
+    if (tier > this.tier && !this.sandbox) {
       this.tier = tier;
       const names = ITEM_CODES.filter((k) => ITEMS[k].tier === tier).map((k) => ITEMS[k].label);
       this.fx.toast(`New upgrades on the pads: ${names.join(', ')}`);
       this.audio.beep(true);
     }
-    this.updatePads(dt);
+    if (!this.sandbox) this.updatePads(dt);
 
     for (const f of this.fighters.values()) {
       if (f.local) this.updateLocal(f, dt, f.me ? wantFire : f.bot.wantFire);
       else this.updateRemote(f, dt);
     }
-    this.checkPickups();
+    if (!this.sandbox) this.checkPickups();
 
     // Rockets fly; mines wait.
     this.arsenal.update(dt, {
@@ -9750,6 +9902,11 @@ class Versus {
     for (const r of this.arsenal.spent()) this.detonateRocket(r);
     for (const m of this.arsenal.mines) {
       if (m.dead || m.age < m.arm) continue;
+      // Free roam: mines are timed charges for blowing things up.
+      if (this.sandbox) {
+        if (m.age > 2.5) this.detonateMine(m, m.owner === this.myId);
+        continue;
+      }
       for (const f of this.fighters.values()) {
         if (!f.local || f.wrecked || f.id === m.owner) continue;
         if (Math.hypot(f.car.x - m.pos.x, f.car.z - m.pos.z) < WEAPONS.mines.trigger && Math.abs((f.car.y || 0) - m.pos.y) < 2) {
@@ -9767,11 +9924,40 @@ class Versus {
       for (const [to, a] of this.pendingDmg) this.net.sendEvent({ type: 'dmg', to, a: Math.round(a * 10) / 10 });
       this.pendingDmg.clear();
     }
-    this.updateHud(dt, camera);
+    if (this.sandbox) this.updateSandboxHud();
+    else this.updateHud(dt, camera);
+  }
+
+  /** Free roam: just the weapon and its ammo, for a car that has one. */
+  updateSandboxHud() {
+    const me = this.fighters.get(this.myId);
+    const armed = !!me?.def.weapon && !me.def.flamethrower;
+    this.hud.root.hidden = !armed;
+    if (armed) this.renderWeapon(me);
+  }
+
+  /** The weapon panel: name, and ammo (or how full the magazine is). */
+  renderWeapon(me) {
+    const h = this.hud;
+    const w = this.weaponOf(me);
+    const spec = WEAPONS[w];
+    h.weapon.textContent = spec.label;
+    h.weapon.style.color = `#${spec.color.toString(16).padStart(6, '0')}`;
+    const own = !(me.special && me.ammo > 0);
+    h.ammo.textContent = w === 'mg' ? '∞'
+      : w === 'inferno' ? `${Math.round(me.tank.level * 100)}%`
+        : !own ? (w === 'flamer' ? `${Math.ceil(me.ammo)} s` : `×${me.ammo}`)
+          : `${Math.floor(me.mag)} / ${spec.mag}`;
   }
 
   updateLocal(f, dt, wantFire) {
     const car = f.car;
+    // Free roam: only cars with a weapon fitted fire (the Inferno's
+    // flamethrower is handled with its tank in main.js there).
+    if (this.sandbox && (!f.def.weapon || f.def.flamethrower)) {
+      f.shooting = f.flaming = false;
+      return;
+    }
     if (f.wrecked) {
       f.respawnIn -= dt;
       f.flaming = f.shooting = false;
@@ -9806,10 +9992,16 @@ class Versus {
       if (w === 'mg') {
         f.shooting = true;
         while (f.cooldown <= 0) { this.shootMG(f, true); f.cooldown += spec.interval; }
-      } else if (w === 'rockets' || w === 'salvo') {
-        if (f.cooldown <= 0) { this.fireRockets(f, w, target); f.ammo--; f.cooldown = spec.interval; }
-      } else if (w === 'mines') {
-        if (f.cooldown <= 0) { this.dropMine(f); f.ammo--; f.cooldown = spec.interval; }
+      } else if (w === 'rockets' || w === 'salvo' || w === 'mines') {
+        // A pickup's ammo first; the car's own weapon uses its magazine.
+        const own = !(f.special && f.ammo > 0);
+        if (f.cooldown <= 0 && (!own || f.mag >= 1)) {
+          if (w === 'mines') this.dropMine(f);
+          else this.fireRockets(f, w, target);
+          if (own) f.mag -= 1;
+          else f.ammo--;
+          f.cooldown = spec.interval;
+        }
       } else if (w === 'flamer') {
         f.flaming = true;
         f.ammo = Math.max(0, f.ammo - dt);
@@ -9817,7 +10009,10 @@ class Versus {
     }
     if (f.flaming) this.flameDamage(f, dt);
     if (f.special && f.ammo <= 0) f.special = null;
-    if (f.me) car.firing = f.flaming;
+    // The car's own magazine refills one shot at a time.
+    const own = WEAPONS[f.def.weapon];
+    if (own?.mag && f.mag < own.mag) f.mag = Math.min(own.mag, f.mag + dt / own.reload);
+    if (f.me && !this.sandbox) car.firing = f.flaming;
     this.visuals(f, dt);
   }
 
@@ -9844,22 +10039,21 @@ class Versus {
 
   /** Turret, health bar, smoke and fire when hurt, and hiding wrecks. */
   visuals(f, dt) {
+    if (this.sandbox && !f.def.weapon) return; // free roam: leave unarmed cars alone
     const model = f.model;
     const shown = f.remote ? f.remote.seen : true;
     model.root.visible = shown && !f.wrecked && !(f.invuln > 0 && Math.floor(this.time * 10) % 2 === 0);
-    // Turret for the current weapon (the Inferno has its own).
+    // Turret for the current weapon: the car's own (custom cars), or one
+    // for a pickup. The Inferno's flamethrower is part of its body.
     const w = this.weaponOf(f);
     const key = w === 'inferno' ? null : w;
     if (key !== f.turretKey) {
-      if (f.turret) f.turret.root.parent?.remove(f.turret.root);
-      f.turret = key ? makeTurret(key) : null;
+      const own = model.weaponTurret;
+      if (f.turret && f.turret !== own) f.turret.root.parent?.remove(f.turret.root);
+      if (own && key === own.key) f.turret = own;
+      else f.turret = key ? mountTurret(model.root, f.def, key) : null;
+      if (own) own.root.visible = f.turret === own;
       f.turretKey = key;
-      if (f.turret) {
-        const m = turretMount(f.def);
-        f.turret.root.position.set(m[0], m[1], key === 'mines' ? carBounds(f.def).lo[2] + 0.4 : m[2]);
-        if (key === 'mines') f.turret.root.position.y = Math.max(0.9, m[1] * 0.6);
-        model.root.add(f.turret.root);
-      }
     }
     if (f.turret && f.turretKey !== 'mines') {
       f.turret.yaw.rotation.y = vsWrap(f.aimYaw - f.car.heading);
@@ -9912,7 +10106,7 @@ class Versus {
 
   /** A versus event from another player. */
   onEvent(id, e) {
-    if (!this.active) return;
+    if (!this.active || (this.sandbox && e.type !== 'fx')) return;
     if (e.type === 'dmg') {
       this.hurt(this.fighters.get(this.myId), e.a, id, 'net');
     } else if (e.type === 'wreck') {
@@ -10008,10 +10202,7 @@ class Versus {
     h.hpFill.style.width = `${frac * 100}%`;
     h.hpFill.dataset.level = frac < 0.25 ? 'low' : frac < 0.5 ? 'mid' : 'ok';
     h.hpText.textContent = `${Math.ceil(Math.max(0, me.hp))} / ${me.maxHp}`;
-    const w = this.weaponOf(me);
-    h.weapon.textContent = WEAPONS[w].label;
-    h.weapon.style.color = `#${WEAPONS[w].color.toString(16).padStart(6, '0')}`;
-    h.ammo.textContent = w === 'mg' ? '∞' : w === 'inferno' ? `${Math.round(me.tank.level * 100)}%` : w === 'flamer' ? `${Math.ceil(me.ammo)} s` : `×${me.ammo}`;
+    this.renderWeapon(me);
     const buffs = Object.entries(me.buffs).filter(([, t]) => t > 0).map(([k, t]) => `${k}:${Math.ceil(t)}`).join(',');
     if (buffs !== this.buffSig) {
       this.buffSig = buffs;
@@ -10513,6 +10704,8 @@ class Workshop {
       parts.append(b);
     }
     rows.push(parts);
+    rows.push(row('Weapon', seg('Weapon', WEAPON_MOUNTS, () => d.weapon, (v) => { d.weapon = v; }),
+      'On the roof. In Versus it is your car\'s own weapon (rockets and mines reload over time); in free roam, fire it at the scenery with X or a click'));
     rows.push(row('Special', seg('Special ability', ABILITIES, () => d.ability, (v) => { d.ability = v; })));
     const jump = el('button', { type: 'button', text: d.aerial ? 'On' : 'Off', 'aria-pressed': String(!!d.aerial) });
     jump.addEventListener('click', () => {
@@ -10895,7 +11088,7 @@ function resetAll() {
   resetBot();
   // The referee starts a new match; others wait for its kickoff.
   if (mode === 'football' && football.referee) football.startMatch();
-  if (mode === 'versus') versus.reset();
+  if (versus.active) versus.reset();
 }
 
 // --- Game modes ------------------------------------------------------------
@@ -10909,7 +11102,8 @@ function setMode(next) {
   destruction.statics = map;
   for (const m of Object.values(MAPS)) m.group.visible = m === map;
   football.setActive(mode === 'football');
-  versus.setActive(mode === 'versus');
+  // Versus rules in the Scrapyard; in free roam, just the weapons of cars that have one fitted.
+  versus.setActive(mode === 'versus' || mode === 'free', mode === 'free');
   document.body.classList.toggle('versus', mode === 'versus');
   menu.setCarLocked(mode === 'football');
   football.referee = !net.online || net.isHost;
@@ -11157,6 +11351,7 @@ function refreshBadges() {
   // Flamethrower controls and fuel gauge only for a vehicle that has one;
   // jump controls (Space jumps, Q powerslides) for a car that jumps.
   document.body.classList.toggle('flamer', !!active.def.flamethrower);
+  document.body.classList.toggle('armed', !!active.def.weapon); // a custom car's roof weapon
   input.aerial = !!active.def.aerial;
   document.body.classList.toggle('aerial', input.aerial);
 }
@@ -11399,7 +11594,7 @@ net.on('event', (id, e) => {
     return;
   }
   if (['dmg', 'wreck', 'take', 'grant', 'fx'].includes(e.type)) {
-    if (mode === 'versus') versus.onEvent(id, e);
+    if (versus.active) versus.onEvent(id, e);
     return;
   }
   if (e.type === 'rebuild' && id === 'host') {
@@ -11531,7 +11726,7 @@ function netTick(dt) {
   netTimer -= dt;
   if (netTimer > 0) return;
   netTimer = Math.max(0, netTimer + SEND_INTERVAL);
-  const own = mp.encode(car, active.def.id, score.points, mode === 'versus' ? versus.encodeMe() : null);
+  const own = mp.encode(car, active.def.id, score.points, versus.active ? versus.encodeMe() : null);
   if (net.isHost) {
     const full = ++matchTicks % 10 === 0;
     net.flush(own, mode === 'football' ? football.snapshot(full) : mode === 'versus' ? versus.snapshot(full) : null);

@@ -346,7 +346,7 @@ function resetAll() {
   resetBot();
   // The referee starts a new match; others wait for its kickoff.
   if (mode === 'football' && football.referee) football.startMatch();
-  if (mode === 'versus') versus.reset();
+  if (versus.active) versus.reset();
 }
 
 // --- Game modes ------------------------------------------------------------
@@ -360,7 +360,8 @@ function setMode(next) {
   destruction.statics = map;
   for (const m of Object.values(MAPS)) m.group.visible = m === map;
   football.setActive(mode === 'football');
-  versus.setActive(mode === 'versus');
+  // Versus rules in the Scrapyard; in free roam, just the weapons of cars that have one fitted.
+  versus.setActive(mode === 'versus' || mode === 'free', mode === 'free');
   document.body.classList.toggle('versus', mode === 'versus');
   menu.setCarLocked(mode === 'football');
   football.referee = !net.online || net.isHost;
@@ -608,6 +609,7 @@ function refreshBadges() {
   // Flamethrower controls and fuel gauge only for a vehicle that has one;
   // jump controls (Space jumps, Q powerslides) for a car that jumps.
   document.body.classList.toggle('flamer', !!active.def.flamethrower);
+  document.body.classList.toggle('armed', !!active.def.weapon); // a custom car's roof weapon
   input.aerial = !!active.def.aerial;
   document.body.classList.toggle('aerial', input.aerial);
 }
@@ -850,7 +852,7 @@ net.on('event', (id, e) => {
     return;
   }
   if (['dmg', 'wreck', 'take', 'grant', 'fx'].includes(e.type)) {
-    if (mode === 'versus') versus.onEvent(id, e);
+    if (versus.active) versus.onEvent(id, e);
     return;
   }
   if (e.type === 'rebuild' && id === 'host') {
@@ -982,7 +984,7 @@ function netTick(dt) {
   netTimer -= dt;
   if (netTimer > 0) return;
   netTimer = Math.max(0, netTimer + SEND_INTERVAL);
-  const own = mp.encode(car, active.def.id, score.points, mode === 'versus' ? versus.encodeMe() : null);
+  const own = mp.encode(car, active.def.id, score.points, versus.active ? versus.encodeMe() : null);
   if (net.isHost) {
     const full = ++matchTicks % 10 === 0;
     net.flush(own, mode === 'football' ? football.snapshot(full) : mode === 'versus' ? versus.snapshot(full) : null);

@@ -315,7 +315,9 @@
     #vs-hud[hidden], #vs-top[hidden], #vs-board[hidden], #vs-feed[hidden], #vs-lock[hidden] { display: none; }
     body.in-menu #vs-hud, body.in-menu #vs-top, body.in-menu #vs-side, body.in-menu #vs-lock, body.in-menu #vs-wrecked, body.in-menu #vs-vignette { display: none !important; }
     body.versus #players, body.versus #dash .smash, body.versus #prompt, body.versus #dash .fuel { display: none !important; }
-    body.touch.versus #t-fire { display: flex; }
+    body.touch.versus #t-fire, body.touch.armed #t-fire { display: flex; }
+    #vs-hud.sandbox #vs-health, #vs-hud.sandbox #vs-buffs { display: none; }
+    body:not(.versus) #vs-hud.sandbox { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); width: min(260px, calc(100% - 32px)); }
     body.touch #vs-hud { width: min(300px, calc(100% - 200px)); }
     @media (max-width: 560px) { #vs-wrecked { font-size: 34px; } #vs-side { width: 160px; } }
     /* --- Car workshop --- */

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CarPhysics } from './physics.js';
 import { CarModel } from './carModel.js';
-import { WEAPONS, WEAPON_CODES, turretMount, carPoint, aimDir, rayCar, carBounds, makeTurret, Arsenal } from './weapons.js';
+import { WEAPONS, WEAPON_CODES, turretMount, carPoint, aimDir, rayCar, carBounds, mountTurret, Arsenal } from './weapons.js';
 import { PADS, SPAWNS, YARD } from './vsmap.js';
 import { nameTag } from './multiplayer.js';
 import { FlameTank, nozzle, streamPoint } from './flamethrower.js';
@@ -123,23 +123,29 @@ export class Versus {
     return this.net.online ? this.net.id : 'me';
   }
 
-  setActive(on) {
+  /**
+   * Turn Versus on or off. `sandbox` is free roam: only weapons (for cars
+   * that have one fitted), fired at the scenery; no health, pads or match.
+   */
+  setActive(on, sandbox = false) {
+    const was = this.active && !this.sandbox;
+    this.arsenal.clear();
+    if (!on || sandbox) this.removeBots();
+    for (const f of this.fighters.values()) this.dropFighter(f);
+    this.fighters.clear();
     this.active = on;
-    this.hud.root.hidden = !on;
-    this.hud.top.hidden = !on;
-    this.hud.board.hidden = !on;
-    this.hud.feed.hidden = !on;
-    for (const p of this.pads) p.group.visible = on;
-    if (!on) {
-      this.arsenal.clear();
-      this.removeBots();
-      for (const f of this.fighters.values()) this.dropFighter(f);
-      this.fighters.clear();
-      this.hud.lock.hidden = true;
-      this.hud.wrecked.classList.remove('show');
-      this.hud.vignette.style.opacity = 0;
-      this.setBanner('');
-    }
+    this.sandbox = on && sandbox;
+    const match = on && !sandbox;
+    this.hud.root.hidden = !match;
+    this.hud.root.classList.toggle('sandbox', this.sandbox);
+    this.hud.top.hidden = !match;
+    this.hud.board.hidden = !match;
+    this.hud.feed.hidden = !match;
+    for (const p of this.pads) p.group.visible = match;
+    this.hud.lock.hidden = true;
+    this.hud.wrecked.classList.remove('show');
+    this.hud.vignette.style.opacity = 0;
+    if (was && !match) this.setBanner('');
   }
 
   // --- Match ----------------------------------------------------------------
@@ -161,7 +167,7 @@ export class Versus {
     this.arsenal.clear();
     this.resetMatch();
     const terrain = this.terrain();
-    for (const p of this.pads) {
+    for (const p of this.sandbox ? [] : this.pads) {
       p.y = terrain.heightAt(p.x, p.z);
       p.group.position.set(p.x, p.y, p.z);
       this.setPadItem(p, this.authority ? this.randomItem(0, null) : null);
@@ -251,12 +257,18 @@ export class Versus {
       buffs: { armour: 0, double: 0, nitro: 0 }, invuln: 0, wrecked: false, respawnIn: 0,
       lastBy: null, lastAt: -99, smokeT: 0, turretKey: null, turret: null, bar: makeBar(this.scene),
       tank: def.flamethrower ? new FlameTank() : null,
+      mag: WEAPONS[def.weapon]?.mag ?? 0, // the car's own rockets/mines: a magazine that refills
     };
     return f;
   }
 
   dropFighter(f) {
-    if (f.turret) f.turret.root.parent?.remove(f.turret.root);
+    if (f.turret && f.turret !== f.model.weaponTurret) f.turret.root.parent?.remove(f.turret.root);
+    if (f.model.weaponTurret) {
+      f.model.weaponTurret.root.visible = true;
+      f.model.weaponTurret.yaw.rotation.y = 0;
+      f.model.weaponTurret.pitch.rotation.x = 0;
+    }
     f.turret = null;
     f.turretKey = null;
     this.scene.remove(f.bar.bg, f.bar.fill);
@@ -300,6 +312,7 @@ export class Versus {
     f.invuln = VS.invuln;
     f.lastBy = null;
     if (f.tank) f.tank.level = 1;
+    f.mag = WEAPONS[f.def.weapon]?.mag ?? 0;
   }
 
   placeFighter(f, spot) {
@@ -328,7 +341,8 @@ export class Versus {
   /** The weapon a fighter fires right now: its pickup while it has ammo, else its own. */
   weaponOf(f) {
     if (f.special && f.ammo > 0) return f.special;
-    return f.def.flamethrower ? 'inferno' : 'mg';
+    if (f.def.flamethrower) return 'inferno';
+    return WEAPONS[f.def.weapon] ? f.def.weapon : 'mg';
   }
 
   centreOf(f, out) {
@@ -338,6 +352,7 @@ export class Versus {
 
   /** Auto-aim: the enemy most in front of us, within range and a forward cone. */
   pickTarget(f, range) {
+    if (this.sandbox) return null; // free roam: just shoot where you're pointing
     const c = f.car;
     const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
     let best = null, bestScore = Infinity;
@@ -358,7 +373,7 @@ export class Versus {
 
   /** `amount` of damage to fighter `o`, credited to `by` (a fighter id, or null). */
   hurt(o, amount, by, kind = '') {
-    if (!o || o.wrecked || !(amount > 0) || this.phase !== 'play') return;
+    if (!o || o.wrecked || !(amount > 0) || this.phase !== 'play' || this.sandbox) return;
     if (by === this.myId && !o.me) {
       this.hitFlash = 0.12;
       if (kind !== 'blast') this.audio.hitTick();
@@ -698,8 +713,8 @@ export class Versus {
     this.syncFighters();
     this.time += dt;
 
-    // The referee runs the clock.
-    if (this.authority) {
+    // The referee runs the clock (not in free roam).
+    if (this.authority && !this.sandbox) {
       if (this.phase === 'play') {
         this.timeLeft = Math.max(0, this.timeLeft - dt);
         if (this.timeLeft <= 0) {
@@ -715,19 +730,19 @@ export class Versus {
     // Better upgrades as the match goes on.
     const played = VS.matchTime - this.timeLeft;
     const tier = VS_TIERS.filter((t) => played >= t).length - 1;
-    if (tier > this.tier) {
+    if (tier > this.tier && !this.sandbox) {
       this.tier = tier;
       const names = ITEM_CODES.filter((k) => ITEMS[k].tier === tier).map((k) => ITEMS[k].label);
       this.fx.toast(`New upgrades on the pads: ${names.join(', ')}`);
       this.audio.beep(true);
     }
-    this.updatePads(dt);
+    if (!this.sandbox) this.updatePads(dt);
 
     for (const f of this.fighters.values()) {
       if (f.local) this.updateLocal(f, dt, f.me ? wantFire : f.bot.wantFire);
       else this.updateRemote(f, dt);
     }
-    this.checkPickups();
+    if (!this.sandbox) this.checkPickups();
 
     // Rockets fly; mines wait.
     this.arsenal.update(dt, {
@@ -741,6 +756,11 @@ export class Versus {
     for (const r of this.arsenal.spent()) this.detonateRocket(r);
     for (const m of this.arsenal.mines) {
       if (m.dead || m.age < m.arm) continue;
+      // Free roam: mines are timed charges for blowing things up.
+      if (this.sandbox) {
+        if (m.age > 2.5) this.detonateMine(m, m.owner === this.myId);
+        continue;
+      }
       for (const f of this.fighters.values()) {
         if (!f.local || f.wrecked || f.id === m.owner) continue;
         if (Math.hypot(f.car.x - m.pos.x, f.car.z - m.pos.z) < WEAPONS.mines.trigger && Math.abs((f.car.y || 0) - m.pos.y) < 2) {
@@ -758,11 +778,40 @@ export class Versus {
       for (const [to, a] of this.pendingDmg) this.net.sendEvent({ type: 'dmg', to, a: Math.round(a * 10) / 10 });
       this.pendingDmg.clear();
     }
-    this.updateHud(dt, camera);
+    if (this.sandbox) this.updateSandboxHud();
+    else this.updateHud(dt, camera);
+  }
+
+  /** Free roam: just the weapon and its ammo, for a car that has one. */
+  updateSandboxHud() {
+    const me = this.fighters.get(this.myId);
+    const armed = !!me?.def.weapon && !me.def.flamethrower;
+    this.hud.root.hidden = !armed;
+    if (armed) this.renderWeapon(me);
+  }
+
+  /** The weapon panel: name, and ammo (or how full the magazine is). */
+  renderWeapon(me) {
+    const h = this.hud;
+    const w = this.weaponOf(me);
+    const spec = WEAPONS[w];
+    h.weapon.textContent = spec.label;
+    h.weapon.style.color = `#${spec.color.toString(16).padStart(6, '0')}`;
+    const own = !(me.special && me.ammo > 0);
+    h.ammo.textContent = w === 'mg' ? '∞'
+      : w === 'inferno' ? `${Math.round(me.tank.level * 100)}%`
+        : !own ? (w === 'flamer' ? `${Math.ceil(me.ammo)} s` : `×${me.ammo}`)
+          : `${Math.floor(me.mag)} / ${spec.mag}`;
   }
 
   updateLocal(f, dt, wantFire) {
     const car = f.car;
+    // Free roam: only cars with a weapon fitted fire (the Inferno's
+    // flamethrower is handled with its tank in main.js there).
+    if (this.sandbox && (!f.def.weapon || f.def.flamethrower)) {
+      f.shooting = f.flaming = false;
+      return;
+    }
     if (f.wrecked) {
       f.respawnIn -= dt;
       f.flaming = f.shooting = false;
@@ -797,10 +846,16 @@ export class Versus {
       if (w === 'mg') {
         f.shooting = true;
         while (f.cooldown <= 0) { this.shootMG(f, true); f.cooldown += spec.interval; }
-      } else if (w === 'rockets' || w === 'salvo') {
-        if (f.cooldown <= 0) { this.fireRockets(f, w, target); f.ammo--; f.cooldown = spec.interval; }
-      } else if (w === 'mines') {
-        if (f.cooldown <= 0) { this.dropMine(f); f.ammo--; f.cooldown = spec.interval; }
+      } else if (w === 'rockets' || w === 'salvo' || w === 'mines') {
+        // A pickup's ammo first; the car's own weapon uses its magazine.
+        const own = !(f.special && f.ammo > 0);
+        if (f.cooldown <= 0 && (!own || f.mag >= 1)) {
+          if (w === 'mines') this.dropMine(f);
+          else this.fireRockets(f, w, target);
+          if (own) f.mag -= 1;
+          else f.ammo--;
+          f.cooldown = spec.interval;
+        }
       } else if (w === 'flamer') {
         f.flaming = true;
         f.ammo = Math.max(0, f.ammo - dt);
@@ -808,7 +863,10 @@ export class Versus {
     }
     if (f.flaming) this.flameDamage(f, dt);
     if (f.special && f.ammo <= 0) f.special = null;
-    if (f.me) car.firing = f.flaming;
+    // The car's own magazine refills one shot at a time.
+    const own = WEAPONS[f.def.weapon];
+    if (own?.mag && f.mag < own.mag) f.mag = Math.min(own.mag, f.mag + dt / own.reload);
+    if (f.me && !this.sandbox) car.firing = f.flaming;
     this.visuals(f, dt);
   }
 
@@ -835,22 +893,21 @@ export class Versus {
 
   /** Turret, health bar, smoke and fire when hurt, and hiding wrecks. */
   visuals(f, dt) {
+    if (this.sandbox && !f.def.weapon) return; // free roam: leave unarmed cars alone
     const model = f.model;
     const shown = f.remote ? f.remote.seen : true;
     model.root.visible = shown && !f.wrecked && !(f.invuln > 0 && Math.floor(this.time * 10) % 2 === 0);
-    // Turret for the current weapon (the Inferno has its own).
+    // Turret for the current weapon: the car's own (custom cars), or one
+    // for a pickup. The Inferno's flamethrower is part of its body.
     const w = this.weaponOf(f);
     const key = w === 'inferno' ? null : w;
     if (key !== f.turretKey) {
-      if (f.turret) f.turret.root.parent?.remove(f.turret.root);
-      f.turret = key ? makeTurret(key) : null;
+      const own = model.weaponTurret;
+      if (f.turret && f.turret !== own) f.turret.root.parent?.remove(f.turret.root);
+      if (own && key === own.key) f.turret = own;
+      else f.turret = key ? mountTurret(model.root, f.def, key) : null;
+      if (own) own.root.visible = f.turret === own;
       f.turretKey = key;
-      if (f.turret) {
-        const m = turretMount(f.def);
-        f.turret.root.position.set(m[0], m[1], key === 'mines' ? carBounds(f.def).lo[2] + 0.4 : m[2]);
-        if (key === 'mines') f.turret.root.position.y = Math.max(0.9, m[1] * 0.6);
-        model.root.add(f.turret.root);
-      }
     }
     if (f.turret && f.turretKey !== 'mines') {
       f.turret.yaw.rotation.y = vsWrap(f.aimYaw - f.car.heading);
@@ -903,7 +960,7 @@ export class Versus {
 
   /** A versus event from another player. */
   onEvent(id, e) {
-    if (!this.active) return;
+    if (!this.active || (this.sandbox && e.type !== 'fx')) return;
     if (e.type === 'dmg') {
       this.hurt(this.fighters.get(this.myId), e.a, id, 'net');
     } else if (e.type === 'wreck') {
@@ -999,10 +1056,7 @@ export class Versus {
     h.hpFill.style.width = `${frac * 100}%`;
     h.hpFill.dataset.level = frac < 0.25 ? 'low' : frac < 0.5 ? 'mid' : 'ok';
     h.hpText.textContent = `${Math.ceil(Math.max(0, me.hp))} / ${me.maxHp}`;
-    const w = this.weaponOf(me);
-    h.weapon.textContent = WEAPONS[w].label;
-    h.weapon.style.color = `#${WEAPONS[w].color.toString(16).padStart(6, '0')}`;
-    h.ammo.textContent = w === 'mg' ? '∞' : w === 'inferno' ? `${Math.round(me.tank.level * 100)}%` : w === 'flamer' ? `${Math.ceil(me.ammo)} s` : `×${me.ammo}`;
+    this.renderWeapon(me);
     const buffs = Object.entries(me.buffs).filter(([, t]) => t > 0).map(([k, t]) => `${k}:${Math.ceil(t)}`).join(',');
     if (buffs !== this.buffSig) {
       this.buffSig = buffs;

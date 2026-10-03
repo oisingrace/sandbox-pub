@@ -6,15 +6,18 @@ import * as THREE from 'three';
 // live in versus.js; this file is the hardware.
 
 /**
- * Weapons. `ammo` is shots (rockets, mines), salvos, or seconds of fire
- * (flamethrower); the machine gun never runs out. Damage is in hit points.
+ * Weapons. `ammo` is what a Versus pickup gives: shots (rockets, mines),
+ * salvos, or seconds of fire (flamethrower); the machine gun never runs
+ * out. A custom car built with rockets, a salvo or mines carries a
+ * magazine of `mag` that refills one every `reload` seconds. Damage is in
+ * hit points.
  */
 export const WEAPONS = {
   mg: { label: 'Machine gun', interval: 1 / 9, damage: 5, range: 70, spread: 0.02, color: 0xffd23f },
-  rockets: { label: 'Rockets', interval: 0.6, ammo: 8, damage: 45, radius: 7, speed: 45, turn: 2.4, range: 90, color: 0xff5a36 },
-  salvo: { label: 'Rocket salvo', interval: 0.95, ammo: 4, perShot: 3, damage: 32, radius: 6.5, speed: 42, turn: 2.8, range: 90, color: 0xff2d55 },
+  rockets: { label: 'Rockets', interval: 0.6, ammo: 8, mag: 3, reload: 2.5, damage: 45, radius: 7, speed: 45, turn: 2.4, range: 90, color: 0xff5a36 },
+  salvo: { label: 'Rocket salvo', interval: 0.95, ammo: 4, mag: 2, reload: 4.5, perShot: 3, damage: 32, radius: 6.5, speed: 42, turn: 2.8, range: 90, color: 0xff2d55 },
   flamer: { label: 'Flamethrower', ammo: 8, dps: 36, range: 15, color: 0xff9a1f },
-  mines: { label: 'Mines', interval: 0.5, ammo: 4, damage: 55, radius: 6.5, trigger: 3.5, arm: 0.8, color: 0xffd23f },
+  mines: { label: 'Mines', interval: 0.5, ammo: 4, mag: 3, reload: 3.5, damage: 55, radius: 6.5, trigger: 3.5, arm: 0.8, color: 0xffd23f },
   inferno: { label: 'Flamethrower', dps: 36, range: 15, color: 0xff9a1f }, // the Inferno's own, on its tank
 };
 /** Weapon order on the wire (index = code). */
@@ -100,7 +103,25 @@ export function carBounds(def) {
 
 const turretMats = {};
 function tMat(key, color, emissive = 0, intensity = 0) {
-  return (turretMats[key] ||= new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity, metalness: 0.55, roughness: 0.45 }));
+  if (!turretMats[key]) {
+    turretMats[key] = new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity, metalness: 0.55, roughness: 0.45 });
+    turretMats[key].userData.shared = true; // CarModel.dispose leaves it alone
+  }
+  return turretMats[key];
+}
+
+/**
+ * Put a weapon's turret on a car (`parent` is the car model's root): on
+ * the roof, or a mine dispenser at the back. Returns the turret.
+ */
+export function mountTurret(parent, def, weapon) {
+  const t = makeTurret(weapon);
+  t.key = weapon;
+  const m = turretMount(def);
+  if (weapon === 'mines') t.root.position.set(m[0], Math.max(0.9, m[1] * 0.6), carBounds(def).lo[2] + 0.4);
+  else t.root.position.set(m[0], m[1], m[2]);
+  parent.add(t.root);
+  return t;
 }
 
 /**

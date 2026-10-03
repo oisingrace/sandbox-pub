@@ -176,8 +176,15 @@ minutes wins.
 - **Paint:** body, trim and glow colours.
 - **Parts:** rear wing, hood scoop, bull bar, roof lights, exhaust stacks, racing stripes, roll cage.
 - **Jumps and air control:** on or off, like the Striker.
-- **Special:** none, burner (burns through what it hits, like the Ember GT) or a flamethrower turret
-  (like the Inferno pickup).
+- **Weapon:** machine gun, rockets, rocket salvo, flamethrower (a turret like the Inferno pickup's)
+  or mines, mounted on the roof (rockets and mines get a post in a pickup's bed; mines a dispenser at
+  the back). Fire it with X, a left click, B or FIRE. In **Versus** it's your car's own weapon instead
+  of the machine gun: rockets, salvos and mines come from a magazine (3, 2 and 3) that refills one
+  every 2.5, 4.5 and 3.5 s; pickups from the pads still take over while they last. In **free roam**
+  you can fire it at the scenery (mines are timed charges there, going off after 2.5 s), and other
+  players in the room see it. Designs saved before weapons existed get the machine gun; ones with the
+  old flamethrower ability keep their flamethrower.
+- **Special:** none, or burner (burns through what it hits, like the Ember GT).
 - **Engine and handling:** engine sound, and sliders for power, weight, grip, balance (planted to
   tail-happy) and boost.
 - The **stats** (top speed, 0–100 km/h, weight) are measured by actually running the car through the
@@ -243,6 +250,11 @@ Everything is synthesised with Web Audio; there are no sound files (`src/audio.j
   around the camera, so distant crashes are quieter and come from the right side.
 - **Mix:** a reverb send for a sense of space, a bus compressor so big pile-ups don't clip, and close
   explosions briefly duck the engine.
+- **Robustness:** every value sent to Web Audio is checked and kept in range (one NaN reaching a filter
+  or the compressor can silence everything for good in some browsers), and the listener uses the
+  camera's own up vector. A watchdog checks twice a second that sound is still coming out: a suspended
+  context is resumed (also on the next tap or key press), and if the graph goes silent or produces
+  garbage while the engine should be audible, it's thrown away and rebuilt.
 - **Menus:** button clicks, and a volume setting in Options → Game.
 
 ## Car-to-car collisions

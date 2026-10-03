@@ -13,7 +13,8 @@ import { CarPhysics, DEFAULT_SPEC } from './physics.js';
 //     size:   { length, width, height, ride, wheels }   // 0..1 sliders around the style's base
 //     tune:   { power, weight, grip, balance, boost }  // 0..1, 0.5 is neutral
 //     engine: 'sport' | 'hatch' | 'v8' | 'diesel' | 'ember',
-//     ability: 'none' | 'burner' | 'flamethrower',
+//     ability: 'none' | 'burner',
+//     weapon: 'mg' | 'rockets' | 'salvo' | 'flamethrower' | 'mines',  // the roof-mounted weapon
 //     parts:  ['spoiler', 'scoop', 'bullbar', 'lightbar', 'stacks', 'stripes', 'cage'],
 //     aerial: true | false }  // jumps, double jumps, flips and air control (Space)
 
@@ -27,7 +28,9 @@ export const STYLES = {
   buggy: { label: 'Buggy', length: 3.6, width: 1.9, roof: 1.6, body: 0.34, ride: 0.42, cabin: [0.28, 0.66], taper: 1, wheel: 0.44, engine: 'sport', open: true, power: 0.75 },
 };
 export const ENGINES = { sport: 'Sports', hatch: 'Four-pot', v8: 'V8', diesel: 'Diesel', ember: 'Turbine' };
-export const ABILITIES = { none: 'None', burner: 'Burner (burns what it hits)', flamethrower: 'Flamethrower' };
+export const ABILITIES = { none: 'None', burner: 'Burner (burns what it hits)' };
+/** Roof weapons a custom car can carry (fired with X / click; see weapons.js). */
+export const WEAPON_MOUNTS = { mg: 'Machine gun', rockets: 'Rockets', salvo: 'Rocket salvo', flamethrower: 'Flamethrower', mines: 'Mines' };
 export const PARTS = {
   spoiler: 'Rear wing', scoop: 'Hood scoop', bullbar: 'Bull bar', lightbar: 'Roof lights',
   stacks: 'Exhaust stacks', stripes: 'Racing stripes', cage: 'Roll cage',
@@ -45,7 +48,7 @@ export const DEFAULT_DESIGN = {
   name: 'My car', style: 'coupe', color: 0xe8b21c, trim: 0x1c1c22, accent: 0xff6a10,
   size: { length: 0.5, width: 0.5, height: 0.5, ride: 0.5, wheels: 0.5 },
   tune: { power: 0.5, weight: 0.5, grip: 0.5, balance: 0.5, boost: 0.5 },
-  engine: null, ability: 'none', parts: ['stripes'], aerial: false,
+  engine: null, ability: 'none', weapon: 'mg', parts: ['stripes'], aerial: false,
 };
 
 const clamp01 = (v, d = 0.5) => (Number.isFinite(+v) ? Math.max(0, Math.min(1, +v)) : d);
@@ -67,6 +70,8 @@ export function cleanDesign(raw = {}) {
     tune: {},
     engine: ENGINES[raw.engine] ? raw.engine : STYLES[style].engine,
     ability: ABILITIES[raw.ability] ? raw.ability : 'none',
+    // Older designs had the flamethrower as a special ability.
+    weapon: WEAPON_MOUNTS[raw.weapon] ? raw.weapon : raw.ability === 'flamethrower' ? 'flamethrower' : 'mg',
     parts: [...new Set((Array.isArray(raw.parts) ? raw.parts : d.parts).filter((p) => PARTS[p]))],
     aerial: !!raw.aerial,
   };
@@ -147,7 +152,7 @@ export function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats =
   };
   spec.body = { halfW: W / 2, halfL: L / 2, top: roof };
 
-  const flamer = d.ability === 'flamethrower';
+  const flamer = d.weapon === 'flamethrower';
   const cabH = roof - g.deck;
   const hitbox = [
     { half: [W / 2, (body + 0.12) / 2, L / 2], at: [0, ride + (body + 0.12) / 2, 0] },
@@ -163,7 +168,7 @@ export function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats =
     design: d,
     name: d.name,
     voice: d.engine,
-    blurb: `Custom ${st.label.toLowerCase()}${d.ability !== 'none' ? ` with ${ABILITIES[d.ability].split(' (')[0].toLowerCase()}` : ''}${d.aerial ? ', jumps and flips' : ''}.`,
+    blurb: `Custom ${st.label.toLowerCase()} with ${[WEAPON_MOUNTS[d.weapon].toLowerCase(), d.ability !== 'none' && ABILITIES[d.ability].split(' (')[0].toLowerCase()].filter(Boolean).join(' and ')}${d.aerial ? ', jumps and flips' : ''}.`,
     color: d.color,
     trim: d.trim,
     accent: d.accent,
@@ -174,6 +179,9 @@ export function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats =
     burns: d.ability === 'burner',
     aerial: d.aerial,
     flamethrower: flamer ? { mount: [0, turret.y + 0.32, turret.z + 1.15] } : undefined,
+    // Other weapons: a turret on the roof (built by CarModel, fired by versus.js).
+    weapon: flamer ? undefined : d.weapon,
+    turretMount: [0, turret.y - 0.05, turret.z],
     spec,
     hitbox,
     home,
@@ -270,7 +278,11 @@ function buildBody({ THREE, box, tapered, add, lights }, d, g, turret) {
     for (const sx of [-1, 1]) box(0.03, 0.05, L - 0.8, 'glow', sx * (W / 2 + 0.01), ride + body * 0.5, -0.1);
     box(W - 0.3, 0.03, 0.04, 'glow', 0, ride + 0.12, front + 0.06);
   }
-  if (d.ability === 'flamethrower') {
+  if (st.bed && d.weapon !== 'flamethrower') {
+    // A post in the bed for the roof weapon to sit on.
+    box(0.36, turret.y - 0.05 - deck, 0.36, 'dark', 0, deck + (turret.y - 0.05 - deck) / 2, turret.z);
+  }
+  if (d.weapon === 'flamethrower') {
     box(0.5, 0.18, 0.5, 'dark', 0, turret.y + 0.03, turret.z);
     box(0.7, 0.36, 1.0, 'dark', 0, turret.y + 0.25, turret.z);
     box(0.74, 0.06, 1.04, 'trim', 0, turret.y + 0.45, turret.z);

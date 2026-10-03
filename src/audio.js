@@ -33,6 +33,12 @@ const VOICES = {
 
 const MAX_VOICES = 16;
 
+// Every value sent to Web Audio goes through these: a single NaN or
+// Infinity reaching a filter or the compressor can silence the whole
+// graph for good in some browsers.
+const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+const clampA = (v, lo, hi, d = lo) => Math.max(lo, Math.min(hi, fin(v, d)));
+
 export class CarAudio {
   constructor() {
     this.ctx = null;
@@ -81,6 +87,81 @@ export class CarAudio {
 
     this.buildEngine();
     this.buildLoops();
+
+    // Watchdog taps (see checkHealth): what the engine bus carries, and
+    // what actually leaves the compressor.
+    this.tapIn = ctx.createAnalyser();
+    this.tapIn.fftSize = 256;
+    this.loopBus.connect(this.tapIn);
+    this.tapOut = ctx.createAnalyser();
+    this.tapOut.fftSize = 256;
+    this.compressor.connect(this.tapOut);
+    this.tapBuf = new Float32Array(256);
+    this.healthTimer = 0;
+    this.badChecks = 0;
+    this.lastCheck = performance.now();
+    // Browsers can suspend audio (another tab took the output, a phone
+    // call, a device change): resume on the next tap or key press.
+    if (!this.resumeHooked) {
+      this.resumeHooked = true;
+      const wake = () => { if (this.ctx && this.ctx.state !== 'running' && !this.paused) this.ctx.resume(); };
+      addEventListener('pointerdown', wake, true);
+      addEventListener('keydown', wake, true);
+    }
+  }
+
+  /**
+   * Twice a second: make sure sound is still coming out. A suspended
+   * context is resumed; a graph that has stopped producing sound (or is
+   * producing garbage) while the engine should be audible is thrown away
+   * and rebuilt, so audio never stays dead until a reload.
+   */
+  checkHealth() {
+    const now = performance.now();
+    if (now - this.lastCheck < 500) return;
+    this.lastCheck = now;
+    const ctx = this.ctx;
+    if (!ctx || this.paused) { this.badChecks = 0; return; }
+    if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+      ctx.resume().catch(() => {});
+      return;
+    }
+    if (ctx.state !== 'running') return;
+    const level = (an) => {
+      an.getFloatTimeDomainData(this.tapBuf);
+      let peak = 0;
+      for (const x of this.tapBuf) {
+        if (!Number.isFinite(x)) return NaN;
+        peak = Math.max(peak, Math.abs(x));
+      }
+      return peak;
+    };
+    const into = level(this.tapIn);
+    const out = level(this.tapOut);
+    const audible = !this.muted && this.volume > 0.01;
+    // The engine always makes some sound while driving, so a silent (or
+    // NaN) engine bus is broken; so is a silent output when sound goes in.
+    const broken = Number.isNaN(into) || Number.isNaN(out) || into < 1e-7 || (audible && into > 1e-3 && out < 1e-7);
+    this.badChecks = broken ? this.badChecks + 1 : 0;
+    if (this.badChecks >= 3) this.rebuild();
+  }
+
+  /** Throw away the audio graph and build a fresh one (same settings). */
+  rebuild() {
+    console.warn('Audio stopped working; restarting it');
+    const old = this.ctx;
+    this.ctx = null;
+    this._noise = null;
+    this.flameOut = null;
+    this.flameLfo = null;
+    this.voices = [];
+    this.lastBoom = this.lastBurn = this.lastTick = 0;
+    this.badChecks = 0;
+    old?.close().catch(() => {});
+    this.start();
+    if (!this.ctx) return;
+    this.loopBus.gain.value = this.paused ? 0 : 1;
+    this.rebuilds = (this.rebuilds || 0) + 1;
   }
 
   buildEngine() {
@@ -190,14 +271,18 @@ export class CarAudio {
     const p = camera.position;
     const e = camera.matrixWorld.elements; // camera looks down its local -Z
     const f = { x: -e[8], y: -e[9], z: -e[10] };
+    // The camera's own up vector: always at right angles to where it looks
+    // (a fixed world "up" breaks the panning maths when looking straight down).
+    const u = { x: e[4], y: e[5], z: e[6] };
+    if (![p.x, p.y, p.z, f.x, f.y, f.z, u.x, u.y, u.z].every(Number.isFinite)) return;
     if (l.positionX) {
       const t = this.ctx.currentTime;
       l.positionX.setValueAtTime(p.x, t); l.positionY.setValueAtTime(p.y, t); l.positionZ.setValueAtTime(p.z, t);
       l.forwardX.setValueAtTime(f.x, t); l.forwardY.setValueAtTime(f.y, t); l.forwardZ.setValueAtTime(f.z, t);
-      l.upX.setValueAtTime(0, t); l.upY.setValueAtTime(1, t); l.upZ.setValueAtTime(0, t);
+      l.upX.setValueAtTime(u.x, t); l.upY.setValueAtTime(u.y, t); l.upZ.setValueAtTime(u.z, t);
     } else {
       l.setPosition(p.x, p.y, p.z);
-      l.setOrientation(f.x, f.y, f.z, 0, 1, 0);
+      l.setOrientation(f.x, f.y, f.z, u.x, u.y, u.z);
     }
     this.listenerPos = p;
   }
@@ -206,6 +291,7 @@ export class CarAudio {
   outputFor(pos, reverb = 0.3) {
     const ctx = this.ctx;
     const out = ctx.createGain();
+    if (pos && !(Number.isFinite(pos.x) && Number.isFinite(pos.y) && Number.isFinite(pos.z))) pos = null;
     if (pos) {
       const panner = ctx.createPanner();
       panner.panningModel = 'equalpower';
@@ -251,7 +337,8 @@ export class CarAudio {
    * world (omit for sounds on the player's own car).
    */
   impact(material, strength, pos) {
-    if (!this.ctx || this.muted || strength < 0.05 || !this.audible(pos)) return;
+    if (!this.ctx || this.muted || !(strength >= 0.05) || !this.audible(pos)) return;
+    strength = Math.min(1, strength);
     const ctx = this.ctx;
     const now = ctx.currentTime;
     const preset = IMPACTS[material] || IMPACTS.concrete;
@@ -293,6 +380,7 @@ export class CarAudio {
   /** Whoosh and crackle of something catching fire. */
   burn(strength = 1, pos) {
     if (!this.ctx || this.muted || !this.audible(pos)) return;
+    strength = clampA(strength, 0, 1, 0.5);
     const ctx = this.ctx;
     const now = ctx.currentTime;
     if (this.lastBurn && now - this.lastBurn < 0.05) return;
@@ -319,6 +407,7 @@ export class CarAudio {
   /** Fuel drum explosion: deep boom, blast noise, crackle and a long tail. */
   explosion(pos, distance = 20) {
     if (!this.ctx || this.muted) return;
+    distance = fin(distance, 20);
     const ctx = this.ctx;
     const now = ctx.currentTime;
     if (this.lastBoom && now - this.lastBoom < 0.04) return;
@@ -431,6 +520,7 @@ export class CarAudio {
   /** One machine-gun shot: a sharp crack with a low thump. */
   gun(pos, strength = 1) {
     if (!this.ctx || this.muted || !this.audible(pos, 120)) return;
+    strength = clampA(strength, 0, 1, 1);
     const ctx = this.ctx;
     const now = ctx.currentTime;
     if (!this.claimVoice(0.12, 0.3 * strength)) return;
@@ -624,7 +714,7 @@ export class CarAudio {
       lfo.start();
       this.flameLfo = depth;
     }
-    const target = this.muted ? 0 : Math.min(1, level) * 0.55;
+    const target = this.muted ? 0 : clampA(level, 0, 1) * 0.55;
     this.flameOut.gain.setTargetAtTime(target, ctx.currentTime, target > (this.flameLevel || 0) ? 0.03 : 0.12);
     this.flameLfo.gain.setTargetAtTime(target * 0.35, ctx.currentTime, 0.05);
     this.flameLevel = target;
@@ -649,10 +739,19 @@ export class CarAudio {
 
   /** Per-frame update of the continuous sounds. */
   update(car, skid) {
+    if (!this.ctx) return;
+    this.checkHealth();
     if (!this.ctx || this.paused) return;
     const t = this.ctx.currentTime;
     const v = this.voice;
-    const firing = (car.rpm / 60) * 2 * (car.spec.engineTone ?? 1); // 4-cylinder firing frequency
+    // Everything from the car is checked and kept in range (see fin).
+    const nyq = this.ctx.sampleRate * 0.45;
+    const hz = (x) => clampA(x, 10, nyq, 10);
+    const rpm = clampA(car.rpm, 0, 12000, 1000);
+    const sp = clampA(car.speed, 0, 400);
+    const load = clampA(car.throttle, 0, 1);
+    skid = clampA(skid, 0, 1);
+    const firing = (rpm / 60) * 2 * fin(car.spec.engineTone, 1); // 4-cylinder firing frequency
 
     // Gear changes: a short dip in volume as the clutch goes in.
     let dip = 1;
@@ -662,34 +761,35 @@ export class CarAudio {
     }
     if (this.shiftAt && t - this.shiftAt < 0.14) dip = 0.45;
 
-    this.oscFund.o.frequency.setTargetAtTime(firing, t, 0.03);
-    this.oscSub.o.frequency.setTargetAtTime(firing * 0.5 * 1.006, t, 0.03);
-    this.oscHarm.o.frequency.setTargetAtTime(firing * 2.01, t, 0.03);
-    this.oscWhine.o.frequency.setTargetAtTime(600 + car.rpm * 0.55 + car.speed * 8, t, 0.08);
-    this.amOsc.frequency.setTargetAtTime(Math.max(4, firing * 0.25), t, 0.05);
-    const load = car.throttle;
-    this.engineFilter.frequency.setTargetAtTime(v.cutBase + load * v.cutThrottle + car.rpm * 0.12, t, 0.05);
-    this.engineGain.gain.setTargetAtTime((0.1 + load * 0.14 + (car.rpm / 7000) * 0.05) * dip, t, 0.04);
-    this.intakeFilter.frequency.setTargetAtTime(500 + car.rpm * 0.3, t, 0.05);
-    this.intakeGain.gain.setTargetAtTime(v.noise * (0.2 + load) * (car.rpm / 5000), t, 0.05);
+    this.oscFund.o.frequency.setTargetAtTime(hz(firing), t, 0.03);
+    this.oscSub.o.frequency.setTargetAtTime(hz(firing * 0.5 * 1.006), t, 0.03);
+    this.oscHarm.o.frequency.setTargetAtTime(hz(firing * 2.01), t, 0.03);
+    this.oscWhine.o.frequency.setTargetAtTime(hz(600 + rpm * 0.55 + sp * 8), t, 0.08);
+    this.amOsc.frequency.setTargetAtTime(hz(Math.max(4, firing * 0.25)), t, 0.05);
+    this.engineFilter.frequency.setTargetAtTime(hz(v.cutBase + load * v.cutThrottle + rpm * 0.12), t, 0.05);
+    this.engineGain.gain.setTargetAtTime(clampA((0.1 + load * 0.14 + (rpm / 7000) * 0.05) * dip, 0, 0.5), t, 0.04);
+    this.intakeFilter.frequency.setTargetAtTime(hz(500 + rpm * 0.3), t, 0.05);
+    this.intakeGain.gain.setTargetAtTime(clampA(v.noise * (0.2 + load) * (rpm / 5000), 0, 0.5), t, 0.05);
 
-    // Lift-off at high revs: crackle and pop.
-    if (v.pops && this.prevThrottle > 0.7 && load < 0.1 && car.rpm > 4500 && car.gear > 0) this.pops();
+    // Lift-off at high revs: crackle and pop (not more than a few times a second).
+    if (v.pops && this.prevThrottle > 0.7 && load < 0.1 && rpm > 4500 && car.gear > 0 && t - (this.lastPops || 0) > 0.4) {
+      this.lastPops = t;
+      this.pops();
+    }
     this.prevThrottle = load;
 
     const squeal = Math.min(0.35, skid * 0.4);
     this.squealA.g.gain.setTargetAtTime(squeal, t, 0.05);
     this.squealB.g.gain.setTargetAtTime(squeal * 0.35, t, 0.05);
-    this.squealA.f.frequency.setTargetAtTime(700 + skid * 500, t, 0.1);
+    this.squealA.f.frequency.setTargetAtTime(hz(700 + skid * 500), t, 0.1);
 
     this.boost.g.gain.setTargetAtTime(car.boosting ? 0.32 : 0, t, car.boosting ? 0.05 : 0.15);
-    this.boost.f.frequency.setTargetAtTime(car.boosting ? 380 + car.speed * 14 : 300, t, 0.2);
+    this.boost.f.frequency.setTargetAtTime(hz(car.boosting ? 380 + sp * 14 : 300), t, 0.2);
 
     // Road rumble and wind rise with speed, so speed is audible.
-    const sp = car.speed;
     this.rumble.g.gain.setTargetAtTime(Math.min(0.28, sp * 0.009), t, 0.1);
     this.wind.g.gain.setTargetAtTime(Math.min(0.3, (sp / 55) ** 2 * 0.3), t, 0.1);
-    this.wind.f.frequency.setTargetAtTime(450 + sp * 12, t, 0.2);
+    this.wind.f.frequency.setTargetAtTime(hz(450 + sp * 12), t, 0.2);
   }
 
   // --- Helpers ---------------------------------------------------------------

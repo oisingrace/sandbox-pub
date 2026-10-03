@@ -1,4 +1,4 @@
-import { STYLES, ENGINES, ABILITIES, PARTS, SIZE_KEYS, TUNE_KEYS, DEFAULT_DESIGN, cleanDesign, compileCar, designToCode, codeToDesign, newDesignId } from './carkit.js';
+import { STYLES, ENGINES, ABILITIES, WEAPON_MOUNTS, PARTS, SIZE_KEYS, TUNE_KEYS, DEFAULT_DESIGN, cleanDesign, compileCar, designToCode, codeToDesign, newDesignId } from './carkit.js';
 import { MAX_CUSTOM } from './customs.js';
 
 // The car workshop: a list of your custom cars, and an editor with a live
@@ -168,6 +168,8 @@ export class Workshop {
       parts.append(b);
     }
     rows.push(parts);
+    rows.push(row('Weapon', seg('Weapon', WEAPON_MOUNTS, () => d.weapon, (v) => { d.weapon = v; }),
+      'On the roof. In Versus it is your car\'s own weapon (rockets and mines reload over time); in free roam, fire it at the scenery with X or a click'));
     rows.push(row('Special', seg('Special ability', ABILITIES, () => d.ability, (v) => { d.ability = v; })));
     const jump = el('button', { type: 'button', text: d.aerial ? 'On' : 'Off', 'aria-pressed': String(!!d.aerial) });
     jump.addEventListener('click', () => {

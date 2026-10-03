@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mountTurret } from './weapons.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // Renders any vehicle from `vehicles.js`. The root sits on the ground under
@@ -135,6 +136,8 @@ export class CarModel {
     };
     def.build(kit);
     mergeByMaterial(this.body);
+    // Custom cars' roof weapon (Versus aims it; the Inferno's flamethrower is part of its body).
+    this.weaponTurret = def.weapon ? mountTurret(this.root, def, def.weapon) : null;
 
     // Boost flames: additive cones out of each exhaust, hidden until used.
     this.flames = [];
