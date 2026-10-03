@@ -216,7 +216,7 @@
     .garage-card .g-stats b { color: var(--hud-fg); }
     #t-boost { right: 140px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
     /* --- Game modes / football --- */
-    .mode-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px; background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; }
+    .mode-picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 4px; background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; }
     #menu .mode-picker button { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid transparent; background: transparent; }
     #menu .mode-picker button small { font-size: 12px; font-weight: 400; color: var(--hud-dim); line-height: 1.3; }
     #menu .mode-picker button[aria-checked="true"] { background: rgba(255, 210, 63, 0.14); border-color: var(--hazard); }
@@ -442,6 +442,7 @@
 
       <div class="mode-picker" role="radiogroup" aria-label="Game mode">
         <button type="button" role="radio" data-mode="free" aria-checked="true">Free roam<small>Smash up the lot</small></button>
+        <button type="button" role="radio" data-mode="motorway" aria-checked="false">Motorway<small>A long open road, wrecks on the sides</small></button>
         <button type="button" role="radio" data-mode="football" aria-checked="false">Car football<small>Blue vs Orange in the stadium</small></button>
         <button type="button" role="radio" data-mode="versus" aria-checked="false">Versus<small>Armed cars, most wrecks wins</small></button>
       </div>
@@ -2442,7 +2443,7 @@ const KINDS = {
   brick: { size: [0.6, 0.3, 0.3], mass: 12, colors: BRICK_COLORS, material: 'brick', breakForce: 14000, fracture: { into: 'brickHalf', grid: [2, 1, 1] }, cap: 800 },
   brickHalf: { size: [0.3, 0.3, 0.3], mass: 6, colors: BRICK_COLORS, material: 'brick', cap: 900 },
 
-  crate: { size: [1, 1, 1], mass: 40, colors: WOOD, material: 'wood', breakForce: 26000, fracture: { into: 'crateChunk', grid: [2, 2, 2] }, cap: 110 },
+  crate: { size: [1, 1, 1], mass: 40, colors: WOOD, material: 'wood', breakForce: 26000, fracture: { into: 'crateChunk', grid: [2, 2, 2] }, cap: 160 },
   crateChunk: { size: [0.5, 0.5, 0.5], mass: 5, colors: WOOD, material: 'wood', cap: 700 },
 
   block: { size: [1, 1, 1], mass: 220, colors: CONCRETE, material: 'concrete', breakForce: 150000, fracture: { into: 'blockChunk', grid: [2, 2, 2] }, cap: 950 },
@@ -2453,17 +2454,17 @@ const KINDS = {
   plankHalf: { size: [2.2, 0.2, 1], mass: 30, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankBit', grid: [2, 1, 1] }, cap: 160 },
   plankBit: { size: [1.1, 0.2, 1], mass: 15, colors: WOOD, material: 'wood', cap: 320 },
 
-  slab: { size: [0.3, 2.2, 1.2], mass: 90, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', breakForce: 70000, fracture: { into: 'slabHalf', grid: [1, 2, 1] }, cap: 50 },
-  slabHalf: { size: [0.3, 1.1, 1.2], mass: 45, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', cap: 100 },
+  slab: { size: [0.3, 2.2, 1.2], mass: 90, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', breakForce: 70000, fracture: { into: 'slabHalf', grid: [1, 2, 1] }, cap: 80 },
+  slabHalf: { size: [0.3, 1.1, 1.2], mass: 45, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', cap: 160 },
 
   barrier: { size: [0.6, 0.9, 3], mass: 700, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', breakForce: 420000, fracture: { into: 'barrierChunk', grid: [1, 1, 3] }, geo: () => barrierProfile(0.6, 0.9, 3, 0.26), cap: 420 },
   barrierChunk: { size: [0.6, 0.9, 1], mass: 233, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', geo: () => barrierProfile(0.6, 0.9, 1, 0.26), cap: 400 },
 
   barrel: { shape: 'cyl', size: [0.32, 0.95], mass: 22, colors: [0xc8342b, 0x2f6fb3, 0xe0a526, 0x4c8c3a], material: 'metal', restitution: 0.25, cap: 150 },
-  cone: { shape: 'cyl', size: [0.2, 0.6], mass: 3, colors: [0xffffff], material: 'plastic', geo: coneGeo, restitution: 0.3, cap: 60 },
+  cone: { shape: 'cyl', size: [0.2, 0.6], mass: 3, colors: [0xffffff], material: 'plastic', geo: coneGeo, restitution: 0.3, cap: 300 },
 
-  pole: { shape: 'cyl', size: [0.13, 7], mass: 150, colors: [0xffffff], material: 'metal', breakForce: 90000, fracture: { into: 'poleHalf', grid: [1, 2, 1] }, geo: poleGeo, cap: 90 },
-  poleHalf: { shape: 'cyl', size: [0.13, 3.5], mass: 75, colors: [0x9a9da3], material: 'metal', cap: 160 },
+  pole: { shape: 'cyl', size: [0.13, 7], mass: 150, colors: [0xffffff], material: 'metal', breakForce: 90000, fracture: { into: 'poleHalf', grid: [1, 2, 1] }, geo: poleGeo, cap: 200 },
+  poleHalf: { shape: 'cyl', size: [0.13, 3.5], mass: 75, colors: [0x9a9da3], material: 'metal', cap: 300 },
 
   // Office building pieces.
   panel: { size: [2, 1.2, 0.4], mass: 500, colors: FACADE, material: 'concrete', breakForce: 250000, fracture: { into: 'panelChunk', grid: [2, 2, 1] }, cap: 1000 },
@@ -2476,7 +2477,7 @@ const KINDS = {
   shard: { size: [0.375, 0.72, 0.06], mass: 1.5, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, noCcd: true, lifetime: 6, cap: 700 },
 
   // Explosive fuel drums: a hard hit (or the Ember) sets them off.
-  fuel: { shape: 'cyl', size: [0.3, 0.9], mass: 35, colors: [0xffffff], material: 'metal', geo: fuelGeo, explosive: true, breakForce: 9000, cap: 80 },
+  fuel: { shape: 'cyl', size: [0.3, 0.9], mass: 35, colors: [0xffffff], material: 'metal', geo: fuelGeo, explosive: true, breakForce: 9000, cap: 160 },
 
   // Giant bowling pins.
   pin: { shape: 'cyl', size: [0.36, 2.4], mass: 40, colors: [0xffffff], material: 'plastic', geo: pinGeo, restitution: 0.35, cap: 12 },
@@ -2500,8 +2501,8 @@ const KINDS = {
   // Gas station.
   canopy: { matte: true, size: [12, 0.5, 8], mass: 3000, colors: [0xffffff], material: 'metal', geo: canopyGeo, breakForce: 900000, fracture: { into: 'canopyChunk', grid: [3, 1, 2] }, cap: 2 },
   canopyChunk: { matte: true, size: [4, 0.5, 4], mass: 500, colors: [0xf4f4f2], material: 'metal', cap: 12 },
-  column: { size: [0.5, 4.5, 0.5], mass: 400, colors: [0xe6e2d8], material: 'concrete', breakForce: 140000, fracture: { into: 'columnChunk', grid: [1, 3, 1] }, cap: 8 },
-  columnChunk: { size: [0.5, 1.5, 0.5], mass: 133, colors: [0xe6e2d8], material: 'concrete', cap: 24 },
+  column: { size: [0.5, 4.5, 0.5], mass: 400, colors: [0xe6e2d8], material: 'concrete', breakForce: 140000, fracture: { into: 'columnChunk', grid: [1, 3, 1] }, cap: 40 },
+  columnChunk: { size: [0.5, 1.5, 0.5], mass: 133, colors: [0xe6e2d8], material: 'concrete', cap: 120 },
   pump: { matte: true, size: [0.8, 1.8, 0.5], mass: 150, colors: [0xffffff], material: 'metal', geo: pumpGeo, breakForce: 50000, fracture: { into: 'pumpChunk', grid: [1, 2, 1] }, cap: 8 },
   pumpChunk: { matte: true, size: [0.8, 0.9, 0.5], mass: 75, colors: [0x2f9e5b], material: 'metal', cap: 16 },
 
@@ -3607,6 +3608,7 @@ function createWorld(scene, renderer) {
   const VIEW = { near: [70, 200], medium: [110, 380], far: [150, 650] };
   return {
     arena,
+    grass,
     followSun(target) {
       sun.position.copy(target).add(sunOffset);
       sun.target.position.copy(target);
@@ -5390,9 +5392,10 @@ const TABS = [
   ['game', 'Game'],
 ];
 
-const MODE_NAMES = { free: 'Free roam', football: 'Car football', versus: 'Versus' };
+const MODE_NAMES = { free: 'Free roam', motorway: 'Motorway', football: 'Car football', versus: 'Versus' };
 const MODE_BLURBS = {
   free: 'Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.',
+  motorway: 'A 2.4 km dual carriageway for flat-out driving: three lanes each way and an open, painted middle, so the road ahead is always clear. The hard shoulders and verges are where the trouble is: roadworks, broken-down lorries, barrier runs, lamp posts, drum piles, trees and overpass pillars, all breakable, plus kicker ramps on the shoulder and a big jump on each verge. Smash for points like in free roam; press V to change car.',
   versus: 'Every car for itself in the Scrapyard. Your car has health and a roof-mounted machine gun that aims itself at whoever is in front of you (X or click to fire). Drive over the glowing pads for rockets, flamethrowers, mines, repairs, armour and nitro: what they offer changes as you play, and better upgrades turn up as the match goes on. Ram, shoot, and blow up the fuel drums next to your rivals. Most wrecks in five minutes wins. Solo, you fight three computer drivers.',
   football: 'Knock the ball into the orange goal before the clock runs out. Everyone drives the Striker, painted in their team colour. You play Blue against a computer driver, or team up online. The sidelines are lined with things to wreck, and the fuel drums in the corners blow the ball around. Space jumps (twice for a double jump or a flip), W/S pitch in the air, and boost lets you fly. Press Y to toggle ball cam.',
 };
@@ -5455,7 +5458,7 @@ class Menu {
 
   get mode() {
     const m = this.opts.getSettings().mode;
-    return m === 'football' || m === 'versus' ? m : 'free';
+    return m === 'football' || m === 'versus' || m === 'motorway' ? m : 'free';
   }
 
   renderMode() {
@@ -5486,7 +5489,7 @@ class Menu {
 
   /** Show room details in the pause menu while online. */
   setOnline(online, code, isHost, mode = 'free') {
-    document.getElementById('btn-rebuild').textContent = mode === 'free' ? 'Rebuild arena' : 'Restart match';
+    document.getElementById('btn-rebuild').textContent = mode === 'football' || mode === 'versus' ? 'Restart match' : 'Rebuild arena';
     document.getElementById('pause-room').hidden = !online;
     document.getElementById('btn-leave').hidden = !online;
     document.getElementById('pause-code').textContent = code || '';
@@ -8767,6 +8770,430 @@ function corrugationTexture() {
   return _corrugation;
 }
 
+// ===== motorway.js =====
+// The Motorway: a 2.4 km dual carriageway for flat-out driving. The road
+// runs along Z: three lanes each way either side of a painted (open)
+// central reservation, so the middle is always clear, then hard shoulders
+// and grass verges out to a fence. Everything that gets in the way is on
+// the sides: roadworks, broken-down lorries, barrier runs, lamp posts,
+// crate and drum piles, signs, trees, overpass pillars, and kicker ramps
+// on the hard shoulder.
+
+const ROAD = {
+  half: 1200,      // the road runs from z = -half to +half
+  median: 1.5,     // half width of the painted central reservation
+  lane: 3.7,
+  lanes: 3,
+  shoulder: 3.3,
+  fence: 44,       // cars are kept inside |x| < fence
+  overpasses: [-800, -400, 0, 400, 800],
+  deckBottom: 4.6, // underside of the overpass decks
+};
+const EDGE = ROAD.median + ROAD.lane * ROAD.lanes;   // edge of the carriageway (12.6 m)
+const SIDE = EDGE + ROAD.shoulder;                   // edge of the hard shoulder (15.9 m)
+const DECK_DEPTH = 10;
+const END = ROAD.half - 4;                           // where the end walls stop cars
+
+/** Start spots: in the lanes near the south end, facing north. */
+function motorwaySpawn(slot) {
+  const xs = [7, 3.4, 10.7, -3.4, -7, -10.7, 14.2, -14.2];
+  return { x: xs[slot % xs.length], z: -ROAD.half + 30 + Math.floor(slot / xs.length) * 10 + (slot % 2) * 4, heading: 0 };
+}
+
+function createMotorway(scene, renderer) {
+  const group = new THREE.Group();
+  group.visible = false;
+  scene.add(group);
+  const L = ROAD.half * 2;
+  const aniso = renderer.capabilities.getMaxAnisotropy();
+
+  // --- Ground: the road, the verges, embankments -------------------------
+  const road = new THREE.Mesh(
+    new THREE.PlaneGeometry(SIDE * 2 + 0.2, L + 20),
+    new THREE.MeshStandardMaterial({ map: roadTexture(aniso, L + 20), roughness: 0.92 }),
+  );
+  road.rotation.x = -Math.PI / 2;
+  road.position.y = 0.006;
+  road.receiveShadow = true;
+  group.add(road);
+
+  const verge = new THREE.Mesh(
+    new THREE.PlaneGeometry(260, L + 200),
+    new THREE.MeshStandardMaterial({ map: grassTexture(aniso, L + 200), roughness: 1 }),
+  );
+  verge.rotation.x = -Math.PI / 2;
+  verge.position.y = -0.02;
+  verge.receiveShadow = true;
+  group.add(verge);
+
+  // Embankments rising beyond the fence on both sides.
+  const bankMat = new THREE.MeshStandardMaterial({ color: 0x6a8a48, roughness: 1 });
+  for (const s of [-1, 1]) {
+    const g = new THREE.BoxGeometry(40, 1, L + 200);
+    g.rotateZ(s * 0.22);
+    g.translate(s * (ROAD.fence + 24), 3.6, 0);
+    const bank = new THREE.Mesh(g, bankMat);
+    bank.receiveShadow = true;
+    group.add(bank);
+  }
+
+  // --- Fence, hard shoulder kerb, end walls -----------------------------------
+  const steel = new THREE.MeshStandardMaterial({ color: 0x8a9098, metalness: 0.6, roughness: 0.45 });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 0.9 });
+  const posts = [], rails = [];
+  for (const s of [-1, 1]) {
+    for (let z = -ROAD.half - 40; z <= ROAD.half + 40; z += 6) {
+      const p = new THREE.BoxGeometry(0.14, 1.4, 0.14);
+      p.translate(s * ROAD.fence, 0.7, z);
+      posts.push(p);
+    }
+    for (const y of [0.55, 1.15]) {
+      const r = new THREE.BoxGeometry(0.06, 0.12, L + 80);
+      r.translate(s * ROAD.fence, y, 0);
+      rails.push(r);
+    }
+  }
+  group.add(new THREE.Mesh(mergeGeometries(posts), wood), new THREE.Mesh(mergeGeometries(rails), steel));
+
+  const concrete = new THREE.MeshStandardMaterial({ color: 0xb9b5ad, roughness: 0.9 });
+  const chevron = new THREE.MeshStandardMaterial({ map: chevronTexture(), roughness: 0.6 });
+  for (const s of [-1, 1]) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(ROAD.fence * 2 + 4, 3, 2), concrete);
+    wall.position.set(0, 1.5, s * (ROAD.half + 1));
+    wall.castShadow = wall.receiveShadow = true;
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(SIDE * 2, 1.4), chevron);
+    sign.position.set(0, 1.6, s * ROAD.half - s * 0.01);
+    sign.rotation.y = s > 0 ? Math.PI : 0;
+    group.add(wall, sign);
+  }
+
+  // --- Overpasses: decks, parapets and abutments (the pillars are breakable) ---
+  const deckParts = [], parapets = [], signs = [];
+  const D = ROAD.deckBottom;
+  for (const z of ROAD.overpasses) {
+    const deck = new THREE.BoxGeometry(ROAD.fence * 2 + 10, 1.3, DECK_DEPTH);
+    deck.translate(0, D + 0.65, z);
+    deckParts.push(deck);
+    for (const dz of [-1, 1]) {
+      const p = new THREE.BoxGeometry(ROAD.fence * 2 + 10, 1.1, 0.3);
+      p.translate(0, D + 1.85, z + dz * (DECK_DEPTH / 2 - 0.15));
+      parapets.push(p);
+    }
+    // Earth abutments carry the deck over the verges.
+    for (const s of [-1, 1]) {
+      const a = new THREE.BoxGeometry(8, D, DECK_DEPTH + 2);
+      a.translate(s * (ROAD.fence + 2), D / 2, z);
+      deckParts.push(a);
+    }
+    // A blue direction sign hung on each face.
+    for (const dz of [-1, 1]) {
+      const g = new THREE.PlaneGeometry(7, 2.2);
+      if (dz > 0) g.rotateY(Math.PI);
+      g.translate(dz < 0 ? 6.5 : -6.5, D - 0.2, z + dz * (DECK_DEPTH / 2 + 0.02));
+      signs.push(g);
+    }
+  }
+  const deckMesh = new THREE.Mesh(mergeGeometries(deckParts), concrete);
+  deckMesh.castShadow = deckMesh.receiveShadow = true;
+  const signMesh = new THREE.Mesh(mergeGeometries(signs), new THREE.MeshStandardMaterial({ map: signTexture(), roughness: 0.5, side: THREE.DoubleSide }));
+  group.add(deckMesh, new THREE.Mesh(mergeGeometries(parapets), concrete), signMesh);
+
+  // --- Trees beyond the fence (scenery only) ---------------------------------------
+  const rng = mulberry32(42);
+  const trunk = new THREE.CylinderGeometry(0.18, 0.25, 2.4, 6);
+  trunk.translate(0, 1.2, 0);
+  const crown = new THREE.ConeGeometry(1.8, 5, 7);
+  crown.translate(0, 4.6, 0);
+  const n = 700;
+  const trunks = new THREE.InstancedMesh(trunk, new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 1 }), n);
+  const crowns = new THREE.InstancedMesh(crown, new THREE.MeshStandardMaterial({ color: 0x3f6b35, roughness: 1 }), n);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3();
+  const tint = new THREE.Color();
+  for (let i = 0; i < n; i++) {
+    const s = i % 2 ? 1 : -1;
+    const x = s * (ROAD.fence + 8 + rng() * 70);
+    const z = (rng() * 2 - 1) * (ROAD.half + 80);
+    const k = 0.7 + rng() * 0.8;
+    const lift = Math.max(0, Math.min(8, (Math.abs(x) - ROAD.fence - 4) * 0.22)) - 0.3;
+    m4.compose(pos.set(x, lift, z), q.setFromAxisAngle(_up, rng() * 6.28), sc.set(k, k * (0.8 + rng() * 0.5), k));
+    trunks.setMatrixAt(i, m4);
+    crowns.setMatrixAt(i, m4);
+    crowns.setColorAt(i, tint.setHSL(0.27 + rng() * 0.06, 0.35 + rng() * 0.2, 0.25 + rng() * 0.12));
+  }
+  crowns.castShadow = true;
+  group.add(trunks, crowns);
+
+  // --- Ramps: kickers on the hard shoulders, alternating sides ------------------------
+  const terrain = new Terrain();
+  for (const { s, z } of KICKERS) {
+    terrain.addRamp({ x: s * (EDGE + ROAD.shoulder / 2), z, heading: 0, length: 9, width: 3, height: 1.6, profile: 'kicker' });
+  }
+  // A big table jump on each verge at the middle.
+  for (const s of [-1, 1]) {
+    terrain.addRamp({ x: s * 28, z: -150, heading: s > 0 ? Math.PI : 0, length: 34, width: 8, height: 3.2, profile: 'table', parts: [10, 14] });
+  }
+  terrain.buildMeshes(group);
+
+  return {
+    name: 'motorway',
+    group,
+    terrain,
+    orbit: { radius: 70, height: 26 },
+    recycle: ROAD.half + 60, // debris is only cleared once it's off the map
+    spawn: motorwaySpawn,
+    addColliders(world) {
+      terrain.addColliders(world);
+      addMotorwayColliders(world);
+    },
+    populate: populateMotorway,
+    contain: containMotorway,
+  };
+}
+
+const _up = new THREE.Vector3(0, 1, 0);
+
+/** Kicker ramps on the hard shoulders, alternating sides (kept clear of obstacles). */
+const KICKERS = [];
+for (let i = 0, z = -ROAD.half + 180; z < ROAD.half - 150; i++, z += 290) KICKERS.push({ s: i % 2 ? 1 : -1, z });
+
+/** Ground under the whole road (the shared ground slab is only 600 m), end walls and overpass decks. */
+function addMotorwayColliders(world) {
+  const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+  const box = (hx, hy, hz, x, y, z) => world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setFriction(0.8), body);
+  box(ROAD.fence + 20, 0.5, ROAD.half + 60, 0, -0.5, 0);
+  for (const s of [-1, 1]) {
+    box(ROAD.fence + 2, 4, 1, 0, 4, s * (ROAD.half + 1));
+    box(0.3, 3, ROAD.half + 2, s * (ROAD.fence + 0.3), 3, 0);
+  }
+  for (const z of ROAD.overpasses) box(ROAD.fence + 5, 0.65, DECK_DEPTH / 2, 0, ROAD.deckBottom + 0.65, z);
+}
+
+/**
+ * Keep a car on the motorway: the fences, the end walls, and under the
+ * overpass decks. Returns the speed of the hardest wall hit.
+ */
+function containMotorway(c, margin = 1.4) {
+  let hit = 0;
+  const X = ROAD.fence - margin;
+  if (Math.abs(c.x) > X) {
+    const s = Math.sign(c.x);
+    c.x = s * X;
+    if (Math.sign(c.velX) === s) { hit = Math.max(hit, Math.abs(c.velX)); c.velX *= -0.3; c.yawRate *= 0.5; }
+  }
+  if (Math.abs(c.z) > END) {
+    const s = Math.sign(c.z);
+    c.z = s * END;
+    if (Math.sign(c.velZ) === s) { hit = Math.max(hit, Math.abs(c.velZ)); c.velZ *= -0.3; c.yawRate *= 0.5; }
+  }
+  // A car flying into an overpass hits its underside.
+  for (const z of ROAD.overpasses) {
+    if (Math.abs(c.z - z) > DECK_DEPTH / 2 + 2) continue;
+    const roof = ROAD.deckBottom - 1.6;
+    if ((c.y || 0) > roof && (c.y || 0) < ROAD.deckBottom + 1.5) {
+      c.y = roof;
+      if (c.velY > 0) { hit = Math.max(hit, c.velY); c.velY = 0; }
+    }
+  }
+  return hit;
+}
+
+// --- Things on the sides ------------------------------------------------------------
+
+function populateMotorway(d) {
+  const rng = mulberry32(7);
+  const opts = { sleep: true };
+  const site = (fn) => { d.beginSite(); fn(); d.endSite(); };
+  const spawn = (kind, x, y, z, yaw = 0) => d.spawn(kind, { x, y, z }, yaw, opts);
+
+  // Lamp posts along both hard shoulders.
+  for (let z = -ROAD.half + 30; z < ROAD.half - 20; z += 60) {
+    for (const s of [-1, 1]) spawn('pole', s * (SIDE + 0.7), 3.5, z + (s > 0 ? 30 : 0));
+  }
+  // Overpass pillars: two pairs per bridge, at the edge of each hard shoulder.
+  for (const z of ROAD.overpasses) {
+    site(() => {
+      for (const s of [-1, 1]) for (const dz of [-3, 3]) spawn('column', s * (SIDE + 1.6), 2.25, z + dz);
+    });
+  }
+
+  // Obstacle clusters every 50-70 m on each side (never in the lanes).
+  const kinds = [roadworks, lorry, barrierRun, cratePile, drums, grove, signs, wall];
+  for (const s of [-1, 1]) {
+    let z = -ROAD.half + 80 + rng() * 30;
+    while (z < ROAD.half - 60) {
+      // Keep clear of the bridges and the ramps.
+      const nearBridge = ROAD.overpasses.some((o) => Math.abs(o - z) < 14);
+      const nearRamp = KICKERS.some((k) => k.s === s && z > k.z - 40 && z < k.z + 22) || (z > -200 && z < -100);
+      if (!nearBridge && !nearRamp) {
+        const make = kinds[(rng() * kinds.length) | 0];
+        site(() => make(s, z));
+      }
+      z += 50 + rng() * 25;
+    }
+  }
+
+  /** Cones tapering onto the hard shoulder, with barriers and barrels. */
+  function roadworks(s, z) {
+    for (let i = 0; i < 9; i++) spawn('cone', s * (EDGE + 0.4 + Math.min(i, 5) * 0.5), 0.3, z + i * 3);
+    for (let i = 0; i < 3; i++) spawn('barrier', s * (SIDE - 1.2), 0.45, z + 16 + i * 3.05);
+    for (let i = 0; i < 3; i++) spawn('barrel', s * (SIDE - 2.6), 0.48, z + 18 + i * 1.2);
+  }
+  /** A broken-down lorry: two containers nose to tail on the shoulder, warning cones behind. */
+  function lorry(s, z) {
+    for (let i = 0; i < 2; i++) spawn('container', s * (SIDE - 0.4), 1.3, z + i * 6.3, Math.PI / 2);
+    for (let i = 0; i < 4; i++) spawn('cone', s * (EDGE + 1.2), 0.3, z - 6 - i * 4);
+    if (rng() < 0.5) for (const [ox, oz] of [[0, 0], [0.7, 0.3]]) spawn('fuel', s * (SIDE + 3 + ox), 0.45, z + 4 + oz);
+  }
+  /** A run of concrete barriers along the verge edge. */
+  function barrierRun(s, z) {
+    const n = 4 + ((rng() * 4) | 0);
+    for (let i = 0; i < n; i++) spawn('barrier', s * (SIDE + 1.2), 0.45, z + i * 3.05);
+  }
+  /** Pallets of crates dropped on the verge. */
+  function cratePile(s, z) {
+    const x = s * (SIDE + 5 + rng() * 10);
+    for (let i = 0; i < 3; i++) spawn('crate', x, 0.5, z + (i - 1) * 1.02);
+    for (let i = 0; i < 2; i++) spawn('crate', x, 1.5, z + (i - 0.5) * 1.02);
+    spawn('crate', x, 2.5, z);
+  }
+  /** Oil drums and fuel drums on the shoulder: hit them at speed. */
+  function drums(s, z) {
+    for (let i = 0; i < 4; i++) spawn('barrel', s * (EDGE + 1 + (i % 2) * 0.8), 0.48, z + i * 0.8);
+    for (const [ox, oz] of [[0, 0], [0.7, 0.3], [0.25, 0.75]]) spawn('fuel', s * (SIDE - 0.8 + ox), 0.45, z + 4 + oz);
+  }
+  /** A few trees on the verge. */
+  function grove(s, z) {
+    const n = 3 + ((rng() * 3) | 0);
+    for (let i = 0; i < n; i++) spawn('tree', s * (SIDE + 8 + rng() * 18), 1.5, z + rng() * 16);
+  }
+  /** Roadside signs (slabs) on the verge edge. */
+  function signs(s, z) {
+    for (let i = 0; i < 2; i++) spawn('slab', s * (SIDE + 1.4), 1.1, z + i * 1.3, Math.PI / 2);
+    spawn('pole', s * (SIDE + 2.4), 3.5, z + 0.6);
+  }
+  /** A stub of brick wall on the far verge, from some old building. */
+  function wall(s, z) {
+    const x = s * (SIDE + 10 + rng() * 12);
+    for (let r = 0; r < 5; r++) {
+      const y = 0.15 + r * 0.302;
+      for (let i = 0; i < 10; i++) spawn(r % 2 && i === 0 ? 'brickHalf' : 'brick', x, y, z + i * 0.6 + (r % 2 ? 0.3 : 0), Math.PI / 2);
+    }
+  }
+}
+
+// --- Textures ---------------------------------------------------------------------
+
+/** The road surface (32 m wide, a 32 m tile repeated along it): asphalt, lanes and the hatched middle. */
+function roadTexture(aniso, length) {
+  const c = document.createElement('canvas');
+  const PX = 16; // pixels per metre
+  c.width = 512;
+  c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#3d3f43';
+  g.fillRect(0, 0, 512, 512);
+  const img = g.getImageData(0, 0, 512, 512);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 18;
+    img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n;
+  }
+  g.putImageData(img, 0, 0);
+  const W = 32;
+  const px = (x) => (x + W / 2) * PX;
+  // Hard shoulders a touch lighter.
+  g.fillStyle = 'rgba(255,255,255,0.05)';
+  for (const s of [-1, 1]) g.fillRect(Math.min(px(s * EDGE), px(s * SIDE)), 0, ROAD.shoulder * PX, 512);
+  g.fillStyle = '#ecebe6';
+  // Solid lines: carriageway edges and either side of the middle.
+  for (const x of [-EDGE, EDGE, -ROAD.median, ROAD.median]) g.fillRect(px(x) - 2.4, 0, 4.8, 512);
+  // Dashed lane lines: 6 m dashes, 10 m gaps.
+  for (let k = 1; k < ROAD.lanes; k++) {
+    for (const s of [-1, 1]) {
+      const x = px(s * (ROAD.median + k * ROAD.lane));
+      for (let z = 0; z < 512; z += 16 * PX) g.fillRect(x - 1.6, z, 3.2, 6 * PX);
+    }
+  }
+  // Hatched central reservation (painted, so you can drive across it).
+  g.save();
+  g.beginPath();
+  g.rect(px(-ROAD.median), 0, ROAD.median * 2 * PX, 512);
+  g.clip();
+  g.strokeStyle = 'rgba(236,235,230,0.85)';
+  g.lineWidth = 3;
+  for (let z = -64; z < 512 + 64; z += 4 * PX) {
+    g.beginPath();
+    g.moveTo(px(-ROAD.median), z);
+    g.lineTo(px(0), z + ROAD.median * PX);
+    g.lineTo(px(ROAD.median), z);
+    g.stroke();
+  }
+  g.restore();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(1, length / 32);
+  tex.anisotropy = aniso;
+  return tex;
+}
+
+function grassTexture(aniso, length) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#6c8d4a';
+  g.fillRect(0, 0, 128, 128);
+  const img = g.getImageData(0, 0, 128, 128);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 30;
+    img.data[i] += n * 0.7; img.data[i + 1] += n; img.data[i + 2] += n * 0.5;
+  }
+  g.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(260 / 8, length / 8);
+  tex.anisotropy = aniso;
+  return tex;
+}
+
+function chevronTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#d42a1f';
+  g.fillRect(0, 0, 512, 64);
+  g.fillStyle = '#ffffff';
+  for (let x = 0; x < 512; x += 48) {
+    g.beginPath();
+    g.moveTo(x, 8); g.lineTo(x + 18, 32); g.lineTo(x, 56); g.lineTo(x + 14, 56); g.lineTo(x + 32, 32); g.lineTo(x + 14, 8);
+    g.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function signTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 160;
+  const g = c.getContext('2d');
+  g.fillStyle = '#1d4fa3';
+  g.fillRect(0, 0, 512, 160);
+  g.strokeStyle = '#ffffff';
+  g.lineWidth = 6;
+  g.strokeRect(8, 8, 496, 144);
+  g.fillStyle = '#ffffff';
+  g.font = '700 54px system-ui, sans-serif';
+  g.fillText('SMASH LOT', 30, 76);
+  g.font = '600 40px system-ui, sans-serif';
+  g.fillText('M1  ↑  keep going', 30, 130);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 // ===== weapons.js =====
 // Versus weapons: what each one does, the turrets that show them on the
 // cars' roofs, and the things they put in the world (tracers, rockets,
@@ -10843,6 +11270,7 @@ arenaRamps(lotTerrain);
 lotTerrain.buildMeshes(world.arena);
 const stadium = createStadium(scene, renderer);
 const scrapyard = createScrapyard(scene, renderer);
+const motorway = createMotorway(scene, renderer);
 const MAPS = {
   free: {
     name: 'lot', group: world.arena, terrain: lotTerrain, orbit: { radius: 135, height: 60 },
@@ -10850,8 +11278,13 @@ const MAPS = {
   },
   football: stadium,
   versus: scrapyard,
+  motorway,
 };
 let mode = 'free';
+/** Free-roam rules (smash for points, swap cars) on the lot or the motorway. */
+const roaming = () => mode === 'free' || mode === 'motorway';
+/** Modes with a match (scores, a clock, restarts). */
+const matchMode = () => mode === 'football' || mode === 'versus';
 let map = MAPS.free;
 let terrain = map.terrain;
 
@@ -10980,7 +11413,7 @@ function vsExplosion(pos, size = 1) {
 
 /** Destruction points (free roam; football has its own score). */
 function award(base) {
-  if (mode !== 'free' || state === 'menu') return;
+  if (!roaming() || state === 'menu') return;
   score.add(base);
 }
 score.onComboEnd = ({ count, mult, points }) => {
@@ -11033,7 +11466,7 @@ function buildArena() {
   destruction.createWorld();
   destruction.createCar(active.def);
   // Big map: anything far from where we start is created frozen (see Destruction.stream).
-  destruction.prefreeze = mode === 'free' ? [homeSpot()] : null;
+  destruction.prefreeze = roaming() ? [homeSpot()] : null;
   map.populate(destruction);
   destruction.prefreeze = null;
   // Parked vehicles to swap into (free roam, solo only: they can't be kept
@@ -11052,6 +11485,7 @@ function buildArena() {
 function homeSpot() {
   if (mode === 'football') return teamSpot(myId());
   if (mode === 'versus') return versus.startSpot(net.online ? slot : 0);
+  if (map.spawn) return map.spawn(net.online ? slot : 0);
   return net.online ? SPAWN_SLOTS[slot % SPAWN_SLOTS.length] : active.def.home;
 }
 
@@ -11107,7 +11541,11 @@ function setMode(next) {
   for (const m of Object.values(MAPS)) m.group.visible = m === map;
   football.setActive(mode === 'football');
   // Versus rules in the Scrapyard; in free roam, just the weapons of cars that have one fitted.
-  versus.setActive(mode === 'versus' || mode === 'free', mode === 'free');
+  versus.setActive(mode === 'versus' || roaming(), roaming());
+  // The lot's grass would show through the motorway's own verges.
+  world.grass.visible = mode !== 'motorway';
+  // Debris is cleared when it leaves the map (the motorway is much longer).
+  destruction.recycleRange = map.recycle ?? 200;
   document.body.classList.toggle('versus', mode === 'versus');
   menu.setCarLocked(mode === 'football');
   football.referee = !net.online || net.isHost;
@@ -11531,13 +11969,13 @@ function play(def) {
 /** Rebuild the arena; online, only the host can, and it rebuilds for everyone. */
 function rebuildArena() {
   if (net.online && !net.isHost) {
-    toast(mode !== 'free' ? 'Only the host can restart the match' : 'Only the host can rebuild the arena');
+    toast(matchMode() ? 'Only the host can restart the match' : 'Only the host can rebuild the arena');
     return false;
   }
   resetAll();
   arenaDirty = true;
   if (net.online) net.sendEvent({ type: 'rebuild' });
-  toast(mode !== 'free' ? 'New match' : 'Arena rebuilt');
+  toast(matchMode() ? 'New match' : 'Arena rebuilt');
   return true;
 }
 
@@ -11604,7 +12042,7 @@ net.on('event', (id, e) => {
   if (e.type === 'rebuild' && id === 'host') {
     resetAll();
     arenaDirty = true;
-    toast(mode !== 'free' ? 'New match' : 'The host rebuilt the arena');
+    toast(matchMode() ? 'New match' : 'The host rebuilt the arena');
   }
 });
 net.on('hostLeft', () => {
@@ -11770,7 +12208,7 @@ function flameSources() {
 /** Points, multiplier and combo timer (free roam). */
 function updateScoreHud(dt) {
   score.update(dt);
-  hud.scorePanel.hidden = mode !== 'free';
+  hud.scorePanel.hidden = !roaming();
   hud.points.textContent = score.points.toLocaleString('en-US');
   hud.mult.textContent = `×${score.mult}`;
   hud.mult.dataset.level = Math.min(10, score.mult);
@@ -11943,7 +12381,7 @@ function frame() {
     if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
     // Big map: take sleeping structures far from every car out of the
     // physics world, and bring them back as cars approach.
-    if (mode === 'free') {
+    if (roaming()) {
       streamPoints.length = 0;
       streamPoints.push(car);
       for (const r of mp.remotes.values()) if (r.seen) streamPoints.push(r.proxy);

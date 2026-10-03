@@ -71,6 +71,25 @@ the dash shows the fuel. Other players' flamethrowers burn things on your screen
 9 m outward and up, shatters things close by, shoves the car, and sets off nearby drums a moment later,
 so a pile goes up in a chain.
 
+## Motorway
+
+Pick **Motorway** on the main menu for a long drive with free-roam rules (points, combos, V to change
+car, your custom car's weapon) on a 2.4 km dual carriageway (`src/motorway.js`):
+
+- **A clear middle:** three lanes each way either side of a painted, hatched central reservation
+  (no barrier), so you can use all six lanes and the road ahead is always open.
+- **Trouble on the sides:** the hard shoulders and verges have a cluster every 50-75 m: roadworks
+  (cones tapering onto the shoulder, barriers, barrels), broken-down lorries (two containers and
+  warning cones), runs of concrete barriers, crate piles, oil and fuel drums, roadside signs, trees
+  and old brick walls. Lamp posts line both shoulders, and every 400 m an overpass crosses on four
+  breakable pillars (a car flying into a deck hits its underside).
+- **Jumps:** kicker ramps on the hard shoulder every 290 m, alternating sides, and a big table jump on
+  each verge in the middle.
+- **Around it:** a wooden fence on each side, embankments and pine trees beyond, and a concrete wall
+  with chevrons at each end.
+- **Performance:** the road's 800-odd objects use the same streaming as the big free-roam map, so only
+  the ones near a car are in the physics world (about 40-140 at a time at full speed).
+
 ## Car football
 
 Pick **Car football** on the main menu (next to Free roam and Versus) for a Blue vs Orange match in a stadium
@@ -439,6 +458,7 @@ All of it is in `src/destruction.js`.
 - `src/stadium.js`: the football stadium: scenery, walls, ramps, contents and kickoff spots
 - `src/football.js`: the ball, match rules, network snapshots and the scoreboard
 - `src/bot.js`: the computer opponent for solo football
+- `src/motorway.js`: the Motorway map: road, verges, overpasses, ramps and the obstacles on the sides
 - `src/vsmap.js`: the Scrapyard (the Versus map): fence, ramps, cover, pads and spawns
 - `src/versus.js`: Versus rules: health, damage, wrecks and respawns, upgrade pads, the HUD, network events, and the computer drivers
 - `src/weapons.js`: weapon stats, roof turrets, tracers, rockets and mines

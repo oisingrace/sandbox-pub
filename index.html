@@ -216,7 +216,7 @@
     .garage-card .g-stats b { color: var(--hud-fg); }
     #t-boost { right: 140px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
     /* --- Game modes / football --- */
-    .mode-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px; background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; }
+    .mode-picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 4px; background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; }
     #menu .mode-picker button { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid transparent; background: transparent; }
     #menu .mode-picker button small { font-size: 12px; font-weight: 400; color: var(--hud-dim); line-height: 1.3; }
     #menu .mode-picker button[aria-checked="true"] { background: rgba(255, 210, 63, 0.14); border-color: var(--hazard); }
@@ -442,6 +442,7 @@
 
       <div class="mode-picker" role="radiogroup" aria-label="Game mode">
         <button type="button" role="radio" data-mode="free" aria-checked="true">Free roam<small>Smash up the lot</small></button>
+        <button type="button" role="radio" data-mode="motorway" aria-checked="false">Motorway<small>A long open road, wrecks on the sides</small></button>
         <button type="button" role="radio" data-mode="football" aria-checked="false">Car football<small>Blue vs Orange in the stadium</small></button>
         <button type="button" role="radio" data-mode="versus" aria-checked="false">Versus<small>Armed cars, most wrecks wins</small></button>
       </div>

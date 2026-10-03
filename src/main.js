@@ -25,6 +25,7 @@ import { ScreenQuake } from './quake.js';
 import { FlameFX, FlameTank, nozzle } from './flamethrower.js';
 import { Score, pointsFor, EXPLOSION_POINTS, COMBO_WINDOW } from './score.js';
 import { createScrapyard, keepCameraInYard, SPAWNS } from './vsmap.js';
+import { createMotorway } from './motorway.js';
 import { Versus } from './versus.js';
 import { turretMount } from './weapons.js';
 
@@ -97,6 +98,7 @@ arenaRamps(lotTerrain);
 lotTerrain.buildMeshes(world.arena);
 const stadium = createStadium(scene, renderer);
 const scrapyard = createScrapyard(scene, renderer);
+const motorway = createMotorway(scene, renderer);
 const MAPS = {
   free: {
     name: 'lot', group: world.arena, terrain: lotTerrain, orbit: { radius: 135, height: 60 },
@@ -104,8 +106,13 @@ const MAPS = {
   },
   football: stadium,
   versus: scrapyard,
+  motorway,
 };
 let mode = 'free';
+/** Free-roam rules (smash for points, swap cars) on the lot or the motorway. */
+const roaming = () => mode === 'free' || mode === 'motorway';
+/** Modes with a match (scores, a clock, restarts). */
+const matchMode = () => mode === 'football' || mode === 'versus';
 let map = MAPS.free;
 let terrain = map.terrain;
 
@@ -234,7 +241,7 @@ function vsExplosion(pos, size = 1) {
 
 /** Destruction points (free roam; football has its own score). */
 function award(base) {
-  if (mode !== 'free' || state === 'menu') return;
+  if (!roaming() || state === 'menu') return;
   score.add(base);
 }
 score.onComboEnd = ({ count, mult, points }) => {
@@ -287,7 +294,7 @@ function buildArena() {
   destruction.createWorld();
   destruction.createCar(active.def);
   // Big map: anything far from where we start is created frozen (see Destruction.stream).
-  destruction.prefreeze = mode === 'free' ? [homeSpot()] : null;
+  destruction.prefreeze = roaming() ? [homeSpot()] : null;
   map.populate(destruction);
   destruction.prefreeze = null;
   // Parked vehicles to swap into (free roam, solo only: they can't be kept
@@ -306,6 +313,7 @@ function buildArena() {
 function homeSpot() {
   if (mode === 'football') return teamSpot(myId());
   if (mode === 'versus') return versus.startSpot(net.online ? slot : 0);
+  if (map.spawn) return map.spawn(net.online ? slot : 0);
   return net.online ? SPAWN_SLOTS[slot % SPAWN_SLOTS.length] : active.def.home;
 }
 
@@ -361,7 +369,11 @@ function setMode(next) {
   for (const m of Object.values(MAPS)) m.group.visible = m === map;
   football.setActive(mode === 'football');
   // Versus rules in the Scrapyard; in free roam, just the weapons of cars that have one fitted.
-  versus.setActive(mode === 'versus' || mode === 'free', mode === 'free');
+  versus.setActive(mode === 'versus' || roaming(), roaming());
+  // The lot's grass would show through the motorway's own verges.
+  world.grass.visible = mode !== 'motorway';
+  // Debris is cleared when it leaves the map (the motorway is much longer).
+  destruction.recycleRange = map.recycle ?? 200;
   document.body.classList.toggle('versus', mode === 'versus');
   menu.setCarLocked(mode === 'football');
   football.referee = !net.online || net.isHost;
@@ -785,13 +797,13 @@ function play(def) {
 /** Rebuild the arena; online, only the host can, and it rebuilds for everyone. */
 function rebuildArena() {
   if (net.online && !net.isHost) {
-    toast(mode !== 'free' ? 'Only the host can restart the match' : 'Only the host can rebuild the arena');
+    toast(matchMode() ? 'Only the host can restart the match' : 'Only the host can rebuild the arena');
     return false;
   }
   resetAll();
   arenaDirty = true;
   if (net.online) net.sendEvent({ type: 'rebuild' });
-  toast(mode !== 'free' ? 'New match' : 'Arena rebuilt');
+  toast(matchMode() ? 'New match' : 'Arena rebuilt');
   return true;
 }
 
@@ -858,7 +870,7 @@ net.on('event', (id, e) => {
   if (e.type === 'rebuild' && id === 'host') {
     resetAll();
     arenaDirty = true;
-    toast(mode !== 'free' ? 'New match' : 'The host rebuilt the arena');
+    toast(matchMode() ? 'New match' : 'The host rebuilt the arena');
   }
 });
 net.on('hostLeft', () => {
@@ -1024,7 +1036,7 @@ function flameSources() {
 /** Points, multiplier and combo timer (free roam). */
 function updateScoreHud(dt) {
   score.update(dt);
-  hud.scorePanel.hidden = mode !== 'free';
+  hud.scorePanel.hidden = !roaming();
   hud.points.textContent = score.points.toLocaleString('en-US');
   hud.mult.textContent = `×${score.mult}`;
   hud.mult.dataset.level = Math.min(10, score.mult);
@@ -1197,7 +1209,7 @@ function frame() {
     if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
     // Big map: take sleeping structures far from every car out of the
     // physics world, and bring them back as cars approach.
-    if (mode === 'free') {
+    if (roaming()) {
       streamPoints.length = 0;
       streamPoints.push(car);
       for (const r of mp.remotes.values()) if (r.seen) streamPoints.push(r.proxy);

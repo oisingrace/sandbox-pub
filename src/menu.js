@@ -9,9 +9,10 @@ const TABS = [
   ['game', 'Game'],
 ];
 
-export const MODE_NAMES = { free: 'Free roam', football: 'Car football', versus: 'Versus' };
+export const MODE_NAMES = { free: 'Free roam', motorway: 'Motorway', football: 'Car football', versus: 'Versus' };
 const MODE_BLURBS = {
   free: 'Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.',
+  motorway: 'A 2.4 km dual carriageway for flat-out driving: three lanes each way and an open, painted middle, so the road ahead is always clear. The hard shoulders and verges are where the trouble is: roadworks, broken-down lorries, barrier runs, lamp posts, drum piles, trees and overpass pillars, all breakable, plus kicker ramps on the shoulder and a big jump on each verge. Smash for points like in free roam; press V to change car.',
   versus: 'Every car for itself in the Scrapyard. Your car has health and a roof-mounted machine gun that aims itself at whoever is in front of you (X or click to fire). Drive over the glowing pads for rockets, flamethrowers, mines, repairs, armour and nitro: what they offer changes as you play, and better upgrades turn up as the match goes on. Ram, shoot, and blow up the fuel drums next to your rivals. Most wrecks in five minutes wins. Solo, you fight three computer drivers.',
   football: 'Knock the ball into the orange goal before the clock runs out. Everyone drives the Striker, painted in their team colour. You play Blue against a computer driver, or team up online. The sidelines are lined with things to wreck, and the fuel drums in the corners blow the ball around. Space jumps (twice for a double jump or a flip), W/S pitch in the air, and boost lets you fly. Press Y to toggle ball cam.',
 };
@@ -74,7 +75,7 @@ export class Menu {
 
   get mode() {
     const m = this.opts.getSettings().mode;
-    return m === 'football' || m === 'versus' ? m : 'free';
+    return m === 'football' || m === 'versus' || m === 'motorway' ? m : 'free';
   }
 
   renderMode() {
@@ -105,7 +106,7 @@ export class Menu {
 
   /** Show room details in the pause menu while online. */
   setOnline(online, code, isHost, mode = 'free') {
-    document.getElementById('btn-rebuild').textContent = mode === 'free' ? 'Rebuild arena' : 'Restart match';
+    document.getElementById('btn-rebuild').textContent = mode === 'football' || mode === 'versus' ? 'Restart match' : 'Rebuild arena';
     document.getElementById('pause-room').hidden = !online;
     document.getElementById('btn-leave').hidden = !online;
     document.getElementById('pause-code').textContent = code || '';

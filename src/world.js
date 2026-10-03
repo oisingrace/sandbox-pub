@@ -121,6 +121,7 @@ export function createWorld(scene, renderer) {
   const VIEW = { near: [70, 200], medium: [110, 380], far: [150, 650] };
   return {
     arena,
+    grass,
     followSun(target) {
       sun.position.copy(target).add(sunOffset);
       sun.target.position.copy(target);

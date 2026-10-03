@@ -149,7 +149,7 @@ export const KINDS = {
   brick: { size: [0.6, 0.3, 0.3], mass: 12, colors: BRICK_COLORS, material: 'brick', breakForce: 14000, fracture: { into: 'brickHalf', grid: [2, 1, 1] }, cap: 800 },
   brickHalf: { size: [0.3, 0.3, 0.3], mass: 6, colors: BRICK_COLORS, material: 'brick', cap: 900 },
 
-  crate: { size: [1, 1, 1], mass: 40, colors: WOOD, material: 'wood', breakForce: 26000, fracture: { into: 'crateChunk', grid: [2, 2, 2] }, cap: 110 },
+  crate: { size: [1, 1, 1], mass: 40, colors: WOOD, material: 'wood', breakForce: 26000, fracture: { into: 'crateChunk', grid: [2, 2, 2] }, cap: 160 },
   crateChunk: { size: [0.5, 0.5, 0.5], mass: 5, colors: WOOD, material: 'wood', cap: 700 },
 
   block: { size: [1, 1, 1], mass: 220, colors: CONCRETE, material: 'concrete', breakForce: 150000, fracture: { into: 'blockChunk', grid: [2, 2, 2] }, cap: 950 },
@@ -160,17 +160,17 @@ export const KINDS = {
   plankHalf: { size: [2.2, 0.2, 1], mass: 30, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankBit', grid: [2, 1, 1] }, cap: 160 },
   plankBit: { size: [1.1, 0.2, 1], mass: 15, colors: WOOD, material: 'wood', cap: 320 },
 
-  slab: { size: [0.3, 2.2, 1.2], mass: 90, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', breakForce: 70000, fracture: { into: 'slabHalf', grid: [1, 2, 1] }, cap: 50 },
-  slabHalf: { size: [0.3, 1.1, 1.2], mass: 45, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', cap: 100 },
+  slab: { size: [0.3, 2.2, 1.2], mass: 90, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', breakForce: 70000, fracture: { into: 'slabHalf', grid: [1, 2, 1] }, cap: 80 },
+  slabHalf: { size: [0.3, 1.1, 1.2], mass: 45, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', cap: 160 },
 
   barrier: { size: [0.6, 0.9, 3], mass: 700, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', breakForce: 420000, fracture: { into: 'barrierChunk', grid: [1, 1, 3] }, geo: () => barrierProfile(0.6, 0.9, 3, 0.26), cap: 420 },
   barrierChunk: { size: [0.6, 0.9, 1], mass: 233, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', geo: () => barrierProfile(0.6, 0.9, 1, 0.26), cap: 400 },
 
   barrel: { shape: 'cyl', size: [0.32, 0.95], mass: 22, colors: [0xc8342b, 0x2f6fb3, 0xe0a526, 0x4c8c3a], material: 'metal', restitution: 0.25, cap: 150 },
-  cone: { shape: 'cyl', size: [0.2, 0.6], mass: 3, colors: [0xffffff], material: 'plastic', geo: coneGeo, restitution: 0.3, cap: 60 },
+  cone: { shape: 'cyl', size: [0.2, 0.6], mass: 3, colors: [0xffffff], material: 'plastic', geo: coneGeo, restitution: 0.3, cap: 300 },
 
-  pole: { shape: 'cyl', size: [0.13, 7], mass: 150, colors: [0xffffff], material: 'metal', breakForce: 90000, fracture: { into: 'poleHalf', grid: [1, 2, 1] }, geo: poleGeo, cap: 90 },
-  poleHalf: { shape: 'cyl', size: [0.13, 3.5], mass: 75, colors: [0x9a9da3], material: 'metal', cap: 160 },
+  pole: { shape: 'cyl', size: [0.13, 7], mass: 150, colors: [0xffffff], material: 'metal', breakForce: 90000, fracture: { into: 'poleHalf', grid: [1, 2, 1] }, geo: poleGeo, cap: 200 },
+  poleHalf: { shape: 'cyl', size: [0.13, 3.5], mass: 75, colors: [0x9a9da3], material: 'metal', cap: 300 },
 
   // Office building pieces.
   panel: { size: [2, 1.2, 0.4], mass: 500, colors: FACADE, material: 'concrete', breakForce: 250000, fracture: { into: 'panelChunk', grid: [2, 2, 1] }, cap: 1000 },
@@ -183,7 +183,7 @@ export const KINDS = {
   shard: { size: [0.375, 0.72, 0.06], mass: 1.5, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, noCcd: true, lifetime: 6, cap: 700 },
 
   // Explosive fuel drums: a hard hit (or the Ember) sets them off.
-  fuel: { shape: 'cyl', size: [0.3, 0.9], mass: 35, colors: [0xffffff], material: 'metal', geo: fuelGeo, explosive: true, breakForce: 9000, cap: 80 },
+  fuel: { shape: 'cyl', size: [0.3, 0.9], mass: 35, colors: [0xffffff], material: 'metal', geo: fuelGeo, explosive: true, breakForce: 9000, cap: 160 },
 
   // Giant bowling pins.
   pin: { shape: 'cyl', size: [0.36, 2.4], mass: 40, colors: [0xffffff], material: 'plastic', geo: pinGeo, restitution: 0.35, cap: 12 },
@@ -207,8 +207,8 @@ export const KINDS = {
   // Gas station.
   canopy: { matte: true, size: [12, 0.5, 8], mass: 3000, colors: [0xffffff], material: 'metal', geo: canopyGeo, breakForce: 900000, fracture: { into: 'canopyChunk', grid: [3, 1, 2] }, cap: 2 },
   canopyChunk: { matte: true, size: [4, 0.5, 4], mass: 500, colors: [0xf4f4f2], material: 'metal', cap: 12 },
-  column: { size: [0.5, 4.5, 0.5], mass: 400, colors: [0xe6e2d8], material: 'concrete', breakForce: 140000, fracture: { into: 'columnChunk', grid: [1, 3, 1] }, cap: 8 },
-  columnChunk: { size: [0.5, 1.5, 0.5], mass: 133, colors: [0xe6e2d8], material: 'concrete', cap: 24 },
+  column: { size: [0.5, 4.5, 0.5], mass: 400, colors: [0xe6e2d8], material: 'concrete', breakForce: 140000, fracture: { into: 'columnChunk', grid: [1, 3, 1] }, cap: 40 },
+  columnChunk: { size: [0.5, 1.5, 0.5], mass: 133, colors: [0xe6e2d8], material: 'concrete', cap: 120 },
   pump: { matte: true, size: [0.8, 1.8, 0.5], mass: 150, colors: [0xffffff], material: 'metal', geo: pumpGeo, breakForce: 50000, fracture: { into: 'pumpChunk', grid: [1, 2, 1] }, cap: 8 },
   pumpChunk: { matte: true, size: [0.8, 0.9, 0.5], mass: 75, colors: [0x2f9e5b], material: 'metal', cap: 16 },
 
