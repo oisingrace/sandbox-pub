@@ -372,13 +372,13 @@ python3 -m http.server 8000
 | --- | --- | --- |
 | Throttle / brake | W / S (hold S at a standstill to reverse) | RT / LT |
 | Steer | A / D | Left stick |
-| Handbrake | Space | A / RB |
+| Handbrake (cars with jumps: Q / RB, since Space jumps) | Space | A / RB |
 | Boost | Shift | LB |
 | Toggle assists | T | |
 | Cycle camera (chase / far / hood) | C | X |
 | Reset car | R | Y |
 | Football: jump / double jump / flip (with a direction) | Space | A |
-| Football: powerslide; in the air, hold to roll with A/D | Q | RB |
+| Cars with jumps: handbrake / powerslide; in the air, hold to roll with A/D | Q | RB |
 | Football, in the air: pitch nose down / up | W / S | Left stick |
 | Ball cam on/off (car football) | Y | |
 | Fire: flamethrower (Inferno pickup), or your weapon in Versus | X or left click | B |
