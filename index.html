@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Games</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --text: #1d1d1f; --muted: #6b6b70;
+    --accent: #6c4cf5; --border: #e3e1dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141416; --card: #1f1f23; --text: #f1f1f3; --muted: #9a9aa2;
+      --accent: #9b85ff; --border: #2e2e34;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header { max-width: 960px; margin: 0 auto; padding: 40px 16px 8px; }
+  h1 { margin: 0 0 4px; font-size: 2rem; }
+  header p { margin: 0; color: var(--muted); }
+  #search {
+    margin-top: 20px; width: 100%; padding: 10px 14px; font: inherit;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--card); color: var(--text);
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 16px; }
+  #grid {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+  .card {
+    display: block; padding: 18px; border-radius: 14px; text-decoration: none;
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    transition: transform .12s, border-color .12s;
+  }
+  .card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .card .emoji { font-size: 2rem; }
+  .card .name { font-weight: 600; margin-top: 6px; }
+  .card .file { color: var(--muted); font-size: .85rem; }
+  #status { color: var(--muted); }
+
+  /* Player overlay */
+  #player {
+    position: fixed; inset: 0; display: none; flex-direction: column;
+    background: var(--bg); z-index: 10;
+  }
+  #player.open { display: flex; }
+  #bar {
+    display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+    border-bottom: 1px solid var(--border); background: var(--card);
+  }
+  #bar a, #bar button {
+    font: inherit; color: var(--accent); background: none; border: 0;
+    cursor: pointer; text-decoration: none; padding: 4px 6px;
+  }
+  #bar .title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #frame { flex: 1; width: 100%; border: 0; background: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎮 My Games</h1>
+  <p>A collection of little games and HTML experiments.</p>
+  <input id="search" type="search" placeholder="Search…" autocomplete="off">
+</header>
+<main>
+  <p id="status">Loading…</p>
+  <div id="grid"></div>
+</main>
+
+<div id="player">
+  <div id="bar">
+    <button id="back">← Back</button>
+    <span class="title" id="playerTitle"></span>
+    <a id="newTab" target="_blank" rel="noopener">Open full page ↗</a>
+  </div>
+  <iframe id="frame" allow="fullscreen; autoplay; gamepad" allowfullscreen></iframe>
+</div>
+
+<script>
+/*
+ * Drop any .html file into the /games folder and it shows up here automatically.
+ * Nothing in this file needs to change when you add a game.
+ *
+ * The list comes from games.json (written by the GitHub Action on every push).
+ * The card title is the game's own <title>, falling back to the file name.
+ */
+const GAMES_DIR = 'games/';
+const EMOJIS = ['🕹️','👾','🎲','🧩','🚀','🐍','🏓','🎯','🃏','🌀','⭐','🔥'];
+
+const grid = document.getElementById('grid');
+const status = document.getElementById('status');
+const search = document.getElementById('search');
+const player = document.getElementById('player');
+const frame = document.getElementById('frame');
+let games = [];
+
+function prettyName(file) {
+  return file.replace(/\.html?$/i, '').replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function emojiFor(name) {
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return EMOJIS[h % EMOJIS.length];
+}
+
+async function loadList() {
+  const res = await fetch('games.json', { cache: 'no-cache' });
+  if (!res.ok) throw new Error('games.json not found');
+  return res.json();
+}
+
+async function titleOf(file) {
+  try {
+    const html = await (await fetch(GAMES_DIR + encodeURIComponent(file))).text();
+    const m = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+    const t = m && m[1].trim();
+    return t || prettyName(file);
+  } catch { return prettyName(file); }
+}
+
+function render() {
+  const q = search.value.trim().toLowerCase();
+  const shown = games.filter(g => (g.name + ' ' + g.file).toLowerCase().includes(q));
+  grid.innerHTML = '';
+  for (const g of shown) {
+    const a = document.createElement('a');
+    a.className = 'card';
+    a.href = '#' + encodeURIComponent(g.slug);
+    a.innerHTML = '<div class="emoji"></div><div class="name"></div><div class="file"></div>';
+    a.querySelector('.emoji').textContent = emojiFor(g.slug);
+    a.querySelector('.name').textContent = g.name;
+    a.querySelector('.file').textContent = g.file;
+    grid.appendChild(a);
+  }
+  status.textContent = games.length === 0
+    ? 'No games yet — add an .html file to the games folder.'
+    : shown.length === 0 ? 'No matches.' : '';
+}
+
+function route() {
+  const slug = decodeURIComponent(location.hash.slice(1));
+  const g = games.find(g => g.slug === slug);
+  if (g) {
+    const src = GAMES_DIR + encodeURIComponent(g.file);
+    if (frame.getAttribute('src') !== src) frame.src = src;
+    document.getElementById('playerTitle').textContent = g.name;
+    document.getElementById('newTab').href = src;
+    document.title = g.name + ' · My Games';
+    player.classList.add('open');
+    frame.focus();
+  } else {
+    player.classList.remove('open');
+    frame.removeAttribute('src');
+    document.title = 'My Games';
+  }
+}
+
+document.getElementById('back').onclick = () => { location.hash = ''; };
+search.oninput = render;
+window.onhashchange = route;
+
+(async () => {
+  try {
+    const files = await loadList();
+    games = files.map(file => ({
+      file, slug: file.replace(/\.html?$/i, ''), name: prettyName(file)
+    }));
+    render();
+    route();
+    // Upgrade names to each game's <title> once they load.
+    await Promise.all(games.map(async g => { g.name = await titleOf(g.file); }));
+    render();
+    route();
+  } catch (e) {
+    status.textContent = 'Could not load the game list (' + e.message + ').';
+  }
+})();
+</script>
+</body>
+</html>

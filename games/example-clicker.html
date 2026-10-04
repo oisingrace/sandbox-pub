@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catch the Dot</title>
+<style>
+  body { margin: 0; height: 100vh; overflow: hidden; background: #111; color: #fff;
+         font: 18px system-ui, sans-serif; }
+  #score { position: fixed; top: 12px; left: 16px; }
+  #dot { position: absolute; width: 48px; height: 48px; border-radius: 50%;
+         background: #ff5a7a; cursor: pointer; transition: left .15s, top .15s; }
+</style>
+</head>
+<body>
+<div id="score">Score: 0</div>
+<div id="dot"></div>
+<script>
+  const dot = document.getElementById('dot');
+  const scoreEl = document.getElementById('score');
+  let score = 0;
+  function move() {
+    dot.style.left = Math.random() * (innerWidth - 48) + 'px';
+    dot.style.top = 40 + Math.random() * (innerHeight - 88) + 'px';
+  }
+  dot.onclick = () => { scoreEl.textContent = 'Score: ' + ++score; move(); };
+  setInterval(move, 1200);
+  move();
+</script>
+</body>
+</html>
