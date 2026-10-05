@@ -27,7 +27,7 @@ changed. To add your own note, type it in the commit message box when you upload
 (**Commit changes** on GitHub). GitHub's default messages like "Add files via upload"
 are left out.
 
-A game can also bring its own patch notes, with versions and bullet points (Smash Lot
+A game or experiment can also bring its own patch notes, with versions and bullet points (Smash Lot
 does). Put a block like this anywhere in the game's HTML, newest version first:
 
 ```html

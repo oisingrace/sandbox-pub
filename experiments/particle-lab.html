@@ -1,0 +1,1097 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Particle Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&display=swap">
+<style>
+  :root {
+    --bg: #111317; --panel: #1b1e25; --btn: #2a2e38; --btn-hi: #353a47;
+    --line: #08090b; --text: #ebe8de; --dim: #868b98; --accent: #ffcc4d;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+    font-family: "Silkscreen", ui-monospace, monospace; user-select: none; -webkit-user-select: none;
+  }
+  body { display: flex; flex-direction: column; }
+  #stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  #view {
+    display: block; image-rendering: pixelated; image-rendering: crisp-edges;
+    touch-action: none; cursor: none; outline: 4px solid var(--line);
+  }
+  #hud {
+    position: absolute; top: 10px; left: 12px; font-size: 10px; line-height: 1.7;
+    text-shadow: 1px 1px 0 #000, -1px 0 0 #000; pointer-events: none; color: var(--text);
+  }
+  #hud .dim { color: var(--dim); }
+  #paused {
+    position: absolute; top: 10px; right: 12px; font-size: 12px; color: var(--accent);
+    text-shadow: 2px 2px 0 #000; pointer-events: none;
+  }
+  #dock {
+    background: var(--panel); border-top: 4px solid var(--line);
+    padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 5px;
+  }
+  .row { display: flex; gap: 4px; align-items: stretch; overflow-x: auto; scrollbar-width: none; }
+  .row::-webkit-scrollbar { display: none; }
+  .tag { flex: 0 0 auto; align-self: center; width: 52px; font-size: 9px; color: var(--dim); }
+  .btn {
+    flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    min-width: 50px; padding: 5px 6px 4px; border: 0; background: var(--btn); color: var(--text);
+    font: inherit; font-size: 9px; cursor: pointer;
+    box-shadow: inset -2px -2px 0 rgba(0,0,0,.4), inset 2px 2px 0 rgba(255,255,255,.07);
+  }
+  .btn:hover { background: var(--btn-hi); }
+  .btn.on {
+    color: var(--accent); background: #3d3520;
+    box-shadow: inset 2px 2px 0 rgba(0,0,0,.45), inset 0 0 0 2px var(--accent);
+  }
+  .btn canvas { width: 24px; height: 24px; image-rendering: pixelated; }
+  .btn.mat canvas { width: 20px; height: 20px; }
+  .btn.small { min-width: 0; flex-direction: row; font-size: 10px; padding: 6px 10px; }
+  #sizeVal { flex: 0 0 auto; align-self: center; min-width: 26px; text-align: center; font-size: 11px; }
+  .spacer { flex: 1 0 8px; }
+  .hint { flex: 0 0 auto; align-self: center; font-size: 9px; color: var(--dim); padding: 0 6px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="view"></canvas>
+  <div id="hud"></div>
+  <div id="paused" hidden>PAUSED</div>
+</div>
+<div id="dock">
+  <div class="row" id="toolRow"><span class="tag">Tools</span></div>
+  <div class="row" id="matRow"><span class="tag">Matter</span></div>
+  <div class="row" id="ctrlRow">
+    <span class="tag">Brush</span>
+    <button class="btn small" id="sizeDown" title="Smaller brush ( [ )">-</button>
+    <span id="sizeVal">6</span>
+    <button class="btn small" id="sizeUp" title="Bigger brush ( ] )">+</button>
+    <button class="btn small" id="altBtn" title="Reverse the tool (same as right-click or Shift)">Reverse</button>
+    <button class="btn small" id="heatBtn" title="Heat vision (H)">Heat view</button>
+    <button class="btn small" id="pauseBtn" title="Pause (Space)">Pause</button>
+    <button class="btn small" id="clearBtn" title="Clear everything (C)">Clear</button>
+    <button class="btn small" id="demoBtn" title="Reload the starting scene (R)">Demo</button>
+    <span class="spacer"></span>
+    <span class="hint">Right-click / Shift = reverse · Wheel = size</span>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+const stage = document.getElementById('stage');
+const view = document.getElementById('view');
+const ctx = view.getContext('2d');
+
+// ---------------------------------------------------------------- Matter
+const DEF = [
+  //  name       color            drag  jitter mass phase cond  cap  ambient startT cohesion conducts
+  { name: 'Sand',    col: [222,190,118], drag: .80, jit: 0,    mass: 1,   ph: 0, cond: .05, cap: 1,   amb: .002,  t: 20 },
+  { name: 'Water',   col: [ 58,123,213], drag: .95, jit: .004, mass: .8,  ph: 0, cond: .15, cap: 4,   amb: .002,  t: 20,   coh: .08,  elec: 1 },
+  { name: 'Ice',     col: [190,228,250], drag: .975,jit: 0,    mass: 1.2, ph: 0, cond: .15, cap: 3,   amb: .0008, t: -25 },
+  { name: 'Steam',   col: [214,224,232], drag: .93, jit: .12,  mass: .2,  ph: 1, cond: .08, cap: 1,   amb: .003,  t: 115 },
+  { name: 'Wood',    col: [139, 92, 52], drag: .78, jit: 0,    mass: 1.2, ph: 0, cond: .02, cap: 1,   amb: .002,  t: 20 },
+  { name: 'Oil',     col: [ 74, 56, 44], drag: .955,jit: .004, mass: .7,  ph: 0, cond: .05, cap: 1,   amb: .002,  t: 20,   coh: .02 },
+  { name: 'Metal',   col: [150,160,172], drag: .86, jit: 0,    mass: 2,   ph: 0, cond: .5,  cap: 1,   amb: .004,  t: 20,   coh: .01,  elec: 1 },
+  { name: 'Fire',    col: [255,170, 40], drag: .90, jit: .14,  mass: .2,  ph: 2, cond: .25, cap: .5,  amb: 0,     t: 850 },
+  { name: 'Smoke',   col: [ 96, 96,104], drag: .94, jit: .06,  mass: .2,  ph: 1, cond: .01, cap: 1,   amb: .01,   t: 60 },
+  { name: 'Ash',     col: [ 82, 76, 74], drag: .80, jit: 0,    mass: .5,  ph: 0, cond: .02, cap: 1,   amb: .003,  t: 20 },
+  { name: 'Glass',   col: [150,214,206], drag: .82, jit: 0,    mass: 1,   ph: 0, cond: .06, cap: 1,   amb: .002,  t: 20 },
+  { name: 'Powder',  col: [ 60, 60, 70], drag: .80, jit: 0,    mass: .8,  ph: 0, cond: .04, cap: 1,   amb: .002,  t: 20 },
+  { name: 'Plant',   col: [ 63,170, 74], drag: .5,  jit: 0,    mass: 4,   ph: 0, cond: .04, cap: 1.5, amb: .003,  t: 20 },
+  { name: 'Acid',    col: [150,240, 60], drag: .95, jit: .004, mass: .8,  ph: 0, cond: .12, cap: 2,   amb: .002,  t: 20,   coh: .02,  elec: 1 },
+  { name: 'Lava',    col: [255,100, 26], drag: .90, jit: .01,  mass: 2.5, ph: 0, cond: .12, cap: 2,   amb: .0005, t: 1400, coh: .02 },
+  { name: 'Stone',   col: [112,106,102], drag: .75, jit: 0,    mass: 2,   ph: 0, cond: .08, cap: 1.5, amb: .002,  t: 20 },
+  { name: 'Burning', col: [200, 70, 26], drag: .78, jit: 0,    mass: 1.2, ph: 0, cond: .1,  cap: 1,   amb: 0,     t: 720 },
+];
+const SAND = 0, WATER = 1, ICE = 2, STEAM = 3, WOOD = 4, OIL = 5, METAL = 6, FIRE = 7, SMOKE = 8,
+      ASH = 9, GLASS = 10, POWDER = 11, PLANT = 12, ACID = 13, LAVA = 14, STONE = 15, EMBER = 16;
+const NT = DEF.length;
+const f32 = k => Float32Array.from(DEF, d => d[k] || 0);
+const DRAG = f32('drag'), JIT = f32('jit'), MASS = f32('mass'), COND = f32('cond'), CAP = f32('cap'),
+      AMB = f32('amb'), COH = f32('coh');
+const PH = Uint8Array.from(DEF, d => d.ph), ELEC = Uint8Array.from(DEF, d => d.elec || 0);
+// liquids lie flat, so only grains and solids cast a shadow
+const SHADOW = Uint8Array.from(DEF, d => d.ph === 0 && !d.coh || d.name === 'Metal' ? 1 : 0);
+const CURIE = 770;
+
+// Pairs that have a chemical reaction (checked in the neighbour loop).
+const REACT = new Uint8Array(NT * NT);
+const pairs = [[ACID, -1], [PLANT, WATER], [FIRE, WATER], [EMBER, WATER]];
+for (const [a, b] of pairs) for (let t = 0; t < NT; t++) {
+  if (b === -1 || t === b) { REACT[a * NT + t] = 1; REACT[t * NT + a] = 1; }
+}
+
+// ---------------------------------------------------------------- World
+let W = 320, H = 200, SCALE = 3;
+let wall, staticImg, LR, LG, LB, img, data;
+let GW, GH, cellStart, cellFill, cellCount;
+let staticDirty = true;
+
+const MAXP = 24000;
+const px = new Float32Array(MAXP), py = new Float32Array(MAXP);
+const vx = new Float32Array(MAXP), vy = new Float32Array(MAXP);
+const temp = new Float32Array(MAXP), life = new Float32Array(MAXP), charge = new Float32Array(MAXP);
+const ptype = new Uint8Array(MAXP), shade = new Uint8Array(MAXP), dead = new Uint8Array(MAXP);
+const pcell = new Int32Array(MAXP), cellIdx = new Int32Array(MAXP);
+const visited = new Uint8Array(MAXP);
+let N = 0;
+const CS = 2; // spatial hash cell size (px)
+
+const rand = Math.random;
+
+function initLife(t) {
+  if (t === FIRE) return 22 + rand() * 26;
+  if (t === SMOKE) return 60 + rand() * 90;
+  if (t === EMBER) return 260 + rand() * 280;
+  return 0;
+}
+
+function add(t, x, y, ivx = 0, ivy = 0, T = DEF[t].t) {
+  if (N >= MAXP || x < 0 || y < 0 || x >= W || y >= H) return -1;
+  const i = N++;
+  px[i] = x; py[i] = y; vx[i] = ivx; vy[i] = ivy;
+  ptype[i] = t; temp[i] = T; life[i] = initLife(t); charge[i] = 0;
+  shade[i] = (rand() * 4) | 0; dead[i] = 0;
+  return i;
+}
+
+function setType(i, t) { ptype[i] = t; life[i] = initLife(t); }
+
+function compact() {
+  let i = 0;
+  while (i < N) {
+    if (!dead[i]) { i++; continue; }
+    const l = --N;
+    if (l !== i) {
+      px[i] = px[l]; py[i] = py[l]; vx[i] = vx[l]; vy[i] = vy[l];
+      temp[i] = temp[l]; life[i] = life[l]; charge[i] = charge[l];
+      ptype[i] = ptype[l]; shade[i] = shade[l]; dead[i] = dead[l];
+    }
+  }
+}
+
+function buildGrid() {
+  cellCount.fill(0);
+  for (let i = 0; i < N; i++) {
+    const c = ((py[i] / CS) | 0) * GW + ((px[i] / CS) | 0);
+    pcell[i] = c; cellCount[c]++;
+  }
+  cellStart[0] = 0;
+  for (let c = 0; c < GW * GH; c++) { cellStart[c + 1] = cellStart[c] + cellCount[c]; cellFill[c] = cellStart[c]; }
+  for (let i = 0; i < N; i++) cellIdx[cellFill[pcell[i]]++] = i;
+}
+
+// Calls fn(i, dx, dy, d) for every live particle within r of (x, y) (as of the last grid build).
+function query(x, y, r, fn) {
+  const x0 = Math.max(0, Math.floor((x - r) / CS)), x1 = Math.min(GW - 1, Math.floor((x + r) / CS));
+  const y0 = Math.max(0, Math.floor((y - r) / CS)), y1 = Math.min(GH - 1, Math.floor((y + r) / CS));
+  const r2 = r * r;
+  for (let gy = y0; gy <= y1; gy++) for (let gx = x0; gx <= x1; gx++) {
+    const c = gy * GW + gx;
+    for (let k = cellStart[c], e = cellStart[c + 1]; k < e; k++) {
+      const i = cellIdx[k];
+      if (dead[i]) continue;
+      const dx = px[i] - x, dy = py[i] - y, d2 = dx * dx + dy * dy;
+      if (d2 <= r2) fn(i, dx, dy, Math.sqrt(d2));
+    }
+  }
+}
+
+// ---------------------------------------------------------------- Physics
+const R = 1.0, STIFF = .28, MAXV = 3.2;
+
+function react(a, b, ta, tb) {
+  // normalise so that `a` is the reactive one
+  if (ta === ACID) {
+    if (tb === ACID || tb === GLASS || PH[tb] !== 0) return;
+    if (rand() < .04) {
+      setType(b, SMOKE); temp[b] = 60;
+      if (rand() < .3) { setType(a, SMOKE); temp[a] = 60; }
+    }
+  } else if (tb === ACID) react(b, a, tb, ta);
+  else if (ta === PLANT && tb === WATER) { if (rand() < .003) setType(b, PLANT); }
+  else if (tb === PLANT && ta === WATER) { if (rand() < .003) setType(a, PLANT); }
+  else if (ta === FIRE && tb === WATER) { if (rand() < .3) { setType(a, STEAM); temp[a] = 110; } }
+  else if (tb === FIRE && ta === WATER) { if (rand() < .3) { setType(b, STEAM); temp[b] = 110; } }
+  else if (ta === EMBER && tb === WATER) { if (rand() < .05) { setType(a, WOOD); temp[a] = 90; setType(b, STEAM); temp[b] = 110; } }
+  else if (tb === EMBER && ta === WATER) react(b, a, tb, ta);
+}
+
+function interact() {
+  const CR2 = 4;
+  for (let i = 0; i < N; i++) {
+    if (dead[i]) continue;
+    const ti = ptype[i], xi = px[i], yi = py[i];
+    const ci = pcell[i], cx = ci % GW, cy = (ci / GW) | 0;
+    for (let gy = cy - 1; gy <= cy + 1; gy++) {
+      if (gy < 0 || gy >= GH) continue;
+      for (let gx = cx - 1; gx <= cx + 1; gx++) {
+        if (gx < 0 || gx >= GW) continue;
+        const c = gy * GW + gx;
+        for (let k = cellStart[c], e = cellStart[c + 1]; k < e; k++) {
+          const j = cellIdx[k];
+          if (j <= i || dead[j]) continue;
+          let dx = px[j] - xi, dy = py[j] - yi, d2 = dx * dx + dy * dy;
+          if (d2 >= CR2) continue;
+          if (d2 < 1e-6) { dx = (rand() - .5) * .1; dy = (rand() - .5) * .1; d2 = dx * dx + dy * dy; }
+          const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, tj = ptype[j];
+
+          if (d < 1.6) {
+            // heat flows from hot to cold
+            const a = COND[ti], b = COND[tj], kk = a * b / (a + b);
+            const q = (temp[j] - temp[i]) * kk;
+            temp[i] += q / CAP[ti]; temp[j] -= q / CAP[tj];
+            if (REACT[ti * NT + tj]) react(i, j, ti, tj);
+          }
+
+          const pi = PH[ti], pj = PH[tj];
+          if (d < R) {
+            const ov = R - d;
+            if (pi === 0 && pj === 0) {
+              const mi = MASS[ti], mj = MASS[tj], s = ov * STIFF / (mi + mj);
+              vx[i] -= nx * s * mj; vy[i] -= ny * s * mj;
+              vx[j] += nx * s * mi; vy[j] += ny * s * mi;
+              if (ti === ICE && tj === ICE) { // ice sticks together into chunks
+                const mx = (vx[i] + vx[j]) * .5, my = (vy[i] + vy[j]) * .5;
+                vx[i] += (mx - vx[i]) * .3; vy[i] += (my - vy[i]) * .3;
+                vx[j] += (mx - vx[j]) * .3; vy[j] += (my - vy[j]) * .3;
+              }
+            } else if (pi === 1 && pj === 1) {
+              const s = ov * .05;
+              vx[i] -= nx * s; vy[i] -= ny * s; vx[j] += nx * s; vy[j] += ny * s;
+            } else if (pi === 0 && pj === 1) { vx[j] += nx * ov * .12; vy[j] += ny * ov * .12; }
+            else if (pj === 0 && pi === 1) { vx[i] -= nx * ov * .12; vy[i] -= ny * ov * .12; }
+          } else if (d < 1.35 && ti === tj && COH[ti] > 0 && (ti !== METAL || (temp[i] < CURIE && temp[j] < CURIE))) {
+            const s = (d - R) * COH[ti];
+            vx[i] += nx * s; vy[i] += ny * s; vx[j] -= nx * s; vy[j] -= ny * s;
+          }
+        }
+      }
+    }
+  }
+}
+
+let explosionsThisStep = 0;
+
+function explode(cx, cy, r, power, heat, breakWalls) {
+  query(cx, cy, r, (j, dx, dy, d) => {
+    const f = 1 - d / r;
+    let ux, uy;
+    if (d > .01) { ux = dx / d; uy = dy / d; } else { const a = rand() * 6.283; ux = Math.cos(a); uy = Math.sin(a); }
+    vx[j] += ux * power * f / Math.sqrt(MASS[ptype[j]]);
+    vy[j] += uy * power * f / Math.sqrt(MASS[ptype[j]]);
+    temp[j] += heat * f / CAP[ptype[j]];
+  });
+  if (breakWalls) {
+    const br = r * .55;
+    for (let y = Math.max(0, cy - br | 0); y <= Math.min(H - 1, cy + br | 0); y++)
+      for (let x = Math.max(0, cx - br | 0); x <= Math.min(W - 1, cx + br | 0); x++) {
+        const d = Math.hypot(x - cx, y - cy);
+        if (d < br && wall[y * W + x] && rand() < 1.2 - d / br) {
+          wall[y * W + x] = 0; staticDirty = true;
+          if (rand() < .35) add(STONE, x + .5, y + .5, (x - cx) / (d + 1) * 1.5, (y - cy) / (d + 1) * 1.5);
+        }
+      }
+  }
+}
+
+function update() {
+  const n0 = N;
+  for (let i = 0; i < n0; i++) {
+    if (dead[i]) continue;
+    const t = ptype[i];
+    let T = temp[i];
+    T += (20 - T) * AMB[t];
+    temp[i] = T;
+    if (charge[i] > 0) charge[i] = charge[i] < .03 ? 0 : charge[i] * .82;
+    switch (t) {
+      case SAND: if (T > 1000) setType(i, GLASS); break;
+      case WATER: if (T >= 100) setType(i, STEAM); else if (T < 0) setType(i, ICE); break;
+      case ICE: if (T > 1) setType(i, WATER); break;
+      case STEAM: if (T < 95 && rand() < .03) setType(i, WATER); break;
+      case WOOD: if (T > 280) setType(i, EMBER); break;
+      case PLANT: if (T > 220) { setType(i, EMBER); life[i] *= .35; } break;
+      case OIL:
+        if (T > 180) { setType(i, FIRE); life[i] = 55 + rand() * 45; temp[i] = 950; }
+        break;
+      case POWDER:
+        if (T > 200 && explosionsThisStep < 90) {
+          explosionsThisStep++;
+          explode(px[i], py[i], 5.5, 1.6, 380, false);
+          setType(i, FIRE); temp[i] = 1100; life[i] = 30 + rand() * 20;
+        }
+        break;
+      case FIRE:
+        if (T < 700) temp[i] = 700;
+        if (--life[i] <= 0) {
+          if (rand() < .3) { setType(i, SMOKE); temp[i] = 80; } else dead[i] = 1;
+        }
+        break;
+      case SMOKE: if (--life[i] <= 0) dead[i] = 1; break;
+      case EMBER:
+        if (T < 300) { setType(i, rand() < .5 ? WOOD : ASH); temp[i] = Math.min(T, 150); break; }
+        temp[i] = T + (720 - T) * .08;
+        if (rand() < .07) add(FIRE, px[i] + rand() - .5, py[i] + rand() - .5, (rand() - .5) * .6, (rand() - .5) * .6);
+        if (--life[i] <= 0) {
+          if (rand() < .6) { setType(i, ASH); temp[i] = 300; } else { setType(i, SMOKE); temp[i] = 100; }
+        }
+        break;
+      case LAVA: if (T < 700) setType(i, STONE); break;
+      case STONE: if (T > 1100) setType(i, LAVA); break;
+    }
+  }
+}
+
+function integrate() {
+  for (let i = 0; i < N; i++) {
+    if (dead[i]) continue;
+    const t = ptype[i];
+    let ux = vx[i] * DRAG[t], uy = vy[i] * DRAG[t];
+    const j = JIT[t];
+    if (j) { ux += (rand() - .5) * j; uy += (rand() - .5) * j; }
+    const sp2 = ux * ux + uy * uy;
+    if (sp2 > MAXV * MAXV) { const s = MAXV / Math.sqrt(sp2); ux *= s; uy *= s; }
+    let x = px[i], y = py[i];
+    if (wall[(y | 0) * W + (x | 0)]) {
+      // stuck inside a freshly drawn wall: wriggle out
+      x = Math.min(W - .01, Math.max(0, x + ux + (rand() - .5) * .8));
+      y = Math.min(H - .01, Math.max(0, y + uy + (rand() - .5) * .8));
+    } else {
+      const steps = Math.ceil(Math.max(Math.abs(ux), Math.abs(uy)));
+      const bounce = PH[t] ? -.5 : -.3;
+      let sx = ux / steps, sy = uy / steps;
+      for (let s = 0; s < steps; s++) {
+        let nx = x + sx;
+        if (nx < 0 || nx >= W || wall[(y | 0) * W + (nx | 0)]) {
+          if (t === ACID && nx >= 0 && nx < W) eatWall(i, nx | 0, y | 0);
+          ux *= bounce; sx *= bounce; nx = x;
+        }
+        x = nx;
+        let ny = y + sy;
+        if (ny < 0 || ny >= H || wall[(ny | 0) * W + (x | 0)]) {
+          if (t === ACID && ny >= 0 && ny < H) eatWall(i, x | 0, ny | 0);
+          uy *= bounce; sy *= bounce; ny = y;
+        }
+        y = ny;
+      }
+    }
+    px[i] = x; py[i] = y; vx[i] = ux; vy[i] = uy;
+  }
+}
+
+function eatWall(i, x, y) {
+  if (rand() < .02) {
+    wall[y * W + x] = 0; staticDirty = true;
+    if (rand() < .4) { setType(i, SMOKE); temp[i] = 60; }
+  }
+}
+
+// ---------------------------------------------------------------- Tools
+const TOOLS = [
+  { id: 'paint',  name: 'Paint',   key: 'p', col: [255,255,255], tip: 'Spray the selected matter. Reverse: erase particles.' },
+  { id: 'stick',  name: 'Stick',   key: 's', col: [214,160, 96], tip: 'Poke, stir and drag particles around.' },
+  { id: 'magnet', name: 'Magnet',  key: 'm', col: [240, 80, 70], tip: 'Pulls metal. Reverse pushes. Red-hot metal stops being magnetic.' },
+  { id: 'burn',   name: 'Burn',    key: 'b', col: [255,150, 40], tip: 'Torch: heats and sets things on fire. Reverse: freeze.' },
+  { id: 'freeze', name: 'Freeze',  key: 'f', col: [140,220,255], tip: 'Cools things down, puts fires out, makes ice. Reverse: burn.' },
+  { id: 'shock',  name: 'Shock',   key: 'z', col: [180,230,255], tip: 'Lightning that runs through metal, water and acid.' },
+  { id: 'blow',   name: 'Blow',    key: 'w', col: [220,230,240], tip: 'Pushes everything away. Reverse: suck.' },
+  { id: 'vortex', name: 'Vortex',  key: 'v', col: [255,130,210], tip: 'Swirls particles around. Reverse spins the other way.' },
+  { id: 'well',   name: 'Gravity', key: 'g', col: [160,110,255], tip: 'A gravity well that pulls everything in. Reverse repels.' },
+  { id: 'bomb',   name: 'Bomb',    key: 'x', col: [255, 90, 60], tip: 'Click to blow things up (walls too).' },
+  { id: 'wall',   name: 'Wall',    key: 'l', col: [200,140,110], tip: 'Draw solid brick walls. Reverse: remove walls.' },
+  { id: 'erase',  name: 'Erase',   key: 'e', col: [255,160,200], tip: 'Removes particles and walls.' },
+];
+const PALETTE = [SAND, WATER, ICE, WOOD, OIL, METAL, POWDER, PLANT, ACID, LAVA, STONE, FIRE, STEAM];
+
+let tool = 'paint', mat = SAND, brush = 6, altToggle = false, heatView = false, paused = false;
+let pointer = { x: -100, y: -100, px: -100, py: -100, vx: 0, vy: 0, down: false, alt: false, inside: false, pressed: false };
+let shiftHeld = false, shockCool = 0, shake = 0;
+let bolts = [];
+
+const isAlt = () => pointer.alt || shiftHeld || altToggle;
+
+function spawn(t, r, mvx, mvy) {
+  const count = Math.ceil(r * r * .3) + 1;
+  for (let n = 0; n < count; n++) {
+    const a = rand() * 6.283, d = Math.sqrt(rand()) * r;
+    const x = pointer.x + Math.cos(a) * d, y = pointer.y + Math.sin(a) * d;
+    if (x < 0 || y < 0 || x >= W || y >= H || wall[(y | 0) * W + (x | 0)]) continue;
+    const c = ((y / CS) | 0) * GW + ((x / CS) | 0);
+    if (cellCount[c] >= 3) continue;
+    cellCount[c]++;
+    add(t, x, y, mvx * .4 + (rand() - .5) * .2, mvy * .4 + (rand() - .5) * .2);
+  }
+}
+
+function heatArea(r, amount) {
+  query(pointer.x, pointer.y, r, (i, dx, dy, d) => {
+    const f = 1 - d / r;
+    temp[i] = Math.max(-120, temp[i] + amount * f);
+    if (amount < 0) {
+      vx[i] *= .92; vy[i] *= .92;
+      if (ptype[i] === FIRE && rand() < .25) dead[i] = 1;
+    }
+  });
+  if (amount > 0) {
+    const n = Math.max(1, r * .35 | 0);
+    for (let k = 0; k < n; k++) {
+      const a = rand() * 6.283, d = Math.sqrt(rand()) * r * .8;
+      const x = pointer.x + Math.cos(a) * d, y = pointer.y + Math.sin(a) * d;
+      if (x >= 0 && y >= 0 && x < W && y < H && !wall[(y | 0) * W + (x | 0)]) add(FIRE, x, y, (rand() - .5) * .5, (rand() - .5) * .5);
+    }
+  }
+}
+
+function forceField(r, fn) {
+  query(pointer.x, pointer.y, r, (i, dx, dy, d) => {
+    const inv = d > .01 ? 1 / d : 0;
+    fn(i, dx * inv, dy * inv, d, 1 - d / r);
+  });
+}
+
+function lightning() {
+  const mx = pointer.x, my = pointer.y, reach = brush * 1.5 + 4;
+  let best = -1, bd = 1e9;
+  query(mx, my, reach, (i, dx, dy, d) => { if (ELEC[ptype[i]] && d < bd) { bd = d; best = i; } });
+  let tx, ty;
+  if (best >= 0) {
+    tx = px[best]; ty = py[best];
+    // flood through touching conductors
+    const queue = [best], seen = [best];
+    visited[best] = 1;
+    let head = 0;
+    while (head < queue.length && queue.length < 1800) {
+      const i = queue[head++], t = ptype[i];
+      charge[i] = 1;
+      temp[i] += t === METAL ? 110 : t === WATER ? 10 : 20;
+      query(px[i], py[i], 1.8, (j) => {
+        if (visited[j]) return;
+        visited[j] = 1; seen.push(j);
+        if (ELEC[ptype[j]]) queue.push(j);
+        else { temp[j] += 45 / CAP[ptype[j]]; charge[j] = Math.max(charge[j], .5); }
+      });
+    }
+    for (const j of seen) visited[j] = 0;
+    // a few branches flicking out of the conductor
+    for (let k = 0; k < 3; k++) {
+      const j = queue[(rand() * queue.length) | 0];
+      bolts.push({ pts: zigzag(px[j], py[j], px[j] + (rand() - .5) * 14, py[j] + (rand() - .5) * 14, 1.5), ttl: 3 });
+    }
+  } else {
+    const a = rand() * 6.283, d = Math.sqrt(rand()) * brush;
+    tx = mx + Math.cos(a) * d; ty = my + Math.sin(a) * d;
+    query(tx, ty, 3, (i, dx, dy, dd) => { temp[i] += 160 * (1 - dd / 3) / CAP[ptype[i]]; charge[i] = 1; });
+  }
+  bolts.push({ pts: zigzag(mx, my - brush - 6, tx, ty, 3), ttl: 4 });
+}
+
+function zigzag(x0, y0, x1, y1, amp) {
+  const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(2, len / 4 | 0);
+  const nx = -(y1 - y0) / (len || 1), ny = (x1 - x0) / (len || 1);
+  const pts = [x0, y0];
+  for (let k = 1; k < n; k++) {
+    const t = k / n, o = (rand() - .5) * 2 * amp;
+    pts.push(x0 + (x1 - x0) * t + nx * o, y0 + (y1 - y0) * t + ny * o);
+  }
+  pts.push(x1, y1);
+  return pts;
+}
+
+function paintWall(r, on) {
+  const r2 = r * r;
+  for (let y = Math.max(0, pointer.y - r | 0); y <= Math.min(H - 1, pointer.y + r | 0); y++)
+    for (let x = Math.max(0, pointer.x - r | 0); x <= Math.min(W - 1, pointer.x + r | 0); x++) {
+      const dx = x + .5 - pointer.x, dy = y + .5 - pointer.y;
+      if (dx * dx + dy * dy <= r2 && wall[y * W + x] !== on) { wall[y * W + x] = on; staticDirty = true; }
+    }
+}
+
+function applyTool() {
+  if (shockCool > 0) shockCool--;
+  if (!pointer.down) return;
+  const alt = isAlt(), r = brush, mvx = pointer.vx, mvy = pointer.vy;
+  switch (tool) {
+    case 'paint':
+      if (alt) query(pointer.x, pointer.y, r, i => { dead[i] = 1; });
+      else spawn(mat, r, mvx, mvy);
+      break;
+    case 'stick': {
+      const cvx = Math.max(-4, Math.min(4, mvx)), cvy = Math.max(-4, Math.min(4, mvy));
+      forceField(r, (i, ux, uy, d, f) => {
+        const k = .5 * Math.min(1, f * 1.6);
+        vx[i] += (cvx - vx[i]) * k; vy[i] += (cvy - vy[i]) * k;
+      });
+      break;
+    }
+    case 'magnet': {
+      const s = alt ? -1 : 1;
+      forceField(r * 4 + 8, (i, ux, uy, d, f) => {
+        if (ptype[i] !== METAL || temp[i] >= CURIE) return;
+        const pull = (.12 + .3 * f) * s;
+        vx[i] -= ux * pull; vy[i] -= uy * pull;
+        if (!alt && d < r * .6) { vx[i] *= .85; vy[i] *= .85; }
+      });
+      break;
+    }
+    case 'burn': heatArea(r, alt ? -50 : 32); break;
+    case 'freeze': heatArea(r, alt ? 32 : -50); break;
+    case 'shock': if (shockCool <= 0) { lightning(); shockCool = 5; shake = Math.max(shake, 1.5); } break;
+    case 'blow': {
+      const s = alt ? -1 : 1;
+      forceField(r * 2.5 + 4, (i, ux, uy, d, f) => {
+        const k = .45 * f * s / Math.sqrt(MASS[ptype[i]]);
+        vx[i] += ux * k; vy[i] += uy * k;
+      });
+      break;
+    }
+    case 'vortex': {
+      const s = alt ? -1 : 1;
+      forceField(r * 2.5 + 4, (i, ux, uy, d, f) => {
+        const k = .4 * f;
+        vx[i] += (-uy * s - ux * .25) * k; vy[i] += (ux * s - uy * .25) * k;
+      });
+      break;
+    }
+    case 'well': {
+      const s = alt ? -1 : 1;
+      forceField(r * 5 + 10, (i, ux, uy, d, f) => {
+        const k = (.08 + .5 * f * f) * s;
+        vx[i] -= ux * k; vy[i] -= uy * k;
+      });
+      break;
+    }
+    case 'bomb':
+      if (pointer.pressed) {
+        const br = 6 + r * 1.5;
+        explode(pointer.x, pointer.y, br, 3.5, 650, true);
+        for (let k = 0; k < br * 2.5; k++) {
+          const a = rand() * 6.283, d = Math.sqrt(rand()) * br * .5;
+          add(FIRE, pointer.x + Math.cos(a) * d, pointer.y + Math.sin(a) * d, Math.cos(a) * rand() * 2, Math.sin(a) * rand() * 2);
+        }
+        shake = Math.max(shake, 2 + br * .25);
+      }
+      break;
+    case 'wall': paintWall(r, alt ? 0 : 1); break;
+    case 'erase':
+      query(pointer.x, pointer.y, r, i => { dead[i] = 1; });
+      paintWall(r, 0);
+      break;
+  }
+  pointer.pressed = false;
+}
+
+// ---------------------------------------------------------------- Step
+let stepCount = 0;
+function step() {
+  explosionsThisStep = 0;
+  buildGrid();
+  applyTool();
+  interact();
+  update();
+  integrate();
+  compact();
+  stepCount++;
+}
+
+// ---------------------------------------------------------------- Rendering
+const SHADES = [.86, .94, 1, 1.08];
+const FIRE_STOPS = [[0, 90, 30, 26], [.25, 220, 70, 28], [.5, 255, 160, 40], [.8, 255, 236, 150], [1, 255, 250, 210]];
+const GLOW_STOPS = [[0, 110, 20, 10], [.3, 220, 60, 20], [.6, 255, 150, 40], [1, 255, 240, 190]];
+const HEAT_STOPS = [[-80, 40, 40, 255], [-10, 70, 180, 255], [20, 30, 95, 80], [100, 230, 220, 60], [400, 255, 130, 20], [1000, 255, 40, 20], [1600, 255, 255, 255]];
+let cr = 0, cg = 0, cb = 0;
+function grad(stops, v) {
+  if (v <= stops[0][0]) { cr = stops[0][1]; cg = stops[0][2]; cb = stops[0][3]; return; }
+  for (let k = 1; k < stops.length; k++) {
+    const s = stops[k];
+    if (v <= s[0]) {
+      const p = stops[k - 1], t = (v - p[0]) / (s[0] - p[0]);
+      cr = p[1] + (s[1] - p[1]) * t; cg = p[2] + (s[2] - p[2]) * t; cb = p[3] + (s[3] - p[3]) * t;
+      return;
+    }
+  }
+  const l = stops[stops.length - 1]; cr = l[1]; cg = l[2]; cb = l[3];
+}
+
+const KR = 3, KW = [];
+for (let dy = -KR; dy <= KR; dy++) for (let dx = -KR; dx <= KR; dx++) {
+  const w = Math.max(0, 1 - Math.hypot(dx, dy) / (KR + .5));
+  KW.push(w * w);
+}
+function splat(x, y, s, r, g, b) {
+  x |= 0; y |= 0;
+  let k = 0;
+  for (let dy = -KR; dy <= KR; dy++) {
+    const yy = y + dy;
+    if (yy < 0 || yy >= H) { k += 2 * KR + 1; continue; }
+    for (let dx = -KR; dx <= KR; dx++, k++) {
+      const xx = x + dx;
+      if (xx < 0 || xx >= W) continue;
+      const w = KW[k] * s, p = yy * W + xx;
+      LR[p] += r * w; LG[p] += g * w; LB[p] += b * w;
+    }
+  }
+}
+
+function hash(x, y) {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = (h ^ (h >>> 13)) * 1274126177;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+function buildStatic() {
+  const d = staticImg;
+  const isWall = (x, y) => x >= 0 && y >= 0 && x < W && y < H && wall[y * W + x];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const p = (y * W + x) * 4, n = hash(x, y);
+    let r, g, b;
+    if (heatView) {
+      if (wall[y * W + x]) { r = g = b = 46 + n * 8; }
+      else { r = 8; g = 9 + n * 4; b = 14; }
+    } else if (wall[y * W + x]) {
+      const row = (y / 4) | 0, off = (row & 1) * 4, bx = (x + off) % 8;
+      if (y % 4 === 3 || bx === 7) { r = 70; g = 58; b = 54; }
+      else {
+        const v = hash(((x + off) / 8) | 0, row) * 22 - 11 + n * 10;
+        r = 146 + v; g = 92 + v * .7; b = 70 + v * .5;
+      }
+      if (!isWall(x, y - 1)) { r += 40; g += 34; b += 30; }
+      else if (!isWall(x, y + 1)) { r *= .62; g *= .62; b *= .62; }
+    } else {
+      const tile = (((x >> 4) + (y >> 4)) & 1);
+      r = 34 + tile * 4 + n * 5; g = 38 + tile * 4 + n * 5; b = 46 + tile * 5 + n * 6;
+      if ((x & 15) === 0 || (y & 15) === 0) { r -= 7; g -= 7; b -= 7; }
+      if (n > .985) { r += 10; g += 10; b += 12; }
+      if (isWall(x, y - 1) || isWall(x - 1, y - 1)) { r *= .55; g *= .55; b *= .6; }
+      else if (isWall(x, y - 2) || isWall(x - 1, y - 2) || isWall(x - 2, y - 2)) { r *= .78; g *= .78; b *= .8; }
+    }
+    d[p] = r; d[p + 1] = g; d[p + 2] = b; d[p + 3] = 255;
+  }
+  staticDirty = false;
+}
+
+let frame = 0;
+function render() {
+  frame++;
+  if (staticDirty) buildStatic();
+  data.set(staticImg);
+
+  // drop shadows give the particles a bit of height
+  if (!heatView) for (let i = 0; i < N; i++) {
+    if (!SHADOW[ptype[i]]) continue;
+    const x = (px[i] | 0) + 1, y = (py[i] | 0) + 1;
+    if (x >= W || y >= H || wall[y * W + x]) continue;
+    const p = (y * W + x) * 4;
+    data[p] *= .74; data[p + 1] *= .74; data[p + 2] *= .76;
+  }
+
+  for (let i = 0; i < N; i++) {
+    const t = ptype[i], x = px[i] | 0, y = py[i] | 0, p = (y * W + x) * 4, T = temp[i];
+    let r, g, b, alpha = 1;
+    if (heatView) {
+      grad(HEAT_STOPS, T); r = cr; g = cg; b = cb;
+      if (PH[t] === 1) alpha = .5;
+    } else {
+      const sh = SHADES[shade[i]], c = DEF[t].col;
+      r = c[0] * sh; g = c[1] * sh; b = c[2] * sh;
+      switch (t) {
+        case WATER:
+          if (((i * 7 + (frame >> 3)) % 41) === 0) { r += 70; g += 70; b += 40; }
+          break;
+        case OIL:
+          if (shade[i] === 3 && ((i + (frame >> 4)) & 7) === 0) { r += 50; g += 30; b += 60; }
+          break;
+        case FIRE:
+          grad(FIRE_STOPS, Math.min(1, life[i] / 40)); r = cr; g = cg; b = cb;
+          splat(x, y, .12 * Math.min(1, life[i] / 30), 255, 150, 50);
+          break;
+        case EMBER: {
+          const fl = ((i + (frame >> 2)) & 3);
+          r = 170 + fl * 28; g = 45 + fl * 30; b = 20 + fl * 6;
+          if ((i & 7) === 0) splat(x, y, .14, 255, 110, 30);
+          break;
+        }
+        case LAVA: {
+          const fl = Math.sin(i * .7 + frame * .08) * .5 + .5;
+          const k = Math.max(0, Math.min(1, (T - 700) / 600));
+          r = 120 + 135 * k; g = (40 + fl * 90) * k + 30; b = 15 + fl * 30 * k;
+          if ((i & 3) === 0) splat(x, y, .16 * k + .03, 255, 100, 30);
+          break;
+        }
+        case SMOKE: alpha = .5 * Math.min(1, life[i] / 60); break;
+        case STEAM: alpha = .4; break;
+        case GLASS: alpha = .7; break;
+        case POWDER: if (shade[i] === 3) { r += 50; g += 46; b += 40; } break;
+        case PLANT: if (shade[i] === 0) { r = 40; g = 120; b = 50; } break;
+        case ICE: if (shade[i] === 3) { r = 240; g = 250; b = 255; } break;
+      }
+      // anything solid glows when hot
+      if (T > 450 && t !== FIRE && t !== EMBER && t !== LAVA && t !== STEAM && t !== SMOKE) {
+        const k = Math.min(1, (T - 450) / 900);
+        grad(GLOW_STOPS, k);
+        const m = Math.min(1, (T - 450) / 250);
+        r += (cr - r) * m; g += (cg - g) * m; b += (cb - b) * m;
+        if ((i & 1) === 0) splat(x, y, .1 * k, 255, 110, 40);
+      }
+      if (charge[i] > 0) {
+        const k = charge[i];
+        r += (210 - r) * k; g += (240 - g) * k; b += (255 - b) * k;
+        if ((i & 3) === 0) splat(x, y, .25 * k, 120, 190, 255);
+      }
+    }
+    if (alpha < 1) {
+      data[p] += (r - data[p]) * alpha; data[p + 1] += (g - data[p + 1]) * alpha; data[p + 2] += (b - data[p + 2]) * alpha;
+    } else { data[p] = r; data[p + 1] = g; data[p + 2] = b; }
+  }
+
+  // lightning bolts
+  for (const bolt of bolts) {
+    const pts = bolt.pts;
+    for (let k = 0; k + 3 < pts.length; k += 2) line(pts[k], pts[k + 1], pts[k + 2], pts[k + 3]);
+    bolt.ttl--;
+  }
+  bolts = bolts.filter(b => b.ttl > 0);
+
+  // cursor-side effects
+  if (pointer.down && !heatView && (tool === 'freeze' || (tool === 'burn' && isAlt()))) {
+    for (let k = 0; k < brush * 2; k++) {
+      const a = rand() * 6.283, d = Math.sqrt(rand()) * brush;
+      plot(pointer.x + Math.cos(a) * d, pointer.y + Math.sin(a) * d, 200, 240, 255);
+    }
+  }
+
+  // light
+  const n = W * H;
+  for (let q = 0; q < n; q++) {
+    const lr = LR[q];
+    if (lr === 0 && LG[q] === 0 && LB[q] === 0) continue;
+    const p = q * 4;
+    // soft cap so big fires bloom instead of washing out
+    data[p] += lr / (1 + lr * .006); data[p + 1] += LG[q] / (1 + LG[q] * .006); data[p + 2] += LB[q] / (1 + LB[q] * .006);
+    LR[q] = 0; LG[q] = 0; LB[q] = 0;
+  }
+
+  if (pointer.inside) drawCursor();
+  ctx.putImageData(img, 0, 0);
+}
+
+function plot(x, y, r, g, b, a = 1) {
+  x |= 0; y |= 0;
+  if (x < 0 || y < 0 || x >= W || y >= H) return;
+  const p = (y * W + x) * 4;
+  if (a >= 1) { data[p] = r; data[p + 1] = g; data[p + 2] = b; }
+  else { data[p] += (r - data[p]) * a; data[p + 1] += (g - data[p + 1]) * a; data[p + 2] += (b - data[p + 2]) * a; }
+}
+
+function line(x0, y0, x1, y1) {
+  x0 |= 0; y0 |= 0; x1 |= 0; y1 |= 0;
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  for (let guard = 0; guard < 2000; guard++) {
+    plot(x0, y0, 240, 250, 255);
+    if ((guard & 3) === 0) splat(x0, y0, .35, 110, 170, 255);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
+  }
+}
+
+function circle(cx, cy, r, col, a, dotted) {
+  // midpoint circle
+  let x = Math.round(r), y = 0, err = 1 - x, k = 0;
+  cx |= 0; cy |= 0;
+  while (x >= y) {
+    if (!dotted || ((k++ >> 1) & 1)) {
+      const P = [[x, y], [y, x], [-y, x], [-x, y], [-x, -y], [-y, -x], [y, -x], [x, -y]];
+      for (const [ox, oy] of P) plot(cx + ox, cy + oy, col[0], col[1], col[2], a);
+    }
+    y++;
+    if (err < 0) err += 2 * y + 1; else { x--; err += 2 * (y - x) + 1; }
+  }
+}
+
+function drawCursor() {
+  const t = TOOLS.find(o => o.id === tool), col = t.col;
+  const cx = pointer.x, cy = pointer.y;
+  const outer = { magnet: brush * 4 + 8, blow: brush * 2.5 + 4, vortex: brush * 2.5 + 4, well: brush * 5 + 10, bomb: 6 + brush * 1.5 }[tool];
+  if (outer) circle(cx, cy, outer, col, .35, true);
+  if (tool === 'paint' && !isAlt()) circle(cx, cy, brush, DEF[mat].col, .9);
+  else circle(cx, cy, Math.max(1, brush), isAlt() && tool !== 'bomb' ? [255, 255, 255] : col, .9);
+  plot(cx, cy, 255, 255, 255);
+  plot(cx - 2, cy, 255, 255, 255, .6); plot(cx + 2, cy, 255, 255, 255, .6);
+  plot(cx, cy - 2, 255, 255, 255, .6); plot(cx, cy + 2, 255, 255, 255, .6);
+}
+
+// ---------------------------------------------------------------- Scenes
+function clearWorld() { N = 0; wall.fill(0); staticDirty = true; bolts = []; }
+
+function fillCircle(t, cx, cy, r, keep = 1) {
+  for (let y = cy - r; y <= cy + r; y += 1) for (let x = cx - r; x <= cx + r; x += 1) {
+    if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r && rand() < keep && !wall[(y | 0) * W + (x | 0)]) add(t, x + .5 + (rand() - .5) * .1, y + .5 + (rand() - .5) * .1);
+  }
+}
+function fillRect(t, x0, y0, w, h, keep = 1) {
+  for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++)
+    if (rand() < keep) add(t, x + .5, y + .5);
+}
+function wallRect(x0, y0, w, h) {
+  for (let y = Math.max(0, y0); y < Math.min(H, y0 + h); y++)
+    for (let x = Math.max(0, x0); x < Math.min(W, x0 + w); x++) wall[y * W + x] = 1;
+}
+
+function demo() {
+  clearWorld();
+  const u = Math.min(W, H * 1.6) / 100; // scene unit
+  const cx = W / 2, cy = H / 2;
+  // a brick pen in the middle with an opening
+  const bw = 34 * u | 0, bh = 26 * u | 0, th = Math.max(3, u * 1.6 | 0);
+  const bx = cx - bw / 2 | 0, by = cy - bh / 2 | 0;
+  wallRect(bx, by, bw, th); wallRect(bx, by + bh - th, bw, th);
+  wallRect(bx, by, th, bh); wallRect(bx + bw - th, by, th, bh * .4 | 0);
+  wallRect(bx + bw - th, by + bh * .65 | 0, th, bh * .35 + 1 | 0);
+  // wood cabin inside the pen, with a powder stash
+  fillRect(WOOD, bx + th + 3 * u | 0, by + th + 3 * u | 0, 14 * u | 0, 9 * u | 0);
+  fillCircle(POWDER, bx + bw - th - 6 * u, by + bh - th - 6 * u, 3.2 * u);
+  fillCircle(OIL, bx + th + 10 * u, by + bh - th - 5 * u, 3.5 * u);
+  // pond with plants on the shore
+  fillCircle(WATER, W * .16, H * .62, 11 * u);
+  fillCircle(PLANT, W * .16 + 10 * u, H * .62 - 8 * u, 2.6 * u, .8);
+  // sand dune, metal filings, ice block, lava pool
+  fillCircle(SAND, W * .2, H * .2, 7 * u);
+  fillCircle(METAL, W * .82, H * .72, 7 * u, .8);
+  fillRect(ICE, W * .78 | 0, H * .14 | 0, 10 * u | 0, 8 * u | 0, 1);
+  fillCircle(LAVA, W * .55, H * .85, 3.6 * u);
+  wallRect(W * .55 - 7 * u | 0, H * .85 - 7 * u | 0, 14 * u | 0, th);
+  staticDirty = true;
+}
+
+// ---------------------------------------------------------------- Setup
+function setup() {
+  const sw = stage.clientWidth - 16, sh = stage.clientHeight - 16;
+  SCALE = Math.max(2, Math.min(5, Math.round(sw / 430)));
+  while ((sw / SCALE) * (sh / SCALE) > 170000) SCALE++;
+  W = Math.max(120, Math.floor(sw / SCALE)); H = Math.max(80, Math.floor(sh / SCALE));
+  view.width = W; view.height = H;
+  img = ctx.createImageData(W, H); data = img.data;
+  staticImg = new Uint8ClampedArray(W * H * 4);
+  wall = new Uint8Array(W * H);
+  LR = new Float32Array(W * H); LG = new Float32Array(W * H); LB = new Float32Array(W * H);
+  GW = Math.ceil(W / CS); GH = Math.ceil(H / CS);
+  cellStart = new Int32Array(GW * GH + 1); cellFill = new Int32Array(GW * GH); cellCount = new Uint16Array(GW * GH);
+  fit();
+  demo();
+}
+
+function fit() {
+  const sw = stage.clientWidth - 16, sh = stage.clientHeight - 16;
+  let s = Math.min(sw / W, sh / H);
+  if (s >= 1) s = Math.max(1, Math.floor(s * 4) / 4);
+  view.style.width = (W * s) + 'px'; view.style.height = (H * s) + 'px';
+}
+addEventListener('resize', fit);
+
+// ---------------------------------------------------------------- Pixel icons
+const ICON_COLORS = {
+  k: '#101216', w: '#f4f2ea', y: '#b07a40', Y: '#ffd84a', o: '#ff8a1e', r: '#e0463c', s: '#cfd4dc',
+  c: '#a6e6ff', C: '#5fb8ff', b: '#a35a44', m: '#5b4a42', p: '#ff9fd0', v: '#9a6bff', g: '#d8dee8', d: '#3a3f4b',
+};
+const ICONS = {
+  paint:  ['...M....', '...MM...', '..MMMM..', '.MMMMMM.', '.MMwMMM.', '.MwMMMM.', '..MMMM..', '........'],
+  stick:  ['......ky', '.....kyk', '....kyk.', '...kyk..', '..kyk...', '.kyk....', 'kyk.....', 'kk......'],
+  magnet: ['.rrrrrr.', 'rrrrrrrr', 'rrk..krr', 'rr....rr', 'rr....rr', 'ss....ss', 'ss....ss', '........'],
+  burn:   ['...o....', '...oo...', '..oYo.o.', '..oYYoo.', '.oYYYYo.', '.oYwwYo.', '.oYwwYo.', '..oooo..'],
+  freeze: ['...c....', '.c.c.c..', '..ccc...', 'cccwccc.', '..ccc...', '.c.c.c..', '...c....', '........'],
+  shock:  ['....YYY.', '...YYY..', '..YYY...', '.YYYYYY.', '...YYY..', '..YYY...', '.YY.....', 'Y.......'],
+  blow:   ['......g.', 'gggggg.g', '......g.', 'ggggggg.', '........', 'ggggg...', '.....g..', '...gg...'],
+  vortex: ['..pppp..', '.p....p.', 'p..pp..p', 'p.p..p.p', 'p.p.pp.p', 'p..p...p', '.p....p.', '..ppp...'],
+  well:   ['..vvvv..', '.v....v.', 'v..kk..v', 'v.kkkk.v', 'v.kkkk.v', 'v..kk..v', '.v....v.', '..vvvv..'],
+  bomb:   ['......Y.', '.....o..', '...kk...', '..kkkk..', '.kkwkkk.', '.kwkkkk.', '.kkkkkk.', '..kkkk..'],
+  wall:   ['bbbmbbbb', 'bbbmbbbb', 'mmmmmmmm', 'bmbbbbmb', 'bmbbbbmb', 'mmmmmmmm', 'bbbmbbbb', 'bbbmbbbb'],
+  erase:  ['........', '....kkk.', '...kpppk', '..kpppk.', '.kwwpk..', 'kwwwk...', '.kwk....', '..k.....'],
+};
+const hex = c => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+
+function drawIcon(cv, rows, matCol) {
+  const g = cv.getContext('2d');
+  g.clearRect(0, 0, 8, 8);
+  rows.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch === '.') return;
+    g.fillStyle = ch === 'M' ? matCol : ICON_COLORS[ch];
+    g.fillRect(x, y, 1, 1);
+  }));
+}
+
+function drawSwatch(cv, t) {
+  const g = cv.getContext('2d'), c = DEF[t].col;
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    const v = SHADES[(hash(x + t * 9, y) * 4) | 0];
+    let r = c[0] * v, gg = c[1] * v, b = c[2] * v;
+    if (t === FIRE) { grad(FIRE_STOPS, 1 - y / 9 + hash(x, y) * .2); r = cr; gg = cg; b = cb; }
+    g.fillStyle = hex([Math.min(255, r), Math.min(255, gg), Math.min(255, b)]);
+    g.fillRect(x, y, 1, 1);
+  }
+}
+
+const toolRow = document.getElementById('toolRow'), matRow = document.getElementById('matRow');
+const toolBtns = {}, matBtns = {};
+let paintIcon;
+
+for (const t of TOOLS) {
+  const b = document.createElement('button');
+  b.className = 'btn';
+  b.title = `${t.name} (${t.key.toUpperCase()}) — ${t.tip}`;
+  const cv = document.createElement('canvas'); cv.width = cv.height = 8;
+  drawIcon(cv, ICONS[t.id], hex(DEF[mat].col));
+  if (t.id === 'paint') paintIcon = cv;
+  b.append(cv, t.name);
+  b.onclick = () => setTool(t.id);
+  toolRow.append(b); toolBtns[t.id] = b;
+}
+PALETTE.forEach((t, k) => {
+  const b = document.createElement('button');
+  b.className = 'btn mat';
+  b.title = DEF[t].name + (k < 10 ? ` (${(k + 1) % 10})` : '');
+  const cv = document.createElement('canvas'); cv.width = cv.height = 8;
+  drawSwatch(cv, t);
+  b.append(cv, DEF[t].name);
+  b.onclick = () => setMat(t);
+  matRow.append(b); matBtns[t] = b;
+});
+
+function setTool(id) {
+  tool = id;
+  for (const k in toolBtns) toolBtns[k].classList.toggle('on', k === id);
+}
+function setMat(t) {
+  mat = t;
+  for (const k in matBtns) matBtns[k].classList.toggle('on', +k === t);
+  drawIcon(paintIcon, ICONS.paint, hex(DEF[t].col));
+  setTool('paint');
+}
+function setBrush(v) { brush = Math.max(1, Math.min(30, v)); document.getElementById('sizeVal').textContent = brush; }
+
+const altBtn = document.getElementById('altBtn'), heatBtn = document.getElementById('heatBtn'), pauseBtn = document.getElementById('pauseBtn');
+function toggleHeat() { heatView = !heatView; heatBtn.classList.toggle('on', heatView); staticDirty = true; }
+function togglePause() { paused = !paused; pauseBtn.classList.toggle('on', paused); document.getElementById('paused').hidden = !paused; }
+document.getElementById('sizeDown').onclick = () => setBrush(brush - 1);
+document.getElementById('sizeUp').onclick = () => setBrush(brush + 1);
+altBtn.onclick = () => { altToggle = !altToggle; altBtn.classList.toggle('on', altToggle); };
+heatBtn.onclick = toggleHeat;
+pauseBtn.onclick = togglePause;
+document.getElementById('clearBtn').onclick = clearWorld;
+document.getElementById('demoBtn').onclick = demo;
+
+// ---------------------------------------------------------------- Input
+function toSim(e) {
+  const r = view.getBoundingClientRect();
+  return [(e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H];
+}
+view.addEventListener('pointerdown', e => {
+  view.setPointerCapture(e.pointerId);
+  [pointer.x, pointer.y] = toSim(e);
+  pointer.px = pointer.x; pointer.py = pointer.y;
+  pointer.down = true; pointer.pressed = true; pointer.inside = true;
+  pointer.alt = e.button === 2;
+  e.preventDefault();
+});
+view.addEventListener('pointermove', e => { [pointer.x, pointer.y] = toSim(e); pointer.inside = true; });
+const release = () => { pointer.down = false; pointer.alt = false; };
+view.addEventListener('pointerup', release);
+view.addEventListener('pointercancel', release);
+view.addEventListener('pointerleave', e => { if (!pointer.down) pointer.inside = false; });
+view.addEventListener('contextmenu', e => e.preventDefault());
+view.addEventListener('wheel', e => { setBrush(brush + (e.deltaY < 0 ? 1 : -1)); e.preventDefault(); }, { passive: false });
+
+const toolKeys = Object.fromEntries(TOOLS.map(t => [t.key, t.id]));
+addEventListener('keydown', e => {
+  if (e.key === 'Shift') shiftHeld = true;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (toolKeys[k]) setTool(toolKeys[k]);
+  else if (/^[0-9]$/.test(k)) setMat(PALETTE[(+k + 9) % 10]);
+  else if (k === '[') setBrush(brush - 1);
+  else if (k === ']') setBrush(brush + 1);
+  else if (k === ' ') { togglePause(); e.preventDefault(); }
+  else if (k === 'h') toggleHeat();
+  else if (k === 'c') clearWorld();
+  else if (k === 'r') demo();
+});
+addEventListener('keyup', e => { if (e.key === 'Shift') shiftHeld = false; });
+addEventListener('blur', () => { shiftHeld = false; release(); });
+
+// ---------------------------------------------------------------- Loop
+const hud = document.getElementById('hud');
+let last = performance.now(), acc = 0, fps = 60, fpsT = 0, fpsN = 0;
+
+function hoverInfo() {
+  if (!pointer.inside) return '';
+  let best = -1, bd = 2.5;
+  query(pointer.x, pointer.y, 2.5, (i, dx, dy, d) => { if (d < bd) { bd = d; best = i; } });
+  if (best < 0) {
+    const w = wall[(pointer.y | 0) * W + (pointer.x | 0)];
+    return w ? '<br><span class="dim">Brick wall</span>' : '';
+  }
+  return `<br>${DEF[ptype[best]].name} <span class="dim">${Math.round(temp[best])}°C</span>`;
+}
+
+function loop(now) {
+  const dt = Math.min(100, now - last); last = now;
+  fpsT += dt; fpsN++;
+  if (fpsT > 500) { fps = Math.round(fpsN * 1000 / fpsT); fpsT = 0; fpsN = 0; }
+
+  pointer.vx = pointer.x - pointer.px; pointer.vy = pointer.y - pointer.py;
+  pointer.px = pointer.x; pointer.py = pointer.y;
+
+  if (!paused) {
+    acc += dt;
+    let steps = 0;
+    while (acc >= 1000 / 60 && steps < 2) { step(); acc -= 1000 / 60; steps++; }
+    if (steps === 2) acc = 0;
+  } else {
+    acc = 0;
+    // tools still work on a frozen world, so you can set up scenes
+    if (pointer.down && (tool === 'paint' || tool === 'wall' || tool === 'erase')) { buildGrid(); applyTool(); compact(); }
+  }
+  buildGrid(); // keep the grid in sync with compacted indices for hover lookups
+  render();
+
+  if (shake > .1) {
+    view.style.transform = `translate(${(rand() - .5) * shake * SCALE}px, ${(rand() - .5) * shake * SCALE}px)`;
+    shake *= .85;
+  } else if (view.style.transform) { view.style.transform = ''; shake = 0; }
+
+  if (frame % 6 === 0) hud.innerHTML = `${N} particles <span class="dim">· ${fps} fps</span>${hoverInfo()}`;
+  requestAnimationFrame(loop);
+}
+
+setTool('paint'); setMat(SAND); setBrush(6);
+requestAnimationFrame(() => { setup(); requestAnimationFrame(loop); });
+})();
+</script>
+<script type="application/json" id="patch-notes">
+[
+  {
+    "version": "0.1",
+    "date": "2026-10-05",
+    "title": "First release",
+    "notes": [
+      "A top-down pixel-art particle sandbox with glow lighting and drop shadows.",
+      "13 kinds of matter: sand, water, ice, wood, oil, metal, gunpowder, plant, acid, lava, stone, fire and steam.",
+      "12 tools: Paint, Stick, Magnet, Burn, Freeze, Shock, Blow, Vortex, Gravity, Bomb, Wall and Erase. Right-click or Shift reverses a tool.",
+      "Heat spreads between particles: wood burns to ash, water boils and freezes, sand melts into glass, lava cools into stone and red-hot metal stops being magnetic.",
+      "Lightning runs through connected metal, water and acid. Bombs break walls, acid eats through them and plants grow by drinking water.",
+      "Heat view (H) shows temperature; hover over anything to see what it is and how hot it is."
+    ]
+  }
+]
+</script>
+</body>
+</html>

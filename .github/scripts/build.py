@@ -51,9 +51,9 @@ def note_from(message):
 
 
 def own_notes():
-    """Games that carry their own patch notes: file name -> versions (newest first)."""
+    """Games and experiments that carry their own patch notes: file name -> versions (newest first)."""
     out = {}
-    for p in GAMES.glob("*.htm*"):
+    for p in [*GAMES.glob("*.htm*"), *EXPERIMENTS.glob("*.htm*")]:
         m = OWN_NOTES.search(p.read_text(encoding="utf-8", errors="ignore"))
         if not m:
             continue
