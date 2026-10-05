@@ -1,5 +1,4 @@
 import { OPTIONS } from './settings.js';
-import { PATCH_NOTES } from './patchnotes.js';
 
 // Main menu, pause menu, options and controls screens. The menu only
 // renders UI and reports choices; main.js owns game state.
@@ -330,7 +329,10 @@ export class Menu {
   renderPatchNotes() {
     const list = document.getElementById('patchnotes-list');
     if (list.childElementCount) return;
-    list.replaceChildren(...PATCH_NOTES.map((p) => {
+    // The notes live in index.html as a JSON block (the games website reads it too).
+    let notes = [];
+    try { notes = JSON.parse(document.getElementById('patch-notes').textContent); } catch { notes = []; }
+    list.replaceChildren(...notes.map((p) => {
       const art = document.createElement('article');
       art.className = 'patch';
       const h = document.createElement('h3');

@@ -339,7 +339,8 @@ and the game also pauses automatically when the tab is hidden. Options are saved
   physics accuracy.
 - **Game:** driving assists, the drift helper, sound, volume and screen shake.
 - **Versus:** how many computer drivers (none to 5), their skill and their cars.
-- **Patch notes** on the main menu list what changed in each update (`src/patchnotes.js`).
+- **Patch notes** on the main menu list what changed in each update. They're a JSON block in `index.html`
+  (`<script type="application/json" id="patch-notes">`), newest first; the games website reads the same block.
 
 ## Performance notes
 
