@@ -156,6 +156,28 @@ export function createMotorway(scene, renderer) {
   crowns.castShadow = true;
   group.add(trunks, crowns);
 
+  // --- Mountains: a range along each side and beyond each end, well clear of the road ---
+  const hills = [];
+  const hillRng = mulberry32(19);
+  const peak = (x, z, r, h) => {
+    const g = new THREE.ConeGeometry(r, h, 7);
+    g.translate(x, h / 2 - 2, z);
+    hills.push(g);
+  };
+  for (const s of [-1, 1]) {
+    for (let z = -ROAD.half - 200; z <= ROAD.half + 200; z += 90 + hillRng() * 60) {
+      const r = 60 + hillRng() * 50;
+      // Base edge at least 150 m from the middle of the road (the trees stop at ~125 m).
+      peak(s * (150 + r + hillRng() * 80), z, r, 35 + hillRng() * 60);
+    }
+    for (let x = -260; x <= 260; x += 110 + hillRng() * 40) {
+      const r = 60 + hillRng() * 40;
+      peak(x, s * (ROAD.half + 150 + r + hillRng() * 60), r, 40 + hillRng() * 50);
+    }
+  }
+  const hillMesh = new THREE.Mesh(mergeGeometries(hills), new THREE.MeshStandardMaterial({ color: 0x6a8a55, roughness: 1, flatShading: true }));
+  group.add(hillMesh);
+
   // --- Ramps: kickers on the hard shoulders, alternating sides ------------------------
   const terrain = new Terrain();
   for (const { s, z } of KICKERS) {

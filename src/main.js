@@ -398,6 +398,8 @@ function setMode(next) {
   versus.setActive(mode === 'versus' || roaming(), roaming());
   // The lot's grass would show through the motorway's own verges.
   world.grass.visible = mode !== 'motorway';
+  // The lot's ring of hills would stand across the motorway (it has its own range).
+  world.hills.visible = mode !== 'motorway';
   // Debris is cleared when it leaves the map (the motorway is much longer).
   destruction.recycleRange = map.recycle ?? 200;
   document.body.classList.toggle('versus', mode === 'versus');

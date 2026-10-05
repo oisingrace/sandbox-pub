@@ -116,12 +116,14 @@ export function createWorld(scene, renderer) {
     hill.translate(Math.cos(a) * d, h / 2 - 2, Math.sin(a) * d);
     hills.push(hill);
   }
-  scene.add(new THREE.Mesh(mergeGeometries(hills), hillMat));
+  const hillMesh = new THREE.Mesh(mergeGeometries(hills), hillMat);
+  scene.add(hillMesh);
 
   const VIEW = { near: [70, 200], medium: [110, 380], far: [150, 650] };
   return {
     arena,
     grass,
+    hills: hillMesh, // a ring around the lot: other maps that reach past it hide it
     followSun(target) {
       sun.position.copy(target).add(sunOffset);
       sun.target.position.copy(target);
