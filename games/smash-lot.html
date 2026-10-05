@@ -99,6 +99,9 @@
     .patch ul { margin: 6px 0 0; padding-left: 20px; font-size: 14px; line-height: 1.45; }
     .patch li + li { margin-top: 4px; }
     #menu button.back { align-self: flex-start; margin-top: 6px; }
+    /* Link to the rest of the projects (target _top: leaves the site's player frame too). */
+    .more-link { align-self: flex-start; margin: -8px 0 6px; padding: 4px 0; color: var(--hazard); font-size: 14px; font-weight: 700; text-decoration: none; border-bottom: 1px solid transparent; }
+    .more-link:hover, .more-link:focus-visible { border-bottom-color: var(--hazard); }
     .fineprint { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--hud-dim); max-width: 46ch; }
 
     .vehicle-card { background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; padding: 12px 10px 14px; backdrop-filter: blur(8px); }
@@ -175,9 +178,10 @@
       .screen[data-screen="main"] { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); column-gap: 24px; row-gap: 8px; width: min(820px, 100%); align-items: start; }
       .screen[data-screen="main"] > .logo, .screen[data-screen="main"] > .tagline, .screen[data-screen="main"] > .fineprint { grid-column: 1; }
       .screen[data-screen="main"] > .vehicle-card, .screen[data-screen="main"] > .mode-picker, .screen[data-screen="main"] > .vs-setup, .screen[data-screen="main"] > #btn-play, .screen[data-screen="main"] > #btn-online, .screen[data-screen="main"] > #btn-workshop, .screen[data-screen="main"] > .btn-row { grid-column: 2; }
+      .screen[data-screen="main"] > .more-link { grid-column: 1; grid-row: 3; align-self: start; margin: 0; }
       .screen[data-screen="main"] > .logo { grid-row: 1; }
       .screen[data-screen="main"] > .tagline { grid-row: 2; }
-      .screen[data-screen="main"] > .fineprint { grid-row: 3 / span 2; }
+      .screen[data-screen="main"] > .fineprint { grid-row: 4 / span 2; }
       .screen[data-screen="main"] > .vehicle-card { grid-row: 1 / span 2; }
       .logo { font-size: clamp(36px, 7vw, 64px); }
       #vehicle-blurb { min-height: 0; }
@@ -444,6 +448,7 @@
     <section class="screen" data-screen="main" aria-labelledby="logo">
       <h1 id="logo" class="logo">Smash<span>Lot</span></h1>
       <p class="tagline">Drive anything. Break everything.</p>
+      <a class="more-link" href="https://oisingrace.github.io/sandbox-pub/" target="_top">More of my projects<span aria-hidden="true"> →</span></a>
 
       <div class="vehicle-card" aria-live="polite">
         <div class="card-label">Your ride</div>
@@ -613,6 +618,12 @@
        games website (its build script reads this block). Add a new entry at the top for each update. -->
   <script type="application/json" id="patch-notes">
   [
+    {
+      "version": "0.14",
+      "date": "2026-10-05",
+      "title": "More projects link",
+      "notes": ["A link on the main menu to the rest of my projects."]
+    },
     {
       "version": "0.13",
       "date": "2026-10-05",
