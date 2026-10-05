@@ -71,6 +71,8 @@
     .logo span { display: block; width: max-content; margin-top: 8px; padding: 2px 14px 6px; color: var(--hazard-ink);
       background: repeating-linear-gradient(-45deg, var(--hazard) 0 16px, #f0b400 16px 32px); }
     .tagline { margin: 4px 0 14px; font-size: 15px; color: var(--hud-dim); letter-spacing: 0.02em; }
+    /* Shorter screens with the Versus setup open: a smaller logo keeps Play on screen. */
+    @media (max-height: 860px) and (min-height: 521px) { body.menu-versus .logo { font-size: clamp(40px, 6.5vw, 60px); } body.menu-versus .tagline { margin-bottom: 8px; } }
     .screen-title { margin: 0 0 6px; font: 400 30px/1.1 var(--font-display); text-transform: uppercase; letter-spacing: 0.03em; }
     #menu button { font: 600 15px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--hud-fg); background: var(--menu-panel);
       border: 1px solid var(--menu-line); border-radius: 10px; padding: 14px 18px; text-align: left; cursor: pointer; transition: background 0.15s, transform 0.15s; }
@@ -80,6 +82,22 @@
     #menu button.primary { background: var(--hazard); color: var(--hazard-ink); border-color: transparent; font: 400 24px/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.06em; padding: 16px 18px; }
     #menu button.primary:hover { background: #ffdc5e; }
     .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn-row.three { grid-template-columns: 1fr 1fr 1fr; }
+    #menu .btn-row.three button { padding-left: 8px; padding-right: 8px; }
+    /* Versus bot setup under the mode picker. */
+    .vs-setup { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; }
+    .vs-setup[hidden] { display: none; }
+    .vs-setup .vs-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .vs-setup .vs-label { font-size: 13px; font-weight: 700; color: var(--hud-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+    #menu .vs-setup .seg button { padding: 6px 10px; font-size: 13px; }
+    .vs-setup .vs-note { margin: 0; font-size: 12px; color: var(--hud-dim); }
+    /* Patch notes. */
+    .patchnotes { display: flex; flex-direction: column; gap: 14px; max-height: min(62vh, 560px); overflow-y: auto; padding-right: 4px; }
+    .patch h3 { margin: 0; font-size: 16px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+    .patch h3 .ver { color: var(--hazard); font-variant-numeric: tabular-nums; }
+    .patch h3 time { font-size: 12px; font-weight: 400; color: var(--hud-dim); }
+    .patch ul { margin: 6px 0 0; padding-left: 20px; font-size: 14px; line-height: 1.45; }
+    .patch li + li { margin-top: 4px; }
     #menu button.back { align-self: flex-start; margin-top: 6px; }
     .fineprint { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--hud-dim); max-width: 46ch; }
 
@@ -156,7 +174,7 @@
       #menu { background: linear-gradient(90deg, rgba(8, 10, 14, 0.85), rgba(8, 10, 14, 0.4)); }
       .screen[data-screen="main"] { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); column-gap: 24px; row-gap: 8px; width: min(820px, 100%); align-items: start; }
       .screen[data-screen="main"] > .logo, .screen[data-screen="main"] > .tagline, .screen[data-screen="main"] > .fineprint { grid-column: 1; }
-      .screen[data-screen="main"] > .vehicle-card, .screen[data-screen="main"] > .mode-picker, .screen[data-screen="main"] > #btn-play, .screen[data-screen="main"] > #btn-online, .screen[data-screen="main"] > #btn-workshop, .screen[data-screen="main"] > .btn-row { grid-column: 2; }
+      .screen[data-screen="main"] > .vehicle-card, .screen[data-screen="main"] > .mode-picker, .screen[data-screen="main"] > .vs-setup, .screen[data-screen="main"] > #btn-play, .screen[data-screen="main"] > #btn-online, .screen[data-screen="main"] > #btn-workshop, .screen[data-screen="main"] > .btn-row { grid-column: 2; }
       .screen[data-screen="main"] > .logo { grid-row: 1; }
       .screen[data-screen="main"] > .tagline { grid-row: 2; }
       .screen[data-screen="main"] > .fineprint { grid-row: 3 / span 2; }
@@ -446,13 +464,15 @@
         <button type="button" role="radio" data-mode="football" aria-checked="false">Car football<small>Blue vs Orange in the stadium</small></button>
         <button type="button" role="radio" data-mode="versus" aria-checked="false">Versus<small>Armed cars, most wrecks wins</small></button>
       </div>
+      <div class="vs-setup" id="vs-setup" hidden></div>
 
       <button type="button" class="primary" id="btn-play">Play</button>
       <button type="button" class="secondary" id="btn-online">Play online with friends</button>
       <button type="button" class="secondary" id="btn-workshop">Car workshop: build your own</button>
-      <div class="btn-row">
+      <div class="btn-row three">
         <button type="button" id="btn-options">Options</button>
         <button type="button" id="btn-controls">Controls</button>
+        <button type="button" id="btn-patchnotes">Patch notes</button>
       </div>
       <p class="fineprint" id="mode-blurb">Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.</p>
     </section>
@@ -534,6 +554,12 @@
       <h2 id="garage-title" class="screen-title">Change car</h2>
       <p class="online-intro">You swap into the new car right where you are.</p>
       <div id="garage-list" class="garage-list" role="list"></div>
+      <button type="button" class="back" data-back>Back</button>
+    </section>
+
+    <section class="screen wide" data-screen="patchnotes" hidden aria-labelledby="patchnotes-title">
+      <h2 id="patchnotes-title" class="screen-title">Patch notes</h2>
+      <div id="patchnotes-list" class="patchnotes"></div>
       <button type="button" class="back" data-back>Back</button>
     </section>
 
@@ -650,7 +676,17 @@ const DEFAULT_SPEC = {
   boostDuration: 3,        // seconds from a full meter to empty
   boostRecharge: 9,        // seconds to refill from empty when not boosting
   tractionLimit: 0.72,     // fraction of rear grip TC allows for drive
+  driftAssist: 0.7,        // 0..1: how much the drift helper holds a slide (see driftHelp)
 };
+
+// Drift helper. Once the rear steps out, it holds the slide at an angle
+// you choose with the steering (into the turn: wider; countersteer: it
+// straightens), keeps the car driving forward on the throttle, and stops
+// it spinning out. Off the throttle with the wheel straight, drifts fade.
+const DRIFT_KP = 14;         // yaw correction per radian of angle error
+const DRIFT_KD = 2.2;        // ...and per rad/s of the angle changing
+const DRIFT_HOLD = 3.5;      // m/s^2 of push on the throttle mid-drift
+const DRIFT_TC = 1.15;       // traction control lets the rear spin up to this mid-drift
 
 // Torque curve (rpm -> Nm), linearly interpolated.
 const TORQUE_CURVE = [
@@ -800,9 +836,10 @@ class CarPhysics {
     let target = clamp(input.steer, -1, 1) * steerLimit;
     if (s.assists && vx > 4) {
       // Counter-steer toward the direction of travel, like caster trail
-      // pulling the wheels into a slide. Stronger with hands off.
+      // pulling the wheels into a slide. Stronger with hands off; eased
+      // off mid-drift so the drift helper decides the angle.
       const bodySlip = Math.atan2(vy, vx);
-      const gain = Math.abs(input.steer) < 0.05 ? 0.9 : 0.45;
+      const gain = (Math.abs(input.steer) < 0.05 ? 0.9 : 0.45) * (1 - 0.6 * (this.driftLevel || 0));
       target = clamp(target + bodySlip * gain, -s.maxSteer, s.maxSteer);
     }
     const rate = Math.abs(target) > Math.abs(this.steer) && sign(target) === sign(this.steer)
@@ -874,7 +911,10 @@ class CarPhysics {
       const engineBrake = drive < 0.05 && this.gear > 0
         ? -sign(vLongR) * Math.min(s.engineBrake * ratio, stopR) : 0;
       let tcDrive = driveForce;
-      if (s.assists) tcDrive = clamp(driveForce, -maxR * s.tractionLimit, maxR * s.tractionLimit);
+      if (s.assists) {
+        const limit = s.tractionLimit + (DRIFT_TC - s.tractionLimit) * (this.driftLevel || 0);
+        tcDrive = clamp(driveForce, -maxR * limit, maxR * limit);
+      }
       FxR = tcDrive + brakeR + engineBrake;
       if (Math.abs(FxR) > maxR) {
         wheelspin = clamp((Math.abs(FxR) - maxR) / maxR, 0, 1);
@@ -882,6 +922,8 @@ class CarPhysics {
       }
       // Friction circle: traction eats into cornering grip.
       rearLatCap = Math.sqrt(Math.max(maxR * maxR * 0.2, maxR * maxR - FxR * FxR));
+      // Mid-drift on the throttle, the spinning rear tyres hold less sideways.
+      rearLatCap *= 1 - 0.35 * (this.driftLevel || 0) * drive * clamp(s.driftAssist ?? 0, 0, 1);
     }
     const frontLatCap = Math.sqrt(Math.max(maxF * maxF * 0.05, maxF * maxF - FxF * FxF));
 
@@ -897,6 +939,8 @@ class CarPhysics {
     let Fx = FxF * cs - FyF * ss + FxR + drag * vx - s.rollingResistance * vx;
     let Fy = FxF * ss + FyF * cs + FyR + drag * vy;
     const torque = a * (FxF * ss + FyF * cs) - b * FyR;
+    const help = this.driftHelp(vx, vy, drive, input, dt);
+    Fx += s.mass * help.push;
 
     if (this.boosting) Fx += s.mass * s.boostAccel;
     Fx -= s.mass * G * Math.sin(this.pitch); // climbing a ramp costs speed
@@ -907,7 +951,7 @@ class CarPhysics {
     const fwdX = sinH, fwdZ = cosH, leftX = cosH, leftZ = -sinH;
     this.velX += (fwdX * ax + leftX * ay) * dt;
     this.velZ += (fwdZ * ax + leftZ * ay) * dt;
-    this.yawRate += (torque / (s.mass * s.inertiaScale)) * dt;
+    this.yawRate += (torque / (s.mass * s.inertiaScale) + help.yaw) * dt;
 
     // Come fully to rest instead of creeping forever.
     if (drive < 0.05 && this.speed < 0.15) {
@@ -1331,6 +1375,41 @@ class CarPhysics {
     // On the wheels and driving again; the body settles onto the ground
     // over a moment (see followGround) instead of snapping flat.
     this.settle = 0.4;
+  }
+
+  /**
+   * The drift helper for one step: { yaw (rad/s^2), push (m/s^2) }.
+   * Sets `driftLevel` (0..1, how much of a drift we're in).
+   */
+  driftHelp(vx, vy, drive, input, dt) {
+    const strength = clamp(this.spec.driftAssist ?? 0, 0, 1);
+    const beta = Math.atan2(vy, Math.max(vx, 0.1));
+    const ab = Math.abs(beta);
+    const prev = this.prevSlip ?? ab;
+    this.prevSlip = ab;
+    const sb = sign(beta);
+    // Steering into the turn (against the slide) asks for more angle.
+    const into = clamp(-sb * input.steer, -1, 1);
+    // In a drift once the tail is well out; it carries on while you keep
+    // the throttle down or steer into it, and fades when you don't.
+    const state = this.driftState || 0;
+    const keep = state > 0.05 && ab > 0.04 && ((drive > 0.3 && into > -0.15) || into > 0.15);
+    const enter = ab > 0.16 && into > -0.15;
+    const goal = vx > 6 && (keep || enter) ? 1 : 0;
+    this.driftState = clamp(state + (goal ? 8 : -2.5) * dt, 0, 1);
+    let level = this.driftState * clamp((vx - 5) / 5, 0, 1);
+    // Let the handbrake swing the tail out; the helper takes over after.
+    if (this.handbrake) level *= 0.3;
+    this.driftLevel = strength > 0 ? level : 0;
+    if (!(level > 0) || strength <= 0) return { yaw: 0, push: 0 };
+    const want = clamp(0.12 + 0.28 * drive + 0.32 * into, 0.05, 0.85);
+    const err = ab - want;
+    const rate = (ab - prev) / dt;
+    const k = level * strength;
+    return {
+      yaw: sb * (DRIFT_KP * err + DRIFT_KD * rate) * k,
+      push: DRIFT_HOLD * drive * k * Math.min(1, ab / 0.4),
+    };
   }
 
   tireCurve(slip) {
@@ -5302,8 +5381,18 @@ const OPTIONS = {
     debrisLifetime: { label: 'Debris cleanup', hint: 'Small pieces fade out after this long', choices: [[0, 'Never'], [60, '60 s'], [20, '20 s']] },
     physicsQuality: { label: 'Physics accuracy', hint: 'Higher keeps tall stacks steadier, costs CPU', choices: [[2, 'Low'], [4, 'Normal'], [6, 'High']] },
   },
+  versus: {
+    vsBots: { label: 'Computer drivers', hint: 'Solo Versus only; 0 to practise on your own', choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']] },
+    vsBotSkill: { label: 'Bot skill', hint: 'Aim, damage, how far away they shoot, how fast they react', choices: [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']] },
+    vsBotCars: { label: 'Bot cars', choices: [['mixed', 'Mixed'], ['mine', 'Same as yours'], ['heavy', 'Heavy'], ['light', 'Light']] },
+  },
   game: {
     assists: { label: 'Driving assists', hint: 'Traction control and countersteer', choices: [[true, 'On'], [false, 'Off']] },
+    driftAssist: {
+      label: 'Drift helper', hint: 'Holds a slide at the angle you steer for and keeps you moving; off is the raw handling',
+      slider: { min: 0, max: 1, step: 0.05, format: (v) => (v === 0 ? 'Off' : `${Math.round(v * 100)}%`) },
+      choices: [],
+    },
     sound: { label: 'Sound', choices: [[true, 'On'], [false, 'Off']] },
     screenShake: {
       label: 'Screen shake', hint: 'Grows with how much is being destroyed around you',
@@ -5330,6 +5419,10 @@ const DEFAULTS = {
   sound: true,
   volume: 0.75,
   screenShake: 1,
+  driftAssist: 0.7,
+  vsBots: 3,
+  vsBotSkill: 'normal',
+  vsBotCars: 'mixed',
   startVehicle: 'sports',
   playerName: '',
   mode: 'free',
@@ -5390,6 +5483,7 @@ const TABS = [
   ['graphics', 'Graphics'],
   ['destruction', 'Destruction'],
   ['game', 'Game'],
+  ['versus', 'Versus'],
 ];
 
 const MODE_NAMES = { free: 'Free roam', motorway: 'Motorway', football: 'Car football', versus: 'Versus' };
@@ -5424,6 +5518,7 @@ class Menu {
     on('btn-play', () => opts.onPlay(this.vehicle));
     on('btn-options', () => this.show('options', 'main'));
     on('btn-controls', () => this.show('controls', 'main'));
+    on('btn-patchnotes', () => { this.renderPatchNotes(); this.show('patchnotes', 'main'); });
     on('btn-resume', () => opts.onResume());
     on('btn-garage', () => this.showGarage());
     on('btn-pause-options', () => this.show('options', 'pause'));
@@ -5467,6 +5562,11 @@ class Menu {
     document.getElementById('mode-blurb').textContent = MODE_BLURBS[mode];
     // Car football has one car for everyone (the Striker): no picker.
     document.body.classList.toggle('menu-football', mode === 'football');
+    document.body.classList.toggle('menu-versus', mode === 'versus');
+    // Versus: how many bots, how good, in what.
+    const setup = document.getElementById('vs-setup');
+    setup.hidden = mode !== 'versus';
+    if (mode === 'versus') this.renderVersusSetup();
     document.getElementById('room-mode-name').textContent = MODE_NAMES[mode];
   }
 
@@ -5653,6 +5753,82 @@ class Menu {
     return wrap;
   }
 
+  /** A row of choice buttons for one setting; `after` runs once it's changed. */
+  choiceSeg(key, def, settings, after) {
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    seg.setAttribute('role', 'radiogroup');
+    seg.setAttribute('aria-label', def.label);
+    for (const [value, label] of def.choices) {
+      if (key === 'preset' && value === 'custom' && settings.preset !== 'custom') continue;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', String(settings[key] === value));
+      b.addEventListener('click', () => {
+        this.opts.onSetting(key, value);
+        after();
+      });
+      seg.appendChild(b);
+    }
+    return seg;
+  }
+
+  /** The Versus bot setup on the main menu (same settings as Options → Versus). */
+  renderVersusSetup() {
+    const settings = this.opts.getSettings();
+    const box = document.getElementById('vs-setup');
+    const rows = [];
+    for (const [key, label] of [['vsBots', 'Bots'], ['vsBotSkill', 'Skill']]) {
+      if (key !== 'vsBots' && !settings.vsBots) continue;
+      const row = document.createElement('div');
+      row.className = 'vs-row';
+      row.dataset.key = key;
+      const name = document.createElement('span');
+      name.className = 'vs-label';
+      name.textContent = label;
+      const def = OPTIONS.versus[key];
+      const choices = key === 'vsBots' ? { ...def, choices: def.choices.map(([v, l]) => [v, v === 0 ? 'None' : l]) } : def;
+      row.append(name, this.choiceSeg(key, choices, settings, () => {
+        this.renderVersusSetup();
+        box.querySelector(`[data-key="${key}"] [aria-checked="true"]`)?.focus({ preventScroll: true });
+      }));
+      rows.push(row);
+    }
+    const note = document.createElement('p');
+    note.className = 'vs-note';
+    note.textContent = settings.vsBots ? 'Solo only. Bot cars: Options → Versus.' : 'No bots: try the weapons and pads on your own.';
+    box.replaceChildren(...rows, note);
+  }
+
+  renderPatchNotes() {
+    const list = document.getElementById('patchnotes-list');
+    if (list.childElementCount) return;
+    list.replaceChildren(...PATCH_NOTES.map((p) => {
+      const art = document.createElement('article');
+      art.className = 'patch';
+      const h = document.createElement('h3');
+      const ver = document.createElement('span');
+      ver.className = 'ver';
+      ver.textContent = `v${p.version}`;
+      const title = document.createElement('span');
+      title.textContent = p.title;
+      const time = document.createElement('time');
+      time.dateTime = p.date;
+      time.textContent = new Date(`${p.date}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+      h.append(ver, title, time);
+      const ul = document.createElement('ul');
+      for (const n of p.notes) {
+        const li = document.createElement('li');
+        li.textContent = n;
+        ul.append(li);
+      }
+      art.append(h, ul);
+      return art;
+    }));
+  }
+
   renderOptions() {
     const settings = this.opts.getSettings();
     for (const b of document.querySelectorAll('#option-tabs button')) {
@@ -5675,24 +5851,10 @@ class Menu {
         list.appendChild(row);
         continue;
       }
-      const seg = document.createElement('div');
-      seg.className = 'seg';
-      seg.setAttribute('role', 'radiogroup');
-      seg.setAttribute('aria-label', def.label);
-      for (const [value, label] of def.choices) {
-        if (key === 'preset' && value === 'custom' && settings.preset !== 'custom') continue;
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.textContent = label;
-        b.setAttribute('role', 'radio');
-        b.setAttribute('aria-checked', String(settings[key] === value));
-        b.addEventListener('click', () => {
-          this.opts.onSetting(key, value);
-          this.renderOptions();
-          list.querySelector(`[data-key="${key}"] [aria-checked="true"]`)?.focus({ preventScroll: true });
-        });
-        seg.appendChild(b);
-      }
+      const seg = this.choiceSeg(key, def, settings, () => {
+        this.renderOptions();
+        list.querySelector(`[data-key="${key}"] [aria-checked="true"]`)?.focus({ preventScroll: true });
+      });
       row.dataset.key = key;
       row.append(text, seg);
       list.appendChild(row);
@@ -7964,7 +8126,7 @@ class Bot {
   constructor(def, terrain, team) {
     this.def = def;
     this.team = team;
-    this.car = new CarPhysics({ ...def.spec, assists: true }, terrain);
+    this.car = new CarPhysics({ ...def.spec, assists: true, driftAssist: 0 }, terrain); // AI tuned for plain handling
     this.model = new CarModel(def);
     this.stuck = 0;
     this.reversing = 0;
@@ -8425,6 +8587,92 @@ function multiplierFor(combo) {
   for (let i = 1; i < TIERS.length; i++) if (combo >= TIERS[i]) m = i + 1;
   return m;
 }
+
+// ===== patchnotes.js =====
+// Patch notes, newest first, shown on the main menu's Patch notes screen.
+// Add a new entry at the top for each update.
+
+const PATCH_NOTES = [
+  {
+    version: '0.12', date: '2026-10-05', title: 'Drifting, Versus bots, patch notes',
+    notes: [
+      'Drifting reworked: a drift helper holds the slide at the angle you steer for (into the turn for more angle, countersteer to straighten), keeps you moving on the throttle and stops spin-outs. Lift off with the wheel straight and the drift fades out.',
+      'Drift helper strength is in Options → Game (0 is the old raw handling).',
+      'Drifts now score points in free roam and on the motorway when they end.',
+      'Versus: choose how many computer drivers (none to 5), their skill (easy, normal, hard) and what they drive, on the main menu or in Options → Versus. Changing them mid-match restarts it with the new line-up.',
+      'This patch notes screen.',
+    ],
+  },
+  {
+    version: '0.11', date: '2026-10-05', title: 'On the website',
+    notes: ['Smash Lot is on the games site.'],
+  },
+  {
+    version: '0.10', date: '2026-10-03', title: 'Motorway',
+    notes: [
+      'New mode: a 2.4 km dual carriageway with a clear middle and trouble on the sides: roadworks, broken-down lorries, barriers, drums, lamp posts, trees and overpass pillars.',
+      'Kicker ramps on the hard shoulders and a big jump on each verge.',
+    ],
+  },
+  {
+    version: '0.9', date: '2026-10-03', title: 'Custom car weapons, audio fix',
+    notes: [
+      'Car workshop: pick a roof weapon (machine gun, rockets, rocket salvo, flamethrower or mines). It\'s your own weapon in Versus and fires at the scenery in free roam.',
+      'Audio no longer stays silent until a reload: it checks itself and restarts if it ever stops.',
+      'The help shows the right handbrake key for cars that jump (Q on the Striker).',
+    ],
+  },
+  {
+    version: '0.8', date: '2026-10-02', title: 'Versus',
+    notes: [
+      'New mode: armed car combat in the Scrapyard. Health, auto-aiming roof weapons, upgrade pads that change over time, five-minute matches, solo against bots or online.',
+    ],
+  },
+  {
+    version: '0.7', date: '2026-10-02', title: 'Striker and a bigger map',
+    notes: [
+      'The Striker: the car football car, also in the garage and the workshop.',
+      'Free roam map grown to 300 × 300 m with downtown, suburbs and industrial districts.',
+    ],
+  },
+  {
+    version: '0.6', date: '2026-10-02', title: 'Car workshop',
+    notes: ['Build your own cars: body style, size, colours, parts, engine and tuning. Share them with a code.'],
+  },
+  {
+    version: '0.5', date: '2026-10-02', title: 'Points and the Inferno',
+    notes: [
+      'Destruction points with a combo multiplier.',
+      'The Inferno pickup with a mounted flamethrower.',
+      'Screen quake that grows with the destruction, with a strength slider.',
+    ],
+  },
+  {
+    version: '0.4', date: '2026-10-02', title: 'Car football',
+    notes: [
+      'New mode: Blue vs Orange in a stadium, with jumps, flips and air control.',
+      'Cars land properly: they tip, rock and right themselves.',
+    ],
+  },
+  {
+    version: '0.3', date: '2026-10-02', title: 'Online',
+    notes: [
+      'Play online with friends using a room code (no server).',
+      'Car-to-car collisions and an in-game garage.',
+    ],
+  },
+  {
+    version: '0.2', date: '2026-10-02', title: 'Ramps and explosions',
+    notes: ['Ramps and jumps, explosive fuel drums, a bigger arena and new sound.'],
+  },
+  {
+    version: '0.1', date: '2026-10-01', title: 'First drive',
+    notes: [
+      'The driving sandbox: a walled lot where everything breaks, several cars, boost, and the Ember GT that burns through things.',
+      'Menus and graphics options.',
+    ],
+  },
+];
 
 // ===== vsmap.js =====
 // The Scrapyard: the Versus arena. A square yard walled in corrugated
@@ -9622,7 +9870,19 @@ const ITEM_CODES = Object.keys(ITEMS);
 /** Match time (seconds played) at which each tier of upgrades appears. */
 const VS_TIERS = [0, 60, 150];
 
-const BOT_NAMES = ['Rex', 'Vex', 'Moxie', 'Gnasher', 'Torque'];
+const BOT_NAMES = ['Rex', 'Vex', 'Moxie', 'Gnasher', 'Torque', 'Clunk'];
+
+/**
+ * How good the computer drivers are. spread: aim wobble (× the gun's);
+ * damage: × what they deal; reach: × how far away they open fire;
+ * think: seconds between picking targets; mines: whether they lay them;
+ * boost: how keen they are on boost (distance to target before they use it).
+ */
+const BOT_SKILL = {
+  easy: { spread: 3, damage: 0.6, reach: 0.6, think: 1.1, mines: false, boostAt: 60, fireChance: 0.55 },
+  normal: { spread: 1, damage: 1, reach: 1, think: 0.5, mines: true, boostAt: 35, fireChance: 1 },
+  hard: { spread: 0.5, damage: 1.25, reach: 1.2, think: 0.25, mines: true, boostAt: 22, fireChance: 1 },
+};
 
 /** Hit points: bigger, heavier cars take more punishment. */
 function maxHpFor(def) {
@@ -9789,12 +10049,12 @@ class Versus {
 
   // --- Bots -----------------------------------------------------------------
 
-  /** Solo: add computer drivers in the given cars. */
-  addBots(defs) {
+  /** Solo: add computer drivers in the given cars, at a skill level (see BOT_SKILL). */
+  addBots(defs, skill = 'normal') {
     this.removeBots();
     defs.forEach((def, i) => {
       const id = `bot${i + 1}`;
-      const bot = new VersusBot(id, BOT_NAMES[i % BOT_NAMES.length], def, this.terrain());
+      const bot = new VersusBot(id, BOT_NAMES[i % BOT_NAMES.length], def, this.terrain(), BOT_SKILL[skill] || BOT_SKILL.normal);
       const tag = nameTag(bot.name, def);
       tag.position.set(0, carBounds(def).hi[1] + 1.1, 0);
       bot.model.root.add(tag);
@@ -9973,7 +10233,7 @@ class Versus {
 
   /** Damage multiplier for `f`'s attacks. */
   power(f) {
-    return f.buffs?.double > 0 ? 2 : 1;
+    return (f.buffs?.double > 0 ? 2 : 1) * (f.bot?.skill.damage ?? 1);
   }
 
   /** An explosion at `pos`: hurts (and shoves) our own cars nearby. */
@@ -10062,7 +10322,8 @@ class Versus {
   shootMG(f, real) {
     const spec = WEAPONS.mg;
     const mount = carPoint(f.car, turretMount(f.def), _vsA);
-    const dir = aimDir(f.aimYaw + (Math.random() - 0.5) * spec.spread * 2, f.aimPitch + (Math.random() - 0.5) * spec.spread, _vsB);
+    const spread = spec.spread * (f.bot?.skill.spread ?? 1);
+    const dir = aimDir(f.aimYaw + (Math.random() - 0.5) * spread * 2, f.aimPitch + (Math.random() - 0.5) * spread, _vsB);
     const origin = _vsC.copy(mount).addScaledVector(dir, 0.95);
     origin.y += 0.28;
     let best = spec.range, victim = null;
@@ -10754,11 +11015,13 @@ function labelTexture(text, color) {
  * when it only has its gun, and backs out when it gets stuck.
  */
 class VersusBot {
-  constructor(id, name, def, terrain) {
+  constructor(id, name, def, terrain, skill = BOT_SKILL.normal) {
     this.id = id;
     this.name = name;
     this.def = def;
-    this.car = new CarPhysics({ ...def.spec, assists: true }, terrain);
+    this.skill = skill;
+    // driftAssist 0: the AI is tuned for the plain handling.
+    this.car = new CarPhysics({ ...def.spec, assists: true, driftAssist: 0 }, terrain);
     this.car.aerial = !!def.aerial;
     this.model = new CarModel(def);
     this.stuck = 0;
@@ -10783,7 +11046,7 @@ class VersusBot {
     // Pick what to go after a few times a second.
     this.retarget -= dt;
     if (this.retarget <= 0) {
-      this.retarget = 0.4 + Math.random() * 0.3;
+      this.retarget = this.skill.think * (0.8 + Math.random() * 0.6);
       this.goal = this.chooseGoal(f, vs);
     }
     let tx, tz, charge = false;
@@ -10830,12 +11093,13 @@ class VersusBot {
       inp.throttle = sharp > 1.4 && speed > 12 ? 0.3 : 1;
       inp.brake = sharp > 2 && speed > 16 ? 0.6 : 0;
       inp.handbrake = sharp > 1.2 && speed > 8 && speed < 26;
-      inp.boost = !c.airborne && sharp < 0.2 && (charge || Math.hypot(dx, dz) > 35) && c.boost > 0.2;
+      inp.boost = !c.airborne && sharp < 0.2 && ((charge && this.skill.mines) || Math.hypot(dx, dz) > this.skill.boostAt) && c.boost > 0.2;
     }
 
     // Weapons: fire at whatever the auto-aim has.
     const w = vs.weaponOf(f);
     if (w === 'mines') {
+      if (!this.skill.mines) return;
       for (const o of vs.fighters.values()) {
         if (o === f || o.wrecked) continue;
         const ox = o.car.x - c.x, oz = o.car.z - c.z;
@@ -10845,8 +11109,10 @@ class VersusBot {
     } else if (f.target != null) {
       const t = vs.fighters.get(f.target);
       const d = t ? Math.hypot(t.car.x - c.x, t.car.z - c.z) : 999;
-      const reach = w === 'flamer' || w === 'inferno' ? 13 : w === 'mg' ? 55 : 80;
-      this.wantFire = d < reach;
+      const reach = (w === 'flamer' || w === 'inferno' ? 13 : w === 'mg' ? 55 : 80) * this.skill.reach;
+      // Easy bots hesitate: they only fire some of the time.
+      if (this.fireRoll === undefined || Math.random() < dt * 2) this.fireRoll = Math.random();
+      this.wantFire = d < reach && this.fireRoll < this.skill.fireChance;
     }
   }
 
@@ -11288,7 +11554,7 @@ const matchMode = () => mode === 'football' || mode === 'versus';
 let map = MAPS.free;
 let terrain = map.terrain;
 
-let car = new CarPhysics({ ...active.def.spec, assists: settings.assists }, terrain);
+let car = new CarPhysics({ ...active.def.spec, assists: settings.assists, driftAssist: settings.driftAssist }, terrain);
 const destruction = new Destruction(scene, 300);
 destruction.statics = map;
 const skids = new SkidMarks(scene);
@@ -11335,7 +11601,26 @@ const versus = new Versus({
     kick: (k) => quake.kick(k),
   },
 });
-const VS_BOT_CARS = ['sports', 'pickup', 'ember', 'hatch', 'inferno', 'bus'];
+const VS_BOT_CARS = {
+  mixed: ['sports', 'pickup', 'ember', 'hatch', 'inferno', 'bus', 'striker'],
+  heavy: ['bus', 'pickup', 'inferno'],
+  light: ['hatch', 'sports', 'ember', 'striker'],
+};
+
+/** Solo Versus: the computer drivers from the settings (how many, how good, in what). */
+function setupVersusBots() {
+  const n = Math.max(0, Math.min(5, settings.vsBots | 0));
+  let defs;
+  if (settings.vsBotCars === 'mine') {
+    defs = Array.from({ length: n }, () => active.def);
+  } else {
+    const ids = VS_BOT_CARS[settings.vsBotCars] || VS_BOT_CARS.mixed;
+    // A shuffled list (not your car, when there's choice), repeated if there are more bots than cars.
+    const pool = ids.filter((id) => id !== active.def.id || ids.length < 3).sort(() => Math.random() - 0.5);
+    defs = Array.from({ length: n }, (_, i) => VEHICLES.find((v) => v.id === pool[i % pool.length]));
+  }
+  versus.addBots(defs, settings.vsBotSkill);
+}
 let ballCam = true;
 let ownTouchUntil = 0; // online: we hit the ball; our local ball leads until then
 let netTimer = 0;
@@ -11445,6 +11730,7 @@ function applySettings({ rebuildRenderer = false } = {}) {
     physicsQuality: settings.physicsQuality,
   });
   car.spec.assists = settings.assists;
+  car.spec.driftAssist = settings.driftAssist;
   audio.setMuted(!settings.sound);
   audio.setVolume(settings.volume);
   quake.strength = settings.screenShake;
@@ -11459,6 +11745,11 @@ function setSetting(key, value) {
   saveSettings(settings);
   if (key === 'startVehicle') return;
   applySettings({ rebuildRenderer: prev.antialias !== settings.antialias });
+  // Versus bots changed: restart the solo match with the new line-up.
+  if (key.startsWith('vsBot') && mode === 'versus' && !net.online) {
+    resetAll();
+    if (state !== 'menu') toast(settings.vsBots ? `New match: ${settings.vsBots} ${settings.vsBotSkill} bot${settings.vsBots === 1 ? '' : 's'}` : 'New match, no bots');
+  }
 }
 
 // --- Arena and vehicles --------------------------------------------------
@@ -11526,6 +11817,7 @@ function resetAll() {
   resetBot();
   // The referee starts a new match; others wait for its kickoff.
   if (mode === 'football' && football.referee) football.startMatch();
+  if (mode === 'versus' && !net.online) setupVersusBots(); // a fresh line-up (and your current car) each match
   if (versus.active) versus.reset();
 }
 
@@ -11559,13 +11851,8 @@ function setMode(next) {
   } else {
     removeBot();
   }
-  if (mode === 'versus' && !net.online) {
-    // Three computer drivers in a random mix of the built-in cars.
-    const pool = VS_BOT_CARS.filter((id) => id !== active.def.id).sort(() => Math.random() - 0.5);
-    versus.addBots(pool.slice(0, 3).map((id) => VEHICLES.find((v) => v.id === id)));
-  } else {
-    versus.removeBots();
-  }
+  if (mode === 'versus' && !net.online) setupVersusBots();
+  else versus.removeBots();
   if (mode === 'football' && net.online && net.isHost && !football.teams.has('host')) {
     football.teams = new Map([['host', 0]]);
     for (const id of mp.remotes.keys()) assignTeam(id);
@@ -11727,7 +12014,7 @@ function changeVehicle(def) {
 
   active = target;
   active.model.root.visible = true;
-  car = new CarPhysics({ ...def.spec, assists: settings.assists }, terrain);
+  car = new CarPhysics({ ...def.spec, assists: settings.assists, driftAssist: settings.driftAssist }, terrain);
   car.reset(pose.x, pose.z, pose.heading);
   destruction.createCar(def);
   destruction.teleportCar(car);
@@ -11758,7 +12045,7 @@ function switchTo(target) {
   target.parked = null;
 
   active = target;
-  car = new CarPhysics({ ...target.def.spec, assists: settings.assists }, terrain);
+  car = new CarPhysics({ ...target.def.spec, assists: settings.assists, driftAssist: settings.driftAssist }, terrain);
   car.reset(t.x, t.z, heading);
   destruction.createCar(target.def);
   destruction.teleportCar(car);
@@ -11850,7 +12137,7 @@ function syncFleet() {
   const next = fleet.find((v) => v.def.id === activeId) || fleet[0];
   if (next !== active) {
     active = next;
-    car = new CarPhysics({ ...active.def.spec, assists: settings.assists }, terrain);
+    car = new CarPhysics({ ...active.def.spec, assists: settings.assists, driftAssist: settings.driftAssist }, terrain);
   }
   arenaDirty = true; // park new cars (and drop deleted ones) on the next Play
 }
@@ -11943,7 +12230,7 @@ function play(def) {
   if (chosen !== active) {
     for (const v of fleet) setTeamGlow(v.model, v.def, null);
     active = chosen;
-    car = new CarPhysics({ ...active.def.spec, assists: settings.assists }, terrain);
+    car = new CarPhysics({ ...active.def.spec, assists: settings.assists, driftAssist: settings.driftAssist }, terrain);
     arenaDirty = true;
   }
   if (wanted !== mode) {
@@ -12225,7 +12512,7 @@ const playing = (fn) => () => { if (state === 'playing') fn(); };
 input.onPress('Escape', () => {
   if (state === 'playing') pause();
   else if (state === 'paused' && menu.current === 'pause') resume();
-  else if (['options', 'controls', 'garage'].includes(menu.current)) menu.back();
+  else if (['options', 'controls', 'garage', 'patchnotes'].includes(menu.current)) menu.back();
 });
 input.onPress('KeyP', () => { if (state === 'playing') pause(); else if (state === 'paused' && menu.current === 'pause') resume(); });
 input.onPress('KeyR', playing(() => { resetCar(); toast('Car reset'); }));
@@ -12695,6 +12982,11 @@ function updateScene(dt, firing = false) {
     driftTimer -= dt;
     if (driftTimer <= 0) {
       hud.drift.classList.remove('show');
+      // A finished drift scores (free roam and motorway), into the combo like a smash.
+      if (driftScore >= 40 && roaming()) {
+        award(Math.round(driftScore));
+        toast(`Drift: +${Math.round(driftScore).toLocaleString('en-US')}`);
+      }
       driftScore = 0;
     }
   }
