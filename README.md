@@ -372,7 +372,7 @@ hitbox, a parking spot, camera settings, and a body builder.
 
 ## Run
 
-The quickest way: open **`smash-lot.html`** directly in a browser. It's a single self-contained file
+The quickest way: open **`games/smash-lot.html`** directly in a browser. It's a single self-contained file
 (three.js and Rapier still load from a CDN, so you need an internet connection). To regenerate it after
 editing `src/`, run `python3 scripts/build-standalone.py`.
 

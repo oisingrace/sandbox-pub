@@ -5,14 +5,14 @@ The modules are concatenated in dependency order into a single inline
 <script type="module">. Local imports are dropped (everything shares one
 scope); CDN imports resolved by the page's import map are kept once.
 
-Usage: python3 scripts/build-standalone.py  ->  writes smash-lot.html
+Usage: python3 scripts/build-standalone.py  ->  writes games/smash-lot.html
 """
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ORDER = ['physics', 'carkit', 'carModel', 'vehicles', 'destruction', 'world', 'effects', 'camera', 'input', 'audio', 'settings', 'menu', 'burn', 'terrain', 'net', 'multiplayer', 'carCollision', 'stadium', 'football', 'bot', 'quake', 'flamethrower', 'score', 'vsmap', 'motorway', 'weapons', 'versus', 'customs', 'workshop', 'main']
-OUT = ROOT / 'smash-lot.html'
+OUT = ROOT / 'games' / 'smash-lot.html'
 
 bare_imports = []
 parts = []
