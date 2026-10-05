@@ -1,4 +1,4 @@
-# Builds the games list and publishes the site to GitHub Pages on every push.
+# Builds the games list and patch notes, and publishes the site to GitHub Pages on every push.
 # You never need to edit this — just add .html files to the games/ folder.
 name: Deploy site
 
@@ -24,14 +24,11 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history, so patch notes know when each change happened
 
-      - name: Build games.json from the games folder
-        run: |
-          cd games
-          ls -1 *.html *.htm 2>/dev/null | sort -f \
-            | python3 -c 'import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()], indent=2))' \
-            > ../games.json
-          cat ../games.json
+      - name: Build games.json and patchnotes.json
+        run: python3 .github/scripts/build.py
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

@@ -43,6 +43,18 @@
   .card .file { color: var(--muted); font-size: .85rem; }
   #status { color: var(--muted); }
 
+  /* Patch notes */
+  #notes h2 { font-size: 1.3rem; margin: 40px 0 12px; }
+  .entry { padding: 14px 0; border-top: 1px solid var(--border); }
+  .entry time { color: var(--muted); font-size: .85rem; }
+  .entry .text { margin: 4px 0 0; white-space: pre-line; }
+  .entry .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .tag {
+    font-size: .8rem; padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--muted);
+  }
+  .tag.added { color: var(--accent); border-color: var(--accent); }
+
   /* Player overlay */
   #player {
     position: fixed; inset: 0; display: none; flex-direction: column;
@@ -69,6 +81,10 @@
 <main>
   <p id="status">Loading…</p>
   <div id="grid"></div>
+  <section id="notes" hidden>
+    <h2>Patch notes</h2>
+    <div id="noteList"></div>
+  </section>
 </main>
 
 <div id="player">
@@ -143,6 +159,49 @@ function render() {
     : shown.length === 0 ? 'No matches.' : '';
 }
 
+// Patch notes: patchnotes.json is built from the history of the games folder.
+// Each entry's time is when it was committed; the text is the commit message.
+async function renderNotes() {
+  let notes;
+  try {
+    const res = await fetch('patchnotes.json', { cache: 'no-cache' });
+    if (!res.ok) return;
+    notes = await res.json();
+  } catch { return; }
+  notes.sort((a, b) => new Date(b.time) - new Date(a.time));
+  const nameOf = file => (games.find(g => g.file === file) || {}).name || prettyName(file);
+  const list = document.getElementById('noteList');
+  list.innerHTML = '';
+  for (const n of notes) {
+    const el = document.createElement('article');
+    el.className = 'entry';
+    const time = document.createElement('time');
+    time.dateTime = n.time;
+    time.textContent = new Date(n.time).toLocaleString(undefined,
+      { dateStyle: 'medium', timeStyle: 'short' });
+    el.appendChild(time);
+    if (n.note) {
+      const p = document.createElement('p');
+      p.className = 'text';
+      p.textContent = n.note;
+      el.appendChild(p);
+    }
+    const tags = document.createElement('div');
+    tags.className = 'tags';
+    for (const kind of ['added', 'updated', 'removed']) {
+      for (const file of n[kind]) {
+        const t = document.createElement('span');
+        t.className = 'tag ' + kind;
+        t.textContent = kind[0].toUpperCase() + kind.slice(1) + ': ' + nameOf(file);
+        tags.appendChild(t);
+      }
+    }
+    if (tags.children.length) el.appendChild(tags);
+    list.appendChild(el);
+  }
+  document.getElementById('notes').hidden = notes.length === 0;
+}
+
 function route() {
   const slug = decodeURIComponent(location.hash.slice(1));
   const g = games.find(g => g.slug === slug);
@@ -177,6 +236,7 @@ window.onhashchange = route;
     await Promise.all(games.map(async g => { g.name = await titleOf(g.file); }));
     render();
     route();
+    renderNotes();
   } catch (e) {
     status.textContent = 'Could not load the game list (' + e.message + ').';
   }
