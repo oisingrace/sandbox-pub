@@ -14,7 +14,7 @@ export class Bot {
   constructor(def, terrain, team) {
     this.def = def;
     this.team = team;
-    this.car = new CarPhysics({ ...def.spec, assists: true }, terrain);
+    this.car = new CarPhysics({ ...def.spec, assists: true, driftAssist: 0 }, terrain); // AI tuned for plain handling
     this.model = new CarModel(def);
     this.stuck = 0;
     this.reversing = 0;

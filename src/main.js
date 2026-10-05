@@ -116,7 +116,7 @@ const matchMode = () => mode === 'football' || mode === 'versus';
 let map = MAPS.free;
 let terrain = map.terrain;
 
-let car = new CarPhysics({ ...active.def.spec, assists: settings.assists }, terrain);
+let car = new CarPhysics({ ...active.def.spec, assists: settings.assists, driftAssist: settings.driftAssist }, terrain);
 const destruction = new Destruction(scene, 300);
 destruction.statics = map;
 const skids = new SkidMarks(scene);
@@ -163,7 +163,26 @@ const versus = new Versus({
     kick: (k) => quake.kick(k),
   },
 });
-const VS_BOT_CARS = ['sports', 'pickup', 'ember', 'hatch', 'inferno', 'bus'];
+const VS_BOT_CARS = {
+  mixed: ['sports', 'pickup', 'ember', 'hatch', 'inferno', 'bus', 'striker'],
+  heavy: ['bus', 'pickup', 'inferno'],
+  light: ['hatch', 'sports', 'ember', 'striker'],
+};
+
+/** Solo Versus: the computer drivers from the settings (how many, how good, in what). */
+function setupVersusBots() {
+  const n = Math.max(0, Math.min(5, settings.vsBots | 0));
+  let defs;
+  if (settings.vsBotCars === 'mine') {
+    defs = Array.from({ length: n }, () => active.def);
+  } else {
+    const ids = VS_BOT_CARS[settings.vsBotCars] || VS_BOT_CARS.mixed;
+    // A shuffled list (not your car, when there's choice), repeated if there are more bots than cars.
+    const pool = ids.filter((id) => id !== active.def.id || ids.length < 3).sort(() => Math.random() - 0.5);
+    defs = Array.from({ length: n }, (_, i) => VEHICLES.find((v) => v.id === pool[i % pool.length]));
+  }
+  versus.addBots(defs, settings.vsBotSkill);
+}
 let ballCam = true;
 let ownTouchUntil = 0; // online: we hit the ball; our local ball leads until then
 let netTimer = 0;
@@ -273,6 +292,7 @@ function applySettings({ rebuildRenderer = false } = {}) {
     physicsQuality: settings.physicsQuality,
   });
   car.spec.assists = settings.assists;
+  car.spec.driftAssist = settings.driftAssist;
   audio.setMuted(!settings.sound);
   audio.setVolume(settings.volume);
   quake.strength = settings.screenShake;
@@ -287,6 +307,11 @@ function setSetting(key, value) {
   saveSettings(settings);
   if (key === 'startVehicle') return;
   applySettings({ rebuildRenderer: prev.antialias !== settings.antialias });
+  // Versus bots changed: restart the solo match with the new line-up.
+  if (key.startsWith('vsBot') && mode === 'versus' && !net.online) {
+    resetAll();
+    if (state !== 'menu') toast(settings.vsBots ? `New match: ${settings.vsBots} ${settings.vsBotSkill} bot${settings.vsBots === 1 ? '' : 's'}` : 'New match, no bots');
+  }
 }
 
 // --- Arena and vehicles --------------------------------------------------
@@ -354,6 +379,7 @@ function resetAll() {
   resetBot();
   // The referee starts a new match; others wait for its kickoff.
   if (mode === 'football' && football.referee) football.startMatch();
+  if (mode === 'versus' && !net.online) setupVersusBots(); // a fresh line-up (and your current car) each match
   if (versus.active) versus.reset();
 }
 
@@ -387,13 +413,8 @@ function setMode(next) {
   } else {
     removeBot();
   }
-  if (mode === 'versus' && !net.online) {
-    // Three computer drivers in a random mix of the built-in cars.
-    const pool = VS_BOT_CARS.filter((id) => id !== active.def.id).sort(() => Math.random() - 0.5);
-    versus.addBots(pool.slice(0, 3).map((id) => VEHICLES.find((v) => v.id === id)));
-  } else {
-    versus.removeBots();
-  }
+  if (mode === 'versus' && !net.online) setupVersusBots();
+  else versus.removeBots();
   if (mode === 'football' && net.online && net.isHost && !football.teams.has('host')) {
     football.teams = new Map([['host', 0]]);
     for (const id of mp.remotes.keys()) assignTeam(id);
@@ -555,7 +576,7 @@ function changeVehicle(def) {
 
   active = target;
   active.model.root.visible = true;
-  car = new CarPhysics({ ...def.spec, assists: settings.assists }, terrain);
+  car = new CarPhysics({ ...def.spec, assists: settings.assists, driftAssist: settings.driftAssist }, terrain);
   car.reset(pose.x, pose.z, pose.heading);
   destruction.createCar(def);
   destruction.teleportCar(car);
@@ -586,7 +607,7 @@ function switchTo(target) {
   target.parked = null;
 
   active = target;
-  car = new CarPhysics({ ...target.def.spec, assists: settings.assists }, terrain);
+  car = new CarPhysics({ ...target.def.spec, assists: settings.assists, driftAssist: settings.driftAssist }, terrain);
   car.reset(t.x, t.z, heading);
   destruction.createCar(target.def);
   destruction.teleportCar(car);
@@ -678,7 +699,7 @@ function syncFleet() {
   const next = fleet.find((v) => v.def.id === activeId) || fleet[0];
   if (next !== active) {
     active = next;
-    car = new CarPhysics({ ...active.def.spec, assists: settings.assists }, terrain);
+    car = new CarPhysics({ ...active.def.spec, assists: settings.assists, driftAssist: settings.driftAssist }, terrain);
   }
   arenaDirty = true; // park new cars (and drop deleted ones) on the next Play
 }
@@ -771,7 +792,7 @@ function play(def) {
   if (chosen !== active) {
     for (const v of fleet) setTeamGlow(v.model, v.def, null);
     active = chosen;
-    car = new CarPhysics({ ...active.def.spec, assists: settings.assists }, terrain);
+    car = new CarPhysics({ ...active.def.spec, assists: settings.assists, driftAssist: settings.driftAssist }, terrain);
     arenaDirty = true;
   }
   if (wanted !== mode) {
@@ -1053,7 +1074,7 @@ const playing = (fn) => () => { if (state === 'playing') fn(); };
 input.onPress('Escape', () => {
   if (state === 'playing') pause();
   else if (state === 'paused' && menu.current === 'pause') resume();
-  else if (['options', 'controls', 'garage'].includes(menu.current)) menu.back();
+  else if (['options', 'controls', 'garage', 'patchnotes'].includes(menu.current)) menu.back();
 });
 input.onPress('KeyP', () => { if (state === 'playing') pause(); else if (state === 'paused' && menu.current === 'pause') resume(); });
 input.onPress('KeyR', playing(() => { resetCar(); toast('Car reset'); }));
@@ -1523,6 +1544,11 @@ function updateScene(dt, firing = false) {
     driftTimer -= dt;
     if (driftTimer <= 0) {
       hud.drift.classList.remove('show');
+      // A finished drift scores (free roam and motorway), into the combo like a smash.
+      if (driftScore >= 40 && roaming()) {
+        award(Math.round(driftScore));
+        toast(`Drift: +${Math.round(driftScore).toLocaleString('en-US')}`);
+      }
       driftScore = 0;
     }
   }

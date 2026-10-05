@@ -1,4 +1,5 @@
 import { OPTIONS } from './settings.js';
+import { PATCH_NOTES } from './patchnotes.js';
 
 // Main menu, pause menu, options and controls screens. The menu only
 // renders UI and reports choices; main.js owns game state.
@@ -7,6 +8,7 @@ const TABS = [
   ['graphics', 'Graphics'],
   ['destruction', 'Destruction'],
   ['game', 'Game'],
+  ['versus', 'Versus'],
 ];
 
 export const MODE_NAMES = { free: 'Free roam', motorway: 'Motorway', football: 'Car football', versus: 'Versus' };
@@ -41,6 +43,7 @@ export class Menu {
     on('btn-play', () => opts.onPlay(this.vehicle));
     on('btn-options', () => this.show('options', 'main'));
     on('btn-controls', () => this.show('controls', 'main'));
+    on('btn-patchnotes', () => { this.renderPatchNotes(); this.show('patchnotes', 'main'); });
     on('btn-resume', () => opts.onResume());
     on('btn-garage', () => this.showGarage());
     on('btn-pause-options', () => this.show('options', 'pause'));
@@ -84,6 +87,11 @@ export class Menu {
     document.getElementById('mode-blurb').textContent = MODE_BLURBS[mode];
     // Car football has one car for everyone (the Striker): no picker.
     document.body.classList.toggle('menu-football', mode === 'football');
+    document.body.classList.toggle('menu-versus', mode === 'versus');
+    // Versus: how many bots, how good, in what.
+    const setup = document.getElementById('vs-setup');
+    setup.hidden = mode !== 'versus';
+    if (mode === 'versus') this.renderVersusSetup();
     document.getElementById('room-mode-name').textContent = MODE_NAMES[mode];
   }
 
@@ -270,6 +278,82 @@ export class Menu {
     return wrap;
   }
 
+  /** A row of choice buttons for one setting; `after` runs once it's changed. */
+  choiceSeg(key, def, settings, after) {
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    seg.setAttribute('role', 'radiogroup');
+    seg.setAttribute('aria-label', def.label);
+    for (const [value, label] of def.choices) {
+      if (key === 'preset' && value === 'custom' && settings.preset !== 'custom') continue;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', String(settings[key] === value));
+      b.addEventListener('click', () => {
+        this.opts.onSetting(key, value);
+        after();
+      });
+      seg.appendChild(b);
+    }
+    return seg;
+  }
+
+  /** The Versus bot setup on the main menu (same settings as Options → Versus). */
+  renderVersusSetup() {
+    const settings = this.opts.getSettings();
+    const box = document.getElementById('vs-setup');
+    const rows = [];
+    for (const [key, label] of [['vsBots', 'Bots'], ['vsBotSkill', 'Skill']]) {
+      if (key !== 'vsBots' && !settings.vsBots) continue;
+      const row = document.createElement('div');
+      row.className = 'vs-row';
+      row.dataset.key = key;
+      const name = document.createElement('span');
+      name.className = 'vs-label';
+      name.textContent = label;
+      const def = OPTIONS.versus[key];
+      const choices = key === 'vsBots' ? { ...def, choices: def.choices.map(([v, l]) => [v, v === 0 ? 'None' : l]) } : def;
+      row.append(name, this.choiceSeg(key, choices, settings, () => {
+        this.renderVersusSetup();
+        box.querySelector(`[data-key="${key}"] [aria-checked="true"]`)?.focus({ preventScroll: true });
+      }));
+      rows.push(row);
+    }
+    const note = document.createElement('p');
+    note.className = 'vs-note';
+    note.textContent = settings.vsBots ? 'Solo only. Bot cars: Options → Versus.' : 'No bots: try the weapons and pads on your own.';
+    box.replaceChildren(...rows, note);
+  }
+
+  renderPatchNotes() {
+    const list = document.getElementById('patchnotes-list');
+    if (list.childElementCount) return;
+    list.replaceChildren(...PATCH_NOTES.map((p) => {
+      const art = document.createElement('article');
+      art.className = 'patch';
+      const h = document.createElement('h3');
+      const ver = document.createElement('span');
+      ver.className = 'ver';
+      ver.textContent = `v${p.version}`;
+      const title = document.createElement('span');
+      title.textContent = p.title;
+      const time = document.createElement('time');
+      time.dateTime = p.date;
+      time.textContent = new Date(`${p.date}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+      h.append(ver, title, time);
+      const ul = document.createElement('ul');
+      for (const n of p.notes) {
+        const li = document.createElement('li');
+        li.textContent = n;
+        ul.append(li);
+      }
+      art.append(h, ul);
+      return art;
+    }));
+  }
+
   renderOptions() {
     const settings = this.opts.getSettings();
     for (const b of document.querySelectorAll('#option-tabs button')) {
@@ -292,24 +376,10 @@ export class Menu {
         list.appendChild(row);
         continue;
       }
-      const seg = document.createElement('div');
-      seg.className = 'seg';
-      seg.setAttribute('role', 'radiogroup');
-      seg.setAttribute('aria-label', def.label);
-      for (const [value, label] of def.choices) {
-        if (key === 'preset' && value === 'custom' && settings.preset !== 'custom') continue;
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.textContent = label;
-        b.setAttribute('role', 'radio');
-        b.setAttribute('aria-checked', String(settings[key] === value));
-        b.addEventListener('click', () => {
-          this.opts.onSetting(key, value);
-          this.renderOptions();
-          list.querySelector(`[data-key="${key}"] [aria-checked="true"]`)?.focus({ preventScroll: true });
-        });
-        seg.appendChild(b);
-      }
+      const seg = this.choiceSeg(key, def, settings, () => {
+        this.renderOptions();
+        list.querySelector(`[data-key="${key}"] [aria-checked="true"]`)?.focus({ preventScroll: true });
+      });
       row.dataset.key = key;
       row.append(text, seg);
       list.appendChild(row);

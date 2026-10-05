@@ -27,8 +27,18 @@ export const OPTIONS = {
     debrisLifetime: { label: 'Debris cleanup', hint: 'Small pieces fade out after this long', choices: [[0, 'Never'], [60, '60 s'], [20, '20 s']] },
     physicsQuality: { label: 'Physics accuracy', hint: 'Higher keeps tall stacks steadier, costs CPU', choices: [[2, 'Low'], [4, 'Normal'], [6, 'High']] },
   },
+  versus: {
+    vsBots: { label: 'Computer drivers', hint: 'Solo Versus only; 0 to practise on your own', choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']] },
+    vsBotSkill: { label: 'Bot skill', hint: 'Aim, damage, how far away they shoot, how fast they react', choices: [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']] },
+    vsBotCars: { label: 'Bot cars', choices: [['mixed', 'Mixed'], ['mine', 'Same as yours'], ['heavy', 'Heavy'], ['light', 'Light']] },
+  },
   game: {
     assists: { label: 'Driving assists', hint: 'Traction control and countersteer', choices: [[true, 'On'], [false, 'Off']] },
+    driftAssist: {
+      label: 'Drift helper', hint: 'Holds a slide at the angle you steer for and keeps you moving; off is the raw handling',
+      slider: { min: 0, max: 1, step: 0.05, format: (v) => (v === 0 ? 'Off' : `${Math.round(v * 100)}%`) },
+      choices: [],
+    },
     sound: { label: 'Sound', choices: [[true, 'On'], [false, 'Off']] },
     screenShake: {
       label: 'Screen shake', hint: 'Grows with how much is being destroyed around you',
@@ -55,6 +65,10 @@ export const DEFAULTS = {
   sound: true,
   volume: 0.75,
   screenShake: 1,
+  driftAssist: 0.7,
+  vsBots: 3,
+  vsBotSkill: 'normal',
+  vsBotCars: 'mixed',
   startVehicle: 'sports',
   playerName: '',
   mode: 'free',

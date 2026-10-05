@@ -59,7 +59,17 @@ export const DEFAULT_SPEC = {
   boostDuration: 3,        // seconds from a full meter to empty
   boostRecharge: 9,        // seconds to refill from empty when not boosting
   tractionLimit: 0.72,     // fraction of rear grip TC allows for drive
+  driftAssist: 0.7,        // 0..1: how much the drift helper holds a slide (see driftHelp)
 };
+
+// Drift helper. Once the rear steps out, it holds the slide at an angle
+// you choose with the steering (into the turn: wider; countersteer: it
+// straightens), keeps the car driving forward on the throttle, and stops
+// it spinning out. Off the throttle with the wheel straight, drifts fade.
+const DRIFT_KP = 14;         // yaw correction per radian of angle error
+const DRIFT_KD = 2.2;        // ...and per rad/s of the angle changing
+const DRIFT_HOLD = 3.5;      // m/s^2 of push on the throttle mid-drift
+const DRIFT_TC = 1.15;       // traction control lets the rear spin up to this mid-drift
 
 // Torque curve (rpm -> Nm), linearly interpolated.
 const TORQUE_CURVE = [
@@ -209,9 +219,10 @@ export class CarPhysics {
     let target = clamp(input.steer, -1, 1) * steerLimit;
     if (s.assists && vx > 4) {
       // Counter-steer toward the direction of travel, like caster trail
-      // pulling the wheels into a slide. Stronger with hands off.
+      // pulling the wheels into a slide. Stronger with hands off; eased
+      // off mid-drift so the drift helper decides the angle.
       const bodySlip = Math.atan2(vy, vx);
-      const gain = Math.abs(input.steer) < 0.05 ? 0.9 : 0.45;
+      const gain = (Math.abs(input.steer) < 0.05 ? 0.9 : 0.45) * (1 - 0.6 * (this.driftLevel || 0));
       target = clamp(target + bodySlip * gain, -s.maxSteer, s.maxSteer);
     }
     const rate = Math.abs(target) > Math.abs(this.steer) && sign(target) === sign(this.steer)
@@ -283,7 +294,10 @@ export class CarPhysics {
       const engineBrake = drive < 0.05 && this.gear > 0
         ? -sign(vLongR) * Math.min(s.engineBrake * ratio, stopR) : 0;
       let tcDrive = driveForce;
-      if (s.assists) tcDrive = clamp(driveForce, -maxR * s.tractionLimit, maxR * s.tractionLimit);
+      if (s.assists) {
+        const limit = s.tractionLimit + (DRIFT_TC - s.tractionLimit) * (this.driftLevel || 0);
+        tcDrive = clamp(driveForce, -maxR * limit, maxR * limit);
+      }
       FxR = tcDrive + brakeR + engineBrake;
       if (Math.abs(FxR) > maxR) {
         wheelspin = clamp((Math.abs(FxR) - maxR) / maxR, 0, 1);
@@ -291,6 +305,8 @@ export class CarPhysics {
       }
       // Friction circle: traction eats into cornering grip.
       rearLatCap = Math.sqrt(Math.max(maxR * maxR * 0.2, maxR * maxR - FxR * FxR));
+      // Mid-drift on the throttle, the spinning rear tyres hold less sideways.
+      rearLatCap *= 1 - 0.35 * (this.driftLevel || 0) * drive * clamp(s.driftAssist ?? 0, 0, 1);
     }
     const frontLatCap = Math.sqrt(Math.max(maxF * maxF * 0.05, maxF * maxF - FxF * FxF));
 
@@ -306,6 +322,8 @@ export class CarPhysics {
     let Fx = FxF * cs - FyF * ss + FxR + drag * vx - s.rollingResistance * vx;
     let Fy = FxF * ss + FyF * cs + FyR + drag * vy;
     const torque = a * (FxF * ss + FyF * cs) - b * FyR;
+    const help = this.driftHelp(vx, vy, drive, input, dt);
+    Fx += s.mass * help.push;
 
     if (this.boosting) Fx += s.mass * s.boostAccel;
     Fx -= s.mass * G * Math.sin(this.pitch); // climbing a ramp costs speed
@@ -316,7 +334,7 @@ export class CarPhysics {
     const fwdX = sinH, fwdZ = cosH, leftX = cosH, leftZ = -sinH;
     this.velX += (fwdX * ax + leftX * ay) * dt;
     this.velZ += (fwdZ * ax + leftZ * ay) * dt;
-    this.yawRate += (torque / (s.mass * s.inertiaScale)) * dt;
+    this.yawRate += (torque / (s.mass * s.inertiaScale) + help.yaw) * dt;
 
     // Come fully to rest instead of creeping forever.
     if (drive < 0.05 && this.speed < 0.15) {
@@ -740,6 +758,41 @@ export class CarPhysics {
     // On the wheels and driving again; the body settles onto the ground
     // over a moment (see followGround) instead of snapping flat.
     this.settle = 0.4;
+  }
+
+  /**
+   * The drift helper for one step: { yaw (rad/s^2), push (m/s^2) }.
+   * Sets `driftLevel` (0..1, how much of a drift we're in).
+   */
+  driftHelp(vx, vy, drive, input, dt) {
+    const strength = clamp(this.spec.driftAssist ?? 0, 0, 1);
+    const beta = Math.atan2(vy, Math.max(vx, 0.1));
+    const ab = Math.abs(beta);
+    const prev = this.prevSlip ?? ab;
+    this.prevSlip = ab;
+    const sb = sign(beta);
+    // Steering into the turn (against the slide) asks for more angle.
+    const into = clamp(-sb * input.steer, -1, 1);
+    // In a drift once the tail is well out; it carries on while you keep
+    // the throttle down or steer into it, and fades when you don't.
+    const state = this.driftState || 0;
+    const keep = state > 0.05 && ab > 0.04 && ((drive > 0.3 && into > -0.15) || into > 0.15);
+    const enter = ab > 0.16 && into > -0.15;
+    const goal = vx > 6 && (keep || enter) ? 1 : 0;
+    this.driftState = clamp(state + (goal ? 8 : -2.5) * dt, 0, 1);
+    let level = this.driftState * clamp((vx - 5) / 5, 0, 1);
+    // Let the handbrake swing the tail out; the helper takes over after.
+    if (this.handbrake) level *= 0.3;
+    this.driftLevel = strength > 0 ? level : 0;
+    if (!(level > 0) || strength <= 0) return { yaw: 0, push: 0 };
+    const want = clamp(0.12 + 0.28 * drive + 0.32 * into, 0.05, 0.85);
+    const err = ab - want;
+    const rate = (ab - prev) / dt;
+    const k = level * strength;
+    return {
+      yaw: sb * (DRIFT_KP * err + DRIFT_KD * rate) * k,
+      push: DRIFT_HOLD * drive * k * Math.min(1, ab / 0.4),
+    };
   }
 
   tireCurve(slip) {

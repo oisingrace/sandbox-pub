@@ -174,7 +174,11 @@ minutes wins.
 - **HUD:** health bar, weapon and ammo, active upgrades with their timers, the clock, a leaderboard
   (wrecks and deaths), a kill feed, health bars over other cars, a red vignette when you're hit, and
   a "Wrecked by…" countdown.
-- **Solo:** three computer drivers (`VersusBot`) in a random mix of the built-in cars. They hunt the
+- **Solo:** up to five computer drivers (`VersusBot`), or none to practise alone. Pick how many, their
+  skill and their cars on the main menu (under the mode picker) or in Options → Versus; changing them
+  mid-match restarts it. Skill sets their aim wobble, damage, firing range, reactions, and whether they
+  boost and lay mines: easy bots also hesitate before firing. Cars: a mixed line-up, the same car as
+  yours, heavy (bus, pickups) or light (hatchback, coupe, Ember, Striker). They hunt the
   nearest enemy (leading a moving one), ram when close, fire when their target is in their sights,
   drop mines on anyone tailing them, go for a repair when hurt and a weapon when they only have their
   gun, and back out when they get stuck. They fight each other as well as you, and they bump into cover
@@ -333,7 +337,9 @@ and the game also pauses automatically when the tab is hidden. Options are saved
   resolution, shadows, view distance, smoke and dust, anti-aliasing, FPS counter.
 - **Destruction:** breakage (detailed, simple or off), max debris pieces, debris cleanup time, and
   physics accuracy.
-- **Game:** driving assists and sound.
+- **Game:** driving assists, the drift helper, sound, volume and screen shake.
+- **Versus:** how many computer drivers (none to 5), their skill and their cars.
+- **Patch notes** on the main menu list what changed in each update (`src/patchnotes.js`).
 
 ## Performance notes
 
@@ -422,6 +428,12 @@ All of it is in `src/physics.js`. It's a planar bicycle model integrated at a fi
 - **Drivetrain**: a torque curve, a 6-speed automatic with shift delays, launch clutch slip, engine braking and reverse.
 - **Handbrake**: locks the rear wheels and drops their side grip, for flicks and handbrake turns.
 - **Assists** (T): traction control plus a caster-style countersteer. With assists off, the car is fully tail-happy.
+- **Drift helper** (Options → Game, 70% by default): once the tail is out, it holds the slide at an angle you
+  choose with the steering (into the turn for more angle, up to about 50°; countersteer and it straightens), with
+  a yaw correction toward that angle. On the throttle the spinning rear tyres hold less sideways and a push keeps
+  the car driving forward, and traction control lets the wheels spin mid-drift. It stops spin-outs, and lifting
+  off with the wheel straight ends the drift. Ordinary cornering is untouched. Finished drifts score points in
+  free roam and on the motorway. Computer drivers use the plain handling.
 - **Speed-sensitive steering**: less lock at speed keeps the front tires near their peak slip.
 
 Every tunable value lives in `DEFAULT_SPEC` at the top of `physics.js`.

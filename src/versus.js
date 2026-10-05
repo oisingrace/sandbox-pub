@@ -45,7 +45,19 @@ const ITEM_CODES = Object.keys(ITEMS);
 /** Match time (seconds played) at which each tier of upgrades appears. */
 const VS_TIERS = [0, 60, 150];
 
-export const BOT_NAMES = ['Rex', 'Vex', 'Moxie', 'Gnasher', 'Torque'];
+export const BOT_NAMES = ['Rex', 'Vex', 'Moxie', 'Gnasher', 'Torque', 'Clunk'];
+
+/**
+ * How good the computer drivers are. spread: aim wobble (× the gun's);
+ * damage: × what they deal; reach: × how far away they open fire;
+ * think: seconds between picking targets; mines: whether they lay them;
+ * boost: how keen they are on boost (distance to target before they use it).
+ */
+export const BOT_SKILL = {
+  easy: { spread: 3, damage: 0.6, reach: 0.6, think: 1.1, mines: false, boostAt: 60, fireChance: 0.55 },
+  normal: { spread: 1, damage: 1, reach: 1, think: 0.5, mines: true, boostAt: 35, fireChance: 1 },
+  hard: { spread: 0.5, damage: 1.25, reach: 1.2, think: 0.25, mines: true, boostAt: 22, fireChance: 1 },
+};
 
 /** Hit points: bigger, heavier cars take more punishment. */
 export function maxHpFor(def) {
@@ -212,12 +224,12 @@ export class Versus {
 
   // --- Bots -----------------------------------------------------------------
 
-  /** Solo: add computer drivers in the given cars. */
-  addBots(defs) {
+  /** Solo: add computer drivers in the given cars, at a skill level (see BOT_SKILL). */
+  addBots(defs, skill = 'normal') {
     this.removeBots();
     defs.forEach((def, i) => {
       const id = `bot${i + 1}`;
-      const bot = new VersusBot(id, BOT_NAMES[i % BOT_NAMES.length], def, this.terrain());
+      const bot = new VersusBot(id, BOT_NAMES[i % BOT_NAMES.length], def, this.terrain(), BOT_SKILL[skill] || BOT_SKILL.normal);
       const tag = nameTag(bot.name, def);
       tag.position.set(0, carBounds(def).hi[1] + 1.1, 0);
       bot.model.root.add(tag);
@@ -396,7 +408,7 @@ export class Versus {
 
   /** Damage multiplier for `f`'s attacks. */
   power(f) {
-    return f.buffs?.double > 0 ? 2 : 1;
+    return (f.buffs?.double > 0 ? 2 : 1) * (f.bot?.skill.damage ?? 1);
   }
 
   /** An explosion at `pos`: hurts (and shoves) our own cars nearby. */
@@ -485,7 +497,8 @@ export class Versus {
   shootMG(f, real) {
     const spec = WEAPONS.mg;
     const mount = carPoint(f.car, turretMount(f.def), _vsA);
-    const dir = aimDir(f.aimYaw + (Math.random() - 0.5) * spec.spread * 2, f.aimPitch + (Math.random() - 0.5) * spec.spread, _vsB);
+    const spread = spec.spread * (f.bot?.skill.spread ?? 1);
+    const dir = aimDir(f.aimYaw + (Math.random() - 0.5) * spread * 2, f.aimPitch + (Math.random() - 0.5) * spread, _vsB);
     const origin = _vsC.copy(mount).addScaledVector(dir, 0.95);
     origin.y += 0.28;
     let best = spec.range, victim = null;
@@ -1177,11 +1190,13 @@ function labelTexture(text, color) {
  * when it only has its gun, and backs out when it gets stuck.
  */
 export class VersusBot {
-  constructor(id, name, def, terrain) {
+  constructor(id, name, def, terrain, skill = BOT_SKILL.normal) {
     this.id = id;
     this.name = name;
     this.def = def;
-    this.car = new CarPhysics({ ...def.spec, assists: true }, terrain);
+    this.skill = skill;
+    // driftAssist 0: the AI is tuned for the plain handling.
+    this.car = new CarPhysics({ ...def.spec, assists: true, driftAssist: 0 }, terrain);
     this.car.aerial = !!def.aerial;
     this.model = new CarModel(def);
     this.stuck = 0;
@@ -1206,7 +1221,7 @@ export class VersusBot {
     // Pick what to go after a few times a second.
     this.retarget -= dt;
     if (this.retarget <= 0) {
-      this.retarget = 0.4 + Math.random() * 0.3;
+      this.retarget = this.skill.think * (0.8 + Math.random() * 0.6);
       this.goal = this.chooseGoal(f, vs);
     }
     let tx, tz, charge = false;
@@ -1253,12 +1268,13 @@ export class VersusBot {
       inp.throttle = sharp > 1.4 && speed > 12 ? 0.3 : 1;
       inp.brake = sharp > 2 && speed > 16 ? 0.6 : 0;
       inp.handbrake = sharp > 1.2 && speed > 8 && speed < 26;
-      inp.boost = !c.airborne && sharp < 0.2 && (charge || Math.hypot(dx, dz) > 35) && c.boost > 0.2;
+      inp.boost = !c.airborne && sharp < 0.2 && ((charge && this.skill.mines) || Math.hypot(dx, dz) > this.skill.boostAt) && c.boost > 0.2;
     }
 
     // Weapons: fire at whatever the auto-aim has.
     const w = vs.weaponOf(f);
     if (w === 'mines') {
+      if (!this.skill.mines) return;
       for (const o of vs.fighters.values()) {
         if (o === f || o.wrecked) continue;
         const ox = o.car.x - c.x, oz = o.car.z - c.z;
@@ -1268,8 +1284,10 @@ export class VersusBot {
     } else if (f.target != null) {
       const t = vs.fighters.get(f.target);
       const d = t ? Math.hypot(t.car.x - c.x, t.car.z - c.z) : 999;
-      const reach = w === 'flamer' || w === 'inferno' ? 13 : w === 'mg' ? 55 : 80;
-      this.wantFire = d < reach;
+      const reach = (w === 'flamer' || w === 'inferno' ? 13 : w === 'mg' ? 55 : 80) * this.skill.reach;
+      // Easy bots hesitate: they only fire some of the time.
+      if (this.fireRoll === undefined || Math.random() < dt * 2) this.fireRoll = Math.random();
+      this.wantFire = d < reach && this.fireRoll < this.skill.fireChance;
     }
   }
 
