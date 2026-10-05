@@ -2,69 +2,185 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Swing (beta)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=swap" />
   <style>
-    /* Layout: full-bleed 3D view; HUD pinned to corners; one centred card for start/pause. */
+    /* Layout: full-bleed 3D view; HUD pinned to the corners; menus slide in from the left over the live city. */
     :root {
-      --sky: #cfe0ee;
-      --glass: rgba(14, 18, 26, 0.58);
-      --glass-strong: rgba(12, 16, 24, 0.82);
-      --ink: #f3f5f8;
-      --ink-dim: #a7b0bd;
-      --suit: #e2414b;
+      --glass: rgba(12, 16, 24, 0.6);
+      --glass-strong: rgba(10, 13, 20, 0.88);
+      --line: rgba(255, 255, 255, 0.1);
+      --ink: #f2f4f8;
+      --dim: #9ea8b6;
+      --accent: #e8424c;
+      --accent-hi: #f45a63;
+      --gold: #ffc23d;
+      --cyan: #45d8ea;
       --display: "Chakra Petch", "Arial Narrow", system-ui, sans-serif;
       --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       color-scheme: dark;
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; overflow: hidden; background: var(--sky); }
-    body { font-family: var(--body); color: var(--ink); user-select: none; -webkit-user-select: none; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1118; }
+    body { font-family: var(--body); color: var(--ink); user-select: none; -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent; touch-action: none; }
     #app canvas { display: block; }
-    .glass { background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 12px; }
     [hidden] { display: none !important; }
-
-    /* Speed HUD */
-    #dash { position: fixed; right: 16px; bottom: 16px; padding: 12px 16px 14px; width: 190px; display: grid; gap: 8px; }
-    #dash .row { display: flex; align-items: baseline; justify-content: space-between; }
-    #speed { font: 700 46px/1 var(--display); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-    #dash .unit { color: var(--ink-dim); font: 500 12px var(--display); letter-spacing: 0.08em; }
-    #bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.12); overflow: hidden; }
-    #bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffffff, var(--suit)); border-radius: 3px; }
-    #chips { display: flex; gap: 6px; font: 600 10px var(--display); letter-spacing: 0.12em; text-transform: uppercase; }
-    .chip { padding: 3px 7px; border-radius: 999px; background: rgba(255,255,255,0.1); color: var(--ink-dim); }
-    .chip.on { background: var(--suit); color: #fff; }
-
-    /* Contextual hint */
-    #hint { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); padding: 9px 16px; font-size: 14px;
-      max-width: calc(100vw - 32px); text-align: center; }
-    #hint kbd, .card kbd { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 5px; background: rgba(255,255,255,0.16);
+    .glass { background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 12px; }
+    kbd { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 5px; background: rgba(255,255,255,0.16);
       font: 600 11px/20px ui-monospace, monospace; text-align: center; color: var(--ink); }
 
-    #vignette { position: fixed; inset: 0; pointer-events: none; opacity: 0;
-      background: radial-gradient(ellipse at center, rgba(0,0,0,0) 52%, rgba(6,10,18,0.6) 100%); }
+    /* ---------- HUD ---------- */
+    #hud { position: fixed; inset: 0; pointer-events: none; }
+    #topleft { position: absolute; left: 16px; top: 16px; padding: 10px 14px; display: grid; gap: 6px; min-width: 156px; }
+    .tok { display: flex; align-items: center; gap: 9px; font: 700 22px/1 var(--display); font-variant-numeric: tabular-nums; }
+    .gem { width: 13px; height: 13px; background: var(--gold); transform: rotate(45deg); border-radius: 2px; box-shadow: 0 0 10px rgba(255,194,61,0.6); }
+    .tok .of { color: var(--dim); font-size: 14px; }
+    .score-row { display: flex; justify-content: space-between; gap: 12px; font: 600 11px var(--display); letter-spacing: 0.12em; color: var(--dim); text-transform: uppercase; }
+    .score-row b { color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; font-size: 13px; }
+    #mapWrap { position: absolute; right: 16px; top: 16px; width: 168px; height: 168px; border-radius: 50%; overflow: hidden;
+      background: #16202c; box-shadow: 0 0 0 2px rgba(255,255,255,0.14), 0 6px 20px rgba(0,0,0,0.35); }
+    #minimap { width: 100%; height: 100%; display: block; }
+    #race { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); padding: 8px 20px 10px; text-align: center; min-width: 210px; }
+    #raceName { font: 600 11px var(--display); letter-spacing: 0.16em; text-transform: uppercase; color: var(--cyan); }
+    #raceTime { font: 700 34px/1.05 var(--display); font-variant-numeric: tabular-nums; }
+    .race-sub { display: flex; justify-content: center; gap: 14px; font: 600 12px var(--display); color: var(--dim); font-variant-numeric: tabular-nums; }
+    #combo { position: absolute; right: 18px; top: 200px; text-align: right; transition: opacity 0.35s; }
+    #comboPts { font: 700 30px/1 var(--display); font-variant-numeric: tabular-nums; text-shadow: 0 2px 10px rgba(0,0,0,0.45); }
+    #comboMult { font: 700 15px var(--display); color: var(--gold); text-shadow: 0 1px 6px rgba(0,0,0,0.5); }
+    #comboLabel { font: 600 12px var(--display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink); min-height: 16px; text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
+    #dash { position: absolute; right: 16px; bottom: 16px; padding: 12px 16px 14px; width: 190px; display: grid; gap: 8px; }
+    #dash .row { display: flex; align-items: baseline; justify-content: space-between; }
+    #speed { font: 700 46px/1 var(--display); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+    #dash .unit { color: var(--dim); font: 500 12px var(--display); letter-spacing: 0.08em; }
+    #bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.12); overflow: hidden; }
+    #bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffffff, var(--accent)); border-radius: 3px; }
+    #chips { display: flex; gap: 6px; font: 600 10px var(--display); letter-spacing: 0.12em; text-transform: uppercase; }
+    .chip { padding: 3px 7px; border-radius: 999px; background: rgba(255,255,255,0.1); color: var(--dim); }
+    .chip.on { background: var(--accent); color: #fff; }
+    #toasts { position: absolute; left: 50%; top: 20%; transform: translateX(-50%); display: grid; gap: 8px; justify-items: center; width: min(520px, calc(100vw - 32px)); }
+    .toast { padding: 8px 16px; font: 600 15px var(--display); letter-spacing: 0.04em; text-align: center; animation: toast 2.8s forwards; }
+    .toast.gold { color: var(--gold); } .toast.cyan { color: var(--cyan); } .toast.red { color: #ff8a8f; }
+    .toast.big { font-size: 22px; padding: 10px 22px; }
+    @keyframes toast { 0% { opacity: 0; transform: translateY(8px) scale(0.96); } 8% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
+    #countdown { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); font: 700 110px/1 var(--display); text-shadow: 0 4px 30px rgba(0,0,0,0.5); }
+    #countdown.go { color: var(--cyan); }
+    #prompt { position: absolute; left: 50%; bottom: 86px; transform: translateX(-50%); padding: 9px 16px; font-size: 14px; white-space: nowrap; }
+    #hint { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); padding: 9px 16px; font-size: 14px; max-width: calc(100vw - 32px); text-align: center; }
+    #marker { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+    #marker .pip { position: absolute; left: -12px; top: -12px; width: 24px; height: 24px; border-radius: 50%; border: 3px solid var(--cyan); box-shadow: 0 0 12px rgba(69,216,234,0.7); }
+    #marker .arrowWrap { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+    #marker .arrow { position: absolute; left: -9px; top: -32px; width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 13px solid var(--cyan); }
+    #markerDist { position: absolute; left: -40px; top: 16px; width: 80px; text-align: center; font: 700 12px var(--display); color: var(--cyan); text-shadow: 0 1px 3px #000; font-variant-numeric: tabular-nums; }
+    #vignette { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 52%, rgba(6,10,18,0.6) 100%); }
+    #fade { position: fixed; inset: 0; pointer-events: none; background: #05070b; opacity: 0; transition: opacity 0.25s; }
+    #fade.on { opacity: 1; transition: none; }
 
-    /* Start / pause */
-    #overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; z-index: 10; cursor: pointer;
-      background: radial-gradient(ellipse at 30% 40%, rgba(10,14,22,0.35), rgba(10,14,22,0.7)); }
-    .card { background: var(--glass-strong); border-radius: 16px; padding: 26px 28px 22px; width: min(420px, 100%); }
-    .card h1 { margin: 0; font: 700 44px/1 var(--display); letter-spacing: 0.04em; text-wrap: balance; }
-    .card h1 span { color: var(--suit); }
-    .card .tag { margin: 8px 0 18px; color: var(--ink-dim); font-size: 14px; }
-    .controls { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; align-items: center; font-size: 13px; margin: 0; }
-    .controls dt { display: flex; gap: 3px; flex-wrap: wrap; }
-    .controls dd { margin: 0; color: var(--ink-dim); }
-    .controls dd b { color: var(--ink); font-weight: 600; }
-    .go { margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 10px;
-      background: var(--suit); font: 700 15px var(--display); letter-spacing: 0.14em; text-transform: uppercase; }
-    #overlay:hover .go { filter: brightness(1.08); }
-    .foot { margin-top: 12px; text-align: center; color: var(--ink-dim); font-size: 12px; }
+    /* ---------- Touch controls ---------- */
+    #touch { position: fixed; inset: 0; pointer-events: none; }
+    #stick { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.06); }
+    #knob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.35); }
+    .tbtn { position: absolute; pointer-events: auto; width: 62px; height: 62px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.28);
+      background: rgba(12,16,24,0.55); color: #fff; font: 700 11px var(--display); letter-spacing: 0.08em; display: grid; place-items: center; touch-action: none; }
+    .tbtn.held { background: rgba(255,255,255,0.3); }
+    #tSwing { right: max(22px, env(safe-area-inset-right)); bottom: 118px; width: 92px; height: 92px; background: rgba(232,66,76,0.78); font-size: 13px; }
+    #tJump { right: 128px; bottom: 34px; }
+    #tZip { right: max(22px, env(safe-area-inset-right)); bottom: 30px; }
+    #tDive { right: 128px; bottom: 112px; }
+    #tTrick { right: 128px; bottom: 190px; }
+    #tStart { right: 210px; bottom: 34px; background: rgba(69,216,234,0.7); }
+    #tPause { left: max(16px, env(safe-area-inset-left)); top: 150px; width: 46px; height: 46px; }
+
+    /* ---------- Menus ---------- */
+    #menu { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; padding: 24px clamp(16px, 6vw, 84px); overflow-y: auto;
+      background: linear-gradient(90deg, rgba(8,10,16,0.88) 0%, rgba(8,10,16,0.6) 45%, rgba(8,10,16,0.08) 100%); }
+    .panel { width: min(460px, 100%); display: grid; gap: 14px; margin: auto 0; }
+    .logo { font: 700 clamp(64px, 11vw, 112px)/0.86 var(--display); letter-spacing: 0.01em; display: flex; align-items: flex-start; gap: 10px; }
+    .beta { margin-top: 10px; padding: 3px 8px; border-radius: 6px; background: var(--accent); font: 700 13px var(--display); letter-spacing: 0.16em; }
+    .tag { color: var(--dim); margin: 0; font-size: 15px; line-height: 1.5; max-width: 40ch; }
+    .menu-btns { display: grid; gap: 8px; }
+    .mbtn { appearance: none; border: 0; text-align: left; text-decoration: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 13px 16px; border-radius: 10px; background: rgba(255,255,255,0.07); color: var(--ink); font: 600 16px var(--display);
+      letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; width: 100%; }
+    .mbtn:hover, .mbtn:focus-visible { background: rgba(255,255,255,0.16); outline: none; }
+    .mbtn:focus-visible { box-shadow: 0 0 0 2px rgba(255,255,255,0.5); }
+    .mbtn.primary { background: var(--accent); }
+    .mbtn.primary:hover, .mbtn.primary:focus-visible { background: var(--accent-hi); }
+    .mbtn small { color: var(--dim); font: 500 12px var(--body); text-transform: none; letter-spacing: 0; text-align: right; }
+    .mbtn.primary small { color: rgba(255,255,255,0.8); }
+    .stats { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--dim); font: 600 13px var(--display); letter-spacing: 0.04em; }
+    .stats b { color: var(--ink); }
+    h2 { margin: 0; font: 700 34px/1 var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
+    .race-btn { display: grid; grid-template-columns: 1fr auto; text-transform: none; }
+    .race-btn .rn { font: 600 16px var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
+    .race-btn .rd { grid-column: 1 / -1; color: var(--dim); font: 500 12px var(--body); letter-spacing: 0; display: flex; gap: 12px; flex-wrap: wrap; }
+    .medal { width: 14px; height: 14px; border-radius: 50%; display: inline-block; vertical-align: -2px; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25); }
+    .medal.gold { background: #ffc23d; } .medal.silver { background: #cfd6e0; } .medal.bronze { background: #cd8a52; }
+    .medal.none { background: transparent; box-shadow: inset 0 0 0 2px rgba(255,255,255,0.25); }
+    .settings { display: grid; }
+    .setting { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--line); min-height: 48px; }
+    .setting > span { font-size: 14px; }
+    .setting output { color: var(--dim); font: 600 12px var(--display); min-width: 34px; display: inline-block; text-align: right; font-variant-numeric: tabular-nums; }
+    .setting input[type=range] { width: 150px; accent-color: var(--accent); vertical-align: middle; }
+    .setting input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); }
+    .seg { display: flex; gap: 4px; }
+    .seg button { appearance: none; border: 0; padding: 7px 10px; border-radius: 7px; background: rgba(255,255,255,0.08); color: var(--ink); font: 600 12px var(--display); letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; }
+    .seg button.on { background: var(--accent); }
+    .seg button:focus-visible { outline: 2px solid rgba(255,255,255,0.6); }
+    .suits { display: flex; gap: 10px; flex-wrap: wrap; padding: 12px 2px 4px; }
+    .suit { appearance: none; width: 54px; display: grid; gap: 4px; justify-items: center; background: none; border: 0; color: var(--dim); font: 600 10px var(--display); letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; padding: 0; }
+    .suit i { width: 44px; height: 44px; border-radius: 10px; border: 2px solid transparent; display: block; }
+    .suit.on i { border-color: #fff; } .suit.on { color: var(--ink); }
+    .suit.locked { cursor: not-allowed; } .suit.locked i { opacity: 0.3; }
+    .suit:focus-visible i { outline: 2px solid rgba(255,255,255,0.6); outline-offset: 2px; }
+    .ctrl { display: grid; gap: 14px; }
+    .ctrl section { display: grid; gap: 6px; }
+    .ctrl h3 { margin: 0 0 2px; font: 600 12px var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan); }
+    .ctrl dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13px; align-items: center; }
+    .ctrl dt { display: flex; gap: 3px; flex-wrap: wrap; } .ctrl dd { margin: 0; color: var(--dim); }
+    .res-time { font: 700 56px/1 var(--display); font-variant-numeric: tabular-nums; }
+    .res-line { display: flex; gap: 10px; align-items: center; color: var(--dim); font-size: 14px; }
+    .res-line b { color: var(--ink); font-variant-numeric: tabular-nums; }
+    .pars { display: grid; gap: 4px; font-size: 13px; color: var(--dim); }
+    .pars span { display: flex; gap: 8px; align-items: center; font-variant-numeric: tabular-nums; }
+    @media (max-width: 640px) {
+      #mapWrap { width: 120px; height: 120px; }
+      #combo { top: 150px; }
+      #dash { width: 150px; padding: 10px 12px; } #speed { font-size: 34px; }
+      #race { top: 150px; }
+    }
+    /* Touch layout: keep the bottom-right free for buttons and the bottom-left for the stick. */
+    body.touch #topleft { left: 74px; top: 12px; padding: 8px 12px; min-width: 0; }
+    body.touch #tPause { left: 14px; top: 14px; }
+    body.touch #dash { left: 74px; right: auto; top: 86px; bottom: auto; width: 128px; padding: 8px 12px; gap: 4px; }
+    body.touch #speed { font-size: 26px; }
+    body.touch #chips { display: none; }
+    body.touch #mapWrap { width: 112px; height: 112px; top: 12px; right: 12px; }
+    body.touch #combo { right: 136px; top: 12px; }
+    body.touch #hint, body.touch #prompt { bottom: auto; top: 12px; max-width: min(360px, calc(100vw - 340px)); white-space: normal; }
+    body.touch #race { top: 12px; min-width: 0; padding: 6px 14px; }
+    body.touch #raceTime { font-size: 24px; }
+    body.touch #toasts { top: 30%; }
+    @media (prefers-reduced-motion: reduce) { .toast { animation-duration: 3.2s; } }
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.2 beta", "date": "2026-10-05", "title": "The full game",
+      "notes": [
+        "Fixed the flickering ground and buildings below you while swinging.",
+        "90 gold tokens hidden around the city; collect them to unlock six suits.",
+        "Four races through rings, with gold, silver and bronze par times and saved best times.",
+        "Style combos: chain swings, flips, dives, near misses and wall kicks, then land to bank the points.",
+        "New moves: dive (C), mid-air flips (Q), wall kicks (jump right after bouncing off a wall), and climbing over low ledges.",
+        "A living city: traffic that stops at lights, street lamps, billboards, antennas, crosswalks and a harbour.",
+        "Day, sunset and night, with lit windows and lamps after dark.",
+        "Title, pause, races and settings menus, a minimap, gamepad support and touch controls.",
+        "Progress and settings are saved in your browser.",
+        "A More projects link on the title screen goes to the website with all my other games and experiments."
+      ] },
     { "version": "0.1 beta", "date": "2026-10-05", "title": "First playable",
       "notes": [
         "Hold click or Shift to swing between buildings; let go to launch.",
@@ -84,80 +200,180 @@
   <div id="app"></div>
   <div id="vignette"></div>
 
-  <div id="dash" class="glass">
-    <div class="row"><span id="speed">0</span><span class="unit">KM/H</span></div>
-    <div id="bar"><i></i></div>
-    <div id="chips"><span class="chip" id="stateChip">ground</span><span class="chip on" id="zipChip">zip</span></div>
+  <div id="hud" hidden>
+    <div id="topleft" class="glass">
+      <div class="tok"><i class="gem"></i><span id="tokCount">0</span><span class="of" id="tokTotal">/ 90</span></div>
+      <div class="score-row"><span>Score</span><b id="score">0</b></div>
+    </div>
+    <div id="mapWrap"><canvas id="minimap" width="336" height="336"></canvas></div>
+    <div id="race" class="glass" hidden>
+      <div id="raceName"></div>
+      <div id="raceTime">0:00.00</div>
+      <div class="race-sub"><span id="raceCp"></span><span id="raceBest"></span></div>
+    </div>
+    <div id="combo" style="opacity:0">
+      <div id="comboPts">0</div>
+      <div id="comboMult">×1</div>
+      <div id="comboLabel"></div>
+    </div>
+    <div id="dash" class="glass">
+      <div class="row"><span id="speed">0</span><span class="unit">KM/H</span></div>
+      <div id="bar"><i></i></div>
+      <div id="chips"><span class="chip" id="stateChip">ground</span><span class="chip on" id="zipChip">zip</span></div>
+    </div>
+    <div id="toasts"></div>
+    <div id="countdown" hidden></div>
+    <div id="prompt" class="glass" hidden></div>
+    <div id="hint" class="glass" hidden></div>
+    <div id="marker" hidden><div class="pip"></div><div class="arrowWrap"><div class="arrow"></div></div><span id="markerDist"></span></div>
   </div>
 
-  <div id="hint" class="glass" hidden></div>
+  <div id="touch" hidden>
+    <div id="stick" hidden><div id="knob"></div></div>
+    <button class="tbtn" id="tSwing" data-hold="swing">SWING</button>
+    <button class="tbtn" id="tJump" data-press="jump">JUMP</button>
+    <button class="tbtn" id="tZip" data-press="zip">ZIP</button>
+    <button class="tbtn" id="tDive" data-hold="dive">DIVE</button>
+    <button class="tbtn" id="tTrick" data-press="trick">FLIP</button>
+    <button class="tbtn" id="tStart" data-press="interact" hidden>START</button>
+    <button class="tbtn" id="tPause" data-press="pause">II</button>
+  </div>
 
-  <div id="overlay">
-    <div class="card">
-      <h1>SWING <span>BETA</span></h1>
-      <p class="tag" id="tagline">Swing through the city. Hold to swing, let go to fly.</p>
-      <dl class="controls">
-        <dt><kbd>Click</kbd><kbd>Shift</kbd></dt><dd><b>Hold to swing</b>, release to launch</dd>
-        <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd><b>Steer</b> (relative to the camera)</dd>
-        <dt><kbd>Mouse</kbd><kbd>←</kbd><kbd>→</kbd></dt><dd><b>Look / turn</b></dd>
-        <dt><kbd>E</kbd><kbd>Right-click</kbd></dt><dd><b>Web-zip</b> forward</dd>
-        <dt><kbd>Space</kbd></dt><dd><b>Jump</b></dd>
-        <dt><kbd>R</kbd><kbd>M</kbd><kbd>Esc</kbd></dt><dd>Reset · mute · pause</dd>
-      </dl>
-      <div class="go" id="goLabel">Click to play</div>
-      <div class="foot">No mouse lock? Hold the right button and drag to look.</div>
-    </div>
+  <div id="fade"></div>
+
+  <div id="menu">
+    <section class="panel" data-panel="title">
+      <div class="logo">SWING<span class="beta">BETA</span></div>
+      <p class="tag">Swing through a city of glass and brick. Hunt down gold tokens, chase race times and chain the longest combo.</p>
+      <div class="menu-btns">
+        <button class="mbtn primary" data-act="play">Play <small>Free roam</small></button>
+        <button class="mbtn" data-act="races">Races <small id="titleMedals"></small></button>
+        <button class="mbtn" data-act="settings">Settings <small>Suits, controls, graphics</small></button>
+        <button class="mbtn" data-act="controls">Controls</button>
+        <a class="mbtn" href="https://oisingrace.github.io/sandbox-pub/#" target="_top">More projects <small>→</small></a>
+      </div>
+      <div class="stats" id="titleStats"></div>
+    </section>
+
+    <section class="panel" data-panel="pause" hidden>
+      <h2>Paused</h2>
+      <div class="menu-btns">
+        <button class="mbtn primary" data-act="resume">Resume</button>
+        <button class="mbtn" data-act="restartRace" data-race-only>Restart race</button>
+        <button class="mbtn" data-act="quitRace" data-race-only>Quit race</button>
+        <button class="mbtn" data-act="races">Races</button>
+        <button class="mbtn" data-act="settings">Settings</button>
+        <button class="mbtn" data-act="controls">Controls</button>
+        <button class="mbtn" data-act="respawn">Back to start roof</button>
+        <button class="mbtn" data-act="title">Main menu</button>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="races" hidden>
+      <h2>Races</h2>
+      <p class="tag">Fly through every ring in order. Beat the par times for medals. Cyan beams in the city mark each start.</p>
+      <div class="menu-btns" id="raceList"></div>
+      <button class="mbtn" data-act="back">Back</button>
+    </section>
+
+    <section class="panel" data-panel="settings" hidden>
+      <h2>Settings</h2>
+      <div class="settings" id="settingsList"></div>
+      <button class="mbtn" data-act="back">Back</button>
+    </section>
+
+    <section class="panel" data-panel="controls" hidden>
+      <h2>Controls</h2>
+      <div class="ctrl">
+        <section>
+          <h3>Keyboard &amp; mouse</h3>
+          <dl>
+            <dt><kbd>Click</kbd><kbd>Shift</kbd></dt><dd>Hold to swing, let go to launch</dd>
+            <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Move and steer, relative to the camera</dd>
+            <dt><kbd>Mouse</kbd><kbd>←</kbd><kbd>→</kbd></dt><dd>Look and turn</dd>
+            <dt><kbd>Wheel</kbd></dt><dd>Camera closer or further</dd>
+            <dt><kbd>Space</kbd></dt><dd>Jump; wall kick right after bouncing off a wall</dd>
+            <dt><kbd>E</kbd><kbd>Right-click</kbd></dt><dd>Web-zip forward</dd>
+            <dt><kbd>C</kbd></dt><dd>Hold to dive</dd>
+            <dt><kbd>Q</kbd></dt><dd>Flip in the air</dd>
+            <dt><kbd>F</kbd></dt><dd>Start a race at a cyan beam</dd>
+            <dt><kbd>R</kbd><kbd>M</kbd><kbd>Esc</kbd></dt><dd>Restart race or respawn · mute · pause</dd>
+          </dl>
+        </section>
+        <section>
+          <h3>Gamepad</h3>
+          <dl>
+            <dt><kbd>RT</kbd></dt><dd>Swing</dd>
+            <dt><kbd>L stick</kbd><kbd>R stick</kbd></dt><dd>Move · look</dd>
+            <dt><kbd>A</kbd><kbd>B</kbd><kbd>X</kbd></dt><dd>Jump · zip · flip</dd>
+            <dt><kbd>LT</kbd><kbd>Y</kbd><kbd>Start</kbd></dt><dd>Dive · start race · pause</dd>
+          </dl>
+        </section>
+        <section>
+          <h3>Touch</h3>
+          <dl>
+            <dt><kbd>Left side</kbd></dt><dd>Drag to move</dd>
+            <dt><kbd>Right side</kbd></dt><dd>Drag to look</dd>
+            <dt><kbd>SWING</kbd></dt><dd>Hold to swing; the other buttons do what they say</dd>
+          </dl>
+        </section>
+      </div>
+      <button class="mbtn" data-act="back">Back</button>
+    </section>
+
+    <section class="panel" data-panel="results" hidden>
+      <h2 id="resTitle">Finished</h2>
+      <div class="res-time" id="resTime">0:00.00</div>
+      <div class="res-line" id="resMedal"></div>
+      <div class="res-line" id="resBest"></div>
+      <div class="pars" id="resPars"></div>
+      <div class="menu-btns">
+        <button class="mbtn primary" data-act="retry">Race again</button>
+        <button class="mbtn" data-act="continue">Free roam</button>
+      </div>
+    </section>
   </div>
 
   <script type="module">
 import * as THREE from 'three';
 
 // =====================================================================
-// Config: every tuning knob for the feel of the game lives here.
-// Units are metres and seconds.
+// Config: every tuning knob for the feel of the game. Metres and seconds.
 // =====================================================================
 const CFG = {
-  step: 1 / 120,            // fixed physics timestep
+  step: 1 / 120,
   gravity: 28,
-  maxSpeed: 66,
-  maxFallSpeed: 55,
-  drag: 0.0012,             // quadratic air drag coefficient
-
-  player: { radius: 0.42, halfSeg: 0.48 }, // capsule; feet at pos.y - 0.9
-  ground: { runSpeed: 15, accel: 70, slideDecel: 16, jump: 13, swingJump: 14, coyote: 0.12 },
+  maxSpeed: 70,
+  maxFallSpeed: 58,
+  drag: 0.0012,
+  player: { radius: 0.42, halfSeg: 0.48, stepUp: 1.05 },   // capsule; feet at pos.y - 0.9
+  ground: { runSpeed: 15, accel: 70, slideDecel: 14, jump: 13, swingJump: 14, coyote: 0.12 },
   air: { accel: 11, maxPushSpeed: 18, turnRate: 1.9 },
   swing: {
-    maxRange: 120,          // furthest a web can reach
-    idealDist: 34,          // preferred anchor distance
-    minDist: 9,
-    minAbove: 6,            // anchor must be at least this far above the player
-    idealAbove: 24,         // preferred anchor height above the player (keeps the line level)
-    minFeetClearance: 4,    // ropes shorten so the bottom of the arc clears the street
-    reelRate: 16,           // m/s the rope shortens toward its target length
-    reelFactor: 0.93,       // web tightens a little after it sticks
-    inputAccel: 16,         // steering force while swinging
-    assist: 22,             // extra speed at the bottom of the arc
-    releaseUp: 9,           // pop when you let go
-    releaseFwd: 6,
-    autoReleaseAbove: 0.1,  // release once you rise past the anchor (rope direction y)
-    cooldown: 0.12,         // between webs when the button is held
-    attachMaxUpVel: 6,      // when holding, re-attach once the launch arc slows
-    skyAnchors: true,       // nothing in reach? attach to the sky anyway (easier)
-    skyHeadroom: 12,        // ...but no higher than this above the local skyline
+    maxRange: 120, idealDist: 34, minDist: 9,
+    minAbove: 6, idealAbove: 24,       // anchor height above the player
+    minFeetClearance: 4,               // ropes shorten so the arc bottom clears the street
+    reelRate: 16, reelFactor: 0.93,
+    inputAccel: 16, assist: 22,
+    releaseUp: 9, releaseFwd: 6,
+    autoReleaseAbove: 0.1, cooldown: 0.12, attachMaxUpVel: 6,
+    skyAnchors: true, skyHeadroom: 12, // nothing in reach? stick to the sky, just above the skyline
   },
   zip: { speed: 30, up: 12, cooldown: 1.1 },
-  avoid: { lookAhead: 0.45, strength: 7 }, // seconds of travel scanned for walls; steer-away rate
-  bounce: { restitution: 0.55, minSpeed: 2, releaseWebSpeed: 10 },
+  dive: { gravityMult: 2.1, maxFall: 74, steer: 0.5 },
+  trick: { duration: 0.6, points: 150 },
+  wallKick: { window: 0.35, out: 11, up: 12, points: 120 },
+  avoid: { lookAhead: 0.45, strength: 7 },
+  bounce: { restitution: 0.55, minSpeed: 2, releaseWebSpeed: 10, comboBreak: 24 },
+  style: { nearMissDist: 3.6, nearMissSpeed: 26, bankDelay: 0.7 },
   camera: {
     distance: 6.5, distanceFast: 10, height: 1.4,
-    lookAhead: 0.07, maxLookAhead: 4,  // aim slightly ahead of the player when fast
-    fov: 70, fovFast: 90,
-    sensitivity: 0.0023,
-    keyTurnRate: 2.4, keyPitchRate: 1.4,
-    follow: 16,
-    autoAlignDelay: 1.0, autoAlignRate: 1.8,
+    lookAhead: 0.07, maxLookAhead: 4, fovBoost: 20,
+    sensitivity: 0.0023, keyTurnRate: 2.4, keyPitchRate: 1.4, padTurnRate: 3.0,
+    follow: 16, autoAlignDelay: 1.0, autoAlignRate: 1.8,
   },
   city: { blocks: 13, seed: 4242 },
+  tokens: 90,
 };
 
 // =====================================================================
@@ -169,6 +385,8 @@ const damp = (k, dt) => 1 - Math.exp(-k * dt);   // frame-rate independent smoot
 const moveTowards = (a, b, d) => (Math.abs(b - a) <= d ? b : a + Math.sign(b - a) * d);
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
+const fmtTime = (t) => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(2).padStart(5, '0')}`; };
+const $ = (s) => document.querySelector(s);
 function mulberry32(seed) {
   return function () {
     seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
@@ -179,78 +397,132 @@ function mulberry32(seed) {
 }
 
 // =====================================================================
-// Renderer, scene, sky, lights
+// Suits (unlocked by collecting tokens) and saved progress
+// =====================================================================
+const SUITS = [
+  { id: 'classic', name: 'Classic', need: 0,  main: 0xd6323d, sec: 0x1f3c7a, eye: 0xffffff, glow: 0 },
+  { id: 'noir',    name: 'Noir',    need: 10, main: 0x24262c, sec: 0x3e424c, eye: 0xf4f4f4, glow: 0 },
+  { id: 'stealth', name: 'Stealth', need: 25, main: 0x1d2b40, sec: 0x0f1724, eye: 0x45d8ea, glow: 1 },
+  { id: 'ivory',   name: 'Ivory',   need: 45, main: 0xe8e6e0, sec: 0xc9a23a, eye: 0x1a1a1a, glow: 0 },
+  { id: 'neon',    name: 'Neon',    need: 70, main: 0xe0218a, sec: 0x15151a, eye: 0xb8ff3d, glow: 1 },
+  { id: 'gilded',  name: 'Gilded',  need: 90, main: 0xd9a92e, sec: 0x2a2a30, eye: 0xffffff, glow: 0 },
+];
+
+const SAVE_KEY = 'swing-save-v1';
+const save = {
+  tokens: [], best: {}, bestCombo: 0, score: 0, suit: 'classic', learned: {},
+  settings: { sensitivity: 1, invertY: false, fov: 72, quality: '', qualityAuto: true, timeOfDay: 'day', volume: 0.8, hints: true },
+};
+try {
+  const raw = localStorage.getItem(SAVE_KEY);
+  if (raw) {
+    const d = JSON.parse(raw);
+    if (d && typeof d === 'object') Object.assign(save, d, { settings: { ...save.settings, ...(d.settings || {}) } });
+  }
+} catch { /* storage blocked: play without saving */ }
+function writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch { /* ignore */ } }
+const coarsePointer = matchMedia('(pointer: coarse)').matches;
+if (!save.settings.quality) save.settings.quality = coarsePointer ? 'low' : 'medium';
+
+// =====================================================================
+// Renderer, scene, sky, water, lights
 // =====================================================================
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.getElementById('app').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const HORIZON = new THREE.Color(0xcfe0ee);
-scene.background = HORIZON;
-scene.fog = new THREE.Fog(HORIZON, 180, 1100);
-
-const camera = new THREE.PerspectiveCamera(CFG.camera.fov, innerWidth / innerHeight, 0.1, 2500);
-scene.add(camera); // so camera-space effects (speed lines) can be children of it
+scene.fog = new THREE.Fog(0xcfe0ee, 180, 1100);
+scene.background = new THREE.Color(0xcfe0ee);
+// A near plane of 0.3 m (not 0.1) keeps enough depth precision to separate
+// road paint and kerbs from the street when you're 100 m up.
+const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.3, 3200);
+scene.add(camera); // camera-space effects (speed lines) are its children
 
 const SUN_DIR = new THREE.Vector3(0.5, 0.62, 0.38).normalize();
+const hemi = new THREE.HemisphereLight(0xdbe8ff, 0x5b5248, 1.15);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff0d8, 2.3);
+sun.castShadow = true;
+sun.shadow.bias = -0.0003;
+sun.shadow.normalBias = 0.45;
+const shadowState = { extent: 110 };
+scene.add(sun, sun.target);
 
+const skyU = {
+  top: { value: new THREE.Color(0x3f7bc4) },
+  horizon: { value: new THREE.Color(0xcfe0ee) },
+  sunDir: { value: SUN_DIR },
+  sunColor: { value: new THREE.Color(0xfff0d8) },
+  night: { value: 0 },
+  time: { value: 0 },
+  sunDisk: { value: 1 },
+};
 const sky = new THREE.Mesh(
-  new THREE.SphereGeometry(2000, 32, 16),
+  new THREE.SphereGeometry(2600, 32, 16),
   new THREE.ShaderMaterial({
-    side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: {
-      top: { value: new THREE.Color(0x3f7bc4) },
-      horizon: { value: HORIZON },
-      sunDir: { value: SUN_DIR },
-    },
+    side: THREE.BackSide, depthWrite: false, fog: false, uniforms: skyU,
     vertexShader: `
       varying vec3 vDir;
       void main() {
-        vDir = normalize(position);
+        vDir = position;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         gl_Position.z = gl_Position.w; // pin to the far plane
       }`,
     fragmentShader: `
-      uniform vec3 top; uniform vec3 horizon; uniform vec3 sunDir;
+      uniform vec3 top; uniform vec3 horizon; uniform vec3 sunDir; uniform vec3 sunColor;
+      uniform float night; uniform float time; uniform float sunDisk;
       varying vec3 vDir;
+      float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+      }
+      float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
       void main() {
-        float h = max(vDir.y, 0.0);
-        vec3 c = mix(horizon, top, pow(h, 0.5));
-        float s = max(dot(normalize(vDir), sunDir), 0.0);
-        c += vec3(1.0, 0.86, 0.62) * (pow(s, 900.0) * 3.0 + pow(s, 12.0) * 0.22);
+        vec3 d = normalize(vDir);
+        float h = max(d.y, 0.0);
+        vec3 c = mix(horizon, top, pow(h, 0.45));
+        c = mix(c, horizon * 0.8, smoothstep(0.0, -0.25, d.y));
+        float s = max(dot(d, sunDir), 0.0);
+        c += sunColor * (pow(s, 1400.0) * 5.0 * sunDisk + pow(s, 10.0) * 0.22 + pow(s, 3.0) * 0.06);
+        // Stars at night.
+        vec3 sd = floor(d * 320.0);
+        float star = step(0.9972, hash(sd.xy + sd.z * 17.13));
+        c += vec3(star) * night * night * smoothstep(0.04, 0.3, d.y) * 0.9;
+        // Drifting clouds.
+        vec2 uv = d.xz / (d.y + 0.12) * 0.8 + vec2(time * 0.004, time * 0.0016);
+        float n = fbm(uv);
+        float cl = smoothstep(0.5, 0.8, n) * smoothstep(0.02, 0.22, d.y);
+        vec3 cc = mix(vec3(1.0), horizon, 0.3) * mix(1.0, 0.18, night) + sunColor * 0.12 * (1.0 - night);
+        c = mix(c, cc, cl * 0.8);
         gl_FragColor = vec4(c, 1.0);
         #include <colorspace_fragment>
       }`,
   })
 );
 sky.renderOrder = -1;
+sky.frustumCulled = false;
 scene.add(sky);
 
-scene.add(new THREE.HemisphereLight(0xdbe8ff, 0x5b5248, 1.15));
-const sun = new THREE.DirectionalLight(0xfff0d8, 2.3);
-const SHADOW_EXTENT = 75;
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -SHADOW_EXTENT, right: SHADOW_EXTENT, top: SHADOW_EXTENT, bottom: -SHADOW_EXTENT, near: 1, far: 700 });
-sun.shadow.bias = -0.0004;
-sun.shadow.normalBias = 0.6;
-scene.add(sun, sun.target);
+const waterMat = new THREE.MeshStandardMaterial({ color: 0x24485a, roughness: 0.16, metalness: 0.25 });
+const water = new THREE.Mesh(new THREE.PlaneGeometry(14000, 14000), waterMat);
+water.rotation.x = -Math.PI / 2;
+water.position.y = -1.4;
+water.receiveShadow = true;
+scene.add(water);
 
 // =====================================================================
-// City: an irregular street grid, blocks split into uneven lots,
-// buildings in several materials with set-backs and rooftop clutter.
+// City: an irregular street grid on an island, blocks split into uneven
+// lots, buildings in several materials with set-backs, rooftop clutter,
+// billboards and antennas, plus kerbs, parks, lamps and road paint.
 // Every solid thing is an axis-aligned box in a spatial hash, so
 // collisions and web raycasts only test what's nearby.
 // =====================================================================
-
-// Facade palettes: base colour, window column width range (m), window fill range (0 = blank).
 const PALETTES = {
   concrete:  { c: [0.74, 0.73, 0.70], col: [2.8, 3.8], fill: [0.42, 0.58] },
   sandstone: { c: [0.80, 0.68, 0.52], col: [2.6, 3.4], fill: [0.38, 0.52] },
@@ -260,21 +532,27 @@ const PALETTES = {
   tealGlass: { c: [0.42, 0.56, 0.57], col: [1.6, 2.4], fill: [0.82, 0.92] },
   dark:      { c: [0.22, 0.23, 0.26], col: [1.8, 2.6], fill: [0.70, 0.86] },
 };
+const BILLBOARD_COLORS = [0xff4d6d, 0x45d8ea, 0xffc23d, 0x7cf27a, 0xb57bff, 0xff8a3d, 0xf2f2f2];
+const bldU = { uNight: { value: 0 } }; // shared with the facade shader
 
 class City {
   constructor(cfg) {
     this.cfg = cfg;
     this.rnd = mulberry32(cfg.seed);
-    this.colliders = [];   // { min, max } solid boxes
-    this.parts = [];       // { min, max, color: [r,g,b], style: [colW, fill, seed] } rendered boxes
+    this.colliders = [];
+    this.parts = [];        // rendered building boxes: { min, max, color, style:[colW, fill, seed] }
+    this.roofs = [];        // walkable top surfaces: { x0, z0, x1, z1, y }
+    this.footprints = [];   // for the minimap: { x0, z0, x1, z1, h }
     this.cellSize = 48;
     this.cells = new Map();
     this.query = 0;
+    this.blocks = [];
     this.parks = [];
     this.trees = [];
     this.waterTowers = [];
-    this.streetLines = [];
-    this.walks = [];
+    this.billboards = [];
+    this.beacons = [];      // antenna tip lights
+    this.lamps = [];
     this.generate();
     this.buildMeshes();
   }
@@ -306,8 +584,7 @@ class City {
       }
     }
   }
-
-  /** A box that is both drawn and solid. */
+  /** A box that is both drawn (with the facade shader) and solid. */
   solid(x0, y0, z0, x1, y1, z1, color, style) {
     const min = new THREE.Vector3(x0, y0, z0), max = new THREE.Vector3(x1, y1, z1);
     this.addCollider(min, max);
@@ -338,29 +615,34 @@ class City {
 
   generate() {
     const r = this.rnd;
-    const X = this.axis(this.cfg.blocks), Z = this.axis(this.cfg.blocks);
+    const X = (this.X = this.axis(this.cfg.blocks));
+    const Z = (this.Z = this.axis(this.cfg.blocks));
     this.size = Math.max(X.size, Z.size);
-    // Two downtown cores (off-centre, different sizes) instead of one symmetric blob.
-    const cores = [
+    this.landHalfX = X.size / 2 + 30;
+    this.landHalfZ = Z.size / 2 + 30;
+    // Two downtown cores, off-centre and of different sizes.
+    this.cores = [
       { x: -X.size * 0.12, z: Z.size * 0.08, r: 260, k: 1 },
       { x: X.size * 0.24, z: -Z.size * 0.22, r: 190, k: 0.75 },
     ];
-    const downtown = (x, z) => Math.max(...cores.map((c) => c.k * Math.exp(-((x - c.x) ** 2 + (z - c.z) ** 2) / (c.r * c.r))));
-
-    for (const s of X.streets) this.streetLines.push({ axis: 'z', c: s.c, len: Z.size, avenue: s.avenue });
-    for (const s of Z.streets) this.streetLines.push({ axis: 'x', c: s.c, len: X.size, avenue: s.avenue });
+    const downtown = (x, z) => Math.max(...this.cores.map((c) => c.k * Math.exp(-((x - c.x) ** 2 + (z - c.z) ** 2) / (c.r * c.r))));
+    this.downtown = downtown;
 
     for (const [x0, x1] of X.blocks) {
       for (const [z0, z1] of Z.blocks) {
-        this.walks.push([x0, z0, x1, z1]);
-        const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
-        const dt = downtown(cx, cz);
+        const block = { x0, z0, x1, z1, type: 'city' };
+        this.blocks.push(block);
+        this.addCollider(new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x1, 0.15, z1)); // kerb / sidewalk
+        const dt = downtown((x0 + x1) / 2, (z0 + z1) / 2);
         const roll = r();
-        if (roll < 0.09 - dt * 0.06) { this.makePark(x0 + 3, z0 + 3, x1 - 3, z1 - 3); continue; }
-        if (roll < 0.13 - dt * 0.06) continue; // open plaza
-        const lots = [];
-        this.subdivide({ x0: x0 + 2.5, z0: z0 + 2.5, x1: x1 - 2.5, z1: z1 - 2.5 }, 0, lots);
-        for (const lot of lots) this.makeBuilding(lot, downtown);
+        if (roll < 0.09 - dt * 0.06) { block.type = 'park'; this.makePark(x0 + 3, z0 + 3, x1 - 3, z1 - 3); }
+        else if (roll < 0.13 - dt * 0.06) block.type = 'plaza';
+        else {
+          const lots = [];
+          this.subdivide({ x0: x0 + 2.5, z0: z0 + 2.5, x1: x1 - 2.5, z1: z1 - 2.5 }, 0, lots);
+          for (const lot of lots) this.makeBuilding(lot);
+        }
+        this.placeLamps(block);
       }
     }
   }
@@ -389,15 +671,22 @@ class City {
     return r < 0.38 ? 'brick' : r < 0.62 ? 'sandstone' : r < 0.82 ? 'concrete' : 'white';
   }
 
-  makeBuilding(lot, downtown) {
+  /** Low parapet around a roof: four solid strips that overhang the facade slightly (no coplanar faces). */
+  rim(t, color) {
+    const o = 0.15, th = 0.5, h = 0.9, y0 = t.y, y1 = t.y + h, blank = [1, 0, 0];
+    this.solid(t.x0 - o, y0, t.z0 - o, t.x1 + o, y1, t.z0 + th, color, blank);
+    this.solid(t.x0 - o, y0, t.z1 - th, t.x1 + o, y1, t.z1 + o, color, blank);
+    this.solid(t.x0 - o, y0, t.z0 + th, t.x0 + th, y1, t.z1 - th, color, blank);
+    this.solid(t.x1 - th, y0, t.z0 + th, t.x1 + o, y1, t.z1 - th, color, blank);
+  }
+
+  makeBuilding(lot) {
     const r = this.rnd;
-    // Uneven insets so footprints don't line up.
     const x0 = lot.x0 + r() * 4, x1 = lot.x1 - r() * 4;
     const z0 = lot.z0 + r() * 4, z1 = lot.z1 - r() * 4;
     if (x1 - x0 < 8 || z1 - z0 < 8) return;
     if (r() < 0.06) return; // the odd empty lot
-    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
-    const dt = downtown(cx, cz);
+    const dt = this.downtown((x0 + x1) / 2, (z0 + z1) / 2);
     let h = 10 + r() * r() * 42 + dt * (35 + Math.pow(r(), 1.4) * 210);
     if (r() < 0.035) h *= 1.65; // occasional landmark tower
     h = Math.round(h / 3.6) * 3.6 + 1.2; // whole storeys
@@ -407,22 +696,28 @@ class City {
     const color = pal.c.map((c) => clamp(c * tint * (0.97 + r() * 0.06), 0, 1));
     const style = [pal.col[0] + r() * (pal.col[1] - pal.col[0]), pal.fill[0] + r() * (pal.fill[1] - pal.fill[0]), Math.floor(r() * 100)];
     const capColor = color.map((c) => c * 0.72);
-    const blank = [1, 0, 0];
 
-    // Lower annex on one side of some buildings (breaks up the box silhouette).
+    // Lower annex on one side of some buildings.
     let bx0 = x0, bx1 = x1, bz0 = z0, bz1 = z1;
     if (h > 30 && r() < 0.3) {
-      const ah = Math.min(h * (0.25 + r() * 0.25), 30);
+      const ah = Math.round(Math.min(h * (0.25 + r() * 0.25), 30) / 3.6) * 3.6 + 1.2;
       const side = Math.floor(r() * 4), cut = 0.3 + r() * 0.2;
       const w = x1 - x0, d = z1 - z0;
-      if (side === 0) { this.solid(x0, 0, z0, x0 + w * cut, ah, z1, color, style); bx0 = x0 + w * cut; }
-      if (side === 1) { this.solid(x1 - w * cut, 0, z0, x1, ah, z1, color, style); bx1 = x1 - w * cut; }
-      if (side === 2) { this.solid(x0, 0, z0, x1, ah, z0 + d * cut, color, style); bz0 = z0 + d * cut; }
-      if (side === 3) { this.solid(x0, 0, z1 - d * cut, x1, ah, z1, color, style); bz1 = z1 - d * cut; }
+      let a;
+      if (side === 0) { a = { x0, z0, x1: x0 + w * cut, z1 }; bx0 = a.x1; }
+      if (side === 1) { a = { x0: x1 - w * cut, z0, x1, z1 }; bx1 = a.x0; }
+      if (side === 2) { a = { x0, z0, x1, z1: z0 + d * cut }; bz0 = a.z1; }
+      if (side === 3) { a = { x0, z0: z1 - d * cut, x1, z1 }; bz1 = a.z0; }
+      this.solid(a.x0, 0, a.z0, a.x1, ah, a.z1, color, style);
+      this.footprints.push({ ...a, h: ah });
+      const roof = { ...a, y: ah };
+      this.roofs.push(roof);
+      this.rim(roof, capColor);
     }
 
     let top = { x0: bx0, z0: bz0, x1: bx1, z1: bz1, y: h };
     this.solid(bx0, 0, bz0, bx1, h, bz1, color, style);
+    this.footprints.push({ x0: bx0, z0: bz0, x1: bx1, z1: bz1, h });
 
     // Set-back tiers on taller towers.
     const tiers = h > 60 ? (r() < 0.55 ? 1 + (r() < 0.4 ? 1 : 0) : 0) : 0;
@@ -431,15 +726,50 @@ class City {
       const sx = w * (0.1 + r() * 0.18), sz = d * (0.1 + r() * 0.18);
       const nt = { x0: top.x0 + sx, x1: top.x1 - sx, z0: top.z0 + sz, z1: top.z1 - sz };
       if (nt.x1 - nt.x0 < 8 || nt.z1 - nt.z0 < 8) break;
-      // Parapet ledge on the roof we're stepping back from.
-      this.parts.push({ min: new THREE.Vector3(top.x0 - 0.3, top.y, top.z0 - 0.3), max: new THREE.Vector3(top.x1 + 0.3, top.y + 0.7, top.z1 + 0.3), color: capColor, style: blank });
+      this.roofs.push({ ...top });
+      this.rim(top, capColor);
       const th = Math.max(7.2, Math.round((h * (0.15 + r() * 0.3)) / 3.6) * 3.6);
       this.solid(nt.x0, top.y, nt.z0, nt.x1, top.y + th, nt.z1, color, style);
       top = { ...nt, y: top.y + th };
     }
-    // Roof parapet.
-    this.parts.push({ min: new THREE.Vector3(top.x0 - 0.3, top.y, top.z0 - 0.3), max: new THREE.Vector3(top.x1 + 0.3, top.y + 0.8, top.z1 + 0.3), color: capColor, style: blank });
-    this.roofClutter(top, capColor);
+    this.roofs.push({ ...top });
+    this.rim(top, capColor);
+
+    // Antenna on the tallest towers (a great swing anchor), with a blinking tip light.
+    if (top.y > 150 && r() < 0.6) {
+      const cx = (top.x0 + top.x1) / 2, cz = (top.z0 + top.z1) / 2, sh = 18 + r() * 26;
+      const dark = [0.25, 0.26, 0.29], blank = [1, 0, 0];
+      this.solid(cx - 2, top.y, cz - 2, cx + 2, top.y + 2.5, cz + 2, dark, blank);
+      this.solid(cx - 0.35, top.y + 2.5, cz - 0.35, cx + 0.35, top.y + 2.5 + sh, cz + 0.35, dark, blank);
+      this.beacons.push(new THREE.Vector3(cx, top.y + 2.9 + sh, cz));
+      return;
+    }
+    // Rooftop billboard on some mid-rise buildings.
+    if (top.y > 22 && top.y < 130 && r() < 0.1) this.makeBillboard(top);
+    else this.roofClutter(top, capColor);
+  }
+
+  makeBillboard(top) {
+    const r = this.rnd;
+    const w = top.x1 - top.x0, d = top.z1 - top.z0;
+    const alongX = w >= d;
+    const len = Math.min(16, (alongX ? w : d) - 4);
+    if (len < 7) return;
+    const y0 = top.y + 2.2, y1 = y0 + 5 + r() * 2;
+    const color = BILLBOARD_COLORS[Math.floor(r() * BILLBOARD_COLORS.length)];
+    const dark = [0.2, 0.21, 0.24], blank = [1, 0, 0];
+    let min, max;
+    if (alongX) {
+      const cx = (top.x0 + top.x1) / 2, z = r() < 0.5 ? top.z0 + 1.6 : top.z1 - 2.0;
+      min = new THREE.Vector3(cx - len / 2, y0, z); max = new THREE.Vector3(cx + len / 2, y1, z + 0.4);
+      for (const lx of [cx - len / 3, cx + len / 3]) this.solid(lx - 0.15, top.y, z + 0.05, lx + 0.15, y0, z + 0.35, dark, blank);
+    } else {
+      const cz = (top.z0 + top.z1) / 2, x = r() < 0.5 ? top.x0 + 1.6 : top.x1 - 2.0;
+      min = new THREE.Vector3(x, y0, cz - len / 2); max = new THREE.Vector3(x + 0.4, y1, cz + len / 2);
+      for (const lz of [cz - len / 3, cz + len / 3]) this.solid(x + 0.05, top.y, lz - 0.15, x + 0.35, y0, lz + 0.15, dark, blank);
+    }
+    this.addCollider(min, max);
+    this.billboards.push({ min, max, color });
   }
 
   roofClutter(top, capColor) {
@@ -458,7 +788,7 @@ class City {
       const [x, z] = at(sw, sd);
       this.solid(x, top.y, z, x + sw, top.y + 1.1 + r() * 0.4, z + sd, grey, blank);
     }
-    if (top.y < 90 && r() < 0.28 && w > 9 && d > 9) { // classic wooden water tower
+    if (top.y < 90 && r() < 0.28 && w > 9 && d > 9) { // wooden water tower
       const [x, z] = at(4, 4);
       this.addCollider(new THREE.Vector3(x, top.y, z), new THREE.Vector3(x + 4, top.y + 7.5, z + 4));
       this.waterTowers.push(new THREE.Vector3(x + 2, top.y, z + 2));
@@ -468,45 +798,90 @@ class City {
   makePark(x0, z0, x1, z1) {
     const r = this.rnd;
     this.parks.push([x0, z0, x1, z1]);
+    this.addCollider(new THREE.Vector3(x0, 0.15, z0), new THREE.Vector3(x1, 0.3, z1));
     const n = Math.floor(((x1 - x0) * (z1 - z0)) / 70);
     for (let k = 0; k < n; k++) {
       this.trees.push({ x: x0 + 3 + r() * (x1 - x0 - 6), z: z0 + 3 + r() * (z1 - z0 - 6), s: 0.8 + r() * 0.7 });
     }
   }
 
+  /** Street lamps every ~24 m along each block edge, arms reaching over the road. */
+  placeLamps(b) {
+    const step = 24, inset = 0.7;
+    const side = (ax, az, bx, bz, yaw) => {
+      const len = Math.hypot(bx - ax, bz - az);
+      for (let s = 7; s < len - 5; s += step) {
+        const t = s / len;
+        this.lamps.push({ x: ax + (bx - ax) * t, z: az + (bz - az) * t, yaw });
+      }
+    };
+    // yaw turns the arm (+X in lamp space) toward the street.
+    side(b.x0, b.z0 + inset, b.x1, b.z0 + inset, Math.PI / 2);   // street on -Z side
+    side(b.x0, b.z1 - inset, b.x1, b.z1 - inset, -Math.PI / 2);  // +Z side
+    side(b.x0 + inset, b.z0, b.x0 + inset, b.z1, Math.PI);       // -X side
+    side(b.x1 - inset, b.z0, b.x1 - inset, b.z1, 0);             // +X side
+  }
+
   // ---------- meshes ----------
   buildMeshes() {
     const m = new THREE.Matrix4(), q = new THREE.Quaternion();
-    const pos = new THREE.Vector3(), scl = new THREE.Vector3();
+    const pos = new THREE.Vector3(), scl = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
     const unitBox = () => { const g = new THREE.BoxGeometry(1, 1, 1); g.translate(0, 0.5, 0); return g; };
 
-    // Ground, sidewalks, parks, road lines.
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshStandardMaterial({ color: 0x34373d, roughness: 1 }));
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    scene.add(ground);
+    // Island: a thick slab whose top is the street (y = 0).
+    const land = new THREE.Mesh(
+      new THREE.BoxGeometry(this.landHalfX * 2, 4, this.landHalfZ * 2),
+      new THREE.MeshStandardMaterial({ color: 0x34373d, roughness: 1 })
+    );
+    land.position.y = -2;
+    land.receiveShadow = true;
+    scene.add(land);
 
-    const flat = (list, color, y, h) => {
+    const slabs = (list, color, y0, h) => {
       const mesh = new THREE.InstancedMesh(unitBox(), new THREE.MeshStandardMaterial({ color, roughness: 0.95 }), list.length);
       list.forEach(([x0, z0, x1, z1], k) => {
-        mesh.setMatrixAt(k, m.compose(pos.set((x0 + x1) / 2, y, (z0 + z1) / 2), q, scl.set(x1 - x0, h, z1 - z0)));
+        mesh.setMatrixAt(k, m.compose(pos.set((x0 + x1) / 2, y0, (z0 + z1) / 2), q, scl.set(x1 - x0, h, z1 - z0)));
       });
       mesh.receiveShadow = true;
       scene.add(mesh);
+      return mesh;
     };
-    flat(this.walks, 0x8e9095, 0, 0.08);
-    flat(this.parks, 0x5f8a4a, 0.08, 0.06);
+    slabs(this.blocks.map((b) => [b.x0, b.z0, b.x1, b.z1]), 0x8e9095, 0, 0.15);
+    slabs(this.parks, 0x5f8a4a, 0.15, 0.15);
 
-    const lines = [];
-    for (const s of this.streetLines) {
-      const offs = s.avenue ? [-0.25, 0.25] : [0];
-      for (const o of offs) {
-        lines.push(s.axis === 'z'
-          ? [s.c + o - 0.09, -s.len / 2, s.c + o + 0.09, s.len / 2]
-          : [-s.len / 2, s.c + o - 0.09, s.len / 2, s.c + o + 0.09]);
+    // Road paint: flat quads pulled toward the camera with polygon offset so
+    // they never fight the asphalt. Lines stop at intersections; zebra crossings at each end.
+    const paint = [];
+    const roadPaint = (streets, cross, alongZ) => {
+      for (const s of streets) {
+        for (const [a0, a1] of cross.blocks) {
+          const len = a1 - a0;
+          const strip = (off, from, to, width, color) => {
+            const c = (from + to) / 2, l = to - from;
+            paint.push(alongZ ? [s.c + off, c, width, l, color] : [c, s.c + off, l, width, color]);
+          };
+          if (s.avenue) { strip(-0.22, a0 + 5, a1 - 5, 0.16, 0xd9b84a); strip(0.22, a0 + 5, a1 - 5, 0.16, 0xd9b84a); }
+          else for (let d = a0 + 6; d + 3 < a1 - 5; d += 8) strip(0, d, d + 3, 0.16, 0xe8e8e8);
+          // Zebra crossings at both ends of the segment.
+          for (const [c0, c1] of [[a0 + 0.8, a0 + 3.8], [a1 - 3.8, a1 - 0.8]]) {
+            for (let o = -s.w / 2 + 1.2; o < s.w / 2 - 1.2; o += 1.2) strip(o, c0, c1, 0.6, 0xe8e8e8);
+          }
+        }
       }
-    }
-    flat(lines, 0xd9b84a, 0, 0.03);
+    };
+    roadPaint(this.X.streets, this.Z, true);
+    roadPaint(this.Z.streets, this.X, false);
+    const paintGeo = new THREE.PlaneGeometry(1, 1);
+    paintGeo.rotateX(-Math.PI / 2);
+    const paintMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const paintMesh = new THREE.InstancedMesh(paintGeo, paintMat, paint.length);
+    const col = new THREE.Color();
+    paint.forEach(([x, z, w, l, c], k) => {
+      paintMesh.setMatrixAt(k, m.compose(pos.set(x, 0.02, z), q, scl.set(w, 1, l)));
+      paintMesh.setColorAt(k, col.setHex(c));
+    });
+    paintMesh.receiveShadow = true;
+    scene.add(paintMesh);
 
     // Buildings: one instanced mesh with a facade shader (windows from world position).
     const geo = unitBox();
@@ -515,6 +890,7 @@ class City {
     geo.setAttribute('aStyle', new THREE.InstancedBufferAttribute(style, 3));
     const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82, metalness: 0.04 });
     mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uNight = bldU.uNight;
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', `#include <common>
           attribute vec3 aStyle;
@@ -527,9 +903,11 @@ class City {
           vSpan = vec2((instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).y, (instanceMatrix * vec4(0.0, 1.0, 0.0, 1.0)).y);`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
+          uniform float uNight;
           varying vec3 vWPos; varying vec3 vONormal; varying vec3 vStyle; varying vec2 vSpan;
-          float h21(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); } // sine-free hash`)
+          float h21(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }`)
         .replace('#include <color_fragment>', `#include <color_fragment>
+          float wLit = 0.0; vec3 wLitTint = vec3(1.0, 0.78, 0.45);
           {
             vec3 an = abs(vONormal);
             float side = step(an.y, 0.5);
@@ -537,24 +915,30 @@ class City {
             float y = vWPos.y - vSpan.x;
             vec2 cell = vec2(u / vStyle.x, y / 3.6);
             vec2 f = fract(cell);
+            vec2 fw = fwidth(cell);
             float fill = vStyle.y;
             float mx = (1.0 - fill) * 0.5;
-            float win = step(mx, f.x) * step(f.x, 1.0 - mx) * step(0.24, f.y) * step(f.y, 0.86);
-            // Far away, fade the grid to its average so it doesn't shimmer.
-            float fw = max(fwidth(cell.x), fwidth(cell.y));
-            float far = smoothstep(0.25, 0.7, fw);
+            // Anti-aliased window rectangle in each cell (soft edges sized to the pixel footprint).
+            float wx = smoothstep(mx - fw.x, mx + fw.x, f.x) * (1.0 - smoothstep(1.0 - mx - fw.x, 1.0 - mx + fw.x, f.x));
+            float wy = smoothstep(0.24 - fw.y, 0.24 + fw.y, f.y) * (1.0 - smoothstep(0.86 - fw.y, 0.86 + fw.y, f.y));
+            float win = wx * wy;
+            // Far away, fade the grid to its average so it can't shimmer.
+            float far = smoothstep(0.18, 0.5, max(fw.x, fw.y));
             win = mix(win, fill * 0.62, far);
             win *= side * step(0.001, fill) * step(3.4, y) * step(y, vSpan.y - vSpan.x - 1.0);
-            float h = h21(floor(cell) + floor(vStyle.z + 0.5)); // one value per window (seed rounded: varyings aren't exact)
+            vec2 id = floor(cell) + floor(vStyle.z + 0.5);
+            float h = h21(id);
             float rr = mix(h, 0.5, far);
             vec3 glass = mix(vec3(0.09, 0.12, 0.16), vec3(0.40, 0.50, 0.60), rr * 0.65 + clamp(vWPos.y / 400.0, 0.0, 0.25));
-            glass += vec3(1.0, 0.8, 0.5) * step(0.95, h) * (1.0 - far) * 0.22; // the odd lit window
             diffuseColor.rgb = mix(diffuseColor.rgb, glass, win);
             diffuseColor.rgb *= mix(0.55, 1.0, smoothstep(0.0, 22.0, vWPos.y)); // darker at street level
-          }`);
+            wLit = win * mix(step(0.7, h21(id + 17.0)), 0.3, far);
+            wLitTint = mix(vec3(1.0, 0.74, 0.42), vec3(0.72, 0.84, 1.0), step(0.78, h21(id + 3.0))) * (0.55 + 0.45 * h21(id + 9.0));
+          }`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+          totalEmissiveRadiance += wLitTint * wLit * uNight * 0.95;`);
     };
     const mesh = new THREE.InstancedMesh(geo, mat, this.parts.length);
-    const col = new THREE.Color();
     this.parts.forEach((p, k) => {
       m.compose(
         pos.set((p.min.x + p.max.x) / 2, p.min.y, (p.min.z + p.max.z) / 2), q,
@@ -567,14 +951,33 @@ class City {
     mesh.receiveShadow = true;
     scene.add(mesh);
 
+    // Billboards: always-bright panels (instance colours), brighter at night.
+    this.billboardMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const bb = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), this.billboardMat, Math.max(1, this.billboards.length));
+    bb.count = this.billboards.length;
+    this.billboards.forEach((b, k) => {
+      bb.setMatrixAt(k, m.compose(pos.copy(b.min).add(b.max).multiplyScalar(0.5), q, scl.subVectors(b.max, b.min)));
+      bb.setColorAt(k, col.setHex(b.color));
+    });
+    bb.castShadow = true;
+    scene.add(bb);
+
+    // Antenna tip lights.
+    this.beaconMat = new THREE.MeshBasicMaterial({ color: 0xff2a2a });
+    const bc = new THREE.InstancedMesh(new THREE.SphereGeometry(0.5, 10, 8), this.beaconMat, Math.max(1, this.beacons.length));
+    bc.count = this.beacons.length;
+    this.beacons.forEach((p, k) => bc.setMatrixAt(k, m.compose(p, q, one)));
+    scene.add(bc);
+
     // Water towers.
     const wood = new THREE.MeshStandardMaterial({ color: 0x7a5a40, roughness: 0.9 });
     const roofM = new THREE.MeshStandardMaterial({ color: 0x4a4e55, roughness: 0.7 });
     const legM = new THREE.MeshStandardMaterial({ color: 0x2c2f35, roughness: 0.8 });
-    const tank = new THREE.InstancedMesh(new THREE.CylinderGeometry(1.8, 1.8, 3.6, 14), wood, this.waterTowers.length);
-    const cone = new THREE.InstancedMesh(new THREE.ConeGeometry(2.0, 1.4, 14), roofM, this.waterTowers.length);
-    const legs = new THREE.InstancedMesh(new THREE.BoxGeometry(0.22, 2.6, 0.22), legM, this.waterTowers.length * 4);
-    const one = new THREE.Vector3(1, 1, 1);
+    const n = Math.max(1, this.waterTowers.length);
+    const tank = new THREE.InstancedMesh(new THREE.CylinderGeometry(1.8, 1.8, 3.6, 14), wood, n);
+    const cone = new THREE.InstancedMesh(new THREE.ConeGeometry(2.0, 1.4, 14), roofM, n);
+    const legs = new THREE.InstancedMesh(new THREE.BoxGeometry(0.22, 2.6, 0.22), legM, n * 4);
+    tank.count = cone.count = this.waterTowers.length; legs.count = this.waterTowers.length * 4;
     this.waterTowers.forEach((p, k) => {
       tank.setMatrixAt(k, m.compose(pos.set(p.x, p.y + 4.4, p.z), q, one));
       cone.setMatrixAt(k, m.compose(pos.set(p.x, p.y + 6.9, p.z), q, one));
@@ -583,16 +986,52 @@ class City {
     });
     for (const im of [tank, cone, legs]) { im.castShadow = true; im.receiveShadow = true; scene.add(im); }
 
-    // Park trees (decorative, not solid).
+    // Park trees (decorative).
     const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.22, 0.3, 3, 6), new THREE.MeshStandardMaterial({ color: 0x5a4332 }), this.trees.length);
     const crown = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(2.4, 0), new THREE.MeshStandardMaterial({ color: 0x4f7d3a, roughness: 0.9, flatShading: true }), this.trees.length);
     const tq = new THREE.Quaternion();
     this.trees.forEach((t, k) => {
-      trunk.setMatrixAt(k, m.compose(pos.set(t.x, 1.5 * t.s, t.z), q, scl.set(t.s, t.s, t.s)));
+      trunk.setMatrixAt(k, m.compose(pos.set(t.x, 0.3 + 1.5 * t.s, t.z), q, scl.set(t.s, t.s, t.s)));
       tq.setFromAxisAngle(UP, t.x * 13.1);
-      crown.setMatrixAt(k, m.compose(pos.set(t.x, 4.2 * t.s, t.z), tq, scl.set(t.s, t.s * 0.9, t.s)));
+      crown.setMatrixAt(k, m.compose(pos.set(t.x, 0.3 + 4.2 * t.s, t.z), tq, scl.set(t.s, t.s * 0.9, t.s)));
     });
     for (const im of [trunk, crown]) { im.castShadow = true; scene.add(im); }
+
+    // Street lamps (+ light pools on the road at night).
+    const poleGeo = new THREE.CylinderGeometry(0.08, 0.12, 6.4, 6); poleGeo.translate(0, 3.35, 0);
+    const armGeo = new THREE.BoxGeometry(1.7, 0.1, 0.1); armGeo.translate(0.85, 6.45, 0);
+    const headGeo = new THREE.BoxGeometry(0.75, 0.16, 0.36); headGeo.translate(1.55, 6.36, 0);
+    const poolGeo = new THREE.PlaneGeometry(10, 10); poolGeo.rotateX(-Math.PI / 2); poolGeo.translate(2.6, 0.03, 0);
+    const metal = new THREE.MeshStandardMaterial({ color: 0x3a3e45, roughness: 0.6, metalness: 0.4 });
+    this.lampHeadMat = new THREE.MeshBasicMaterial({ color: 0xb0b4ba });
+    const glowTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const g = c.getContext('2d');
+      const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(0.5, 'rgba(255,255,255,0.35)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    })();
+    this.glowTex = glowTex;
+    this.poolMat = new THREE.MeshBasicMaterial({
+      map: glowTex, color: 0xffb870, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6,
+    });
+    const L = this.lamps.length;
+    const pole = new THREE.InstancedMesh(poleGeo, metal, L);
+    const arm = new THREE.InstancedMesh(armGeo, metal, L);
+    const head = new THREE.InstancedMesh(headGeo, this.lampHeadMat, L);
+    this.poolMesh = new THREE.InstancedMesh(poolGeo, this.poolMat, L);
+    this.lamps.forEach((l, k) => {
+      tq.setFromAxisAngle(UP, l.yaw);
+      m.compose(pos.set(l.x, 0.15, l.z), tq, one);
+      pole.setMatrixAt(k, m); arm.setMatrixAt(k, m); head.setMatrixAt(k, m);
+      m.compose(pos.set(l.x, 0, l.z), tq, one);
+      this.poolMesh.setMatrixAt(k, m);
+    });
+    for (const im of [pole, arm, head]) scene.add(im);
+    this.poolMesh.visible = false;
+    scene.add(this.poolMesh);
   }
 
   // ---------- queries ----------
@@ -640,216 +1079,667 @@ class City {
     return inside;
   }
 
-  /** A mid-height roof near the centre, with taller towers around to swing from. */
-  spawnPoint() {
-    let best = null, bestD = Infinity;
-    this.forEachIn(-260, -260, 260, 260, (b) => {
-      if (b.min.y > 0 || b.max.y < 40 || b.max.y > 85) return;
-      const p = new THREE.Vector3((b.min.x + b.max.x) / 2, b.max.y + 1.0, (b.min.z + b.max.z) / 2);
-      if (this.pointInside(p, 0.6)) return; // clutter on that spot
-      const d = Math.hypot(p.x, p.z);
-      if (d < bestD) { bestD = d; best = p; }
-    });
-    return best || new THREE.Vector3(0, 1, 0);
+  onLand(x, z) { return Math.abs(x) < this.landHalfX && Math.abs(z) < this.landHalfZ; }
+
+  /** A free standing spot on the roof nearest to p (horizontally), within a height band. */
+  nearestRoof(p, maxDist = 400, minY = 15, maxY = 110) {
+    let best = null, bestD = maxDist * maxDist;
+    for (const r of this.roofs) {
+      if (r.y < minY || r.y > maxY || r.x1 - r.x0 < 9 || r.z1 - r.z0 < 9) continue;
+      const cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2;
+      const d = (cx - p.x) ** 2 + (cz - p.z) ** 2;
+      if (d >= bestD) continue;
+      const spots = [[cx, cz], [r.x0 + 2.5, r.z0 + 2.5], [r.x1 - 2.5, r.z1 - 2.5], [r.x0 + 2.5, r.z1 - 2.5], [r.x1 - 2.5, r.z0 + 2.5]];
+      for (const [x, z] of spots) {
+        const s = new THREE.Vector3(x, r.y + 1.0, z);
+        if (!this.pointInside(s, 0.6)) { best = s; bestD = d; break; }
+      }
+    }
+    return best;
   }
 }
 
 const city = new City(CFG.city);
+const SPAWN = city.nearestRoof(new THREE.Vector3(0, 0, 0), 400, 40, 90) || new THREE.Vector3(0, 1, 0);
 
 // =====================================================================
-// Audio: wind that rises with speed, web "thwip", landing thuds.
+// Traffic: cars cruise both lanes of every street, queue behind each
+// other and stop at the lights (the two street directions take turns).
+// =====================================================================
+class Traffic {
+  constructor(count) {
+    const rnd = mulberry32(CFG.city.seed + 31);
+    this.lanes = [];
+    const addLanes = (streets, cross, axis, len) => {
+      for (const s of streets) {
+        for (const dir of [1, -1]) this.lanes.push({ axis, c: s.c + dir * s.w * 0.22 * (axis === 'z' ? -1 : 1), dir, len, cross: cross.streets, cars: [] });
+      }
+    };
+    addLanes(city.X.streets, city.Z, 'z', city.Z.size + 50);
+    addLanes(city.Z.streets, city.X, 'x', city.X.size + 50);
+    const COLORS = [0xd8d8dc, 0x22252b, 0x8a1c22, 0x1d4e89, 0xe0b623, 0xe0b623, 0x6b7078, 0x2f6b4f, 0xf0f0f0, 0x5a2e6e];
+    this.cars = [];
+    for (let i = 0; i < count; i++) {
+      const lane = this.lanes[i % this.lanes.length];
+      const car = { lane, s: (rnd() - 0.5) * lane.len, v: 8 + rnd() * 6, cruise: 9 + rnd() * 7, color: COLORS[Math.floor(rnd() * COLORS.length)] };
+      lane.cars.push(car);
+      this.cars.push(car);
+    }
+    const bodyGeo = new THREE.BoxGeometry(1.9, 0.72, 4.4); bodyGeo.translate(0, 0.66, 0);
+    const cabGeo = new THREE.BoxGeometry(1.66, 0.6, 2.2); cabGeo.translate(0, 1.32, -0.25);
+    const headGeo = new THREE.BoxGeometry(1.6, 0.14, 0.05); headGeo.translate(0, 0.78, 2.22);
+    const tailGeo = new THREE.BoxGeometry(1.6, 0.14, 0.05); tailGeo.translate(0, 0.82, -2.22);
+    this.body = new THREE.InstancedMesh(bodyGeo, new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.3 }), count);
+    this.cab = new THREE.InstancedMesh(cabGeo, new THREE.MeshStandardMaterial({ color: 0x1c232c, roughness: 0.15, metalness: 0.5 }), count);
+    this.headMat = new THREE.MeshBasicMaterial({ color: 0xfff4dd });
+    this.tailMat = new THREE.MeshBasicMaterial({ color: 0xff3030 });
+    this.head = new THREE.InstancedMesh(headGeo, this.headMat, count);
+    this.tail = new THREE.InstancedMesh(tailGeo, this.tailMat, count);
+    const col = new THREE.Color();
+    this.cars.forEach((c, k) => this.body.setColorAt(k, col.setHex(c.color)));
+    this.body.castShadow = true;
+    for (const im of [this.body, this.cab, this.head, this.tail]) { im.frustumCulled = false; scene.add(im); }
+    this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.p = new THREE.Vector3(); this.one = new THREE.Vector3(1, 1, 1);
+    this.t = 0;
+  }
+  update(dt) {
+    this.t += dt;
+    const cycle = 9, phaseT = this.t % cycle;
+    const greenAxis = Math.floor(this.t / cycle) % 2 === 0 ? 'z' : 'x';
+    const amber = phaseT > cycle - 2;
+    for (const lane of this.lanes) {
+      lane.cars.sort((a, b) => a.s * lane.dir - b.s * lane.dir);
+      const L = lane.len;
+      for (let i = 0; i < lane.cars.length; i++) {
+        const c = lane.cars[i];
+        let target = c.cruise;
+        const green = lane.axis === greenAxis && !amber;
+        if (!green) {
+          // Distance to the next stop line ahead (edge of the next cross street).
+          let d = Infinity;
+          for (const s of lane.cross) {
+            const stop = lane.dir > 0 ? s.c - s.w / 2 - 1.5 : s.c + s.w / 2 + 1.5;
+            const ahead = (stop - c.s) * lane.dir;
+            if (ahead > -0.5 && ahead < d) d = ahead;
+          }
+          // During amber, cars already close to the line carry on through.
+          const committed = amber && lane.axis === greenAxis && d < 10;
+          if (!committed && d < 34) target = Math.min(target, Math.max(0, (d - 2.5) * 0.7));
+        }
+        const next = lane.cars[i + 1];
+        if (next) {
+          const gap = (next.s - c.s) * lane.dir - 6.5;
+          if (gap < 26) target = Math.min(target, Math.max(0, gap * 0.75));
+        }
+        c.v += clamp(target - c.v, -14 * dt, 5 * dt);
+        c.s += c.v * lane.dir * dt;
+        if (c.s * lane.dir > L / 2) c.s -= lane.dir * L;
+      }
+    }
+    const { m, q, p, one } = this;
+    this.cars.forEach((c, k) => {
+      const ln = c.lane;
+      if (ln.axis === 'z') { p.set(ln.c, 0, c.s); q.setFromAxisAngle(UP, ln.dir > 0 ? 0 : Math.PI); }
+      else { p.set(c.s, 0, ln.c); q.setFromAxisAngle(UP, ln.dir > 0 ? Math.PI / 2 : -Math.PI / 2); }
+      m.compose(p, q, one);
+      this.body.setMatrixAt(k, m); this.cab.setMatrixAt(k, m); this.head.setMatrixAt(k, m); this.tail.setMatrixAt(k, m);
+    });
+    for (const im of [this.body, this.cab, this.head, this.tail]) im.instanceMatrix.needsUpdate = true;
+  }
+}
+const traffic = new Traffic(save.settings.quality === 'low' ? 80 : 170);
+
+// =====================================================================
+// Tokens: gold collectibles on roofs, antenna tips and in the air over streets.
+// =====================================================================
+const tokens = (() => {
+  const rnd = mulberry32(CFG.city.seed + 99);
+  const list = [];
+  const add = (p) => list.push({ id: list.length, pos: p, got: false });
+  const roofs = city.roofs.filter((r) => r.y > 10 && r.x1 - r.x0 > 8 && r.z1 - r.z0 > 8);
+  for (let tries = 0; list.length < 38 && tries < 400; tries++) {
+    const r = roofs[Math.floor(rnd() * roofs.length)];
+    const p = new THREE.Vector3(r.x0 + 3 + rnd() * (r.x1 - r.x0 - 6), r.y + 1.6, r.z0 + 3 + rnd() * (r.z1 - r.z0 - 6));
+    if (!city.pointInside(p, 1) && !list.some((t) => t.pos.distanceToSquared(p) < 900)) add(p);
+  }
+  for (const b of city.beacons.slice(0, 6)) add(b.clone().add(new THREE.Vector3(0, 3, 0)));
+  const streets = [...city.X.streets.map((s) => ({ s, axis: 'z', len: city.Z.size })), ...city.Z.streets.map((s) => ({ s, axis: 'x', len: city.X.size }))];
+  for (let tries = 0; list.length < CFG.tokens && tries < 2000; tries++) {
+    const { s, axis, len } = streets[Math.floor(rnd() * streets.length)];
+    const along = (rnd() - 0.5) * (len - 60);
+    const p = axis === 'z' ? new THREE.Vector3(s.c, 0, along) : new THREE.Vector3(along, 0, s.c);
+    p.y = clamp(city.skyline(p, 50) * (0.3 + rnd() * 0.5), 14, 90);
+    if (!city.pointInside(p, 2) && !list.some((t) => t.pos.distanceToSquared(p) < 1600)) add(p);
+  }
+  for (const t of list) t.got = save.tokens.includes(t.id);
+
+  const mesh = new THREE.InstancedMesh(
+    new THREE.OctahedronGeometry(0.85),
+    new THREE.MeshStandardMaterial({ color: 0xffc23d, emissive: 0xffa000, emissiveIntensity: 0.9, metalness: 0.4, roughness: 0.3 }),
+    list.length
+  );
+  const halo = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(4.2, 4.2),
+    new THREE.MeshBasicMaterial({ map: city.glowTex, color: 0xffb02e, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }),
+    list.length
+  );
+  mesh.frustumCulled = halo.frustumCulled = false;
+  scene.add(mesh, halo);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
+  return {
+    list, mesh,
+    get count() { return list.filter((t) => t.got).length; },
+    update(time) {
+      list.forEach((t, k) => {
+        if (t.got) { mesh.setMatrixAt(k, m.makeScale(0, 0, 0)); halo.setMatrixAt(k, m); return; }
+        q.setFromAxisAngle(UP, time * 1.8 + k);
+        p.copy(t.pos); p.y += Math.sin(time * 2 + k) * 0.3;
+        mesh.setMatrixAt(k, m.compose(p, q, s.set(1, 1, 1)));
+        halo.setMatrixAt(k, m.compose(p, camera.quaternion, s.set(1, 1, 1)));
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      halo.instanceMatrix.needsUpdate = true;
+    },
+  };
+})();
+
+// =====================================================================
+// Races: ring routes along the street grid, with a light beam at each start.
+// =====================================================================
+const RACE_NAMES = ['Midtown Dash', 'Avenue Sprint', 'Skyline Loop', 'Harbor Run'];
+const races = (() => {
+  const rnd = mulberry32(CFG.city.seed + 7);
+  const xs = city.X.streets, zs = city.Z.streets;
+  const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const out = [];
+  for (let k = 0; k < RACE_NAMES.length; k++) {
+    let path = null;
+    for (let attempt = 0; attempt < 60 && !path; attempt++) {
+      let i = 2 + Math.floor(rnd() * (xs.length - 4)), j = 2 + Math.floor(rnd() * (zs.length - 4));
+      const p = [[i, j]], seen = new Set([i + ',' + j]);
+      let last = -1, ok = true;
+      for (let leg = 0; leg < 4 + k && ok; leg++) {
+        const order = [0, 1, 2, 3].filter((d) => last < 0 || d !== (last ^ 1)).sort(() => rnd() - 0.5);
+        let moved = false;
+        for (const di of order) {
+          const steps = 1 + Math.floor(rnd() * 3);
+          const [dx, dz] = DIRS[di];
+          const seg = [];
+          let ci = i, cj = j, valid = true;
+          for (let s = 0; s < steps; s++) {
+            ci += dx; cj += dz;
+            if (ci < 1 || cj < 1 || ci > xs.length - 2 || cj > zs.length - 2 || seen.has(ci + ',' + cj)) { valid = false; break; }
+            seg.push([ci, cj]);
+          }
+          if (!valid) continue;
+          seg.forEach((s) => { p.push(s); seen.add(s[0] + ',' + s[1]); });
+          i = ci; j = cj; last = di; moved = true;
+          break;
+        }
+        if (!moved) ok = false;
+      }
+      if (ok && p.length >= 6) path = p;
+    }
+    if (!path) continue;
+    const pts = path.map(([i, j]) => new THREE.Vector3(xs[i].c, 0, zs[j].c));
+    const ringPos = [];
+    for (let n = 1; n < pts.length; n++) { ringPos.push(pts[n - 1].clone().lerp(pts[n], 0.5)); ringPos.push(pts[n].clone()); }
+    const phase = rnd() * 6.28;
+    ringPos.forEach((p, idx) => {
+      const sky = city.skyline(p, 60);
+      p.y = clamp(sky * 0.5, 18, 52) + Math.sin(phase + idx * 0.8) * 5;
+    });
+    const rings = ringPos.map((p, idx) => {
+      const nxt = ringPos[idx + 1] || p.clone().add(p.clone().sub(ringPos[idx - 1]));
+      const prv = ringPos[idx - 1] || pts[0];
+      const dir = new THREE.Vector3().subVectors(nxt, prv).setY(0).normalize();
+      return { pos: p, dir };
+    });
+    const first = rings[0].pos;
+    const startPos = city.nearestRoof(pts[0], 80, 12, first.y + 10) || pts[0].clone().setY(1.2);
+    let length = startPos.distanceTo(first);
+    for (let n = 1; n < rings.length; n++) length += rings[n].pos.distanceTo(rings[n - 1].pos);
+    out.push({
+      id: 'r' + k, name: RACE_NAMES[k], rings, start: startPos, length,
+      par: { gold: length / 34, silver: length / 27, bronze: length / 20 },
+    });
+  }
+  // Start beams.
+  const beamGeo = new THREE.CylinderGeometry(1.4, 1.4, 160, 16, 1, true); beamGeo.translate(0, 80, 0);
+  const beamMat = new THREE.MeshBasicMaterial({ color: 0x45d8ea, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  for (const r of out) {
+    r.beam = new THREE.Mesh(beamGeo, beamMat);
+    r.beam.position.copy(r.start).setY(r.start.y - 1);
+    scene.add(r.beam);
+  }
+  return out;
+})();
+
+// =====================================================================
+// Particles: soft round sprites for sparkles, dust and splashes.
+// =====================================================================
+const particles = (() => {
+  const MAX = 700;
+  const pos = new Float32Array(MAX * 3), col = new Float32Array(MAX * 3), size = new Float32Array(MAX), alpha = new Float32Array(MAX);
+  const vel = new Float32Array(MAX * 3), life = new Float32Array(MAX), maxLife = new Float32Array(MAX), grav = new Float32Array(MAX), base = new Float32Array(MAX);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+  geo.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1));
+  const U = { uPx: { value: 400 } };
+  const mat = new THREE.ShaderMaterial({
+    uniforms: U, transparent: true, depthWrite: false,
+    vertexShader: `
+      attribute vec3 aColor; attribute float aSize; attribute float aAlpha; uniform float uPx;
+      varying vec3 vColor; varying float vAlpha;
+      void main() {
+        vColor = aColor; vAlpha = aAlpha;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = aSize * uPx / max(0.5, -mv.z);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      varying vec3 vColor; varying float vAlpha;
+      void main() {
+        float d = length(gl_PointCoord - 0.5);
+        float a = smoothstep(0.5, 0.1, d) * vAlpha;
+        if (a < 0.01) discard;
+        gl_FragColor = vec4(vColor, a);
+        #include <colorspace_fragment>
+      }`,
+  });
+  const points = new THREE.Points(geo, mat);
+  points.frustumCulled = false;
+  scene.add(points);
+  let next = 0;
+  const c = new THREE.Color();
+  return {
+    U,
+    emit(p, { count = 12, speed = 4, color = 0xffffff, size: sz = 0.5, life: lf = 0.8, gravity = 0, up = 0, spread = 1 } = {}) {
+      c.setHex(color);
+      for (let n = 0; n < count; n++) {
+        const i = next++ % MAX;
+        pos[i * 3] = p.x; pos[i * 3 + 1] = p.y; pos[i * 3 + 2] = p.z;
+        const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+        const s = speed * (0.4 + Math.random() * 0.6);
+        vel[i * 3] = Math.sin(ph) * Math.cos(th) * s * spread;
+        vel[i * 3 + 1] = Math.cos(ph) * s * spread + up;
+        vel[i * 3 + 2] = Math.sin(ph) * Math.sin(th) * s * spread;
+        col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+        base[i] = sz * (0.7 + Math.random() * 0.6);
+        life[i] = maxLife[i] = lf * (0.7 + Math.random() * 0.6);
+        grav[i] = gravity;
+      }
+    },
+    /** A flat ring of puffs (landing dust, splashes). */
+    ring(p, { count = 18, speed = 7, color = 0xbdb6aa, size: sz = 0.8, life: lf = 0.6, up = 1 } = {}) {
+      c.setHex(color);
+      for (let n = 0; n < count; n++) {
+        const i = next++ % MAX, a = (n / count) * Math.PI * 2;
+        pos[i * 3] = p.x; pos[i * 3 + 1] = p.y; pos[i * 3 + 2] = p.z;
+        vel[i * 3] = Math.cos(a) * speed; vel[i * 3 + 1] = up * (0.5 + Math.random()); vel[i * 3 + 2] = Math.sin(a) * speed;
+        col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+        base[i] = sz * (0.7 + Math.random() * 0.6);
+        life[i] = maxLife[i] = lf * (0.7 + Math.random() * 0.6);
+        grav[i] = 0;
+      }
+    },
+    update(dt) {
+      for (let i = 0; i < MAX; i++) {
+        if (life[i] <= 0) { alpha[i] = 0; continue; }
+        life[i] -= dt;
+        const k = Math.max(0, life[i] / maxLife[i]);
+        vel[i * 3 + 1] -= grav[i] * dt;
+        const drag = 1 - 2.2 * dt;
+        vel[i * 3] *= drag; vel[i * 3 + 1] *= drag; vel[i * 3 + 2] *= drag;
+        pos[i * 3] += vel[i * 3] * dt; pos[i * 3 + 1] += vel[i * 3 + 1] * dt; pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
+        alpha[i] = Math.min(1, k * 1.6);
+        size[i] = base[i] * (1.4 - k * 0.4);
+      }
+      geo.attributes.position.needsUpdate = true;
+      geo.attributes.aAlpha.needsUpdate = true;
+      geo.attributes.aSize.needsUpdate = true;
+      geo.attributes.aColor.needsUpdate = true;
+    },
+  };
+})();
+
+// =====================================================================
+// Audio: wind with speed, city hum near the street, web thwips, chimes,
+// thuds and race beeps. All synthesised; starts on the first click.
 // =====================================================================
 const audio = {
   ctx: null, muted: false,
   init() {
-    if (this.ctx) return;
+    if (this.ctx) { this.ctx.resume?.(); return; }
     try {
       const ctx = (this.ctx = new (window.AudioContext || window.webkitAudioContext)());
       const len = ctx.sampleRate * 2;
       this.noise = ctx.createBuffer(1, len, ctx.sampleRate);
       const d = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-      this.master = ctx.createGain(); this.master.gain.value = this.muted ? 0 : 0.55; this.master.connect(ctx.destination);
-      const src = ctx.createBufferSource(); src.buffer = this.noise; src.loop = true;
-      this.windFilter = ctx.createBiquadFilter(); this.windFilter.type = 'bandpass'; this.windFilter.Q.value = 0.6;
-      this.windGain = ctx.createGain(); this.windGain.gain.value = 0;
-      src.connect(this.windFilter).connect(this.windGain).connect(this.master);
-      src.start();
+      this.master = ctx.createGain(); this.master.connect(ctx.destination);
+      this.applyVolume();
+      const loop = (filterType, freq, q) => {
+        const src = ctx.createBufferSource(); src.buffer = this.noise; src.loop = true;
+        const f = ctx.createBiquadFilter(); f.type = filterType; f.frequency.value = freq; f.Q.value = q;
+        const g = ctx.createGain(); g.gain.value = 0;
+        src.connect(f).connect(g).connect(this.master); src.start(0, Math.random() * 1.5);
+        return { f, g };
+      };
+      this.wind = loop('bandpass', 400, 0.6);
+      this.hum = loop('lowpass', 160, 0.7);
     } catch { this.ctx = null; }
   },
-  setMuted(m) { this.muted = m; if (this.master) this.master.gain.value = m ? 0 : 0.55; },
-  update(speed) {
+  applyVolume() { if (this.master) this.master.gain.value = this.muted ? 0 : 0.6 * save.settings.volume; },
+  update(speed, height, playing) {
     if (!this.ctx) return;
-    const t = this.ctx.currentTime, f = smooth(8, 55, speed);
-    this.windGain.gain.setTargetAtTime(f * 0.32, t, 0.12);
-    this.windFilter.frequency.setTargetAtTime(250 + speed * 22, t, 0.12);
+    const t = this.ctx.currentTime, f = smooth(8, 58, speed);
+    this.wind.g.gain.setTargetAtTime(playing ? f * 0.34 : 0, t, 0.12);
+    this.wind.f.frequency.setTargetAtTime(250 + speed * 22, t, 0.12);
+    this.hum.g.gain.setTargetAtTime(playing ? 0.08 * (1 - smooth(5, 90, height)) + 0.015 : 0.03, t, 0.4);
   },
-  thwip() {
+  noiseBurst({ type = 'bandpass', f0 = 3200, f1 = 900, q = 3, dur = 0.16, gain = 0.5 }) {
     if (!this.ctx) return;
     const ctx = this.ctx, t = ctx.currentTime;
     const src = ctx.createBufferSource(); src.buffer = this.noise;
-    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 3;
-    f.frequency.setValueAtTime(3200, t); f.frequency.exponentialRampToValueAtTime(900, t + 0.14);
+    const f = ctx.createBiquadFilter(); f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.9);
     const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.5, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(f).connect(g).connect(this.master);
-    src.start(t, Math.random()); src.stop(t + 0.2);
+    src.start(t, Math.random()); src.stop(t + dur + 0.05);
   },
-  thud(strength) {
+  tone(freq, { type = 'sine', dur = 0.2, gain = 0.25, at = 0, slide = 0 } = {}) {
     if (!this.ctx) return;
-    const ctx = this.ctx, t = ctx.currentTime;
-    const o = ctx.createOscillator(); o.type = 'sine';
-    o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.25);
-    const g = ctx.createGain(); g.gain.setValueAtTime(clamp(strength, 0.05, 0.8), t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
-    o.connect(g).connect(this.master); o.start(t); o.stop(t + 0.32);
+    const ctx = this.ctx, t = ctx.currentTime + at;
+    const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(freq * slide, t + dur);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(this.master); o.start(t); o.stop(t + dur + 0.05);
   },
+  thwip() { this.noiseBurst({}); },
+  whoosh() { this.noiseBurst({ f0: 600, f1: 2400, q: 1.2, dur: 0.3, gain: 0.3 }); },
+  thud(strength) { this.tone(110, { dur: 0.3, gain: clamp(strength, 0.05, 0.8), slide: 0.36 }); },
+  splash() { this.noiseBurst({ type: 'lowpass', f0: 2400, f1: 300, q: 0.7, dur: 0.6, gain: 0.6 }); },
+  chime() { this.tone(1318.5, { type: 'triangle', dur: 0.25, gain: 0.22 }); this.tone(1975.5, { type: 'triangle', dur: 0.35, gain: 0.2, at: 0.08 }); },
+  checkpoint() { this.tone(880, { type: 'triangle', dur: 0.18, gain: 0.25 }); this.tone(1320, { type: 'triangle', dur: 0.22, gain: 0.2, at: 0.06 }); },
+  beep(hi) { this.tone(hi ? 1046.5 : 523.25, { type: 'square', dur: hi ? 0.45 : 0.18, gain: 0.12 }); },
+  fanfare() { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.tone(f, { type: 'triangle', dur: 0.35, gain: 0.2, at: i * 0.11 })); },
+  bank() { this.tone(660, { type: 'sine', dur: 0.12, gain: 0.15 }); this.tone(990, { type: 'sine', dur: 0.18, gain: 0.13, at: 0.06 }); },
+  fail() { this.tone(220, { type: 'sawtooth', dur: 0.3, gain: 0.08, slide: 0.7 }); },
+  click() { this.tone(1400, { type: 'sine', dur: 0.05, gain: 0.08 }); },
 };
 
 // =====================================================================
-// Input
+// Input: keyboard + mouse, gamepad and touch, merged into one set of actions.
 // =====================================================================
 const input = {
   keys: new Set(),
-  pressed: new Set(),     // edge-triggered, consumed by the physics step
+  pressed: new Set(),     // edge-triggered actions, consumed by whoever handles them
   mouseSwing: false,
   look: { dx: 0, dy: 0 },
   lastLookTime: -10,
   locked: false,
-  get swingHeld() { return this.mouseSwing || this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'); },
-  consume(code) { const had = this.pressed.has(code); this.pressed.delete(code); return had; },
+  device: coarsePointer ? 'touch' : 'kbm',
+  pad: { move: new THREE.Vector2(), look: new THREE.Vector2(), swing: false, dive: false, prev: [] },
+  touch: { move: new THREE.Vector2(), swing: false, dive: false },
+  _mv: new THREE.Vector2(),
+  moveVec() {
+    const k = this.keys;
+    let x = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0) + this.pad.move.x + this.touch.move.x;
+    let y = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0) + this.pad.move.y + this.touch.move.y;
+    const l = Math.hypot(x, y);
+    if (l > 1) { x /= l; y /= l; }
+    return this._mv.set(x, y);
+  },
+  swingHeld() { return this.mouseSwing || this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') || this.pad.swing || this.touch.swing; },
+  diveHeld() { return this.keys.has('KeyC') || this.pad.dive || this.touch.dive; },
+  press(a) { this.pressed.add(a); },
+  consume(a) { const had = this.pressed.has(a); this.pressed.delete(a); return had; },
+  releaseAll() { this.keys.clear(); this.pressed.clear(); this.mouseSwing = false; this.touch.swing = this.touch.dive = false; this.touch.move.set(0, 0); },
 };
 
-const game = { started: false, paused: true, everLocked: false };
-
+const KEY_ACTIONS = { Space: 'jump', KeyE: 'zip', KeyQ: 'trick', KeyF: 'interact', KeyR: 'reset', ShiftLeft: 'swing', ShiftRight: 'swing' };
 addEventListener('keydown', (e) => {
-  if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
+  input.device = 'kbm';
+  if (e.code === 'Escape') { if (!e.repeat) onEscape(); return; }
+  if (menuOpen()) {
+    // Arrow keys move between menu items; Enter/Space press the focused one natively.
+    if (e.code === 'ArrowDown') { e.preventDefault(); menuNav(1); }
+    else if (e.code === 'ArrowUp') { e.preventDefault(); menuNav(-1); }
+    else if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && document.activeElement?.type !== 'range') {
+      e.preventDefault(); menuAdjust(e.code === 'ArrowLeft' ? -1 : 1);
+    }
+    return;
+  }
+  if (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Tab') e.preventDefault();
   if (e.repeat) return;
   input.keys.add(e.code);
-  input.pressed.add(e.code);
-  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') input.pressed.add('Swing');
-  if (e.code === 'KeyE') input.pressed.add('Zip');
-  if (e.code === 'KeyM') audio.setMuted(!audio.muted);
+  if (KEY_ACTIONS[e.code]) input.press(KEY_ACTIONS[e.code]);
+  if (e.code === 'KeyM') { audio.muted = !audio.muted; audio.applyVolume(); toast(audio.muted ? 'Sound off' : 'Sound on'); }
   if (e.code === 'Backquote') debug.toggle();
-  if (e.code === 'Escape' && !input.locked && game.started) setPaused(true);
 });
 addEventListener('keyup', (e) => input.keys.delete(e.code));
-addEventListener('blur', () => { input.keys.clear(); input.mouseSwing = false; });
+addEventListener('blur', () => { input.releaseAll(); if (game.mode === 'play' && !menuOpen()) openMenu('pause'); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && game.mode === 'play' && !menuOpen()) openMenu('pause'); });
 
 const canvas = renderer.domElement;
-const overlay = document.getElementById('overlay');
 function requestLock() {
+  if (input.device === 'touch') return;
   try { const p = canvas.requestPointerLock?.(); if (p && p.catch) p.catch(() => {}); } catch { /* not allowed here */ }
 }
-function setPaused(p) {
-  game.paused = p;
-  overlay.hidden = !p;
-  if (p) {
-    input.mouseSwing = false;
-    input.keys.clear();
-    document.getElementById('tagline').textContent = 'Paused.';
-    document.getElementById('goLabel').textContent = 'Click to resume';
-  }
-}
-overlay.addEventListener('click', () => {
-  audio.init();
-  game.started = true;
-  setPaused(false);
-  requestLock();
-});
+let lockLostAt = -1;
 document.addEventListener('pointerlockchange', () => {
   input.locked = document.pointerLockElement === canvas;
-  if (input.locked) game.everLocked = true;
-  else { input.mouseSwing = false; if (game.started && game.everLocked) setPaused(true); }
+  if (!input.locked) {
+    input.mouseSwing = false;
+    lockLostAt = performance.now();
+    if (game.mode === 'play' && !menuOpen()) openMenu('pause');
+  }
 });
 canvas.addEventListener('mousedown', (e) => {
+  if (menuOpen() || game.mode !== 'play') return;
+  input.device = 'kbm';
   if (e.button === 0) {
     if (!input.locked) requestLock();
-    input.mouseSwing = true; input.pressed.add('Swing');
+    input.mouseSwing = true; input.press('swing');
   }
-  if (e.button === 2 && input.locked) input.pressed.add('Zip');
+  if (e.button === 2 && input.locked) input.press('zip');
 });
 addEventListener('mouseup', (e) => { if (e.button === 0) input.mouseSwing = false; });
 addEventListener('mousemove', (e) => {
   // Pointer-lock look; without lock, hold the right button and drag.
-  if (input.locked || (e.buttons & 2)) {
-    input.look.dx += e.movementX;
-    input.look.dy += e.movementY;
-  }
+  if (input.locked || (e.buttons & 2)) { input.look.dx += e.movementX; input.look.dy += e.movementY; }
 });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+addEventListener('wheel', (e) => {
+  if (menuOpen() || game.mode !== 'play') return;
+  cam.zoom = clamp(cam.zoom * Math.exp(e.deltaY * 0.001), 0.6, 1.8);
+}, { passive: true });
+
+// ---------- touch ----------
+const touchEl = $('#touch'), stickEl = $('#stick'), knobEl = $('#knob');
+const touchState = { stickId: null, sx: 0, sy: 0, lookId: null, lx: 0, ly: 0 };
+addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'touch') return;
+  input.device = 'touch';
+  if (game.mode === 'play' && touchEl.hidden && !menuOpen()) touchEl.hidden = false;
+  document.body.classList.add('touch');
+  if (e.target !== canvas || menuOpen() || game.mode !== 'play') return;
+  if (e.clientX < innerWidth * 0.42 && touchState.stickId === null) {
+    touchState.stickId = e.pointerId; touchState.sx = e.clientX; touchState.sy = e.clientY;
+    stickEl.hidden = false; stickEl.style.left = e.clientX + 'px'; stickEl.style.top = e.clientY + 'px';
+    knobEl.style.transform = '';
+  } else if (touchState.lookId === null) {
+    touchState.lookId = e.pointerId; touchState.lx = e.clientX; touchState.ly = e.clientY;
+  }
+});
+addEventListener('pointermove', (e) => {
+  if (e.pointerId === touchState.stickId) {
+    let dx = e.clientX - touchState.sx, dy = e.clientY - touchState.sy;
+    const l = Math.hypot(dx, dy), max = 50;
+    if (l > max) { dx *= max / l; dy *= max / l; }
+    knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+    input.touch.move.set(dx / max, -dy / max);
+  } else if (e.pointerId === touchState.lookId) {
+    input.look.dx += (e.clientX - touchState.lx) * 1.4;
+    input.look.dy += (e.clientY - touchState.ly) * 1.4;
+    touchState.lx = e.clientX; touchState.ly = e.clientY;
+  }
+});
+const endTouch = (e) => {
+  if (e.pointerId === touchState.stickId) { touchState.stickId = null; input.touch.move.set(0, 0); stickEl.hidden = true; }
+  if (e.pointerId === touchState.lookId) touchState.lookId = null;
+};
+addEventListener('pointerup', endTouch);
+addEventListener('pointercancel', endTouch);
+touchEl.querySelectorAll('.tbtn').forEach((b) => {
+  const hold = b.dataset.hold, press = b.dataset.press;
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    b.classList.add('held');
+    if (hold) { input.touch[hold] = true; if (hold === 'swing') input.press('swing'); }
+    if (press === 'pause') openMenu('pause');
+    else if (press) input.press(press);
+  });
+  const up = () => { b.classList.remove('held'); if (hold) input.touch[hold] = false; };
+  b.addEventListener('pointerup', up);
+  b.addEventListener('pointercancel', up);
+  b.addEventListener('pointerleave', up);
+});
+
+// ---------- gamepad ----------
+function pollGamepad() {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let gp = null;
+  for (const g of pads) if (g && g.connected) { gp = g; break; }
+  const P = input.pad;
+  if (!gp) { P.move.set(0, 0); P.look.set(0, 0); P.swing = P.dive = false; return; }
+  const dz = (x, y) => { const m = Math.hypot(x, y); if (m < 0.18) return [0, 0]; const k = Math.min(1, (m - 0.18) / 0.82) / m; return [x * k, y * k]; };
+  const [mx, my] = dz(gp.axes[0] || 0, gp.axes[1] || 0);
+  const [lx, ly] = dz(gp.axes[2] || 0, gp.axes[3] || 0);
+  const btn = (i) => { const b = gp.buttons[i]; return !!b && (b.pressed || b.value > 0.35); };
+  const edge = (i) => btn(i) && !P.prev[i];
+  const anything = mx || my || lx || ly || gp.buttons.some((b) => b.pressed);
+  if (anything) input.device = 'pad';
+  if (menuOpen()) {
+    P.move.set(0, 0); P.look.set(0, 0); P.swing = P.dive = false;
+    const vy = my < -0.5 ? -1 : my > 0.5 ? 1 : 0;
+    if (edge(12) || (vy < 0 && !P.prevV)) menuNav(-1);
+    if (edge(13) || (vy > 0 && !P.prevV)) menuNav(1);
+    if (edge(14)) menuAdjust(-1);
+    if (edge(15)) menuAdjust(1);
+    P.prevV = vy !== 0;
+    if (edge(0)) document.activeElement?.click?.();
+    if (edge(1)) onEscape();
+    if (edge(9) && game.mode === 'play' && ui.panel === 'pause') resume();
+  } else {
+    P.move.set(mx, -my);
+    P.look.set(lx, ly);
+    P.swing = btn(7);
+    P.dive = btn(6);
+    if (edge(7)) input.press('swing');
+    if (edge(0)) input.press('jump');
+    if (edge(1)) input.press('zip');
+    if (edge(2)) input.press('trick');
+    if (edge(3)) input.press('interact');
+    if (edge(8)) input.press('reset');
+    if (edge(9)) openMenu('pause');
+  }
+  P.prev = gp.buttons.map((b) => b.pressed || b.value > 0.35);
+}
 
 // =====================================================================
 // Camera rig state (declared early: player input is camera-relative)
 // =====================================================================
 const cam = {
-  yaw: 0, pitch: 0.2,
+  yaw: 0, pitch: 0.2, roll: 0, zoom: 1,
   target: new THREE.Vector3(),
   dist: CFG.camera.distance,
-  fov: CFG.camera.fov,
+  fov: 72,
+  headingRate: 0, lastHeading: 0,
   forwardFlat() { return new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)); },
   rightFlat() { return new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw)); },
-  forward3() {
-    return new THREE.Vector3(-Math.sin(this.yaw) * Math.cos(this.pitch), -Math.sin(this.pitch), -Math.cos(this.yaw) * Math.cos(this.pitch));
-  },
+  forward3() { return new THREE.Vector3(-Math.sin(this.yaw) * Math.cos(this.pitch), -Math.sin(this.pitch), -Math.cos(this.yaw) * Math.cos(this.pitch)); },
 };
 
-/** WASD as a world-space, horizontal unit vector (or zero). */
+/** Movement input as a world-space horizontal vector (length 0..1, analog). */
 function inputDir() {
-  const f = (input.keys.has('KeyW') ? 1 : 0) - (input.keys.has('KeyS') ? 1 : 0);
-  const r = (input.keys.has('KeyD') ? 1 : 0) - (input.keys.has('KeyA') ? 1 : 0);
-  const v = cam.forwardFlat().multiplyScalar(f).addScaledVector(cam.rightFlat(), r);
-  return v.lengthSq() > 0 ? v.normalize() : v;
+  const m = input.moveVec();
+  return cam.forwardFlat().multiplyScalar(m.y).addScaledVector(cam.rightFlat(), m.x);
 }
+
+// =====================================================================
+// Game state, combo scoring
+// =====================================================================
+const game = { mode: 'title', paused: true, time: 0 };
+const State = { GROUND: 'ground', AIR: 'air', SWING: 'swing' };
+
+const combo = {
+  pts: 0, chain: 0, active: false, label: '', labelT: 0, groundT: 0,
+  get mult() { return 1 + Math.min(4, Math.floor(this.chain / 4) * 0.5); },
+  add(label, pts) { this.active = true; this.pts += Math.round(pts); this.label = label; this.labelT = 1.4; },
+  bank() {
+    if (!this.active) return;
+    const total = Math.round(this.pts * this.mult);
+    save.score += total;
+    if (total > save.bestCombo) { save.bestCombo = total; if (total > 500) toast(`New best combo: ${total.toLocaleString()}`, 'gold'); }
+    if (total >= 50) { toast(`+${total.toLocaleString()} style`, 'gold'); audio.bank(); }
+    writeSave();
+    this.reset();
+  },
+  lose(reason) {
+    if (this.active && this.pts > 100) { toast(`${reason}: combo lost`, 'red'); audio.fail(); }
+    this.reset();
+  },
+  reset() { this.pts = 0; this.chain = 0; this.active = false; this.groundT = 0; },
+};
 
 // =====================================================================
 // Player physics: a small state machine (ground / air / swing)
 // =====================================================================
-const State = { GROUND: 'ground', AIR: 'air', SWING: 'swing' };
-
 const player = {
   pos: new THREE.Vector3(),
   prevPos: new THREE.Vector3(),
   vel: new THREE.Vector3(),
   state: State.AIR,
-  heading: new THREE.Vector3(0, 0, -1), // last meaningful horizontal facing
-  coyote: 0,
-  webCooldown: 0,
-  zipCooldown: 0,
-  zipT: 0,
+  heading: new THREE.Vector3(0, 0, -1),
+  frozen: false,
+  coyote: 0, webCooldown: 0, zipCooldown: 0, zipT: 0,
   zipPoint: new THREE.Vector3(),
-  waitForApex: false,      // after a swing-jump, attach once the hop slows
-  nextSide: 1,             // alternate web hands/sides: +1 right, -1 left
+  waitForApex: false, nextSide: 1,
   web: null,               // { anchor, normal, virtual, length, target, hand }
-  events: [],              // fed to the presentation layer: { type, ... }
-
-  reset() {
-    this.pos.copy(city.spawnPoint());
-    this.prevPos.copy(this.pos);
+  diveT: 0, trickT: 0, trickCount: 0, kickT: 0, kickN: new THREE.Vector3(), heroT: 0,
+  nearCd: 0, stepN: 0,
+  events: [],
+  teleport(p, yaw) {
+    this.pos.copy(p); this.prevPos.copy(p);
     this.vel.set(0, 0, 0);
-    this.state = State.AIR;
-    this.web = null;
-    this.zipT = 0;
-    cam.yaw = Math.atan2(this.pos.x, this.pos.z); // face the city centre
-    cam.pitch = 0.2;
+    this.state = State.AIR; this.web = null; this.zipT = 0; this.trickT = 0; this.diveT = 0; this.heroT = 0;
+    if (yaw !== undefined) { cam.yaw = yaw; cam.pitch = 0.18; }
     this.heading.copy(cam.forwardFlat());
-    cam.target.copy(this.pos);
+    cam.target.copy(p);
+    character.snap?.();
   },
+  reset() { this.teleport(SPAWN, Math.atan2(SPAWN.x - city.cores[0].x, SPAWN.z - city.cores[0].z)); },
 };
 
-const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3(), tmpC = new THREE.Vector3();
+const tA = new THREE.Vector3(), tB = new THREE.Vector3(), tC = new THREE.Vector3();
 
 /** Pick where a web should stick: cast a fan of rays up and ahead and score the hits. */
 function findAnchor(side) {
   const S = CFG.swing;
   const p = player.pos;
-  // Aim where the player is steering; fall back to momentum, then camera.
   const head = inputDir();
-  if (head.lengthSq() === 0) {
-    const hv = tmpA.set(player.vel.x, 0, player.vel.z);
+  if (head.lengthSq() < 0.04) {
+    const hv = tA.set(player.vel.x, 0, player.vel.z);
     head.copy(hv.lengthSq() > 25 ? hv.normalize() : cam.forwardFlat());
-  }
+  } else head.normalize();
   const right = new THREE.Vector3(-head.z, 0, head.x);
-  const reach = 1 + clamp(player.vel.length() / 40, 0, 0.6); // aim further ahead when fast
+  const reach = 1 + clamp(player.vel.length() / 40, 0, 0.6);
 
   let best = null;
   const dir = new THREE.Vector3();
@@ -870,8 +1760,7 @@ function findAnchor(side) {
     }
   }
   if (best || !S.skyAnchors) return best;
-  // Nothing in reach: attach to a point in the sky ahead so a swing never fails,
-  // capped near the local skyline so chained swings don't carry you up forever.
+  // Nothing in reach: stick to the sky ahead, capped near the local skyline.
   dir.copy(head).multiplyScalar(0.8).addScaledVector(UP, 1.15).addScaledVector(right, 0.35 * side).normalize();
   const point = p.clone().addScaledVector(dir, 32);
   point.y = Math.min(point.y, city.skyline(p, 150) + S.skyHeadroom);
@@ -880,32 +1769,39 @@ function findAnchor(side) {
 }
 
 function attachWeb(a) {
-  const S = CFG.swing;
-  const dist = player.pos.distanceTo(a.point);
-  // Keep the bottom of the arc above the street.
+  const S = CFG.swing, P = player;
+  const dist = P.pos.distanceTo(a.point);
   const groundLimit = a.point.y - (CFG.player.halfSeg + CFG.player.radius + S.minFeetClearance);
-  player.web = {
+  P.web = {
     anchor: a.point.clone(), normal: a.normal, virtual: a.virtual,
-    length: dist,
-    target: Math.max(4, Math.min(dist * S.reelFactor, groundLimit)),
+    length: dist, target: Math.max(4, Math.min(dist * S.reelFactor, groundLimit)),
     hand: a.side > 0 ? 'R' : 'L',
   };
-  player.nextSide = -a.side;
-  player.state = State.SWING;
-  player.waitForApex = false;
-  player.events.push({ type: 'attach', point: a.point, normal: a.normal, virtual: a.virtual });
+  P.nextSide = -a.side;
+  P.state = State.SWING;
+  P.waitForApex = false;
+  if (P.trickT > 0 && P.trickT < 0.15) { P.trickCount++; combo.add('Flip', CFG.trick.points * P.trickCount); } // close enough
+  P.trickT = 0;
+  combo.chain++;
+  combo.add('Swing', 15 + P.vel.length() * 0.8);
+  if (P.diveT > 0.5) combo.add('Dive swing', 120);
+  P.diveT = 0;
+  P.events.push({ type: 'attach', point: a.point, normal: a.normal, virtual: a.virtual });
 }
 
 /** boost: 'full' for a deliberate let-go (forward + upward pop), 'forward' for auto-chaining, falsy for none. */
 function releaseWeb(boost) {
   const S = CFG.swing, v = player.vel;
   if (boost) {
-    const hv = tmpA.set(v.x, 0, v.z);
+    const hv = tA.set(v.x, 0, v.z);
     if (hv.lengthSq() > 1) v.addScaledVector(hv.normalize(), S.releaseFwd);
-    // The pop is strongest when you let go on the way up.
     if (boost === 'full') v.y += S.releaseUp * clamp(0.5 + v.y / 20, 0.3, 1.2);
   }
-  if (player.web) player.events.push({ type: 'release', launched: boost && v.y > 4 });
+  if (player.web) {
+    const launched = boost === 'full' && v.y > 6;
+    if (launched) combo.add('Launch', 40);
+    player.events.push({ type: 'release', launched });
+  }
   player.web = null;
   player.webCooldown = S.cooldown;
   if (player.state === State.SWING) player.state = State.AIR;
@@ -915,7 +1811,7 @@ function webZip() {
   const P = player, Z = CFG.zip, v = P.vel;
   if (P.web) releaseWeb(false);
   const f = cam.forward3();
-  const fh = tmpA.set(f.x, 0, f.z).normalize();
+  const fh = tA.set(f.x, 0, f.z).normalize();
   v.multiplyScalar(0.25).addScaledVector(fh, Z.speed);
   v.y = Math.max(v.y, 0) + Z.up + clamp(-f.y, 0, 0.6) * 10;
   P.state = State.AIR;
@@ -926,48 +1822,70 @@ function webZip() {
   P.events.push({ type: 'zip' });
 }
 
+function wallKick() {
+  const K = CFG.wallKick, P = player, v = P.vel, n = P.kickN;
+  const vn = v.dot(n);
+  if (vn < 0) v.addScaledVector(n, -vn);
+  v.addScaledVector(n, K.out);
+  v.y = Math.max(v.y, 0) + K.up;
+  P.kickT = 0;
+  combo.add('Wall kick', K.points);
+  P.events.push({ type: 'kick' });
+}
+
 /** Look ahead along the flight path; bend velocity along any wall about to be hit. */
 function avoidWalls(dt) {
   const v = player.vel;
   const hs = Math.hypot(v.x, v.z);
   if (hs < 6) return;
   const look = hs * CFG.avoid.lookAhead;
-  const hit = city.raycast(player.pos, tmpA.set(v.x / hs, 0, v.z / hs), look);
+  const hit = city.raycast(player.pos, tA.set(v.x / hs, 0, v.z / hs), look);
   if (!hit || Math.abs(hit.normal.y) > 0.5) return;
   const vn = v.dot(hit.normal);
   if (vn >= 0) return;
   const k = Math.min(1, CFG.avoid.strength * (1 - hit.t / look) * dt);
   v.addScaledVector(hit.normal, -vn * k);
-  // Keep most of the speed: redirect rather than brake.
   const nh = Math.hypot(v.x, v.z);
   if (nh > 0.01) { const s = (hs * (1 - 0.1 * k)) / nh; v.x *= s; v.z *= s; }
+}
+
+function airControl(dirIn, dt, scale) {
+  const mag = dirIn.length();
+  if (mag < 0.05) return;
+  const A = CFG.air, v = player.vel;
+  const hv = tA.set(v.x, 0, v.z);
+  const hs = hv.length();
+  if (hs > 2) {
+    const cur = Math.atan2(hv.x, hv.z), want = Math.atan2(dirIn.x, dirIn.z);
+    const lim = A.turnRate * dt * scale * mag;
+    const ang = cur + clamp(wrapAngle(want - cur), -lim, lim);
+    v.x = Math.sin(ang) * hs; v.z = Math.cos(ang) * hs;
+  }
+  if (hv.dot(dirIn) / mag < A.maxPushSpeed) { v.x += dirIn.x * A.accel * scale * dt; v.z += dirIn.z * A.accel * scale * dt; }
 }
 
 function step(dt) {
   const P = player, S = CFG.swing, v = P.vel;
   P.prevPos.copy(P.pos);
-  P.webCooldown -= dt;
-  P.zipCooldown -= dt;
-  P.zipT -= dt;
-  P.coyote -= dt;
+  if (P.frozen) { ['jump', 'swing', 'zip', 'trick'].forEach((a) => input.consume(a)); return; }
+  P.webCooldown -= dt; P.zipCooldown -= dt; P.zipT -= dt; P.coyote -= dt;
+  P.kickT -= dt; P.nearCd -= dt; P.heroT -= dt;
   const dirIn = inputDir();
-  const jumpPressed = input.consume('Space');
-  const swingPressed = input.consume('Swing');
-  const zipPressed = input.consume('Zip');
-  const swingHeld = input.swingHeld;
-
-  if (input.consume('KeyR')) { P.reset(); return; }
+  const jumpPressed = input.consume('jump');
+  const swingPressed = input.consume('swing');
+  const zipPressed = input.consume('zip');
+  const trickPressed = input.consume('trick');
+  const swingHeld = input.swingHeld(), diveHeld = input.diveHeld();
   if (zipPressed && P.zipCooldown <= 0) webZip();
+  let diving = false;
 
-  // ---------- state-specific forces ----------
   switch (P.state) {
     case State.GROUND: {
       const G = CFG.ground;
-      const hv = tmpA.set(v.x, 0, v.z);
-      const target = tmpB.copy(dirIn).multiplyScalar(G.runSpeed);
-      // Over run speed (fresh off a swing): slide down gently instead of stopping dead.
+      const hv = tA.set(v.x, 0, v.z);
+      const target = tB.copy(dirIn).multiplyScalar(G.runSpeed * (P.heroT > 0 ? 0.3 : 1));
       const rate = hv.length() > G.runSpeed + 0.5 ? G.slideDecel : G.accel;
-      const diff = tmpC.subVectors(target, hv);
+      const diff = tC.subVectors(target, hv);
       const dl = diff.length();
       if (dl > 0) hv.addScaledVector(diff, Math.min(1, (rate * dt) / dl));
       v.x = hv.x; v.z = hv.z;
@@ -977,40 +1895,52 @@ function step(dt) {
       break;
     }
     case State.AIR: {
-      if (jumpPressed && P.coyote > 0) { v.y = CFG.ground.jump; P.coyote = 0; }
-      v.y -= CFG.gravity * dt;
-      airControl(dirIn, dt);
+      if (jumpPressed) {
+        if (P.kickT > 0) wallKick();
+        else if (P.coyote > 0) { v.y = CFG.ground.jump; P.coyote = 0; }
+      }
+      diving = diveHeld && v.y < 8 && P.zipT <= 0;
+      P.diveT = diving ? P.diveT + dt : 0;
+      v.y -= CFG.gravity * (diving ? CFG.dive.gravityMult : 1) * dt;
+      airControl(dirIn, dt, diving ? CFG.dive.steer : 1);
       avoidWalls(dt);
-      // Hold to swing: attach on press, or keep chaining webs while held.
+      if (trickPressed && P.trickT <= 0 && !diving) { P.trickT = CFG.trick.duration; P.events.push({ type: 'trick' }); }
       const ready = P.webCooldown <= 0 && (swingPressed || swingHeld);
       const apexOk = !P.waitForApex || v.y < S.attachMaxUpVel;
       const chainOk = swingPressed || v.y < S.attachMaxUpVel;
-      if (ready && apexOk && chainOk) {
+      if (ready && apexOk && chainOk && P.trickT <= 0.15) {
         const a = findAnchor(P.nextSide);
         if (a) attachWeb(a);
-        else P.webCooldown = 0.08; // nothing in reach; try again shortly
+        else P.webCooldown = 0.08;
       }
       break;
     }
     case State.SWING: {
       const W = P.web;
       v.y -= CFG.gravity * dt;
-      const n = tmpA.subVectors(P.pos, W.anchor).normalize(); // anchor -> player
-      // Steering: input force, minus the part along the rope.
-      if (dirIn.lengthSq() > 0) {
-        const f = tmpB.copy(dirIn).multiplyScalar(S.inputAccel);
+      const n = tA.subVectors(P.pos, W.anchor).normalize(); // anchor -> player
+      if (dirIn.lengthSq() > 0.0025) {
+        const f = tB.copy(dirIn).multiplyScalar(S.inputAccel);
         f.addScaledVector(n, -f.dot(n));
         v.addScaledVector(f, dt);
       }
-      // Assist: a push along the direction of travel, strongest at the bottom of the arc.
-      const vt = tmpB.copy(v).addScaledVector(n, -v.dot(n));
+      const vt = tB.copy(v).addScaledVector(n, -v.dot(n));
       const low = Math.max(0, -n.y);
       if (vt.lengthSq() > 1) v.addScaledVector(vt.normalize(), S.assist * low * low * dt);
       W.length = moveTowards(W.length, W.target, S.reelRate * dt);
       if (!swingHeld || jumpPressed) releaseWeb('full');
-      else if (n.y > S.autoReleaseAbove) releaseWeb('forward'); // held through the top: chain on
+      else if (n.y > S.autoReleaseAbove) releaseWeb('forward');
       else avoidWalls(dt);
       break;
+    }
+  }
+
+  // Finish a flip.
+  if (P.trickT > 0) {
+    P.trickT -= dt;
+    if (P.trickT <= 0 && P.state === State.AIR) {
+      P.trickCount++;
+      combo.add(P.trickCount > 1 ? `Flip ×${P.trickCount}` : 'Flip', CFG.trick.points * P.trickCount);
     }
   }
 
@@ -1018,13 +1948,14 @@ function step(dt) {
   const speed = v.length();
   if (speed > 0) v.multiplyScalar(Math.max(0, 1 - CFG.drag * speed * dt));
   if (v.length() > CFG.maxSpeed) v.setLength(CFG.maxSpeed);
-  if (v.y < -CFG.maxFallSpeed) v.y = -CFG.maxFallSpeed;
+  const maxFall = diving ? CFG.dive.maxFall : CFG.maxFallSpeed;
+  if (v.y < -maxFall) v.y = -maxFall;
   P.pos.addScaledVector(v, dt);
 
   // ---------- rope constraint (inextensible, only pulls when taut) ----------
   if (P.state === State.SWING && P.web) {
     const W = P.web;
-    const d = tmpA.subVectors(P.pos, W.anchor);
+    const d = tA.subVectors(P.pos, W.anchor);
     const len = d.length();
     if (len > W.length) {
       d.divideScalar(len);
@@ -1036,66 +1967,75 @@ function step(dt) {
 
   // ---------- collisions ----------
   const fallSpeed = -v.y;
-  const contact = collide();
+  const contact = collide(P.state === State.GROUND, P.state === State.AIR);
   if (contact.ground) {
     if (P.state === State.AIR || P.state === State.SWING) {
       if (P.web) releaseWeb(false);
-      P.events.push({ type: 'land', speed: fallSpeed });
+      if (P.trickT > 0) { P.trickT = 0; combo.lose('Botched flip'); }
+      const hard = fallSpeed > 26;
+      if (hard) P.heroT = 0.45;
+      P.events.push({ type: 'land', speed: fallSpeed, hard });
     }
     P.state = State.GROUND;
     P.coyote = CFG.ground.coyote;
+    P.trickCount = 0;
+    P.diveT = 0;
   } else if (P.state === State.GROUND) {
     P.state = State.AIR; // walked off a ledge
   }
-  // A hard hit knocks you off your web so the bounce carries you away from the wall.
+  if (contact.bounce > CFG.bounce.minSpeed && P.state !== State.GROUND) {
+    P.kickT = CFG.wallKick.window;
+    P.kickN.copy(contact.wallN);
+  }
   if (contact.bounce > CFG.bounce.releaseWebSpeed && P.web) releaseWeb(false);
+  if (contact.bounce > CFG.bounce.comboBreak) combo.lose('Wall hit');
   if (contact.bounce > CFG.bounce.minSpeed) P.events.push({ type: 'bounce', speed: contact.bounce });
 
-  if (P.pos.y < -50) P.reset();
+  // ---------- near misses (every few steps) ----------
+  if (++P.stepN % 4 === 0 && P.state !== State.GROUND && P.nearCd <= 0) {
+    const hs = Math.hypot(v.x, v.z);
+    if (hs > CFG.style.nearMissSpeed) {
+      for (const sgn of [1, -1]) {
+        const side = tB.set(-v.z / hs * sgn, 0, v.x / hs * sgn);
+        const hit = city.raycast(P.pos, side, CFG.style.nearMissDist);
+        if (hit && Math.abs(hit.normal.y) < 0.5) { combo.add('Near miss', 60); P.nearCd = 0.7; break; }
+      }
+    }
+  }
 
-  // Facing for the animation layer.
-  const hv = tmpA.set(v.x, 0, v.z);
+  // ---------- tokens ----------
+  for (const t of tokens.list) {
+    if (!t.got && t.pos.distanceToSquared(P.pos) < 6.2) collectToken(t);
+  }
+
+  // ---------- water ----------
+  if (P.pos.y < -1.0) { P.events.push({ type: 'splash', point: P.pos.clone() }); onSplash(); return; }
+
+  const hv = tA.set(v.x, 0, v.z);
   if (hv.lengthSq() > 0.5) P.heading.copy(hv.normalize());
 }
 
-function airControl(dirIn, dt) {
-  if (dirIn.lengthSq() === 0) return;
-  const A = CFG.air, v = player.vel;
-  const hv = tmpA.set(v.x, 0, v.z);
-  const hs = hv.length();
-  // Bend existing momentum toward the input direction (keeps speed).
-  if (hs > 2) {
-    const cur = Math.atan2(hv.x, hv.z), want = Math.atan2(dirIn.x, dirIn.z);
-    const delta = clamp(wrapAngle(want - cur), -A.turnRate * dt, A.turnRate * dt);
-    const ang = cur + delta;
-    v.x = Math.sin(ang) * hs; v.z = Math.cos(ang) * hs;
-  }
-  // Plus a small push, capped so it can't build infinite speed.
-  if (hv.dot(dirIn) < A.maxPushSpeed) { v.x += dirIn.x * A.accel * dt; v.z += dirIn.z * A.accel * dt; }
-}
-
-/** Vertical capsule vs ground plane and nearby boxes. Pushes out and reports contacts. */
-function collide() {
-  const P = player, R = CFG.player.radius, H = CFG.player.halfSeg;
-  const out = { ground: false, bounce: 0 }; // bounce = speed we hit a wall with
-  const v = P.vel;
-
+/**
+ * Vertical capsule vs the island and nearby boxes. Pushes out and reports contacts.
+ * Low ledges (kerbs, roof rims, the top of a wall you just reach) are stepped onto.
+ */
+function collide(grounded, falling) {
+  const P = player, R = CFG.player.radius, H = CFG.player.halfSeg, v = P.vel;
+  const out = { ground: false, bounce: 0, wallN: new THREE.Vector3() };
   for (let iter = 0; iter < 3; iter++) {
     let any = false;
     city.forEachIn(P.pos.x - R - 1, P.pos.z - R - 1, P.pos.x + R + 1, P.pos.z + R + 1, (b) => {
-      // Closest point on the capsule segment to the box (exact for a vertical segment vs AABB).
       const y0 = P.pos.y - H, y1 = P.pos.y + H;
       const sy = y1 < b.min.y ? y1 : y0 > b.max.y ? y0 : clamp(P.pos.y, Math.max(y0, b.min.y), Math.min(y1, b.max.y));
-      const s = tmpA.set(P.pos.x, sy, P.pos.z);
-      const q = tmpB.set(clamp(s.x, b.min.x, b.max.x), clamp(s.y, b.min.y, b.max.y), clamp(s.z, b.min.z, b.max.z));
-      const d = tmpC.subVectors(s, q);
+      const s = tA.set(P.pos.x, sy, P.pos.z);
+      const q = tB.set(clamp(s.x, b.min.x, b.max.x), clamp(s.y, b.min.y, b.max.y), clamp(s.z, b.min.z, b.max.z));
+      const d = tC.subVectors(s, q);
       const dist = d.length();
       let n, pen;
       if (dist > 1e-6) {
         if (dist >= R) return;
         n = d.divideScalar(dist); pen = R - dist;
       } else {
-        // Segment point inside the box: leave by the shallowest face.
         const faces = [
           [s.x - b.min.x, -1, 0, 0], [b.max.x - s.x, 1, 0, 0],
           [s.y - b.min.y, 0, -1, 0], [b.max.y - s.y, 0, 1, 0],
@@ -1103,27 +2043,36 @@ function collide() {
         ];
         faces.sort((a, c) => a[0] - c[0]);
         const [depth, nx, ny, nz] = faces[0];
-        n = tmpC.set(nx, ny, nz); pen = depth + R;
+        n = tC.set(nx, ny, nz); pen = depth + R;
+      }
+      // Step up onto low ledges instead of stopping against them.
+      if (n.y < 0.6 && n.y > -0.3 && (grounded || (falling && v.y < 2))) {
+        const rise = b.max.y - (P.pos.y - H - R);
+        if (rise > 0 && rise <= CFG.player.stepUp) {
+          P.pos.y = b.max.y + H + R + 0.01;
+          if (v.y < 0) v.y = 0;
+          out.ground = true; any = true;
+          return;
+        }
       }
       P.pos.addScaledVector(n, pen);
       const vn = v.dot(n);
-      if (n.y > 0.7) { out.ground = true; if (vn < 0) v.addScaledVector(n, -vn); }
+      if (n.y > 0.6) { out.ground = true; if (vn < 0) v.addScaledVector(n, -vn); }
       else if (Math.abs(n.y) < 0.3) {
         // Walls: reflect the into-wall velocity so you bounce off instead of stopping dead.
         if (vn < 0) {
           const e = -vn > CFG.bounce.minSpeed ? CFG.bounce.restitution : 0;
           v.addScaledVector(n, -vn * (1 + e));
-          out.bounce = Math.max(out.bounce, -vn);
+          if (-vn > out.bounce) { out.bounce = -vn; out.wallN.set(n.x, 0, n.z).normalize(); }
         }
       } else if (vn < 0) v.addScaledVector(n, -vn);
       any = true;
     });
     if (!any) break;
   }
-
-  // Street level.
+  // Street level, only over the island.
   const feet = P.pos.y - H - R;
-  if (feet <= 0) {
+  if (feet <= 0 && feet > -1 && city.onLand(P.pos.x, P.pos.z)) {
     P.pos.y = H + R;
     if (v.y < 0) v.y = 0;
     out.ground = true;
@@ -1131,39 +2080,65 @@ function collide() {
   return out;
 }
 
+function collectToken(t) {
+  t.got = true;
+  if (!save.tokens.includes(t.id)) save.tokens.push(t.id);
+  writeSave();
+  combo.add('Token', 250);
+  player.events.push({ type: 'token', point: t.pos.clone() });
+  const n = tokens.count;
+  toast(`Token ${n} / ${tokens.list.length}`, 'gold');
+  const unlocked = SUITS.find((s) => s.need === n && s.need > 0);
+  if (unlocked) setTimeout(() => toast(`Suit unlocked: ${unlocked.name}. Equip it in Settings.`, 'gold big'), 700);
+}
+
+function onSplash() {
+  combo.lose('Splash');
+  flashFade();
+  if (race.state === 'running' || race.state === 'countdown') {
+    const r = race.def, i = race.idx;
+    const back = i > 0 ? r.rings[i - 1].pos.clone() : r.start.clone();
+    const ahead = r.rings[i].pos;
+    player.teleport(back, Math.atan2(back.x - ahead.x, back.z - ahead.z));
+  } else {
+    const p = city.nearestRoof(player.pos.clone().clampScalar(-city.size / 2 + 40, city.size / 2 - 40), 500, 15, 80) || SPAWN;
+    player.teleport(p, cam.yaw);
+  }
+}
+
 // =====================================================================
-// Character: a rounded mannequin with procedural poses.
+// Character: a rounded mannequin with procedural poses and suits.
 // Rig faces +Z; its local +X is the character's LEFT.
 // =====================================================================
 class Character {
   constructor() {
-    const suit = new THREE.MeshStandardMaterial({ color: 0xd6323d, roughness: 0.5 });
-    const blue = new THREE.MeshStandardMaterial({ color: 0x1f3c7a, roughness: 0.55 });
-    const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x9aa6b8, roughness: 0.2 });
+    this.main = new THREE.MeshStandardMaterial({ color: 0xd6323d, roughness: 0.5 });
+    this.sec = new THREE.MeshStandardMaterial({ color: 0x1f3c7a, roughness: 0.55 });
+    this.eye = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x9aa6b8, roughness: 0.2 });
     const shadow = (m) => { m.castShadow = true; return m; };
     const capsule = (r, len, mat, y) => {
       const m = shadow(new THREE.Mesh(new THREE.CapsuleGeometry(r, Math.max(0.01, len - 2 * r), 4, 10), mat));
       m.position.y = y;
       return m;
     };
-
-    this.root = new THREE.Group();      // world transform
-    this.body = new THREE.Group();      // lean / tuck on top of the facing
+    this.root = new THREE.Group();
+    this.body = new THREE.Group();
     this.root.add(this.body);
 
-    const torso = capsule(0.2, 0.66, suit, 0.34); torso.scale.set(1.18, 1, 0.72);
-    const hips = capsule(0.15, 0.32, blue, 0.02); hips.rotation.z = Math.PI / 2; hips.scale.set(1, 1, 0.8);
-    const head = shadow(new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 14), suit));
+    const torso = capsule(0.2, 0.66, this.main, 0.34); torso.scale.set(1.18, 1, 0.72);
+    const hips = capsule(0.15, 0.32, this.sec, 0.02); hips.rotation.z = Math.PI / 2; hips.scale.set(1, 1, 0.8);
+    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 0.06, 16), this.sec); belt.position.y = 0.1; belt.scale.set(1.15, 1, 0.75);
+    const emblem = new THREE.Mesh(new THREE.OctahedronGeometry(0.07), this.sec); emblem.position.set(0, 0.48, 0.15); emblem.scale.set(1, 1.5, 0.4);
+    const head = shadow(new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 14), this.main));
     head.position.set(0, 0.86, 0.01); head.scale.set(1, 1.12, 1);
-    this.body.add(torso, hips, head);
+    this.body.add(torso, hips, belt, emblem, head);
     for (const x of [-0.058, 0.058]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), eyeMat);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), this.eye);
       eye.scale.set(1, 0.62, 0.35);
       eye.position.set(x, 0.885, 0.13);
       eye.rotation.z = x > 0 ? 0.45 : -0.45;
       this.body.add(eye);
     }
-
     const limb = (x, y, upperLen, lowerLen, r, upperMat, lowerMat) => {
       const pivot = new THREE.Group(); pivot.position.set(x, y, 0);
       pivot.add(capsule(r, upperLen + r, upperMat, -upperLen / 2));
@@ -1176,48 +2151,63 @@ class Character {
       this.body.add(pivot);
       return { pivot, joint, end };
     };
-    this.armL = limb(0.3, 0.6, 0.29, 0.28, 0.058, blue, suit);
-    this.armR = limb(-0.3, 0.6, 0.29, 0.28, 0.058, blue, suit);
-    this.legL = limb(0.11, -0.06, 0.42, 0.42, 0.08, blue, suit);
-    this.legR = limb(-0.11, -0.06, 0.42, 0.42, 0.08, blue, suit);
-
+    this.armL = limb(0.3, 0.6, 0.29, 0.28, 0.058, this.sec, this.main);
+    this.armR = limb(-0.3, 0.6, 0.29, 0.28, 0.058, this.sec, this.main);
+    this.legL = limb(0.11, -0.06, 0.42, 0.42, 0.08, this.sec, this.main);
+    this.legR = limb(-0.11, -0.06, 0.42, 0.42, 0.08, this.sec, this.main);
     this.phase = 0;
     this.targetQ = new THREE.Quaternion();
     scene.add(this.root);
   }
 
-  /** Point a limb (rest pose = straight down) along a rig-local direction. */
+  applySuit(id) {
+    const s = SUITS.find((x) => x.id === id) || SUITS[0];
+    this.suit = s;
+    this.main.color.setHex(s.main);
+    this.sec.color.setHex(s.sec);
+    this.eye.color.setHex(s.eye);
+    this.eye.emissive.setHex(s.glow ? s.eye : 0x9aa6b8);
+    this.eye.emissiveIntensity = s.glow ? 1.6 : 0.5;
+  }
+
+  snap() { this.root.position.copy(player.pos); }
+
+  /** A faint self-light after dark so the character never disappears into the night. */
+  setNight(n) {
+    const s = this.suit || SUITS[0];
+    this.main.emissive.setHex(s.main).multiplyScalar(0.22 * n);
+    this.sec.emissive.setHex(s.sec).multiplyScalar(0.3 * n);
+  }
+
   static aim(limbObj, dir, k) {
     const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir.clone().normalize());
     limbObj.pivot.quaternion.slerp(q, k);
   }
-  static bend(limbObj, angle, k) {
-    limbObj.joint.rotation.x += (angle - limbObj.joint.rotation.x) * k;
-  }
+  static bend(limbObj, angle, k) { limbObj.joint.rotation.x += (angle - limbObj.joint.rotation.x) * k; }
 
   update(dt, renderPos) {
     const P = player, v = P.vel;
     this.root.position.copy(renderPos);
+    const hs = Math.hypot(v.x, v.z);
+    const diving = P.state === State.AIR && P.diveT > 0;
 
     // ----- body orientation -----
     let up = UP, fwd = P.heading;
-    const hs = Math.hypot(v.x, v.z);
+    const lUp = new THREE.Vector3(), lFwd = new THREE.Vector3();
     if (P.state === State.SWING && P.web) {
-      up = tmpA.subVectors(P.web.anchor, renderPos).normalize(); // hang along the rope
-      fwd = tmpB.copy(v).addScaledVector(up, -v.dot(up));
+      up = lUp.subVectors(P.web.anchor, renderPos).normalize();
+      fwd = lFwd.copy(v).addScaledVector(up, -v.dot(up));
       if (fwd.lengthSq() < 1) fwd.copy(P.heading);
     } else if (P.state === State.AIR) {
-      // Pitch with the flight path, but never fully nose-down.
-      const pitch = clamp(Math.atan2(v.y, Math.max(hs, 1)), -0.9, 0.6);
-      fwd = tmpB.copy(P.heading).multiplyScalar(Math.cos(pitch)).addScaledVector(UP, Math.sin(pitch));
+      const pitch = diving ? -1.25 : clamp(Math.atan2(v.y, Math.max(hs, 1)), -0.9, 0.6);
+      fwd = lFwd.copy(P.heading).multiplyScalar(Math.cos(pitch)).addScaledVector(UP, Math.sin(pitch));
     }
-    // Swinging keeps "up" exact (along the rope); otherwise keep "forward" exact (flight pitch).
     const left = new THREE.Vector3().crossVectors(up, fwd).normalize();
     let f, u;
     if (P.state === State.SWING) { u = up; f = new THREE.Vector3().crossVectors(left, up).normalize(); }
     else { f = fwd.clone().normalize(); u = new THREE.Vector3().crossVectors(f, left).normalize(); }
     this.targetQ.setFromRotationMatrix(new THREE.Matrix4().makeBasis(left, u, f));
-    const turnK = P.state === State.GROUND ? 16 : P.state === State.SWING ? 9 : 7;
+    const turnK = P.state === State.GROUND ? 16 : P.state === State.SWING ? 9 : diving ? 5 : 7;
     this.root.quaternion.slerp(this.targetQ, damp(turnK, dt));
 
     // ----- limbs -----
@@ -1225,7 +2215,16 @@ class Character {
     const D = (x, y, z) => new THREE.Vector3(x, y, z);
     let lean = 0;
 
-    if (P.state === State.GROUND) {
+    if (P.state === State.GROUND && P.heroT > 0) {
+      // Hero landing: deep crouch, one hand on the ground.
+      Character.aim(this.armL, D(0.25, -1, 0.55), damp(30, dt));
+      Character.aim(this.armR, D(-0.8, -0.2, -0.4), damp(30, dt));
+      Character.bend(this.armL, -0.1, k); Character.bend(this.armR, -0.5, k);
+      Character.aim(this.legL, D(0.15, -0.35, 1), damp(30, dt));
+      Character.aim(this.legR, D(-0.15, -0.9, -0.2), damp(30, dt));
+      Character.bend(this.legL, 2.0, damp(30, dt)); Character.bend(this.legR, 1.7, damp(30, dt));
+      lean = 0.65;
+    } else if (P.state === State.GROUND) {
       const run = clamp(hs / CFG.ground.runSpeed, 0, 1.2);
       this.phase += dt * (4 + hs * 0.75);
       const s = Math.sin(this.phase), c = Math.cos(this.phase);
@@ -1241,7 +2240,6 @@ class Character {
       Character.bend(this.legR, 0.05 + run * (0.2 + 1.1 * Math.max(0, c)), k);
       lean = 0.28 * run;
     } else if (P.state === State.SWING && P.web) {
-      // Web arm reaches to the anchor; the other arm and legs react to the arc.
       this.root.updateMatrixWorld();
       const handArm = P.web.hand === 'L' ? this.armL : this.armR;
       const freeArm = P.web.hand === 'L' ? this.armR : this.armL;
@@ -1251,22 +2249,32 @@ class Character {
       const fs = freeArm === this.armL ? 1 : -1;
       Character.aim(freeArm, D(0.75 * fs, -0.45, 0.35), k);
       Character.bend(freeArm, -0.6, k);
-      const n = tmpC.subVectors(renderPos, P.web.anchor).normalize();
+      const n = new THREE.Vector3().subVectors(renderPos, P.web.anchor).normalize();
       const tuck = clamp(-n.y, 0, 1) ** 2;
       Character.aim(this.legL, D(0.05, -1, 0.2 + 0.9 * tuck), k);
       Character.aim(this.legR, D(-0.05, -1, 0.05 + 0.6 * tuck), k);
       Character.bend(this.legL, 0.3 + 1.1 * tuck, k);
       Character.bend(this.legR, 0.5 + 0.8 * tuck, k);
       lean = -0.15;
+    } else if (P.trickT > 0) {
+      // Flip: tucked ball.
+      Character.aim(this.armL, D(0.3, -0.3, 1), damp(25, dt)); Character.aim(this.armR, D(-0.3, -0.3, 1), damp(25, dt));
+      Character.bend(this.armL, -1.2, k); Character.bend(this.armR, -1.2, k);
+      Character.aim(this.legL, D(0.1, -0.2, 1), damp(25, dt)); Character.aim(this.legR, D(-0.1, -0.2, 1), damp(25, dt));
+      Character.bend(this.legL, 2.1, damp(25, dt)); Character.bend(this.legR, 2.1, damp(25, dt));
+    } else if (diving) {
+      // Dive: streamlined, arms swept back.
+      Character.aim(this.armL, D(0.25, -0.15, -1), k); Character.aim(this.armR, D(-0.25, -0.15, -1), k);
+      Character.bend(this.armL, 0, k); Character.bend(this.armR, 0, k);
+      Character.aim(this.legL, D(0.08, -1, -0.15), k); Character.aim(this.legR, D(-0.08, -1, -0.1), k);
+      Character.bend(this.legL, 0.1, k); Character.bend(this.legR, 0.25, k);
     } else if (P.zipT > 0) {
-      // Web-zip: both arms thrown forward.
       Character.aim(this.armL, D(0.25, 0.5, 1), damp(30, dt));
       Character.aim(this.armR, D(-0.25, 0.5, 1), damp(30, dt));
       Character.bend(this.armL, 0, k); Character.bend(this.armR, 0, k);
       Character.aim(this.legL, D(0.1, -1, -0.3), k); Character.aim(this.legR, D(-0.1, -1, -0.1), k);
       Character.bend(this.legL, 0.6, k); Character.bend(this.legR, 0.3, k);
     } else {
-      // Airborne: spread out on the way up, arms higher when dropping fast.
       const fall = clamp(-v.y / 30, 0, 1);
       const t = performance.now() * 0.004;
       Character.aim(this.armL, D(0.9, -0.5 + 0.9 * fall, 0.25), k);
@@ -1278,24 +2286,28 @@ class Character {
       Character.bend(this.legL, 0.9 - 0.4 * fall, k);
       Character.bend(this.legR, 0.4, k);
     }
-    this.body.rotation.x += (lean - this.body.rotation.x) * k;
+    if (P.trickT > 0) {
+      const prog = 1 - P.trickT / CFG.trick.duration;
+      this.body.rotation.x = wrapAngle(prog * Math.PI * 2); // forward flip; same orientation mod 2π
+    } else {
+      this.body.rotation.x += (lean - this.body.rotation.x) * k;
+    }
   }
 
-  handWorld(hand, out) {
-    return (hand === 'L' ? this.armL : this.armR).end.getWorldPosition(out);
-  }
+  handWorld(hand, out) { return (hand === 'L' ? this.armL : this.armR).end.getWorldPosition(out); }
 }
 const character = new Character();
+character.applySuit(save.suit);
 
 // =====================================================================
-// Web line: shoots out, holds while attached, snaps back when released.
-// Splats mark where webs stuck to buildings and fade over a few seconds.
+// Web line, splats, speed lines
 // =====================================================================
 const webLine = (() => {
   const geo = new THREE.CylinderGeometry(0.04, 0.04, 1, 6, 1, true);
-  geo.translate(0, 0.5, 0); // base at origin, extends along +Y
+  geo.translate(0, 0.5, 0);
   const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xf6f8fb }));
   mesh.visible = false;
+  mesh.frustumCulled = false;
   scene.add(mesh);
   const SHOOT_TIME = 0.06, RETRACT_TIME = 0.14;
   const anchor = new THREE.Vector3(), from = new THREE.Vector3(), to = new THREE.Vector3(), dir = new THREE.Vector3();
@@ -1311,13 +2323,12 @@ const webLine = (() => {
       } else if (active) { active = false; retractT = 0; }
       if (!active && retractT < 0) { mesh.visible = false; return; }
       character.handWorld(hand, from);
-      if (active) {
-        to.lerpVectors(from, anchor, clamp(shootT / SHOOT_TIME, 0, 1));
-      } else {
+      if (active) to.lerpVectors(from, anchor, clamp(shootT / SHOOT_TIME, 0, 1));
+      else {
         retractT += dt;
         const t = 1 - retractT / RETRACT_TIME;
         if (t <= 0) { mesh.visible = false; retractT = -1; return; }
-        to.copy(anchor); from.lerpVectors(anchor, from, t); // reels back toward the anchor
+        to.copy(anchor); from.lerpVectors(anchor, from, t);
       }
       dir.subVectors(to, from);
       const len = dir.length();
@@ -1327,6 +2338,7 @@ const webLine = (() => {
       mesh.quaternion.setFromUnitVectors(UP, dir.divideScalar(len));
       mesh.scale.set(1, len, 1);
     },
+    hide() { mesh.visible = false; active = false; retractT = -1; },
   };
 })();
 
@@ -1334,7 +2346,7 @@ const splats = (() => {
   const pool = [];
   const geo = new THREE.CircleGeometry(0.75, 9);
   for (let i = 0; i < 18; i++) {
-    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
     m.visible = false; m.userData.age = 99;
     scene.add(m); pool.push(m);
   }
@@ -1342,7 +2354,7 @@ const splats = (() => {
   return {
     add(point, normal) {
       const m = pool[next++ % pool.length];
-      m.position.copy(point).addScaledVector(normal, 0.06);
+      m.position.copy(point).addScaledVector(normal, 0.02);
       m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
       m.rotateZ(Math.random() * Math.PI);
       m.scale.setScalar(0.7 + Math.random() * 0.5);
@@ -1359,9 +2371,6 @@ const splats = (() => {
   };
 })();
 
-// =====================================================================
-// Speed lines: streaks in camera space that fly past along the velocity.
-// =====================================================================
 const speedLines = (() => {
   const N = 70;
   const pts = new Float32Array(N * 6);
@@ -1375,16 +2384,15 @@ const speedLines = (() => {
   const vLocal = new THREE.Vector3(), dirL = new THREE.Vector3(), perpA = new THREE.Vector3(), perpB = new THREE.Vector3();
   const invQ = new THREE.Quaternion();
   const spawn = (s, ahead) => {
-    // Somewhere in a tube around the line of travel, ahead of the camera.
     perpA.set(0, 1, 0).cross(dirL); if (perpA.lengthSq() < 0.01) perpA.set(1, 0, 0); perpA.normalize();
     perpB.crossVectors(dirL, perpA);
     const a = Math.random() * Math.PI * 2, r = 2.5 + Math.random() * 7;
     s.copy(dirL).multiplyScalar(ahead).addScaledVector(perpA, Math.cos(a) * r).addScaledVector(perpB, Math.sin(a) * r);
   };
   return {
-    update(dt, fast) {
+    update(dt, fast, active) {
       const speed = player.vel.length();
-      mat.opacity = fast * fast * 0.45;
+      mat.opacity = active ? fast * fast * 0.45 : 0;
       lines.visible = mat.opacity > 0.01;
       if (!lines.visible) return;
       invQ.copy(camera.quaternion).invert();
@@ -1394,7 +2402,6 @@ const speedLines = (() => {
       for (let i = 0; i < N; i++) {
         const s = p[i];
         s.addScaledVector(vLocal, -dt);
-        // Behind the camera or drifted out of the tube: respawn ahead.
         if (s.dot(dirL) < -2 || s.lengthSq() > 4900) spawn(s, 15 + Math.random() * 45);
         pts.set([s.x, s.y, s.z, s.x + dirL.x * len, s.y + dirL.y * len, s.z + dirL.z * len], i * 6);
       }
@@ -1404,26 +2411,130 @@ const speedLines = (() => {
 })();
 
 // =====================================================================
-// Camera: orbit + spring follow, look-ahead, speed-driven FOV/distance,
-// auto-align behind your direction of travel, pull-in at walls.
+// Race runtime: countdown, rings, timing, medals
+// =====================================================================
+const race = {
+  def: null, state: 'idle', idx: 0, time: 0, countdown: 0, lastBeep: 0, rings: [],
+  ringGeo: new THREE.TorusGeometry(5, 0.32, 10, 40),
+};
+function startRace(def) {
+  quitRace(true);
+  race.def = def; race.state = 'countdown'; race.idx = 0; race.time = 0; race.countdown = 3.2; race.lastBeep = 4;
+  for (const [i, rg] of def.rings.entries()) {
+    const last = i === def.rings.length - 1;
+    const mat = new THREE.MeshBasicMaterial({ color: last ? 0xffc23d : 0x45d8ea, transparent: true, opacity: 0.2, depthWrite: false });
+    const mesh = new THREE.Mesh(race.ringGeo, mat);
+    mesh.position.copy(rg.pos);
+    mesh.lookAt(tA.copy(rg.pos).add(rg.dir));
+    scene.add(mesh);
+    race.rings.push(mesh);
+  }
+  const first = def.rings[0].pos;
+  player.teleport(def.start, Math.atan2(def.start.x - first.x, def.start.z - first.z));
+  player.frozen = true;
+  combo.reset();
+  $('#race').hidden = false;
+  $('#raceName').textContent = def.name;
+  const best = save.best[def.id];
+  $('#raceBest').textContent = best ? `Best ${fmtTime(best)}` : '';
+  game.mode = 'play';
+}
+function quitRace(silent) {
+  for (const m of race.rings) { scene.remove(m); m.material.dispose(); }
+  race.rings.length = 0;
+  race.state = 'idle'; race.def = null;
+  player.frozen = false;
+  $('#race').hidden = true;
+  $('#countdown').hidden = true;
+  if (!silent) $('#marker').hidden = true;
+}
+function medalFor(def, t) { return t <= def.par.gold ? 'gold' : t <= def.par.silver ? 'silver' : t <= def.par.bronze ? 'bronze' : 'none'; }
+function updateRace(dt) {
+  if (race.state === 'idle') return;
+  const cd = $('#countdown');
+  if (race.state === 'countdown') {
+    race.countdown -= dt;
+    const n = Math.ceil(race.countdown);
+    if (n !== race.lastBeep && n >= 1 && n <= 3) { race.lastBeep = n; audio.beep(false); cd.hidden = false; cd.classList.remove('go'); cd.textContent = n; }
+    if (race.countdown <= 0) {
+      race.state = 'running'; player.frozen = false; audio.beep(true);
+      cd.textContent = 'GO'; cd.classList.add('go');
+      setTimeout(() => { if (race.state !== 'countdown') cd.hidden = true; }, 700);
+    }
+  } else if (race.state === 'running') {
+    race.time += dt;
+    const ring = race.def.rings[race.idx];
+    if (player.pos.distanceToSquared(ring.pos) < 6.6 * 6.6) {
+      race.idx++;
+      particles.emit(ring.pos, { count: 30, speed: 9, color: 0x45d8ea, size: 0.6, life: 0.7 });
+      if (race.idx >= race.def.rings.length) finishRace();
+      else audio.checkpoint();
+    }
+  }
+  // Ring looks: current bright and pulsing, next one dim, the rest faint.
+  race.rings.forEach((m, i) => {
+    const d = i - race.idx;
+    m.visible = d >= 0;
+    m.material.opacity = d === 0 ? 0.95 : d === 1 ? 0.45 : 0.14;
+    const s = d === 0 ? 1 + Math.sin(game.time * 6) * 0.05 : 1;
+    m.scale.setScalar(s);
+  });
+  if (race.def) {
+    $('#raceTime').textContent = fmtTime(race.time);
+    $('#raceCp').textContent = `Ring ${Math.min(race.idx + 1, race.def.rings.length)} / ${race.def.rings.length}`;
+  }
+}
+function finishRace() {
+  const def = race.def, t = race.time;
+  race.state = 'done';
+  audio.fanfare();
+  const prev = save.best[def.id];
+  const record = !prev || t < prev;
+  if (record) save.best[def.id] = t;
+  writeSave();
+  combo.bank();
+  const medal = medalFor(def, t);
+  $('#resTitle').textContent = def.name;
+  $('#resTime').textContent = fmtTime(t);
+  $('#resMedal').innerHTML = medal === 'none'
+    ? `<span class="medal none"></span> No medal this time. Bronze is ${fmtTime(def.par.bronze)}.`
+    : `<span class="medal ${medal}"></span> <b>${medal[0].toUpperCase() + medal.slice(1)} medal</b>`;
+  $('#resBest').innerHTML = record ? `<b>New best time</b>${prev ? ` (was ${fmtTime(prev)})` : ''}` : `Best <b>${fmtTime(prev)}</b>`;
+  $('#resPars').innerHTML = ['gold', 'silver', 'bronze'].map((m) => `<span><i class="medal ${m}"></i>${m[0].toUpperCase() + m.slice(1)} ${fmtTime(def.par[m])}</span>`).join('');
+  setTimeout(() => { if (race.state === 'done') openMenu('results'); }, 900);
+}
+
+// =====================================================================
+// Camera: orbit + spring follow, look-ahead, speed FOV, auto-align,
+// swing roll, wall pull-in. On the title screen it orbits downtown.
 // =====================================================================
 const camFx = { shake: 0 };
 function updateCamera(dt, renderPos) {
-  const C = CFG.camera, P = player;
+  const C = CFG.camera, P = player, ST = save.settings;
   const now = performance.now() / 1000;
 
+  if (game.mode === 'title') {
+    const core = city.cores[0];
+    const a = now * 0.035;
+    camera.position.set(core.x + Math.sin(a) * 330, 175, core.z + Math.cos(a) * 330);
+    camera.lookAt(core.x, 70, core.z);
+    camera.fov = 60; camera.updateProjectionMatrix();
+    return 0;
+  }
+
+  const sens = C.sensitivity * ST.sensitivity, inv = ST.invertY ? -1 : 1;
   if (input.look.dx || input.look.dy) {
-    cam.yaw -= input.look.dx * C.sensitivity;
-    cam.pitch = clamp(cam.pitch + input.look.dy * C.sensitivity, -1.1, 1.25);
+    cam.yaw -= input.look.dx * sens;
+    cam.pitch = clamp(cam.pitch + input.look.dy * sens * inv, -1.1, 1.25);
     input.look.dx = input.look.dy = 0;
     input.lastLookTime = now;
   }
-  // Arrow keys turn the camera, and steering is camera-relative, so they turn the player too.
-  const turn = (input.keys.has('ArrowLeft') ? 1 : 0) - (input.keys.has('ArrowRight') ? 1 : 0);
-  const tilt = (input.keys.has('ArrowDown') ? 1 : 0) - (input.keys.has('ArrowUp') ? 1 : 0);
+  const turn = (input.keys.has('ArrowLeft') ? 1 : 0) - (input.keys.has('ArrowRight') ? 1 : 0) - input.pad.look.x;
+  const tilt = (input.keys.has('ArrowDown') ? 1 : 0) - (input.keys.has('ArrowUp') ? 1 : 0) + input.pad.look.y * inv;
   if (turn || tilt) {
-    cam.yaw += turn * C.keyTurnRate * dt;
-    cam.pitch = clamp(cam.pitch + tilt * C.keyPitchRate * dt, -1.1, 1.25);
+    const rate = input.pad.look.lengthSq() > 0 ? C.padTurnRate : C.keyTurnRate;
+    cam.yaw += turn * rate * ST.sensitivity * dt;
+    cam.pitch = clamp(cam.pitch + tilt * C.keyPitchRate * ST.sensitivity * dt, -1.1, 1.25);
     input.lastLookTime = now;
   }
 
@@ -1431,7 +2542,6 @@ function updateCamera(dt, renderPos) {
   const hs = Math.hypot(P.vel.x, P.vel.z);
   const fast = smooth(12, 52, speed);
 
-  // Swing the camera behind the player when you're moving and not steering the view.
   if (now - input.lastLookTime > C.autoAlignDelay && hs > 8) {
     const want = Math.atan2(-P.vel.x, -P.vel.z);
     const k = damp(C.autoAlignRate * clamp(hs / 30, 0.4, 1), dt);
@@ -1439,26 +2549,21 @@ function updateCamera(dt, renderPos) {
     cam.pitch += (0.16 + fast * 0.12 - cam.pitch) * k * 0.5;
   }
 
-  const desired = tmpA.copy(renderPos);
+  const desired = tA.copy(renderPos);
   desired.y += C.height;
-  const ahead = tmpB.set(P.vel.x, 0, P.vel.z).multiplyScalar(C.lookAhead);
+  const ahead = tB.set(P.vel.x, 0, P.vel.z).multiplyScalar(C.lookAhead);
   if (ahead.length() > C.maxLookAhead) ahead.setLength(C.maxLookAhead);
   desired.add(ahead);
   cam.target.lerp(desired, damp(C.follow, dt));
 
-  const wantDist = THREE.MathUtils.lerp(C.distance, C.distanceFast, fast);
-  const offset = new THREE.Vector3(
-    Math.sin(cam.yaw) * Math.cos(cam.pitch),
-    Math.sin(cam.pitch),
-    Math.cos(cam.yaw) * Math.cos(cam.pitch)
-  );
-  // Don't let buildings get between camera and player.
+  const wantDist = THREE.MathUtils.lerp(C.distance, C.distanceFast, fast) * cam.zoom;
+  const offset = new THREE.Vector3(Math.sin(cam.yaw) * Math.cos(cam.pitch), Math.sin(cam.pitch), Math.cos(cam.yaw) * Math.cos(cam.pitch));
   const hit = city.raycast(cam.target, offset, wantDist + 0.5);
   const free = hit ? Math.max(1.2, hit.t - 0.5) : wantDist;
   cam.dist = free < cam.dist ? free : THREE.MathUtils.lerp(cam.dist, free, damp(4, dt));
 
   camera.position.copy(cam.target).addScaledVector(offset, cam.dist);
-  if (camera.position.y < 0.4) camera.position.y = 0.4;
+  if (camera.position.y < 0.6 && city.onLand(camera.position.x, camera.position.z)) camera.position.y = 0.6;
 
   if (camFx.shake > 0) {
     camFx.shake = Math.max(0, camFx.shake - dt * 2.5);
@@ -1468,14 +2573,22 @@ function updateCamera(dt, renderPos) {
   }
   camera.lookAt(cam.target);
 
-  cam.fov = THREE.MathUtils.lerp(cam.fov, THREE.MathUtils.lerp(C.fov, C.fovFast, fast), damp(3, dt));
+  // Bank into turns while swinging or flying fast.
+  const hd = Math.atan2(P.vel.x, P.vel.z);
+  if (dt > 0) cam.headingRate += (wrapAngle(hd - cam.lastHeading) / dt - cam.headingRate) * damp(6, dt);
+  cam.lastHeading = hd;
+  const rollTarget = P.state !== State.GROUND && hs > 15 ? clamp(cam.headingRate * 0.06, -0.14, 0.14) : 0;
+  cam.roll += (rollTarget - cam.roll) * damp(4, dt);
+  camera.rotateZ(cam.roll);
+
+  cam.fov = THREE.MathUtils.lerp(cam.fov, ST.fov + C.fovBoost * fast, damp(3, dt));
   camera.fov = cam.fov;
   camera.updateProjectionMatrix();
   return fast;
 }
 
 // =====================================================================
-// Debug overlay: shows where the next web would stick.
+// Debug: shows where the next web would stick (` key).
 // =====================================================================
 const debug = (() => {
   const marker = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 8), new THREE.MeshBasicMaterial({ color: 0x40ff90 }));
@@ -1494,96 +2607,559 @@ const debug = (() => {
 })();
 
 // =====================================================================
-// HUD + coaching hints
+// UI: toasts, HUD, hints, prompts, marker, minimap, menus
 // =====================================================================
+const ui = { panel: null, stack: [] };
+function toast(text, cls = '') {
+  const el = document.createElement('div');
+  el.className = `toast glass ${cls}`;
+  el.textContent = text;
+  const box = $('#toasts');
+  box.appendChild(el);
+  while (box.children.length > 4) box.firstChild.remove();
+  setTimeout(() => el.remove(), 2900);
+}
+function flashFade() {
+  const f = $('#fade');
+  f.classList.add('on');
+  requestAnimationFrame(() => requestAnimationFrame(() => f.classList.remove('on')));
+}
+
+const LABELS = {
+  kbm: { swing: '<kbd>Click</kbd> or <kbd>Shift</kbd>', zip: '<kbd>E</kbd> or right-click', dive: '<kbd>C</kbd>', trick: '<kbd>Q</kbd>', jump: '<kbd>Space</kbd>', interact: '<kbd>F</kbd>' },
+  pad: { swing: '<kbd>RT</kbd>', zip: '<kbd>B</kbd>', dive: '<kbd>LT</kbd>', trick: '<kbd>X</kbd>', jump: '<kbd>A</kbd>', interact: '<kbd>Y</kbd>' },
+  touch: { swing: '<kbd>SWING</kbd>', zip: '<kbd>ZIP</kbd>', dive: '<kbd>DIVE</kbd>', trick: '<kbd>FLIP</kbd>', jump: '<kbd>JUMP</kbd>', interact: '<kbd>START</kbd>' },
+};
+const HINTS = [
+  { id: 'swing', text: (l) => `Hold ${l.swing} to swing` },
+  { id: 'launch', text: () => 'Let go while swinging upward to launch' },
+  { id: 'zip', text: (l) => `Press ${l.zip} to web-zip forward` },
+  { id: 'dive', text: (l) => `Hold ${l.dive} while falling to dive, then swing out of it` },
+  { id: 'trick', text: (l) => `Press ${l.trick} in the air to flip. Land to bank your combo` },
+  { id: 'explore', text: () => 'Gold tokens unlock suits. Cyan beams start races', timed: 9 },
+];
 const hud = {
-  speed: document.getElementById('speed'),
-  bar: document.querySelector('#bar i'),
-  state: document.getElementById('stateChip'),
-  zip: document.getElementById('zipChip'),
-  vignette: document.getElementById('vignette'),
-  hint: document.getElementById('hint'),
-  learned: { swing: false, launch: false, zip: false },
-  hintText: null,
-  update(fast) {
+  el: $('#hud'),
+  speed: $('#speed'), bar: $('#bar i'), state: $('#stateChip'), zip: $('#zipChip'),
+  vignette: $('#vignette'), hint: $('#hint'), prompt: $('#prompt'),
+  tok: $('#tokCount'), score: $('#score'),
+  combo: $('#combo'), comboPts: $('#comboPts'), comboMult: $('#comboMult'), comboLabel: $('#comboLabel'),
+  last: {}, hintT: 0,
+  set(key, el, val, prop = 'textContent') { if (this.last[key] !== val) { this.last[key] = val; el[prop] = val; } },
+  update(dt, fast) {
     const v = player.vel.length();
-    this.speed.textContent = Math.round(v * 3.6);
+    this.set('speed', this.speed, String(Math.round(v * 3.6)));
     this.bar.style.width = `${clamp(v / CFG.maxSpeed, 0, 1) * 100}%`;
-    this.state.textContent = player.state;
-    this.state.classList.toggle('on', player.state === State.SWING);
+    this.set('state', this.state, player.diveT > 0 ? 'dive' : player.state);
+    this.state.classList.toggle('on', player.state === State.SWING || player.diveT > 0);
     this.zip.classList.toggle('on', player.zipCooldown <= 0);
     this.vignette.style.opacity = (fast * 0.85).toFixed(3);
+    this.set('tok', this.tok, String(tokens.count));
+    this.set('score', this.score, save.score.toLocaleString());
 
-    const L = this.learned;
-    const text = !game.started ? ''
-      : !L.swing ? 'Hold <kbd>Click</kbd> or <kbd>Shift</kbd> to swing'
-      : !L.launch ? 'Let go as you swing upward to launch'
-      : !L.zip ? 'Press <kbd>E</kbd> or right-click to web-zip forward'
-      : '';
-    if (text !== this.hintText) { this.hintText = text; this.hint.innerHTML = text; this.hint.hidden = !text; }
+    combo.labelT -= dt;
+    this.combo.style.opacity = combo.active ? '1' : '0';
+    if (combo.active) {
+      this.set('cpts', this.comboPts, combo.pts.toLocaleString());
+      this.set('cmult', this.comboMult, `×${combo.mult} · chain ${combo.chain}`);
+      this.set('clabel', this.comboLabel, combo.labelT > 0 ? combo.label : '');
+    }
+
+    // Coaching hints, one at a time.
+    let html = '';
+    if (save.settings.hints && game.mode === 'play' && race.state === 'idle') {
+      const h = HINTS.find((x) => !save.learned[x.id]);
+      if (h) {
+        html = h.text(LABELS[input.device] || LABELS.kbm);
+        if (h.timed) { this.hintT += dt; if (this.hintT > h.timed) { save.learned[h.id] = true; writeSave(); } }
+      }
+    }
+    if (this.last.hint !== html) { this.last.hint = html; this.hint.innerHTML = html; this.hint.hidden = !html; }
   },
 };
+function learn(id) { if (!save.learned[id]) { save.learned[id] = true; hud.hintT = 0; writeSave(); } }
+
+// Objective marker (next race ring).
+const markerEl = $('#marker'), markerArrow = markerEl.querySelector('.arrowWrap'), markerDist = $('#markerDist');
+function updateMarker() {
+  let target = null;
+  if (race.state === 'running' || race.state === 'countdown') target = race.def.rings[Math.min(race.idx, race.def.rings.length - 1)].pos;
+  if (!target || game.mode !== 'play') { markerEl.hidden = true; return; }
+  markerEl.hidden = false;
+  const v = tC.copy(target).project(camera);
+  const behind = tA.subVectors(target, camera.position).dot(tB.set(0, 0, -1).applyQuaternion(camera.quaternion)) < 0;
+  let x = v.x, y = v.y;
+  if (behind) { x = -x; y = -y; }
+  const onScreen = !behind && Math.abs(x) < 0.92 && Math.abs(y) < 0.86;
+  if (!onScreen) {
+    const m = Math.max(Math.abs(x) / 0.88, Math.abs(y) / 0.8, 1e-3);
+    x /= m; y /= m;
+  }
+  const sx = (x * 0.5 + 0.5) * innerWidth, sy = (-y * 0.5 + 0.5) * innerHeight;
+  markerEl.style.transform = `translate(${sx}px, ${sy}px)`;
+  markerArrow.hidden = onScreen;
+  if (!onScreen) markerArrow.style.transform = `rotate(${Math.atan2(x, y)}rad)`;
+  markerDist.textContent = `${Math.round(target.distanceTo(player.pos))} m`;
+}
+
+// Minimap: rotates with the camera; buildings by height, tokens, race starts and rings.
+const minimap = (() => {
+  const cv = $('#minimap'), ctx = cv.getContext('2d');
+  const W = cv.width, R = W / 2, RANGE = 230, S = R / RANGE;
+  let frame = 0;
+  return {
+    draw() {
+      if (++frame % 2) return;
+      const p = player.pos;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#1d3d52'; // water
+      ctx.fillRect(0, 0, W, W);
+      ctx.translate(R, R);
+      ctx.rotate(cam.yaw);
+      ctx.scale(S, S);
+      ctx.translate(-p.x, -p.z);
+      ctx.fillStyle = '#2b2f36';
+      ctx.fillRect(-city.landHalfX, -city.landHalfZ, city.landHalfX * 2, city.landHalfZ * 2);
+      ctx.fillStyle = '#454a53';
+      for (const b of city.blocks) {
+        if (b.x1 < p.x - RANGE * 1.5 || b.x0 > p.x + RANGE * 1.5 || b.z1 < p.z - RANGE * 1.5 || b.z0 > p.z + RANGE * 1.5) continue;
+        ctx.fillStyle = b.type === 'park' ? '#3f6a3a' : '#454a53';
+        ctx.fillRect(b.x0, b.z0, b.x1 - b.x0, b.z1 - b.z0);
+      }
+      for (const f of city.footprints) {
+        if (f.x1 < p.x - RANGE * 1.5 || f.x0 > p.x + RANGE * 1.5 || f.z1 < p.z - RANGE * 1.5 || f.z0 > p.z + RANGE * 1.5) continue;
+        f.fill ??= `hsl(212 12% ${Math.round(52 + Math.min(f.h, 220) / 220 * 34)}%)`; // taller = lighter
+        ctx.fillStyle = f.fill;
+        ctx.fillRect(f.x0, f.z0, f.x1 - f.x0, f.z1 - f.z0);
+      }
+      const dot = (x, z, r, color) => { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, z, r / S, 0, Math.PI * 2); ctx.fill(); };
+      for (const t of tokens.list) {
+        if (t.got || Math.abs(t.pos.x - p.x) > RANGE * 1.5 || Math.abs(t.pos.z - p.z) > RANGE * 1.5) continue;
+        dot(t.pos.x, t.pos.z, 3.5, '#ffc23d');
+      }
+      if (race.state === 'idle') for (const r of races) dot(r.start.x, r.start.z, 6, '#45d8ea');
+      else if (race.def) {
+        ctx.strokeStyle = 'rgba(69,216,234,0.7)'; ctx.lineWidth = 3 / S;
+        ctx.beginPath();
+        race.def.rings.slice(race.idx).forEach((rg, i) => (i ? ctx.lineTo(rg.pos.x, rg.pos.z) : ctx.moveTo(rg.pos.x, rg.pos.z)));
+        ctx.stroke();
+        const cur = race.def.rings[Math.min(race.idx, race.def.rings.length - 1)];
+        dot(cur.pos.x, cur.pos.z, 6, '#45d8ea');
+      }
+      // Player arrow, turned by the player's heading relative to the camera, and a north letter.
+      ctx.setTransform(1, 0, 0, 1, R, R);
+      const rel = wrapAngle(Math.atan2(-player.heading.x, -player.heading.z) - cam.yaw);
+      ctx.rotate(-rel);
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(12, 13); ctx.lineTo(0, 6); ctx.lineTo(-12, 13); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.setTransform(1, 0, 0, 1, R, R);
+      const nx = Math.sin(cam.yaw) * (R - 16), ny = -Math.cos(cam.yaw) * (R - 16);
+      ctx.fillStyle = '#ff6b72'; ctx.font = '700 20px "Chakra Petch", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('N', nx, ny);
+    },
+  };
+})();
+
+// ---------- menus ----------
+const menuEl = $('#menu');
+const panels = {};
+menuEl.querySelectorAll('[data-panel]').forEach((p) => { panels[p.dataset.panel] = p; });
+function menuOpen() { return !menuEl.hidden; }
+function focusables() { return [...panels[ui.panel].querySelectorAll('button, input, a[href]')].filter((e) => !e.closest('[hidden]') && !e.disabled); }
+function menuNav(d) {
+  const list = focusables();
+  if (!list.length) return;
+  const i = list.indexOf(document.activeElement);
+  list[(i + d + list.length) % list.length].focus();
+  audio.click();
+}
+function menuAdjust(d) {
+  const el = document.activeElement;
+  if (el && el.type === 'range') { el.value = Number(el.value) + d * Number(el.step || 1) * 2; el.dispatchEvent(new Event('input')); }
+  else if (el && el.closest('.seg, .suits')) { const sibs = [...el.parentElement.children]; sibs[(sibs.indexOf(el) + d + sibs.length) % sibs.length].focus(); }
+}
+function openMenu(name, push = true) {
+  if (push && ui.panel && ui.panel !== name) ui.stack.push(ui.panel);
+  for (const k in panels) panels[k].hidden = k !== name;
+  ui.panel = name;
+  menuEl.hidden = false;
+  game.paused = true;
+  input.releaseAll();
+  if (document.pointerLockElement) document.exitPointerLock?.();
+  touchEl.hidden = true;
+  if (name === 'title') renderTitle();
+  if (name === 'races') renderRaces();
+  if (name === 'settings') renderSettings();
+  if (name === 'pause') panels.pause.querySelectorAll('[data-race-only]').forEach((b) => { b.hidden = race.state === 'idle'; });
+  requestAnimationFrame(() => focusables()[0]?.focus({ preventScroll: true }));
+}
+function resume() {
+  menuEl.hidden = true;
+  ui.panel = null; ui.stack.length = 0;
+  game.paused = false;
+  if (input.device === 'touch') { touchEl.hidden = false; document.body.classList.add('touch'); }
+  requestLock();
+}
+function back() {
+  const prev = ui.stack.pop();
+  if (prev) openMenu(prev, false);
+  else if (game.mode === 'play') resume();
+  else openMenu('title', false);
+}
+function onEscape() {
+  if (performance.now() - lockLostAt < 250) return; // the same Esc already released the mouse
+  if (menuOpen()) {
+    if (ui.panel === 'title') return;
+    if (ui.panel === 'pause') resume();
+    else if (ui.panel === 'results') { quitRace(); resume(); }
+    else back();
+  } else if (game.mode === 'play') openMenu('pause');
+}
+function goPlay() {
+  game.mode = 'play';
+  $('#hud').hidden = false;
+  character.root.visible = true;
+  ui.stack.length = 0;
+  resume();
+}
+function goTitle() {
+  quitRace();
+  combo.bank();
+  game.mode = 'title';
+  $('#hud').hidden = true;
+  character.root.visible = false;
+  webLine.hide();
+  ui.stack.length = 0;
+  openMenu('title', false);
+}
+menuEl.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act], [data-race], [data-suit]');
+  if (!b) return;
+  audio.init();
+  audio.click();
+  if (b.dataset.race) { const def = races.find((r) => r.id === b.dataset.race); startRace(def); $('#hud').hidden = false; character.root.visible = true; ui.stack.length = 0; resume(); return; }
+  switch (b.dataset.act) {
+    case 'play': goPlay(); break;
+    case 'resume': resume(); break;
+    case 'races': openMenu('races'); break;
+    case 'settings': openMenu('settings'); break;
+    case 'controls': openMenu('controls'); break;
+    case 'back': back(); break;
+    case 'respawn': quitRace(); player.reset(); resume(); break;
+    case 'title': goTitle(); break;
+    case 'restartRace': if (race.def) startRace(race.def); ui.stack.length = 0; resume(); break;
+    case 'quitRace': quitRace(); ui.stack.length = 0; resume(); break;
+    case 'retry': { const d = race.def; if (d) startRace(d); ui.stack.length = 0; resume(); break; }
+    case 'continue': quitRace(); ui.stack.length = 0; resume(); break;
+  }
+});
+
+function medalCount() {
+  const c = { gold: 0, silver: 0, bronze: 0 };
+  for (const r of races) { const t = save.best[r.id]; if (t) { const m = medalFor(r, t); if (m !== 'none') c[m]++; } }
+  return c;
+}
+function renderTitle() {
+  const c = medalCount();
+  $('#titleMedals').textContent = `${c.gold + c.silver + c.bronze} / ${races.length} medals`;
+  $('#titleStats').innerHTML =
+    `<span>Tokens <b>${tokens.count} / ${tokens.list.length}</b></span>` +
+    `<span>Score <b>${save.score.toLocaleString()}</b></span>` +
+    `<span>Best combo <b>${save.bestCombo.toLocaleString()}</b></span>`;
+}
+function renderRaces() {
+  $('#raceList').innerHTML = races.map((r) => {
+    const t = save.best[r.id];
+    const m = t ? medalFor(r, t) : 'none';
+    return `<button class="mbtn race-btn" data-race="${r.id}">
+      <span class="rn">${r.name}</span><span class="medal ${m}" title="${m === 'none' ? 'No medal yet' : m + ' medal'}"></span>
+      <span class="rd"><span>${(r.length / 1000).toFixed(2)} km · ${r.rings.length} rings</span><span>${t ? 'Best ' + fmtTime(t) : 'Not raced yet'}</span><span>Gold ${fmtTime(r.par.gold)}</span></span>
+    </button>`;
+  }).join('');
+}
+function renderSettings() {
+  const S = save.settings, got = tokens.count;
+  const seg = (key, opts) => `<span class="seg">${opts.map(([v, l]) => `<button type="button" data-set="${key}" data-val="${v}" class="${S[key] === v ? 'on' : ''}">${l}</button>`).join('')}</span>`;
+  $('#settingsList').innerHTML = `
+    <label class="setting"><span>Look sensitivity</span><span><input id="setSens" type="range" min="0.3" max="2.5" step="0.05" value="${S.sensitivity}"> <output id="outSens">${S.sensitivity.toFixed(2)}</output></span></label>
+    <label class="setting"><span>Invert look up/down</span><input id="setInvert" type="checkbox" ${S.invertY ? 'checked' : ''}></label>
+    <label class="setting"><span>Field of view</span><span><input id="setFov" type="range" min="60" max="95" step="1" value="${S.fov}"> <output id="outFov">${S.fov}°</output></span></label>
+    <div class="setting"><span>Graphics</span>${seg('quality', [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']])}</div>
+    <div class="setting"><span>Time of day</span>${seg('timeOfDay', [['day', 'Day'], ['sunset', 'Sunset'], ['night', 'Night']])}</div>
+    <label class="setting"><span>Volume</span><span><input id="setVol" type="range" min="0" max="1" step="0.05" value="${S.volume}"> <output id="outVol">${Math.round(S.volume * 100)}%</output></span></label>
+    <label class="setting"><span>Show hints</span><input id="setHints" type="checkbox" ${S.hints ? 'checked' : ''}></label>
+    <div class="setting" style="grid-template-columns:1fr"><span>Suit · ${got} / ${tokens.list.length} tokens</span>
+      <div class="suits">${SUITS.map((s) => {
+        const locked = got < s.need;
+        const bg = `linear-gradient(135deg, #${s.main.toString(16).padStart(6, '0')} 55%, #${s.sec.toString(16).padStart(6, '0')} 55%)`;
+        return `<button type="button" class="suit ${save.suit === s.id ? 'on' : ''} ${locked ? 'locked' : ''}" data-suit="${s.id}" ${locked ? 'aria-disabled="true"' : ''} title="${locked ? `Collect ${s.need} tokens` : s.name}"><i style="background:${bg}"></i>${locked ? s.need + ' ◆' : s.name}</button>`;
+      }).join('')}</div>
+    </div>`;
+  const bind = (id, fn) => $(id).addEventListener('input', fn);
+  bind('#setSens', (e) => { S.sensitivity = Number(e.target.value); $('#outSens').textContent = S.sensitivity.toFixed(2); writeSave(); });
+  bind('#setFov', (e) => { S.fov = Number(e.target.value); $('#outFov').textContent = S.fov + '°'; writeSave(); });
+  bind('#setVol', (e) => { S.volume = Number(e.target.value); $('#outVol').textContent = Math.round(S.volume * 100) + '%'; audio.applyVolume(); writeSave(); });
+  $('#setInvert').addEventListener('change', (e) => { S.invertY = e.target.checked; writeSave(); });
+  $('#setHints').addEventListener('change', (e) => { S.hints = e.target.checked; writeSave(); });
+}
+$('#settingsList').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-set]');
+  if (b) {
+    save.settings[b.dataset.set] = b.dataset.val;
+    writeSave();
+    if (b.dataset.set === 'quality') { save.settings.qualityAuto = false; writeSave(); applyQuality(); }
+    if (b.dataset.set === 'timeOfDay') applyTimeOfDay();
+    b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    return;
+  }
+  const s = e.target.closest('[data-suit]');
+  if (s) {
+    e.stopPropagation();
+    const suit = SUITS.find((x) => x.id === s.dataset.suit);
+    if (tokens.count < suit.need) { toast(`Collect ${suit.need} tokens to unlock ${suit.name}`, 'red'); return; }
+    save.suit = suit.id; writeSave();
+    character.applySuit(suit.id);
+    character.setNight((TOD[save.settings.timeOfDay] || TOD.day).night);
+    s.parentElement.querySelectorAll('.suit').forEach((x) => x.classList.toggle('on', x === s));
+  }
+});
+
+// =====================================================================
+// Time of day and graphics quality
+// =====================================================================
+const TOD = {
+  day: {
+    sun: [0.5, 0.62, 0.38], sunColor: 0xfff0d8, sunI: 2.3, hemiSky: 0xdbe8ff, hemiGround: 0x5b5248, hemiI: 1.15,
+    top: 0x3f7bc4, horizon: 0xcfe0ee, fog: [180, 1100], exposure: 1.0, night: 0, water: 0x24485a, lamps: 0xb0b4ba, billboard: 0.85, beacon: 0.6,
+  },
+  sunset: {
+    sun: [-0.72, 0.2, 0.46], sunColor: 0xffa860, sunI: 2.1, hemiSky: 0xf6bfa0, hemiGround: 0x3d3440, hemiI: 0.75,
+    top: 0x31437e, horizon: 0xf09a64, fog: [150, 1000], exposure: 1.05, night: 0.35, water: 0x2c3550, lamps: 0xffd9a0, billboard: 1.2, beacon: 1.4,
+  },
+  night: {
+    sun: [0.3, 0.72, -0.42], sunColor: 0x9fb4ff, sunI: 0.5, hemiSky: 0x2a3a66, hemiGround: 0x0e0f16, hemiI: 0.55,
+    top: 0x040915, horizon: 0x1a2440, fog: [120, 950], exposure: 1.15, night: 1, water: 0x0c1624, lamps: 0xffe0b0, billboard: 1.8, beacon: 2.2,
+  },
+};
+function applyTimeOfDay() {
+  const T = TOD[save.settings.timeOfDay] || TOD.day;
+  SUN_DIR.set(...T.sun).normalize();
+  sun.color.setHex(T.sunColor); sun.intensity = T.sunI;
+  hemi.color.setHex(T.hemiSky); hemi.groundColor.setHex(T.hemiGround); hemi.intensity = T.hemiI;
+  skyU.top.value.setHex(T.top); skyU.horizon.value.setHex(T.horizon); skyU.sunColor.value.setHex(T.sunColor);
+  skyU.night.value = T.night; skyU.sunDisk.value = T.night > 0.9 ? 0.25 : 1;
+  scene.fog.color.setHex(T.horizon); scene.fog.near = T.fog[0]; scene.fog.far = T.fog[1];
+  scene.background.setHex(T.horizon);
+  renderer.toneMappingExposure = T.exposure;
+  waterMat.color.setHex(T.water);
+  bldU.uNight.value = T.night;
+  city.lampHeadMat.color.setHex(T.lamps).multiplyScalar(T.night > 0.2 ? 2.2 : 1);
+  city.poolMesh.visible = T.night > 0.2;
+  city.poolMat.opacity = 0.6 * T.night;
+  city.billboardMat.color.setScalar(T.billboard);
+  city.beaconMat.color.setHex(0xff2a2a).multiplyScalar(T.beacon);
+  character.setNight(T.night);
+  traffic.headMat.color.setHex(0xfff4dd).multiplyScalar(T.night > 0.2 ? 2.5 : 1);
+  traffic.tailMat.color.setHex(0xff3030).multiplyScalar(T.night > 0.2 ? 2 : 1);
+}
+function applyQuality() {
+  const q = save.settings.quality;
+  const maxTex = renderer.capabilities.maxTextureSize;
+  const Q = {
+    low: { pr: 1, map: 1024, extent: 80 },
+    medium: { pr: Math.min(devicePixelRatio, 1.5), map: 2048, extent: 105 },
+    high: { pr: Math.min(devicePixelRatio, 2), map: maxTex >= 8192 ? 4096 : 2048, extent: 130 },
+  }[q] || { pr: 1, map: 2048, extent: 100 };
+  renderer.setPixelRatio(Q.pr);
+  renderer.setSize(innerWidth, innerHeight);
+  const type = q === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+  if (renderer.shadowMap.type !== type) {
+    renderer.shadowMap.type = type;
+    scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
+  }
+  sun.shadow.mapSize.set(Q.map, Q.map);
+  if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+  shadowState.extent = Q.extent;
+  Object.assign(sun.shadow.camera, { left: -Q.extent, right: Q.extent, top: Q.extent, bottom: -Q.extent, near: 1, far: 1200 });
+  sun.shadow.camera.updateProjectionMatrix();
+  updatePointScale();
+}
+function updatePointScale() {
+  particles.U.uPx.value = renderer.domElement.height * 0.5 / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+}
+
+/** If frames stay slow, step graphics down a level (only until the player picks a level themselves). */
+const perf = { ema: 16, slowT: 0, cooldown: 4 };
+function governQuality(dt) {
+  if (!save.settings.qualityAuto || dt <= 0) return;
+  perf.ema += (dt * 1000 - perf.ema) * 0.05;
+  perf.cooldown -= dt;
+  perf.slowT = perf.ema > 25 ? perf.slowT + dt : 0;
+  if (perf.slowT > 3 && perf.cooldown <= 0) {
+    const next = { high: 'medium', medium: 'low' }[save.settings.quality];
+    if (!next) { save.settings.qualityAuto = false; return; }
+    save.settings.quality = next; writeSave();
+    applyQuality();
+    toast(`Graphics set to ${next} to keep things smooth. Change it in Settings.`);
+    perf.slowT = 0; perf.cooldown = 6; perf.ema = 16;
+  }
+}
+
+/** Keep the shadow map steady: centre it ahead of the player, snapped to whole texels in light space. */
+const shadowBasis = { r: new THREE.Vector3(), u: new THREE.Vector3() };
+function updateShadowCamera(center) {
+  const L = SUN_DIR;
+  shadowBasis.r.crossVectors(UP, L);
+  if (shadowBasis.r.lengthSq() < 1e-6) shadowBasis.r.set(1, 0, 0);
+  shadowBasis.r.normalize();
+  shadowBasis.u.crossVectors(L, shadowBasis.r);
+  const texel = (shadowState.extent * 2) / sun.shadow.mapSize.x;
+  const a = Math.round(center.dot(shadowBasis.r) / texel) * texel;
+  const b = Math.round(center.dot(shadowBasis.u) / texel) * texel;
+  const c = center.dot(L);
+  sun.target.position.copy(shadowBasis.r).multiplyScalar(a).addScaledVector(shadowBasis.u, b).addScaledVector(L, c);
+  sun.position.copy(sun.target.position).addScaledVector(L, 500);
+  sun.target.updateMatrixWorld();
+}
 
 // =====================================================================
 // Main loop: fixed-step physics, interpolated rendering.
 // =====================================================================
+applyQuality();
+applyTimeOfDay();
 player.reset();
-window.game = { CFG, player, city, cam, State }; // handy for tweaking from the console
+character.root.visible = false;
+window.game = { CFG, player, city, cam, State, races, tokens, startRace, save, game, race, combo, traffic };
+
+/** Per-frame game rules outside the physics step: races, race-start prompts, banking combos. */
+function tickGame(dt) {
+  updateRace(dt);
+  if (input.consume('reset')) {
+    if (race.def) startRace(race.def); else { combo.reset(); player.reset(); }
+  }
+  let near = null;
+  if (race.state === 'idle') {
+    for (const r of races) {
+      const dx = r.start.x - player.pos.x, dz = r.start.z - player.pos.z;
+      if (dx * dx + dz * dz < 144 && Math.abs(r.start.y - player.pos.y) < 20) { near = r; break; }
+    }
+  }
+  const L = LABELS[input.device] || LABELS.kbm;
+  const promptHtml = near ? `Press ${L.interact} to start <b>${near.name}</b>` : '';
+  if (hud.last.prompt !== promptHtml) { hud.last.prompt = promptHtml; hud.prompt.innerHTML = promptHtml; hud.prompt.hidden = !promptHtml; $('#tStart').hidden = !near; }
+  if (input.consume('interact') && near) startRace(near);
+  // Bank the combo after standing on the ground for a moment.
+  if (player.state === State.GROUND && combo.active) { combo.groundT += dt; if (combo.groundT > CFG.style.bankDelay) combo.bank(); }
+  else combo.groundT = 0;
+}
+/** Test/debug helper: run the simulation for `sec` seconds without rendering. */
+function simulate(sec) {
+  const n = Math.round(sec / CFG.step);
+  for (let i = 0; i < n; i++) { step(CFG.step); tickGame(CFG.step); }
+}
+window.game.simulate = simulate;
+window.game.input = input;
+
 const renderPos = new THREE.Vector3();
+const shadowCenter = new THREE.Vector3();
 let acc = 0, last = performance.now();
 
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
-  const simDt = game.paused ? 0 : dt;
-  acc += simDt;
-  while (acc >= CFG.step) { step(CFG.step); acc -= CFG.step; }
+  pollGamepad();
+  const playing = game.mode === 'play' && !game.paused;
+  const simDt = playing ? dt : 0;
+  game.time += dt;
+
+  if (playing) {
+    acc += simDt;
+    let steps = 0;
+    while (acc >= CFG.step && steps < 24) { step(CFG.step); acc -= CFG.step; steps++; }
+    if (steps >= 24) acc = 0;
+    tickGame(simDt);
+  }
   const alpha = acc / CFG.step;
   renderPos.lerpVectors(player.prevPos, player.pos, alpha);
 
   for (const e of player.events) {
-    if (e.type === 'attach') {
-      audio.thwip(); hud.learned.swing = true;
-      if (!e.virtual && e.normal) splats.add(e.point, e.normal);
-    } else if (e.type === 'release' && e.launched) hud.learned.launch = true;
-    else if (e.type === 'zip') { audio.thwip(); hud.learned.zip = true; }
-    else if (e.type === 'land') {
-      camFx.shake = Math.max(camFx.shake, clamp(e.speed / 45, 0, 0.6));
-      if (e.speed > 8) audio.thud(e.speed / 50);
-    } else if (e.type === 'bounce') {
-      camFx.shake = Math.max(camFx.shake, clamp(e.speed / 40, 0, 0.7));
-      if (e.speed > 5) audio.thud(e.speed / 40);
+    switch (e.type) {
+      case 'attach':
+        audio.thwip(); learn('swing');
+        if (!e.virtual && e.normal) {
+          splats.add(e.point, e.normal);
+          particles.emit(tA.copy(e.point).addScaledVector(e.normal, 0.3), { count: 8, speed: 3, color: 0xffffff, size: 0.35, life: 0.4 });
+        }
+        break;
+      case 'release': if (e.launched) { learn('launch'); audio.whoosh(); } break;
+      case 'zip': audio.thwip(); audio.whoosh(); learn('zip'); break;
+      case 'trick': audio.whoosh(); learn('trick'); break;
+      case 'kick': audio.thud(0.3); particles.emit(player.pos, { count: 10, speed: 4, color: 0xdddddd, size: 0.5 }); break;
+      case 'token':
+        audio.chime();
+        particles.emit(e.point, { count: 36, speed: 8, color: 0xffc23d, size: 0.55, life: 0.9 });
+        break;
+      case 'land':
+        camFx.shake = Math.max(camFx.shake, clamp(e.speed / 45, 0, 0.7));
+        if (e.speed > 8) audio.thud(e.speed / 50);
+        if (e.speed > 16) {
+          const dust = new THREE.Color(0xa9a399).lerp(new THREE.Color(0x2c2f38), (TOD[save.settings.timeOfDay] || TOD.day).night).getHex();
+          particles.ring(tA.copy(player.pos).setY(player.pos.y - 0.8), { count: e.hard ? 24 : 12, speed: e.hard ? 9 : 5, color: dust });
+        }
+        break;
+      case 'bounce':
+        camFx.shake = Math.max(camFx.shake, clamp(e.speed / 40, 0, 0.7));
+        if (e.speed > 5) audio.thud(e.speed / 40);
+        break;
+      case 'splash':
+        audio.splash();
+        particles.ring(e.point.setY(-1.2), { count: 30, speed: 6, color: 0xcfe6f2, size: 1.0, life: 0.9, up: 6 });
+        break;
     }
   }
   player.events.length = 0;
+  if (player.diveT > 1) learn('dive');
 
-  character.update(simDt, renderPos);
+  if (game.mode === 'play') {
+    character.update(simDt, renderPos);
+    character.root.updateMatrixWorld(true);
+    webLine.update(simDt);
+  }
   const fast = updateCamera(dt, renderPos);
-  character.root.updateMatrixWorld(true);
-  webLine.update(simDt);
+  traffic.update(dt);
+  tokens.update(game.time);
   splats.update(simDt);
-  speedLines.update(simDt, fast);
+  particles.update(dt);
+  speedLines.update(simDt, fast, game.mode === 'play');
   debug.update();
-  hud.update(fast);
-  audio.update(game.paused ? 0 : player.vel.length());
+  if (game.mode === 'play') { hud.update(dt, fast); updateMarker(); minimap.draw(); if (playing) governQuality(dt); }
+  audio.update(game.mode === 'play' ? player.vel.length() : 0, player.pos.y, playing);
+  skyU.time.value = game.time;
+  // Antenna lights blink.
+  const T = TOD[save.settings.timeOfDay] || TOD.day;
+  city.beaconMat.color.setHex(0xff2a2a).multiplyScalar(T.beacon * ((game.time % 1.6) < 0.5 ? 1 : 0.12));
+  for (const r of races) r.beam.visible = race.state === 'idle';
 
-  // Sky follows the camera; shadow camera follows the player, snapped to texels to avoid shimmer.
+  // Sky follows the camera; the shadow map covers the area just ahead of the player.
   sky.position.copy(camera.position);
-  const texel = (SHADOW_EXTENT * 2) / sun.shadow.mapSize.x;
-  const sx = Math.round(renderPos.x / texel) * texel, sz = Math.round(renderPos.z / texel) * texel;
-  sun.target.position.set(sx, renderPos.y, sz);
-  sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 300);
+  if (game.mode === 'play') shadowCenter.copy(renderPos).addScaledVector(cam.forwardFlat(), shadowState.extent * 0.35);
+  else shadowCenter.set(city.cores[0].x, 0, city.cores[0].z);
+  updateShadowCamera(shadowCenter);
 
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  updatePointScale();
 });
+
+openMenu('title', false);
+requestAnimationFrame(frame);
   </script>
 </body>
 </html>
