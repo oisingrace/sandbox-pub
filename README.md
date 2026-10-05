@@ -13,6 +13,9 @@ One website for all my little HTML games and experiments.
 The card name comes from the game's `<title>` tag (or the file name if there isn't one).
 Each game gets its own link, e.g. `https://<username>.github.io/sandbox-pub/#example-clicker`.
 
+Experiments, demos and toys go in the [`experiments/`](experiments/) folder instead, the
+same way. They show up under **Experiments** on the site, with links like `#experiments/<name>`.
+
 Games that use extra files (images, sounds, scripts) can live in a subfolder next to
 them, e.g. `games/assets/...`, and reference them with relative paths.
 

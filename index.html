@@ -28,7 +28,7 @@
     background: var(--card); color: var(--text);
   }
   main { max-width: 960px; margin: 0 auto; padding: 16px; }
-  #grid {
+  .grid {
     display: grid; gap: 14px;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
@@ -41,7 +41,8 @@
   .card .emoji { font-size: 2rem; }
   .card .name { font-weight: 600; margin-top: 6px; }
   .card .file { color: var(--muted); font-size: .85rem; }
-  #status { color: var(--muted); }
+  #status, .empty { color: var(--muted); }
+  .shelf h2 { font-size: 1.3rem; margin: 28px 0 12px; }
 
   /* Patch notes */
   #notes h2 { font-size: 1.3rem; margin: 40px 0 12px; }
@@ -87,7 +88,16 @@
 </header>
 <main>
   <p id="status">Loading…</p>
-  <div id="grid"></div>
+  <section class="shelf">
+    <h2>Games</h2>
+    <div class="grid" id="grid-games"></div>
+    <p class="empty" id="empty-games" hidden></p>
+  </section>
+  <section class="shelf">
+    <h2>Experiments</h2>
+    <div class="grid" id="grid-experiments"></div>
+    <p class="empty" id="empty-experiments" hidden></p>
+  </section>
   <section id="notes" hidden>
     <h2>Patch notes</h2>
     <div id="noteList"></div>
@@ -106,16 +116,20 @@
 
 <script>
 /*
- * Drop any .html file into the /games folder and it shows up here automatically.
- * Nothing in this file needs to change when you add a game.
+ * Drop any .html file into the /games or /experiments folder and it shows up
+ * here automatically, under the matching heading. Nothing in this file needs
+ * to change when you add one.
  *
- * The list comes from games.json (written by the GitHub Action on every push).
- * The card title is the game's own <title>, falling back to the file name.
+ * The lists come from games.json and experiments.json (written by the GitHub
+ * Action on every push). The card title is the file's own <title>, falling
+ * back to the file name.
  */
-const GAMES_DIR = 'games/';
+const SECTIONS = [
+  { key: 'games', dir: 'games/', list: 'games.json', countAs: '/game/' },
+  { key: 'experiments', dir: 'experiments/', list: 'experiments.json', countAs: '/experiment/' },
+];
 const EMOJIS = ['🕹️','👾','🎲','🧩','🚀','🐍','🏓','🎯','🃏','🌀','⭐','🔥'];
 
-const grid = document.getElementById('grid');
 const status = document.getElementById('status');
 const search = document.getElementById('search');
 const player = document.getElementById('player');
@@ -133,38 +147,60 @@ function emojiFor(name) {
   return EMOJIS[h % EMOJIS.length];
 }
 
-async function loadList() {
-  const res = await fetch('games.json', { cache: 'no-cache' });
-  if (!res.ok) throw new Error('games.json not found');
-  return res.json();
+async function loadList(section) {
+  const res = await fetch(section.list, { cache: 'no-cache' });
+  if (!res.ok) {
+    if (section.key === 'games') throw new Error(section.list + ' not found');
+    return [];  // no experiments yet
+  }
+  return (await res.json()).map(file => {
+    const name = file.replace(/\.html?$/i, '');
+    return {
+      file, section, src: section.dir + encodeURIComponent(file),
+      // Games keep their short links (#smash-lot); experiments get #experiments/<name>.
+      slug: section.key === 'games' ? name : section.key + '/' + name,
+      name: prettyName(file),
+    };
+  });
 }
 
-async function titleOf(file) {
+async function titleOf(g) {
   try {
-    const html = await (await fetch(GAMES_DIR + encodeURIComponent(file))).text();
+    const html = await (await fetch(g.src)).text();
     const m = html.match(/<title[^>]*>([^<]*)<\/title>/i);
     const t = m && m[1].trim();
-    return t || prettyName(file);
-  } catch { return prettyName(file); }
+    return t || prettyName(g.file);
+  } catch { return prettyName(g.file); }
 }
 
 function render() {
   const q = search.value.trim().toLowerCase();
-  const shown = games.filter(g => (g.name + ' ' + g.file).toLowerCase().includes(q));
+  for (const section of SECTIONS) {
+    const items = games.filter(g => g.section === section);
+    const shown = items.filter(g => (g.name + ' ' + g.file).toLowerCase().includes(q));
+    renderGrid(section, shown);
+    const empty = document.getElementById('empty-' + section.key);
+    empty.textContent = items.length === 0
+      ? 'Nothing here yet — add an .html file to the ' + section.key + ' folder.'
+      : shown.length === 0 ? 'No matches.' : '';
+    empty.hidden = !empty.textContent;
+  }
+  status.textContent = '';
+}
+
+function renderGrid(section, shown) {
+  const grid = document.getElementById('grid-' + section.key);
   grid.innerHTML = '';
   for (const g of shown) {
     const a = document.createElement('a');
     a.className = 'card';
-    a.href = '#' + encodeURIComponent(g.slug);
+    a.href = '#' + g.slug.split('/').map(encodeURIComponent).join('/');
     a.innerHTML = '<div class="emoji"></div><div class="name"></div><div class="file"></div>';
     a.querySelector('.emoji').textContent = emojiFor(g.slug);
     a.querySelector('.name').textContent = g.name;
     a.querySelector('.file').textContent = g.file;
     grid.appendChild(a);
   }
-  status.textContent = games.length === 0
-    ? 'No games yet — add an .html file to the games folder.'
-    : shown.length === 0 ? 'No matches.' : '';
 }
 
 // Patch notes: patchnotes.json is built from the history of the games folder.
@@ -229,7 +265,8 @@ async function renderNotes() {
   document.getElementById('notes').hidden = notes.length === 0;
 }
 
-// Count each game opened as its own page (/game/<name>) in GoatCounter.
+// Count each game opened as its own page (/game/<name> or /experiment/<name>)
+// in GoatCounter.
 // The counter script loads async, so retry briefly until it's ready.
 let lastCounted = null;
 function countGame(g, tries = 20) {
@@ -237,7 +274,7 @@ function countGame(g, tries = 20) {
   const gc = window.goatcounter;
   if (gc && gc.count) {
     lastCounted = g.slug;
-    gc.count({ path: '/game/' + g.slug, title: g.name });
+    gc.count({ path: g.section.countAs + g.file.replace(/\.html?$/i, ''), title: g.name });
   } else if (tries > 0) {
     setTimeout(() => countGame(g, tries - 1), 500);
   }
@@ -247,7 +284,7 @@ function route() {
   const slug = decodeURIComponent(location.hash.slice(1));
   const g = games.find(g => g.slug === slug);
   if (g) {
-    const src = GAMES_DIR + encodeURIComponent(g.file);
+    const src = g.src;
     if (frame.getAttribute('src') !== src) frame.src = src;
     document.getElementById('playerTitle').textContent = g.name;
     document.getElementById('newTab').href = src;
@@ -269,14 +306,11 @@ window.onhashchange = route;
 
 (async () => {
   try {
-    const files = await loadList();
-    games = files.map(file => ({
-      file, slug: file.replace(/\.html?$/i, ''), name: prettyName(file)
-    }));
+    games = (await Promise.all(SECTIONS.map(loadList))).flat();
     render();
     route();
     // Upgrade names to each game's <title> once they load.
-    await Promise.all(games.map(async g => { g.name = await titleOf(g.file); }));
+    await Promise.all(games.map(async g => { g.name = await titleOf(g); }));
     render();
     route();
     renderNotes();

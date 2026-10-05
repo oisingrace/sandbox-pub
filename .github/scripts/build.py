@@ -1,7 +1,8 @@
-"""Writes games.json and patchnotes.json for the site.
+"""Writes games.json, experiments.json and patchnotes.json for the site.
 
-games.json      - every .html file in games/
-patchnotes.json - one entry per commit that touched games/, newest first:
+games.json       - every .html file in games/
+experiments.json - every .html file in experiments/
+patchnotes.json  - one entry per commit that touched games/ or experiments/, newest first:
                   when it happened, which games were added/updated/removed,
                   and the commit message as the note (GitHub's default
                   "Add files via upload"-style messages are left out).
@@ -22,6 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 GAMES = ROOT / "games"
+EXPERIMENTS = ROOT / "experiments"
 
 DEFAULT_MESSAGE = re.compile(
     r"^(Add files via upload|(Create|Update|Delete|Rename|Add) \S+)$", re.I)
@@ -32,12 +34,12 @@ OWN_NOTES = re.compile(
 
 
 def is_game(path):
-    return (path.startswith("games/") and path.count("/") == 1
+    return (path.startswith(("games/", "experiments/")) and path.count("/") == 1
             and path.lower().endswith((".html", ".htm")))
 
 
-def games_list():
-    return sorted((p.name for p in GAMES.glob("*.htm*") if p.is_file()),
+def html_files(folder):
+    return sorted((p.name for p in folder.glob("*.htm*") if p.is_file()),
                   key=str.lower)
 
 
@@ -89,7 +91,7 @@ def patch_notes():
     own = own_notes()
     log = subprocess.run(
         ["git", "log", "--no-renames", "--name-status",
-         "--format=%x1e%cI%x1f%B%x1f", "--", "games/"],
+         "--format=%x1e%cI%x1f%B%x1f", "--", "games/", "experiments/"],
         cwd=ROOT, capture_output=True, text=True, check=True).stdout
     notes = []
     for record in log.split("\x1e")[1:]:
@@ -114,5 +116,6 @@ def patch_notes():
     return own_entries(own) + notes
 
 
-(ROOT / "games.json").write_text(json.dumps(games_list(), indent=2))
+(ROOT / "games.json").write_text(json.dumps(html_files(GAMES), indent=2))
+(ROOT / "experiments.json").write_text(json.dumps(html_files(EXPERIMENTS), indent=2))
 (ROOT / "patchnotes.json").write_text(json.dumps(patch_notes(), indent=2))
