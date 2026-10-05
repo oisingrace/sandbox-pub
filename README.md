@@ -42,6 +42,12 @@ does). Put a block like this anywhere in the game's HTML, newest version first:
 Each version then shows as its own entry, and that game's upload commits are left out
 so it isn't listed twice.
 
+## Search engines
+
+`sitemap.xml` is rebuilt on every push and lists the home page plus every game and
+experiment page. It's submitted in Google Search Console as
+`https://oisingrace.github.io/sandbox-pub/sitemap.xml`.
+
 ## One-time setup
 
 Repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.

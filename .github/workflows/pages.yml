@@ -27,7 +27,7 @@ jobs:
         with:
           fetch-depth: 0   # full history, so patch notes know when each change happened
 
-      - name: Build games.json and patchnotes.json
+      - name: Build game lists, patch notes and sitemap
         run: python3 .github/scripts/build.py
 
       - uses: actions/configure-pages@v5

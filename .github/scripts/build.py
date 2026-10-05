@@ -2,6 +2,7 @@
 
 games.json       - every .html file in games/
 experiments.json - every .html file in experiments/
+sitemap.xml      - the home page and every game/experiment page, for search engines
 patchnotes.json  - one entry per commit that touched games/ or experiments/, newest first:
                   when it happened, which games were added/updated/removed,
                   and the commit message as the note (GitHub's default
@@ -17,9 +18,11 @@ A game can carry its own patch notes instead: a block in its HTML like
 are left out of the list so it isn't shown twice.
 """
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 ROOT = Path(__file__).resolve().parents[2]
 GAMES = ROOT / "games"
@@ -122,6 +125,38 @@ def patch_notes():
     return own_entries(own) + notes
 
 
+def site_url():
+    """https://<owner>.github.io/<repo>/ - follows the repo if it's renamed."""
+    owner, _, repo = os.environ.get("GITHUB_REPOSITORY", "oisingrace/sandbox-pub").partition("/")
+    if repo.lower() == f"{owner.lower()}.github.io":
+        return f"https://{repo.lower()}/"
+    return f"https://{owner.lower()}.github.io/{repo}/"
+
+
+def last_changed(*paths):
+    out = subprocess.run(["git", "log", "-1", "--format=%cI", "--", *paths],
+                         cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    return out[:10]  # YYYY-MM-DD
+
+
+def sitemap():
+    base = site_url()
+    pages = [("", last_changed("."))]
+    for folder in (GAMES, EXPERIMENTS):
+        for name in html_files(folder):
+            path = f"{folder.name}/{name}"
+            pages.append((path, last_changed(path)))
+    urls = "".join(
+        f"  <url><loc>{escape(base + path)}</loc>"
+        + (f"<lastmod>{date}</lastmod>" if date else "")
+        + "</url>\n"
+        for path, date in pages)
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            f"{urls}</urlset>\n")
+
+
+(ROOT / "sitemap.xml").write_text(sitemap())
 (ROOT / "games.json").write_text(json.dumps(html_files(GAMES), indent=2))
 (ROOT / "experiments.json").write_text(json.dumps(html_files(EXPERIMENTS), indent=2))
 (ROOT / "patchnotes.json").write_text(json.dumps(patch_notes(), indent=2))
