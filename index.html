@@ -74,7 +74,11 @@
   }
   #bar .title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #frame { flex: 1; width: 100%; border: 0; background: #fff; }
+  footer { max-width: 960px; margin: 0 auto; padding: 32px 16px 40px; color: var(--muted); font-size: .85rem; }
 </style>
+<!-- Anonymous visit counting (no cookies): https://oisingrace.goatcounter.com -->
+<script data-goatcounter="https://oisingrace.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
 </head>
 <body>
 <header>
@@ -89,6 +93,7 @@
     <div id="noteList"></div>
   </section>
 </main>
+<footer>This site counts visits anonymously.</footer>
 
 <div id="player">
   <div id="bar">
@@ -224,6 +229,20 @@ async function renderNotes() {
   document.getElementById('notes').hidden = notes.length === 0;
 }
 
+// Count each game opened as its own page (/game/<name>) in GoatCounter.
+// The counter script loads async, so retry briefly until it's ready.
+let lastCounted = null;
+function countGame(g, tries = 20) {
+  if (lastCounted === g.slug) return;
+  const gc = window.goatcounter;
+  if (gc && gc.count) {
+    lastCounted = g.slug;
+    gc.count({ path: '/game/' + g.slug, title: g.name });
+  } else if (tries > 0) {
+    setTimeout(() => countGame(g, tries - 1), 500);
+  }
+}
+
 function route() {
   const slug = decodeURIComponent(location.hash.slice(1));
   const g = games.find(g => g.slug === slug);
@@ -235,7 +254,9 @@ function route() {
     document.title = g.name + ' · My Games';
     player.classList.add('open');
     frame.focus();
+    countGame(g);
   } else {
+    lastCounted = null;
     player.classList.remove('open');
     frame.removeAttribute('src');
     document.title = 'My Games';
