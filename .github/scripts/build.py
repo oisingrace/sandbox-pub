@@ -33,13 +33,19 @@ OWN_NOTES = re.compile(
     r"<script[^>]*\bid=[\"']patch-notes[\"'][^>]*>(.*?)</script>", re.S | re.I)
 
 
+# Search-engine verification files (e.g. google1234abcd.html) aren't games.
+VERIFICATION = re.compile(r"^google[0-9a-f]+\.html$", re.I)
+
+
 def is_game(path):
     return (path.startswith(("games/", "experiments/")) and path.count("/") == 1
-            and path.lower().endswith((".html", ".htm")))
+            and path.lower().endswith((".html", ".htm"))
+            and not VERIFICATION.match(path.split("/", 1)[1]))
 
 
 def html_files(folder):
-    return sorted((p.name for p in folder.glob("*.htm*") if p.is_file()),
+    return sorted((p.name for p in folder.glob("*.htm*")
+                   if p.is_file() and not VERIFICATION.match(p.name)),
                   key=str.lower)
 
 
