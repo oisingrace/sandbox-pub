@@ -614,6 +614,14 @@
   <script type="application/json" id="patch-notes">
   [
     {
+      "version": "0.13",
+      "date": "2026-10-05",
+      "title": "Motorway mountains fixed",
+      "notes": [
+        "The hills around the free-roam lot no longer stand across the motorway. The motorway has its own mountain range now, well back from the road on both sides and beyond each end."
+      ]
+    },
+    {
       "version": "0.12",
       "date": "2026-10-05",
       "title": "Drifting, Versus bots, patch notes",
@@ -3797,12 +3805,14 @@ function createWorld(scene, renderer) {
     hill.translate(Math.cos(a) * d, h / 2 - 2, Math.sin(a) * d);
     hills.push(hill);
   }
-  scene.add(new THREE.Mesh(mergeGeometries(hills), hillMat));
+  const hillMesh = new THREE.Mesh(mergeGeometries(hills), hillMat);
+  scene.add(hillMesh);
 
   const VIEW = { near: [70, 200], medium: [110, 380], far: [150, 650] };
   return {
     arena,
     grass,
+    hills: hillMesh, // a ring around the lot: other maps that reach past it hide it
     followSun(target) {
       sun.position.copy(target).add(sunOffset);
       sun.target.position.copy(target);
@@ -9203,6 +9213,28 @@ function createMotorway(scene, renderer) {
   crowns.castShadow = true;
   group.add(trunks, crowns);
 
+  // --- Mountains: a range along each side and beyond each end, well clear of the road ---
+  const hills = [];
+  const hillRng = mulberry32(19);
+  const peak = (x, z, r, h) => {
+    const g = new THREE.ConeGeometry(r, h, 7);
+    g.translate(x, h / 2 - 2, z);
+    hills.push(g);
+  };
+  for (const s of [-1, 1]) {
+    for (let z = -ROAD.half - 200; z <= ROAD.half + 200; z += 90 + hillRng() * 60) {
+      const r = 60 + hillRng() * 50;
+      // Base edge at least 150 m from the middle of the road (the trees stop at ~125 m).
+      peak(s * (150 + r + hillRng() * 80), z, r, 35 + hillRng() * 60);
+    }
+    for (let x = -260; x <= 260; x += 110 + hillRng() * 40) {
+      const r = 60 + hillRng() * 40;
+      peak(x, s * (ROAD.half + 150 + r + hillRng() * 60), r, 40 + hillRng() * 50);
+    }
+  }
+  const hillMesh = new THREE.Mesh(mergeGeometries(hills), new THREE.MeshStandardMaterial({ color: 0x6a8a55, roughness: 1, flatShading: true }));
+  group.add(hillMesh);
+
   // --- Ramps: kickers on the hard shoulders, alternating sides ------------------------
   const terrain = new Terrain();
   for (const { s, z } of KICKERS) {
@@ -11868,6 +11900,8 @@ function setMode(next) {
   versus.setActive(mode === 'versus' || roaming(), roaming());
   // The lot's grass would show through the motorway's own verges.
   world.grass.visible = mode !== 'motorway';
+  // The lot's ring of hills would stand across the motorway (it has its own range).
+  world.hills.visible = mode !== 'motorway';
   // Debris is cleared when it leaves the map (the motorway is much longer).
   destruction.recycleRange = map.recycle ?? 200;
   document.body.classList.toggle('versus', mode === 'versus');
