@@ -55,6 +55,7 @@
   .btn.small { min-width: 0; flex-direction: row; font-size: 10px; padding: 6px 10px; }
   #sizeVal { flex: 0 0 auto; align-self: center; min-width: 26px; text-align: center; font-size: 11px; }
   .spacer { flex: 1 0 8px; }
+  .btn.link { text-decoration: none; color: var(--accent); }
   .hint { flex: 0 0 auto; align-self: center; font-size: 9px; color: var(--dim); padding: 0 6px; white-space: nowrap; }
 </style>
 </head>
@@ -79,6 +80,7 @@
     <button class="btn small" id="demoBtn" title="Reload the starting scene (R)">Demo</button>
     <span class="spacer"></span>
     <span class="hint">Right-click / Shift = reverse · Wheel = size</span>
+    <a class="btn small link" href="https://oisingrace.github.io/sandbox-pub/#" target="_top" title="All my games and experiments">More projects →</a>
   </div>
 </div>
 
@@ -1078,6 +1080,14 @@ requestAnimationFrame(() => { setup(); requestAnimationFrame(loop); });
 </script>
 <script type="application/json" id="patch-notes">
 [
+  {
+    "version": "0.2",
+    "date": "2026-10-05",
+    "title": "Link to my other projects",
+    "notes": [
+      "A More projects button in the toolbar goes to the website with all my other games and experiments."
+    ]
+  },
   {
     "version": "0.1",
     "date": "2026-10-05",
