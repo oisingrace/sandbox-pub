@@ -48,6 +48,9 @@
   .entry { padding: 14px 0; border-top: 1px solid var(--border); }
   .entry time { color: var(--muted); font-size: .85rem; }
   .entry .text { margin: 4px 0 0; white-space: pre-line; }
+  .entry .title { margin: 4px 0 0; font-size: 1rem; }
+  .entry ul { margin: 6px 0 0; padding-left: 20px; }
+  .entry li + li { margin-top: 3px; }
   .entry .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .tag {
     font-size: .8rem; padding: 2px 8px; border-radius: 999px;
@@ -161,6 +164,8 @@ function render() {
 
 // Patch notes: patchnotes.json is built from the history of the games folder.
 // Each entry's time is when it was committed; the text is the commit message.
+// Games that carry their own notes (see .github/scripts/build.py) add one
+// entry per version instead: a date, a title and a list.
 async function renderNotes() {
   let notes;
   try {
@@ -177,9 +182,26 @@ async function renderNotes() {
     el.className = 'entry';
     const time = document.createElement('time');
     time.dateTime = n.time;
-    time.textContent = new Date(n.time).toLocaleString(undefined,
-      { dateStyle: 'medium', timeStyle: 'short' });
+    // Games' own notes have a date only; commits have a date and time.
+    time.textContent = n.dateOnly
+      ? new Date(n.time).toLocaleDateString(undefined, { dateStyle: 'medium', timeZone: 'UTC' })
+      : new Date(n.time).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
     el.appendChild(time);
+    if (n.title) {
+      const h = document.createElement('h3');
+      h.className = 'title';
+      h.textContent = n.title;
+      el.appendChild(h);
+    }
+    if (n.items && n.items.length) {
+      const ul = document.createElement('ul');
+      for (const item of n.items) {
+        const li = document.createElement('li');
+        li.textContent = item;
+        ul.appendChild(li);
+      }
+      el.appendChild(ul);
+    }
     if (n.note) {
       const p = document.createElement('p');
       p.className = 'text';

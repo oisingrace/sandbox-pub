@@ -22,6 +22,21 @@ changed. To add your own note, type it in the commit message box when you upload
 (**Commit changes** on GitHub). GitHub's default messages like "Add files via upload"
 are left out.
 
+A game can also bring its own patch notes, with versions and bullet points (Smash Lot
+does). Put a block like this anywhere in the game's HTML, newest version first:
+
+```html
+<script type="application/json" id="patch-notes">
+[
+  { "version": "1.1", "date": "2026-10-06", "title": "Faster cars", "notes": ["Cars are faster.", "New map."] },
+  { "version": "1.0", "date": "2026-10-01", "title": "First release", "notes": ["The game."] }
+]
+</script>
+```
+
+Each version then shows as its own entry, and that game's upload commits are left out
+so it isn't listed twice.
+
 ## One-time setup
 
 Repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.

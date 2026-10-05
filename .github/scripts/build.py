@@ -5,6 +5,15 @@ patchnotes.json - one entry per commit that touched games/, newest first:
                   when it happened, which games were added/updated/removed,
                   and the commit message as the note (GitHub's default
                   "Add files via upload"-style messages are left out).
+
+A game can carry its own patch notes instead: a block in its HTML like
+
+    <script type="application/json" id="patch-notes">
+      [{"version": "1.1", "date": "2026-10-05", "title": "...", "notes": ["...", "..."]}, ...]
+    </script>
+
+(newest first). Each version becomes an entry, and that game's commits
+are left out of the list so it isn't shown twice.
 """
 import json
 import re
@@ -18,6 +27,8 @@ DEFAULT_MESSAGE = re.compile(
     r"^(Add files via upload|(Create|Update|Delete|Rename|Add) \S+)$", re.I)
 TRAILER = re.compile(r"^(Co-Authored-By|Claude-Session|Signed-off-by):", re.I)
 KINDS = {"A": "added", "M": "updated", "D": "removed"}
+OWN_NOTES = re.compile(
+    r"<script[^>]*\bid=[\"']patch-notes[\"'][^>]*>(.*?)</script>", re.S | re.I)
 
 
 def is_game(path):
@@ -37,7 +48,45 @@ def note_from(message):
     return "" if DEFAULT_MESSAGE.match(note) else note
 
 
+def own_notes():
+    """Games that carry their own patch notes: file name -> versions (newest first)."""
+    out = {}
+    for p in GAMES.glob("*.htm*"):
+        m = OWN_NOTES.search(p.read_text(encoding="utf-8", errors="ignore"))
+        if not m:
+            continue
+        try:
+            versions = json.loads(m.group(1))
+        except ValueError:
+            continue
+        if isinstance(versions, list) and versions:
+            out[p.name] = versions
+    return out
+
+
+def own_entries(own):
+    entries = []
+    for file, versions in own.items():
+        n = len(versions)
+        for i, v in enumerate(versions):
+            if not isinstance(v, dict) or not re.match(r"^\d{4}-\d{2}-\d{2}$", str(v.get("date", ""))):
+                continue
+            # Midday UTC on its date; later versions a moment later, so same-day ones stay in order.
+            entries.append({
+                "time": f"{v['date']}T12:00:{n - i:02d}Z" if n - i < 60 else f"{v['date']}T12:00:59Z",
+                "dateOnly": True,
+                "title": " · ".join(x for x in [f"v{v['version']}" if v.get("version") else "", str(v.get("title", ""))] if x),
+                "items": [str(x) for x in v.get("notes", []) if str(x).strip()],
+                "note": "",
+                "added": [file] if i == n - 1 else [],
+                "updated": [] if i == n - 1 else [file],
+                "removed": [],
+            })
+    return entries
+
+
 def patch_notes():
+    own = own_notes()
     log = subprocess.run(
         ["git", "log", "--no-renames", "--name-status",
          "--format=%x1e%cI%x1f%B%x1f", "--", "games/"],
@@ -47,13 +96,22 @@ def patch_notes():
         time, message, files = record.split("\x1f")
         entry = {"time": time, "note": note_from(message),
                  "added": [], "updated": [], "removed": []}
+        touched = 0
         for line in files.strip().splitlines():
             status, path = line.split("\t", 1)
             if is_game(path) and status[0] in KINDS:
-                entry[KINDS[status[0]]].append(path.split("/", 1)[1])
-        if entry["note"] or entry["added"] or entry["updated"] or entry["removed"]:
+                touched += 1
+                name = path.split("/", 1)[1]
+                if name in own:
+                    continue  # this game writes its own notes
+                entry[KINDS[status[0]]].append(name)
+        tagged = entry["added"] or entry["updated"] or entry["removed"]
+        # A commit that only changed games with their own notes is covered by those.
+        if touched and not tagged:
+            continue
+        if entry["note"] or tagged:
             notes.append(entry)
-    return notes
+    return own_entries(own) + notes
 
 
 (ROOT / "games.json").write_text(json.dumps(games_list(), indent=2))
