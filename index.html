@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>My Games</title>
+<title>My Projects</title>
 <style>
   :root {
     --bg: #f6f5f2; --card: #ffffff; --text: #1d1d1f; --muted: #6b6b70;
@@ -83,7 +83,7 @@
 </head>
 <body>
 <header>
-  <h1>My Games</h1>
+  <h1>My Projects</h1>
   <input id="search" type="search" placeholder="Search…" autocomplete="off">
 </header>
 <main>
@@ -288,7 +288,7 @@ function route() {
     if (frame.getAttribute('src') !== src) frame.src = src;
     document.getElementById('playerTitle').textContent = g.name;
     document.getElementById('newTab').href = src;
-    document.title = g.name + ' · My Games';
+    document.title = g.name + ' · My Projects';
     player.classList.add('open');
     frame.focus();
     countGame(g);
@@ -296,7 +296,7 @@ function route() {
     lastCounted = null;
     player.classList.remove('open');
     frame.removeAttribute('src');
-    document.title = 'My Games';
+    document.title = 'My Projects';
   }
 }
 
