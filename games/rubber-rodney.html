@@ -92,6 +92,12 @@
 <body>
 <script type="application/json" id="patch-notes">
 [
+  { "version": "1.2", "date": "2026-10-06", "title": "Reset and Reverse",
+    "notes": [
+      "Reform is now Reset: it puts Rodney back in the middle, standing and in shape, clears every toy and effect, and turns gravity and slow-mo back to normal. Money and unlocked toys stay.",
+      "New Reverse switch (V, or hold Shift or the right mouse button) runs the toys backwards: the magnet pushes, the leaf blower sucks, the pump lets air out, bombs implode, the black hole becomes a white hole, balloons turn to lead, the mallet and glove yank instead of hit, rockets thrust the other way, and Pull smooths out stretches.",
+      "Toys with no opposite, like the anvil or the feather, work the same in reverse."
+    ] },
   { "version": "1.1", "date": "2026-10-06", "title": "Toy box",
     "notes": [
       "10 new toys: Bouncy Balls, Watermelon, Boxing Glove, Balloons, Leaf Blower, Trampoline, Lightning, Wrecking Ball, Piano and Black Hole. 21 in all.",
@@ -122,8 +128,10 @@
       <div class="glass" id="malfPill"><div id="malfRow"><span class="label">Malformed</span><span id="malf">0%</span></div><span id="malfBar"><span id="malfFill"></span></span></div>
     </div>
     <div id="utils">
-      <button class="util" id="uReform" type="button" aria-label="Reform Rodney (R)" title="Reform Rodney (R)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 9a8 8 0 1 0 1 6"/><path d="M20 3v6h-6"/></svg><span>Reform</span></button>
+      <button class="util" id="uReform" type="button" aria-label="Reset everything (R)" title="Reset everything (R)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 9a8 8 0 1 0 1 6"/><path d="M20 3v6h-6"/></svg><span>Reset</span></button>
+      <button class="util" id="uReverse" type="button" aria-label="Reverse the tools (V, or hold Shift)" title="Reverse the tools (V, or hold Shift / right-click)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4M3 8h13M17 12l4 4-4 4M21 16H8"/></svg><span>Reverse</span></button>
       <button class="util" id="uGrav" type="button" aria-label="Change gravity (G)" title="Change gravity (G)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v17M6 14l6 6 6-6"/></svg><span id="gravLabel">Gravity: on</span></button>
       <button class="util" id="uSlow" type="button" aria-label="Slow motion (S)" title="Slow motion (S)">
@@ -302,6 +310,7 @@ function buildFella(cx, cy) {
   legL.side = -1; legR.side = 1; armL.side = -1; armR.side = 1;
   head.color = 'skin'; torso.color = 'shirt'; armL.color = armR.color = 'skin'; legL.color = legR.color = 'pants';
   fella = { head, torso, legL, legR, armL, armR, limbs: [legL, legR, armL, armR], standH: floorY - cy, neckH: 102 * S };
+  for (const p of pts) { p.hx = p.x - cx; p.hy = p.y - floorY; } // where Reset puts him back, relative to the floor's middle
   updateLimbRadii();
 }
 const SC = 1.4; // overall size of Rodney
@@ -490,6 +499,9 @@ let holes = [];        // black holes {x, y, t, life}
 let balloons = [];     // helium balloons tied to a body point
 let wreck = null;      // wrecking ball {o, ax, ay, len}
 let bolts = [], zapT = 0, soot = 0;
+let reverseOn = false, shiftDown = false, pumpRev = false, smoothing = false;
+// a tool works backwards while Reverse is on, or while Shift or the right mouse button is held (they flip it back)
+function rev() { return reverseOn !== (shiftDown || !!ptr.alt); }
 
 function boundPoint(p) {
   const r = p.r;
@@ -540,11 +552,11 @@ function substep() {
   }
   for (const bl of balloons) {
     const vx = (bl.x - bl.px) * 0.985, vy = (bl.y - bl.py) * 0.985;
-    bl.px = bl.x; bl.py = bl.y; bl.x += vx + Math.sin(frameNo * 0.03 + bl.ph) * 0.02; bl.y += vy - 1.7 * g * hh2;
+    bl.px = bl.x; bl.py = bl.y; bl.x += vx + Math.sin(frameNo * 0.03 + bl.ph) * 0.02; bl.y += vy - 1.7 * g * hh2 * (bl.heavy ? -1.3 : 1);
     // a taut string lifts the body part it is tied to; about five balloons lift Rodney off the floor
     if (Math.hypot(bl.x - bl.p.x, bl.y - bl.p.y) > bl.len * 0.9) {
       const q = partPoints(bl.p.part), f = 10 * g * hh2 / q.length;
-      for (const o of q) if (o.im) o.y -= f;
+      for (const o of q) if (o.im) o.y -= bl.heavy ? -f * 1.3 : f;
     }
   }
   for (const b of [fella.head, fella.torso]) applyPressure(b);
@@ -552,6 +564,7 @@ function substep() {
   for (const rk of rockets) {
     if (rk.t < rk.ignite || rk.fuel <= 0) continue;
     const ref = partRef(rk.p); let dx = rk.p.x - ref.x, dy = rk.p.y - ref.y; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    if (rk.rev) { dx = -dx; dy = -dy; }
     rk.dx = dx; rk.dy = dy;
     const acc = rk.p.part.type === 'blob' ? 2.6 : 5.5;
     for (const q of partPoints(rk.p.part)) if (q.im) { q.x += dx * acc * hh2; q.y += dy * acc * hh2; }
@@ -559,9 +572,9 @@ function substep() {
   if (blowing) {
     // a cone of air from the blower toward Rodney
     const tc = fella.torso.center; let ax = tc.x - ptr.x, ay = tc.y - ptr.y; const al = Math.hypot(ax, ay) || 1; ax /= al; ay /= al;
-    const gust = 1 + 0.35 * Math.sin(frameNo * 0.4);
+    const gust = (1 + 0.35 * Math.sin(frameNo * 0.4)) * (rev() ? -1 : 1); // reversed, it sucks
     const blow = (o, k) => {
-      const dx = o.x - ptr.x, dy = o.y - ptr.y, d = Math.hypot(dx, dy); if (d < 8 || d > 620) return;
+      const dx = o.x - ptr.x, dy = o.y - ptr.y, d = Math.hypot(dx, dy); if (d < (gust < 0 ? 40 : 8) || d > 620) return;
       const c = (dx * ax + dy * ay) / d; if (c < 0.8) return;
       const a = k * gust * (1 - d / 620) * smooth(0.8, 0.95, c);
       o.x += dx / d * a * hh2; o.y += dy / d * a * hh2;
@@ -573,7 +586,7 @@ function substep() {
   for (const bh of holes) {
     const pull = (o, k, R) => {
       const dx = bh.x - o.x, dy = bh.y - o.y, d = Math.hypot(dx, dy); if (d < 6 || d > R) return;
-      const a = k * Math.pow(1 - d / R, 1.5) * smooth(0, 30, bh.t);
+      const a = k * Math.pow(1 - d / R, 1.5) * smooth(0, 30, bh.t) * (bh.rev ? -0.8 : 1); // a white hole pushes out
       o.x += (dx / d * a - dy / d * a * 0.35) * hh2; o.y += (dy / d * a + dx / d * a * 0.35) * hh2; // a little swirl
     };
     for (const p of pts) if (p.im) pull(p, 4.5, 520);
@@ -582,13 +595,14 @@ function substep() {
   }
   if (zapT > 0) for (const p of pts) if (p.im) { p.x += rnd(-1, 1) * 2.2 * (zapT / 40); p.y += rnd(-1, 1) * 2.2 * (zapT / 40); }
   if (magnetOn) {
+    const sg = rev() ? -1 : 1; // reversed, it repels
     for (const p of pts) {
       if (!p.im) continue; const dx = ptr.x - p.x, dy = ptr.y - p.y, d = Math.hypot(dx, dy);
-      if (d < 340 && d > 10) { const a = 1.3 * (1 - d / 340); p.x += dx / d * a * hh2; p.y += dy / d * a * hh2; }
+      if (d < 340 && d > 10) { const a = 1.3 * sg * (1 - d / 340); p.x += dx / d * a * hh2; p.y += dy / d * a * hh2; }
     }
     for (const o of props) {
       if (o.held) continue; const dx = ptr.x - o.x, dy = ptr.y - o.y, d = Math.hypot(dx, dy);
-      if (d < 460 && d > 20) { const a = 2.6 * (1 - d / 460); o.x += dx / d * a * hh2; o.y += dy / d * a * hh2; }
+      if (d < 460 && d > 20) { const a = 2.6 * sg * (1 - d / 460); o.x += dx / d * a * hh2; o.y += dy / d * a * hh2; }
     }
   }
   // a stretched patch of skin drags its body part along
@@ -625,7 +639,7 @@ function substep() {
 let calm = 400;
 function posture(hh2) {
   const F = fella;
-  if (gravMode !== 0 || F.torso.popped || grab || skinGrab || blowing || magnetOn || zapT > 0 || holes.length || rockets.some(r => r.t >= r.ignite && r.fuel > 0)) { calm = 0; return; }
+  if (gravMode !== 0 || F.torso.popped || grab || skinGrab || blowing || magnetOn || balloons.some(b => b.heavy) || zapT > 0 || holes.length || rockets.some(r => r.t >= r.ignite && r.fuel > 0)) { calm = 0; return; }
   calm = Math.min(calm + 1, 400);
   const s = clamp((calm - 50 - mood.dizzy * 60) / 120, 0, 1); if (s <= 0) return;
   // only push off from something solid: the floor, or anything he is lying still on
@@ -682,7 +696,7 @@ function stepPulls(fs) {
 // ---------------- plasticity, pain, mood ----------------
 const mood = { ouch: 0, dizzy: 0, happy: 0, scared: 0, blink: 0, blinkT: 140, idle: 0 };
 let bank = 0, pend = 0, pendX = 0, pendY = 0, flushT = 0, malfPct = 0, shakeAmt = 0;
-let impactCool = 0, reformT = 0;
+let impactCool = 0;
 const floats = [];
 
 
@@ -710,13 +724,21 @@ function afterPhysics() {
   for (const p of pts) if (p.plastic > 0) p.plastic--;
   if (grab && grab.taffy) for (const p of pts) if (Math.hypot(p.x - grab.obj.x, p.y - grab.obj.y) < 90) p.plastic = Math.max(p.plastic, 3);
 
-  if (reformT > 0) {
-    reformT--;
-    for (const c of cons) c.rest = lerp(c.rest, c.rest0, 0.12);
-    for (const pt of parts) { pt.inflate = lerp(pt.inflate, 1, 0.12); if (pt.type === 'blob') pt.target = lerp(pt.target, pt.area0, 0.12); }
-    for (const p of pulls) { p.rx *= 0.85; p.ry *= 0.85; p.rz *= 0.85; }
-    if (reformT === 0) { for (const c of cons) c.rest = c.rest0; for (const pt of parts) pt.inflate = 1; fella.head.target = fella.head.area0; fella.torso.target = fella.torso.area0; for (const p of pulls) p.rx = p.ry = p.rz = 0; }
-    updateLimbRadii();
+  // reversed Pull: rub over him to smooth out stretches and dents
+  if (smoothing && ptr.down) {
+    const R2 = 95 * 95;
+    let any = false;
+    for (const c of cons) {
+      const mx = (c.a.x + c.b.x) / 2 - ptr.x, my = (c.a.y + c.b.y) / 2 - ptr.y;
+      if (mx * mx + my * my < R2 && c.rest !== c.rest0) { c.rest = lerp(c.rest, c.rest0, 0.15); if (Math.abs(c.rest - c.rest0) < 0.05) c.rest = c.rest0; any = true; }
+    }
+    for (const b of [fella.head, fella.torso]) {
+      if (!inPoly(ptr.x, ptr.y, b.ring)) continue;
+      b.target = lerp(b.target, b.area0, 0.08);
+      const dc = diskCoords(b, ptr.x, ptr.y);
+      for (const p of pulls) if (p.blob === b && !p.held && Math.hypot(p.fx - dc.fx, p.fy - dc.fy) < 0.5) { p.rx *= 0.85; p.ry *= 0.85; p.rz *= 0.85; any = true; }
+    }
+    if (any && frameNo % 14 === 0) sfx.squeak();
   }
   stepPulls(fs);
 
@@ -763,7 +785,7 @@ function afterPhysics() {
     const before = o.fuse; o.fuse -= fs;
     if (Math.floor(before / 20) !== Math.floor(o.fuse / 20)) sfx.tick();
     if (Math.random() < 0.7) spark(o.x + 8, o.y - 27, 0, rnd(-1.5, 1.5), rnd(-2.5, 0), rnd(-1, 1), 0xffb347, 14);
-    if (o.fuse <= 0) { props.splice(props.indexOf(o), 1); explode(o.x, o.y, 1); }
+    if (o.fuse <= 0) { props.splice(props.indexOf(o), 1); explode(o.x, o.y, 1, o.rev); }
   }
   for (const rk of rockets.slice()) {
     rk.t += fs;
@@ -782,9 +804,13 @@ function afterPhysics() {
   }
   for (const bh of holes.slice()) {
     bh.t += fs;
-    if (frameNo % 2 === 0) { const a = rnd(0, TAU), r = rnd(60, 160); spark(bh.x + Math.cos(a) * r, bh.y + Math.sin(a) * r, rnd(-20, 20), -Math.cos(a) * 3 - Math.sin(a) * 4, -Math.sin(a) * 3 + Math.cos(a) * 4, 0, pick([0xb48cff, 0x7a5cff, 0xffffff]), 22); }
+    if (frameNo % 2 === 0) {
+      const a = rnd(0, TAU);
+      if (bh.rev) spark(bh.x + Math.cos(a) * 20, bh.y + Math.sin(a) * 20, rnd(-20, 20), Math.cos(a) * 5, Math.sin(a) * 5, 0, pick([0xffe6a8, 0xfff6e0, 0xffffff]), 26);
+      else { const r = rnd(60, 160); spark(bh.x + Math.cos(a) * r, bh.y + Math.sin(a) * r, rnd(-20, 20), -Math.cos(a) * 3 - Math.sin(a) * 4, -Math.sin(a) * 3 + Math.cos(a) * 4, 0, pick([0xb48cff, 0x7a5cff, 0xffffff]), 22); }
+    }
     if (frameNo % 20 === 0) sfx.hum();
-    if (bh.t >= bh.life) { holes.splice(holes.indexOf(bh), 1); explode(bh.x, bh.y, 0.55); }
+    if (bh.t >= bh.life) { holes.splice(holes.indexOf(bh), 1); explode(bh.x, bh.y, 0.55, bh.rev); }
   }
   for (const bl of balloons.slice()) {
     bl.t += fs;
@@ -792,7 +818,7 @@ function afterPhysics() {
   }
   if (glove) {
     glove.t += fs;
-    if (!glove.hit && glove.t >= 6) { glove.hit = true; punchAt(glove.x, glove.y, glove.from); }
+    if (!glove.hit && glove.t >= 6) { glove.hit = true; punchAt(glove.x, glove.y, glove.from, glove.rev); }
     if (glove.t > 22) glove = null;
   }
   for (const b of bolts) b.t += fs;
@@ -800,9 +826,15 @@ function afterPhysics() {
   if (zapT > 0) { zapT -= fs; if (frameNo % 3 === 0) sfx.buzz(); mood.ouch = Math.max(mood.ouch, 4); }
   soot = Math.max(0, soot - 0.0012 * fs);
   if (pumping) {
-    const pt = pumping;
-    pt.inflate += (pt.type === 'blob' ? 0.011 : 0.028) * fs;
-    if (frameNo % 9 === 0) sfx.hiss();
+    const pt = pumping, rate = (pt.type === 'blob' ? 0.011 : 0.028) * fs;
+    if (pumpRev) {
+      // reversed, it sucks the air out, down to a limp half
+      const lo = pt.type === 'blob' ? 0.6 : 0.45;
+      if (pt.inflate > lo) { pt.inflate = Math.max(lo, pt.inflate - rate); if (frameNo % 9 === 0) sfx.hiss(); }
+    } else {
+      pt.inflate += rate;
+      if (frameNo % 9 === 0) sfx.hiss();
+    }
     if (pt.type === 'limb') updateLimbRadii();
     const lim = pt.type === 'blob' ? 2.5 : 3.2;
     if (pt.inflate >= lim) popPart(pt);
@@ -852,23 +884,24 @@ function updateMalformed() {
 // ---------------- actions ----------------
 function shake(a) { if (!reduceMotion) shakeAmt = Math.max(shakeAmt, a); }
 
-function explode(x, y, power) {
-  const R = 270 * Math.sqrt(power);
+// inward: an implosion that sucks everything toward the middle instead
+function explode(x, y, power, inward) {
+  const R = 270 * Math.sqrt(power), sg = inward ? -1.3 : 1;
   for (const p of pts) {
     const dx = p.x - x, dy = p.y - y, d = Math.hypot(dx, dy) || 1;
     if (d < R) {
       const f = 34 * power * Math.pow(1 - d / R, 1.4);
-      if (p.im) addVel(p, dx / d * f, dy / d * f - f * 0.25);
+      if (p.im) addVel(p, dx / d * f * sg, dy / d * f * sg - f * 0.25);
       if (d < R * 0.5) p.plastic = Math.max(p.plastic, 12);
     }
   }
   for (const o of props) {
     const dx = o.x - x, dy = o.y - y, d = Math.hypot(dx, dy) || 1;
-    if (d < R && !o.held) { const f = 30 * power * (1 - d / R) * Math.min(1, o.im * 4); addVel(o, dx / d * f, dy / d * f - f * 0.3); }
+    if (d < R && !o.held) { const f = 30 * power * (1 - d / R) * Math.min(1, o.im * 4); addVel(o, dx / d * f * sg, dy / d * f * sg - f * 0.3); }
     if (o.kind === 'bomb' && d < R * 0.6 && o.fuse > 8) o.fuse = 8;
   }
   for (const pt of parts) {
-    if (pt.popped || pt.inflate < 1.5) continue;
+    if (inward || pt.popped || pt.inflate < 1.5) continue;
     const c = pt.type === 'blob' ? pt.center : pt.pts[1];
     if (Math.hypot(c.x - x, c.y - y) < R * 0.6) popPart(pt);
   }
@@ -878,11 +911,18 @@ function explode(x, y, power) {
     if (d < R * 0.7 && b.st) {
       for (let k = 0; k < 2; k++) {
         const a = rnd(0, TAU), s = rnd(0.1, 0.6);
-        addPull(b, Math.cos(a) * s, Math.sin(a) * s, { vz: -rnd(6, 12) * power, rz: -rnd(3, 8) * power, sigma: 0.22 });
+        addPull(b, Math.cos(a) * s, Math.sin(a) * s, { vz: -rnd(6, 12) * power * sg, rz: -rnd(3, 8) * power * sg, sigma: 0.22 });
       }
     }
   }
   for (const bl of balloons.slice()) if (Math.hypot(bl.x - x, bl.y - y) < R * 0.8) popBalloon(bl);
+  if (inward) {
+    flashAt(x, y, power * 0.8, 0xa98cff);
+    for (let i = 0; i < 70 * power; i++) { const a = rnd(0, TAU), r = rnd(0.4, 1) * R * 0.6, s = r / rnd(14, 24); spark(x + Math.cos(a) * r, y + Math.sin(a) * r, rnd(-20, 20), -Math.cos(a) * s, -Math.sin(a) * s, 0, pick([0xd9c8ff, 0xa98cff, 0xffffff]), rnd(14, 22)); }
+    sfx.warp(); sfx.boom(Math.min(1, 0.3 + power * 0.4)); shake(12 * power);
+    mood.dizzy += 0.4 * power;
+    return;
+  }
   if (Math.hypot(fella.torso.center.x - x, fella.torso.center.y - y) < R * 0.8) soot = Math.min(1, soot + 0.45 * power);
   flashAt(x, y, power);
   for (let i = 0; i < 70 * power; i++) { const a = rnd(0, TAU), b = rnd(-1, 1), s = rnd(3, 13); spark(x, y, 0, Math.cos(a) * s, Math.sin(a) * s, b * s, pick([0xffe2a8, 0xffb347, 0xff7a2a, 0xffffff]), rnd(16, 32)); }
@@ -911,6 +951,7 @@ function malletHit(x, y) {
   let dx = 0, dy = 1;
   if (best && bd > 12) { dx = best.x - x; dy = best.y - y; const d = Math.hypot(dx, dy); dx /= d; dy /= d; }
   dx = dx * 0.7; dy = dy * 0.7 + 0.3; const dn = Math.hypot(dx, dy); dx /= dn; dy /= dn;
+  const back = rev(); if (back) { dx = -dx; dy = -dy; } // reversed: yanks toward you and raises bumps
   for (const p of pts) {
     const d = Math.hypot(p.x - x, p.y - y);
     if (d < R) {
@@ -922,12 +963,12 @@ function malletHit(x, y) {
   const b = blobAt(x, y);
   if (b && b.st) {
     const dc = diskCoords(b, x, y);
-    addPull(b, dc.fx, dc.fy, { vx: dx * 4, vy: dy * 4, vz: -16, rz: -rnd(5, 9), sigma: 0.2 });
+    addPull(b, dc.fx, dc.fy, back ? { vx: dx * 4, vy: dy * 4, vz: 14, rz: rnd(4, 8), sigma: 0.2 } : { vx: dx * 4, vy: dy * 4, vz: -16, rz: -rnd(5, 9), sigma: 0.2 });
     hitAny = true;
   }
   if (hitAny) {
     for (const p of pts) if (p.im) addVel(p, dx * 4, dy * 4 - 2);
-    sfx.bonk(); sfx.wobble(0.8); shake(7);
+    if (back) sfx.snap(0.7); else sfx.bonk(); sfx.wobble(0.8); shake(7);
   }
   for (const o of props) {
     const d = Math.hypot(o.x - x, o.y - y);
@@ -1020,24 +1061,25 @@ function attachRocket(x, y) {
   const p = nearestPoint(x, y, 50, false);
   if (!p) return false;
   if (rockets.length >= 3) rockets.shift();
-  rockets.push({ p, t: 0, ignite: 40, fuel: 170, lit: false, z: 18 });
+  rockets.push({ p, t: 0, ignite: 40, fuel: 170, lit: false, z: 18, rev: rev() });
   sfx.pin();
   return true;
 }
 // the glove flies in from the nearer side of the screen and lands where you tapped
 function startPunch(x, y) {
   if (glove) return;
-  glove = { x, y, from: x < fella.torso.center.x ? -1 : 1, t: 0, hit: false };
+  glove = { x, y, from: x < fella.torso.center.x ? -1 : 1, t: 0, hit: false, rev: rev() };
   sfx.throw();
 }
-function punchAt(x, y, from) {
-  const dx = -from, R = 80; let hitAny = false;
+// reversed, the glove grabs and yanks him back the way it came
+function punchAt(x, y, from, back) {
+  const dx = back ? from : -from, R = 80; let hitAny = false;
   for (const p of pts) {
     const d = Math.hypot(p.x - x, p.y - y);
     if (d < R) { hitAny = true; const f = 1 - d / R; if (p.im) { addVel(p, dx * 34 * f, -6 * f); p.x += dx * 12 * f; } if (d < R * 0.6) p.plastic = Math.max(p.plastic, 9); }
   }
   const b = blobAt(x, y);
-  if (b && b.st) { const dc = diskCoords(b, x, y); addPull(b, dc.fx, dc.fy, { vx: dx * 6, vz: -18, rz: -rnd(4, 8), sigma: 0.24 }); }
+  if (b && b.st) { const dc = diskCoords(b, x, y); addPull(b, dc.fx, dc.fy, back ? { vx: dx * 6, vz: 14, rz: rnd(3, 6), sigma: 0.24 } : { vx: dx * 6, vz: -18, rz: -rnd(4, 8), sigma: 0.24 }); }
   for (const o of props) if (!o.static && Math.hypot(o.x - x, o.y - y) < R + (o.r || o.hw)) { addVel(o, dx * 26 * Math.min(1, o.im * 5), -5); hitAny = true; }
   for (const bl of balloons.slice()) if (Math.hypot(bl.x - x, bl.y - y) < bl.r + 30) popBalloon(bl);
   if (hitAny) { for (const p of pts) if (p.im) addVel(p, dx * 6, -2); sfx.punch(); shake(9); mood.ouch = 28; calm = 0; }
@@ -1062,15 +1104,16 @@ function zapAt(x, y) {
 }
 function placeHole(x, y) {
   if (holes.length >= 2) holes.shift();
-  holes.push({ x, y, t: 0, life: 260 });
+  holes.push({ x, y, t: 0, life: 260, rev: rev() });
   sfx.warp();
 }
 function tieBalloon(x, y) {
   const p = nearestPoint(x, y, 50, false);
   if (!p) return false;
   if (balloons.length >= 8) popBalloon(balloons[0]);
-  const len = rnd(70, 110);
-  balloons.push({ p, x: p.x + rnd(-20, 20), y: p.y - len, px: p.x, py: p.y - len, im: 1 / 0.3, r: 21, len, t: 0, ph: rnd(0, TAU), color: BALLOON_COLS[balloons.length % BALLOON_COLS.length] });
+  const len = rnd(70, 110), heavy = rev(), by = heavy ? Math.min(p.y + len, floorY - 21) : p.y - len;
+  // reversed: a lead balloon that sinks and drags that part down
+  balloons.push({ p, x: p.x + rnd(-20, 20), y: by, px: p.x, py: by, im: 1 / 0.3, r: 21, len, t: 0, ph: rnd(0, TAU), heavy, color: heavy ? 0x5d6066 : BALLOON_COLS[balloons.length % BALLOON_COLS.length] });
   calm = 0; sfx.squeak();
   return true;
 }
@@ -1111,13 +1154,24 @@ function spawnBouncy(x, y) {
   }
   limitProps('bouncy', 18); sfx.boing(0.5);
 }
+// Reset puts everything back the way it started: Rodney in shape and standing in the middle,
+// toys cleared, normal gravity and speed. Money, unlocks, sound, free play and Reverse stay.
 function doReform() {
-  reformT = 50;
-  for (const p of pts) { p.pin = null; p.im = p.held ? 0 : p.im0; }
-  rockets = []; pumping = null; zapT = 0; soot = 0;
-  for (const bl of balloons.slice()) popBalloon(bl);
-  for (const pt of parts) pt.popped = false;
-  mood.dizzy = 0; calm = 400;
+  endGrab(); endSkin(); dropAim(); pumping = null; smoothing = false;
+  props = []; rockets = []; holes = []; balloons = []; pulls = []; bolts = [];
+  wreck = null; glove = null; mallet = null; zapT = 0; soot = 0;
+  for (const p of pts) {
+    p.x = p.px = W / 2 + p.hx; p.y = p.py = floorY + p.hy;
+    p.pin = null; p.held = false; p.im = p.im0; p.plastic = 0; p.lvx = p.lvy = 0;
+  }
+  for (const c of cons) c.rest = c.rest0;
+  for (const pt of parts) { pt.popped = false; pt.inflate = 1; if (pt.type === 'blob') pt.target = pt.area0; }
+  updateLimbRadii();
+  Object.assign(mood, { ouch: 0, dizzy: 0, happy: 0, scared: 0, idle: 0 });
+  calm = 400; shakeAmt = 0;
+  if (gravMode !== 0) { gravMode = 2; cycleGravity(); }
+  if (slowmo) toggleSlow();
+  updateMalformed();
   sfx.wobble(1);
 }
 
@@ -1147,26 +1201,26 @@ const ICONS = {
 };
 const TOOLS = [
   { id: 'hand', name: 'Hand', price: 0, hint: 'Grab his face or body and pull. The skin stretches and snaps back. Grab toys to throw them.' },
-  { id: 'mallet', name: 'Mallet', price: 0, hint: 'Tap to strike. Heavy blows leave dents.' },
-  { id: 'taffy', name: 'Pull', price: 0, hint: 'Pull skin or limbs. The stretch stays.' },
+  { id: 'mallet', name: 'Mallet', price: 0, hint: 'Tap to strike. Heavy blows leave dents.', rhint: 'Reversed: a plunger. Tap to yank him toward you and raise bumps.' },
+  { id: 'taffy', name: 'Pull', price: 0, hint: 'Pull skin or limbs. The stretch stays.', rhint: 'Reversed: rub over him to smooth out stretches and dents.' },
   { id: 'pin', name: 'Thumbtack', price: 30, hint: 'Tap a body part to pin it in place. Tap the tack again to pull it. Tacks pop balloons too.' },
   { id: 'bouncy', name: 'Bouncy Balls', price: 40, hint: 'Tap to throw a handful of super bouncy balls.' },
-  { id: 'bomb', name: 'Bomb', price: 50, hint: 'Tap to drop a lit bomb. Blasts burst puffed-up parts.' },
+  { id: 'bomb', name: 'Bomb', price: 50, hint: 'Tap to drop a lit bomb. Blasts burst puffed-up parts.', rhint: 'Reversed: drops an implosion bomb that sucks everything in.' },
   { id: 'melon', name: 'Watermelon', price: 70, hint: 'Press, drag back and let go to throw a watermelon. It smashes on a hard hit.' },
-  { id: 'pump', name: 'Air Pump', price: 80, hint: 'Hold on a body part to inflate it. Too much air and it bursts.' },
-  { id: 'glove', name: 'Boxing Glove', price: 100, hint: 'Tap to throw a punch from the side.' },
+  { id: 'pump', name: 'Air Pump', price: 80, hint: 'Hold on a body part to inflate it. Too much air and it bursts.', rhint: 'Reversed: hold on a body part to suck the air out.' },
+  { id: 'glove', name: 'Boxing Glove', price: 100, hint: 'Tap to throw a punch from the side.', rhint: 'Reversed: the glove grabs him and yanks him back the way it came.' },
   { id: 'ball', name: 'Bowling Ball', price: 120, hint: 'Press, drag back and let go to launch a ball.' },
-  { id: 'balloon', name: 'Balloons', price: 140, hint: 'Tap a body part to tie on a balloon. Four or more lift him off the floor.' },
+  { id: 'balloon', name: 'Balloons', price: 140, hint: 'Tap a body part to tie on a balloon. Four or more lift him off the floor.', rhint: 'Reversed: tap a body part to tie on a lead balloon that drags it down.' },
   { id: 'feather', name: 'Feather', price: 150, hint: 'Brush the feather over him. Ticklish.' },
-  { id: 'blower', name: 'Leaf Blower', price: 180, hint: 'Hold to blow air at Rodney from where you point.' },
+  { id: 'blower', name: 'Leaf Blower', price: 180, hint: 'Hold to blow air at Rodney from where you point.', rhint: 'Reversed: hold to suck Rodney and the toys toward you.' },
   { id: 'tramp', name: 'Trampoline', price: 220, hint: 'Tap the floor to set down a trampoline. Throw him on it.' },
   { id: 'anvil', name: 'Anvil', price: 250, hint: 'Tap to drop a 100 kg anvil from above.' },
   { id: 'lightning', name: 'Lightning', price: 320, hint: 'Tap to call down a lightning bolt.' },
-  { id: 'rocket', name: 'Rocket', price: 400, hint: 'Tap a body part to strap on a rocket. It lights after a second.' },
+  { id: 'rocket', name: 'Rocket', price: 400, hint: 'Tap a body part to strap on a rocket. It lights after a second.', rhint: 'Reversed: the rocket thrusts the other way.' },
   { id: 'wreck', name: 'Wrecking Ball', price: 450, hint: 'Tap to hang a wrecking ball from the ceiling and swing it in.' },
   { id: 'piano', name: 'Piano', price: 550, hint: 'Tap to drop a grand piano from above.' },
-  { id: 'magnet', name: 'Magnet', price: 600, hint: 'Hold to pull Rodney and every toy toward you.' },
-  { id: 'hole', name: 'Black Hole', price: 800, hint: 'Tap to open a tiny black hole. It swallows the room, then bursts.' }
+  { id: 'magnet', name: 'Magnet', price: 600, hint: 'Hold to pull Rodney and every toy toward you.', rhint: 'Reversed: hold to push Rodney and every toy away.' },
+  { id: 'hole', name: 'Black Hole', price: 800, hint: 'Tap to open a tiny black hole. It swallows the room, then bursts.', rhint: 'Reversed: opens a white hole that blows the room apart, then collapses.' }
 ];
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '='];
 function owned(id) { return save.free || save.unlocked.includes(id); }
@@ -1204,9 +1258,10 @@ function selectTool(id, quiet) {
     }
   }
   endGrab(); endSkin(); pumping = null; dropAim(); magnetOn = false; blowing = false;
-  tool = id; refreshTools(); hint(t.hint);
+  tool = id; refreshTools(); hint(toolHint(t));
   const btn = document.getElementById('tool-' + id); if (btn && btn.scrollIntoView) btn.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: quiet || reduceMotion ? 'auto' : 'smooth' });
 }
+function toolHint(t) { return reverseOn ? t.rhint || t.hint + ' (Works the same in reverse.)' : t.hint; }
 let hintTimer = 0, toastTimer = 0;
 function hint(text) { hintEl.textContent = text; hintEl.classList.remove('hide'); clearTimeout(hintTimer); hintTimer = setTimeout(() => hintEl.classList.add('hide'), 5000); }
 function toast(text) { toastEl.textContent = text; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800); }
@@ -1217,13 +1272,14 @@ function setPtr(e) {
   ptr.x = e.clientX - r.left; ptr.y = e.clientY - r.top; ptr.mouse = e.pointerType === 'mouse';
 }
 ov.addEventListener('pointerdown', e => {
-  audio(); setPtr(e); ptr.down = true; ptr.inside = true; mood.idle = 0;
+  audio(); setPtr(e); ptr.down = true; ptr.inside = true; mood.idle = 0; ptr.alt = e.button === 2;
   try { ov.setPointerCapture(e.pointerId); } catch (err) {}
   const x = ptr.x, y = ptr.y;
   switch (tool) {
     case 'hand':
     case 'taffy': {
       const taffy = tool === 'taffy';
+      if (taffy && rev()) { smoothing = true; break; }
       if (!taffy) { const o = propAt(x, y); if (o) { startGrab(o, true, false); break; } }
       for (const L of [fella.armL, fella.armR, fella.legL, fella.legR]) {
         if (limbHit(L, x, y)) { const p = nearestPoint(x, y, 60, false); if (p && !p.pin) { startGrab(p, false, taffy); sfx.stretch(); } break; }
@@ -1247,8 +1303,8 @@ ov.addEventListener('pointerdown', e => {
     case 'wreck': launchWreck(x); break;
     case 'piano': { limitProps('piano', 2); const a = makeProp('piano', clamp(x, 92, W - 92), -120); a.py = a.y - 2; sfx.whoosh(); break; }
     case 'hole': placeHole(x, y); break;
-    case 'bomb': { limitProps('bomb', 4); makeProp('bomb', x, y); sfx.tick(); break; }
-    case 'pump': { const part = partAt(x, y); if (part && !part.popped) pumping = part; else if (part) toast('That part burst. Press Reform.'); break; }
+    case 'bomb': { limitProps('bomb', 4); makeProp('bomb', x, y).rev = rev(); sfx.tick(); break; }
+    case 'pump': { const part = partAt(x, y); pumpRev = rev(); if (part && !part.popped) pumping = part; else if (part) toast('That part burst. Press Reset.'); break; }
     case 'ball': { limitProps('ball', 5); const b = makeProp('ball', x, y); b.held = true; b.im = 0; aim = { ball: b, x, y }; break; }
     case 'anvil': { limitProps('anvil', 3); const a = makeProp('anvil', clamp(x, 52, W - 52), -80); a.py = a.y - 2; sfx.whoosh(); break; }
     case 'rocket': if (!attachRocket(x, y)) toast('Tap on Rodney to attach a rocket'); break;
@@ -1261,7 +1317,7 @@ ov.addEventListener('pointermove', e => {
 });
 function pointerUp(e) {
   if (e) setPtr(e);
-  ptr.down = false;
+  ptr.down = false; ptr.alt = false; smoothing = false;
   endGrab(); endSkin(); pumping = null; magnetOn = false; blowing = false;
   if (aim) {
     const b = aim.ball; b.held = false; b.im = b.im0;
@@ -1276,8 +1332,15 @@ function dropAim() { if (aim) { aim.ball.held = false; aim.ball.im = aim.ball.im
 ov.addEventListener('pointerup', pointerUp);
 ov.addEventListener('pointercancel', () => pointerUp());
 ov.addEventListener('pointerleave', () => { if (!ptr.down) ptr.inside = false; });
+ov.addEventListener('contextmenu', e => e.preventDefault());
 
 document.getElementById('uReform').addEventListener('click', () => { audio(); doReform(); });
+function toggleReverse() {
+  audio(); reverseOn = !reverseOn; sfx.warp();
+  document.getElementById('uReverse').classList.toggle('on', reverseOn);
+  hint(toolHint(TOOLS.find(t => t.id === tool)));
+}
+document.getElementById('uReverse').addEventListener('click', toggleReverse);
 const GRAV = ['Gravity: on', 'Zero-G', 'Upside down'];
 function cycleGravity() {
   audio(); gravMode = (gravMode + 1) % 3;
@@ -1307,6 +1370,7 @@ document.getElementById('uFree').addEventListener('click', () => {
   refreshTools();
 });
 window.addEventListener('keydown', e => {
+  if (e.key === 'Shift') shiftDown = true;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const i = KEYS.indexOf(e.key);
   if (i >= 0 && TOOLS[i]) { selectTool(TOOLS[i].id); return; }
@@ -1319,7 +1383,10 @@ window.addEventListener('keydown', e => {
   else if (k === 'g') cycleGravity();
   else if (k === 's') toggleSlow();
   else if (k === 'm') toggleSound();
+  else if (k === 'v') toggleReverse();
 });
+window.addEventListener('keyup', e => { if (e.key === 'Shift') shiftDown = false; });
+window.addEventListener('blur', () => { shiftDown = false; });
 
 // =====================================================================
 // 3D rendering. The physics plane z = 0 maps 1:1 to screen pixels, so
@@ -1893,7 +1960,7 @@ const blowerMesh = (() => {
 })();
 const holeMeshes = [0, 1].map(() => {
   const g = new THREE.Group();
-  const core = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), new THREE.MeshBasicMaterial({ color: 0x000000 })); g.add(core);
+  const core = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), new THREE.MeshBasicMaterial({ color: 0x000000 })); g.add(core); g.core = core;
   const disk = new THREE.Mesh(new THREE.RingGeometry(1.2, 3.2, 64), new THREE.MeshBasicMaterial({ map: null, color: 0x9a6bff, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   disk.rotation.x = -1.2; g.add(disk); g.disk = disk;
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: null, color: 0x6a3cff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false })); glow.scale.setScalar(9); g.add(glow); g.glow = glow;
@@ -1997,7 +2064,7 @@ function drawOverlay() {
       const tc = fella.torso.center, a0 = Math.atan2(tc.y - y, tc.x - x);
       octx.strokeStyle = 'rgba(255,250,244,.22)'; octx.lineWidth = 1.5;
       for (let k = 0; k < 7; k++) {
-        const a = a0 + (k - 3) * 0.09, r0 = ((frameNo * 9 + k * 53) % 260) + 40;
+        const a = a0 + (k - 3) * 0.09, r0 = (((rev() ? -frameNo : frameNo) * 9 + k * 53) % 260 + 260) % 260 + 40;
         octx.beginPath(); octx.moveTo(x + Math.cos(a) * r0, y + Math.sin(a) * r0); octx.lineTo(x + Math.cos(a) * (r0 + 46), y + Math.sin(a) * (r0 + 46)); octx.stroke();
       }
     } else if ((tool === 'ball' || tool === 'melon') && aim) {
@@ -2007,11 +2074,11 @@ function drawOverlay() {
       for (let k = 0; k < 22; k++) { sx += vx * 0.8; sy += svy * 0.8; svy += gravity() * 0.8; octx.beginPath(); octx.arc(sx, sy, 2.2 * (1 - k / 26), 0, TAU); octx.fill(); }
       octx.strokeStyle = 'rgba(255,250,244,.3)'; octx.lineWidth = 1.5; octx.beginPath(); octx.moveTo(aim.x, aim.y); octx.lineTo(x, y); octx.stroke();
     } else if (tool === 'magnet' && magnetOn) {
-      for (let k = 0; k < 3; k++) { const r = ((frameNo * 2 + k * 40) % 120) + 20; octx.strokeStyle = `rgba(255,250,244,${0.25 * (1 - r / 140)})`; octx.lineWidth = 1.5; octx.beginPath(); octx.arc(x, y, 160 - r, 0, TAU); octx.stroke(); }
+      for (let k = 0; k < 3; k++) { const r = rev() ? 140 - ((frameNo * 2 + k * 40) % 120) : ((frameNo * 2 + k * 40) % 120) + 20; octx.strokeStyle = `rgba(255,250,244,${0.25 * (1 - r / 140)})`; octx.lineWidth = 1.5; octx.beginPath(); octx.arc(x, y, 160 - r, 0, TAU); octx.stroke(); }
     } else if (tool === 'pump') {
       const part = pumping || partAt(x, y);
       if (part) {
-        const lim = part.type === 'blob' ? 2.5 : 3.2, f = clamp((part.inflate - 1) / (lim - 1), 0, 1);
+        const lim = part.type === 'blob' ? 2.5 : 3.2, f = clamp((part.inflate - 1) / (lim - 1), 0, 1); // the bar shows how close it is to bursting
         octx.fillStyle = 'rgba(18,17,16,.7)'; octx.fillRect(x + 16, y - 6, 64, 6);
         octx.fillStyle = f > 0.75 ? '#e0533d' : '#e9b48f'; octx.fillRect(x + 16, y - 6, 64 * f, 6);
         octx.font = '500 11px "IBM Plex Mono", monospace'; octx.textAlign = 'left'; octx.textBaseline = 'alphabetic';
@@ -2110,7 +2177,8 @@ function syncScene() {
     if (!m.glow.material.map) { m.glow.material.map = dotTex; m.glow.material.needsUpdate = true; m.disk.material.map = dotTex; m.disk.material.needsUpdate = true; }
     const grow = smooth(0, 30, bh.t) * (1 - smooth(bh.life - 12, bh.life, bh.t) * 0.7);
     m.position.set(wx(bh.x), wy(bh.y), 20); m.scale.setScalar(26 * grow + 0.01);
-    m.disk.rotation.z += 0.08; m.glow.material.opacity = 0.35 + 0.15 * Math.sin(frameNo * 0.3);
+    m.disk.rotation.z += bh.rev ? -0.08 : 0.08; m.glow.material.opacity = 0.35 + 0.15 * Math.sin(frameNo * 0.3);
+    m.core.material.color.set(bh.rev ? 0xfff4e0 : 0x000000); m.disk.material.color.set(bh.rev ? 0xffc870 : 0x9a6bff); m.glow.material.color.set(bh.rev ? 0xffd9a0 : 0x6a3cff);
   });
   balloons.forEach((bl, i) => {
     const m = balloonMesh(i); m.visible = true; m.line.visible = true;
