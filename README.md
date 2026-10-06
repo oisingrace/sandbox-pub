@@ -16,6 +16,11 @@ Each game gets its own link, e.g. `https://<username>.github.io/sandbox-pub/#exa
 Experiments, demos and toys go in the [`experiments/`](experiments/) folder instead, the
 same way. They show up under **Experiments** on the site, with links like `#experiments/<name>`.
 
+Each card on the home page shows a screenshot from
+`screenshots/games/<name>.jpg` (or `screenshots/experiments/<name>.jpg`), named after
+the game's file, e.g. `screenshots/games/smash-lot.jpg` for `smash-lot.html`.
+A game without one gets an emoji instead.
+
 Games that use extra files (images, sounds, scripts) can live in a subfolder next to
 them, e.g. `games/assets/...`, and reference them with relative paths.
 
