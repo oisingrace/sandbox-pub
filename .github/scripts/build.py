@@ -79,12 +79,20 @@ def own_entries(own):
     entries = []
     for file, versions in own.items():
         n = len(versions)
+        path = next((f"{d.name}/{file}" for d in (GAMES, EXPERIMENTS) if (d / file).is_file()), file)
+        released = subprocess.run(["git", "log", "-1", "--format=%cI", "--", path],
+                                  cwd=ROOT, capture_output=True, text=True).stdout.strip()
         for i, v in enumerate(versions):
             if not isinstance(v, dict) or not re.match(r"^\d{4}-\d{2}-\d{2}$", str(v.get("date", ""))):
                 continue
             # Midday UTC on its date; later versions a moment later, so same-day ones stay in order.
+            time = f"{v['date']}T12:00:{n - i:02d}Z" if n - i < 60 else f"{v['date']}T12:00:59Z"
+            # The newest version was released by the game's last commit: use that real time when
+            # it falls on the same date, so a new version sorts above other games' older notes.
+            if i == 0 and released[:10] == v["date"]:
+                time = released
             entries.append({
-                "time": f"{v['date']}T12:00:{n - i:02d}Z" if n - i < 60 else f"{v['date']}T12:00:59Z",
+                "time": time,
                 "dateOnly": True,
                 "title": " · ".join(x for x in [f"v{v['version']}" if v.get("version") else "", str(v.get("title", ""))] if x),
                 "items": [str(x) for x in v.get("notes", []) if str(x).strip()],
