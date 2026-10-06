@@ -168,6 +168,14 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.4 beta", "date": "2026-10-06", "title": "Easier swinging",
+      "notes": [
+        "Webs search a much wider area, so they catch a building far more often.",
+        "Webs prefer buildings that give you a full swing instead of a short, low one.",
+        "If a web would drag you along the street, it reels in fast to lift you clear.",
+        "Swings carry you higher, and letting go gives a bigger boost.",
+        "Steering while swinging is more responsive."
+      ] },
     { "version": "0.3 beta", "date": "2026-10-06", "title": "No more swinging off the sky",
       "notes": [
         "Webs only stick to buildings now. With nothing in reach, you fall.",
@@ -356,12 +364,12 @@ const CFG = {
   ground: { runSpeed: 15, accel: 70, slideDecel: 14, jump: 13, swingJump: 14, coyote: 0.12 },
   air: { accel: 11, maxPushSpeed: 18, turnRate: 1.9 },
   swing: {
-    maxRange: 120, idealDist: 34, minDist: 9,
-    minAbove: 6, idealAbove: 24,       // anchor height above the player
-    minFeetClearance: 4,               // ropes shorten so the arc bottom clears the street
-    reelRate: 16, reelFactor: 0.93,
-    inputAccel: 16, assist: 22,
-    releaseUp: 9, releaseFwd: 6,
+    maxRange: 150, idealDist: 34, minDist: 8,
+    minAbove: 4, idealAbove: 26,       // anchor height above the player
+    minFeetClearance: 7,               // ropes shorten so the arc bottom clears the street
+    reelRate: 16, reelRescue: 4, reelFactor: 0.93,
+    inputAccel: 22, assist: 32,
+    releaseUp: 12, releaseFwd: 7,
     autoReleaseAbove: 0.1, cooldown: 0.12, attachMaxUpVel: 6,
   },
   zip: { speed: 30, up: 12, cooldown: 1.1, range: 110 },
@@ -1742,7 +1750,7 @@ const player = {
   coyote: 0, webCooldown: 0, zipCooldown: 0, zipT: 0,
   zipPoint: new THREE.Vector3(),
   waitForApex: false, nextSide: 1,
-  web: null,               // { anchor, normal, length, target, hand }
+  web: null,               // { anchor, normal, length, target, safe, hand }
   diveT: 0, trickT: 0, trickCount: 0, kickT: 0, kickN: new THREE.Vector3(), heroT: 0,
   nearCd: 0, stepN: 0,
   events: [],
@@ -1775,16 +1783,18 @@ function findAnchor(side) {
   let best = null;
   const dir = new THREE.Vector3();
   for (const sd of [side, -side]) {
-    for (const f of [0.5, 0.9, 1.3]) {
-      for (const u of [0.8, 1.2, 1.8]) {
-        for (const s of [0.25, 0.6, 1.0]) {
+    for (const f of [0.3, 0.6, 0.9, 1.3, 1.8]) {
+      for (const u of [0.6, 0.9, 1.3, 1.8, 2.6]) {
+        for (const s of [0.15, 0.45, 0.8, 1.3]) {
           dir.copy(head).multiplyScalar(f * reach).addScaledVector(UP, u).addScaledVector(right, s * sd).normalize();
           const hit = city.raycast(p, dir, S.maxRange);
           if (!hit || hit.t < S.minDist) continue;
           const above = hit.point.y - p.y;
           if (above < S.minAbove) continue;
           const fwd = dir.x * head.x + dir.z * head.z;
-          const score = fwd * 22 - Math.abs(hit.t - S.idealDist) * 0.45 - Math.abs(above - S.idealAbove) * 0.25 + (sd === side ? 4 : 0);
+          // Prefer anchors whose arc clears the street without needing a big reel-in.
+          const sag = Math.max(0, hit.t - (hit.point.y - S.minFeetClearance - 2));
+          const score = fwd * 22 - Math.abs(hit.t - S.idealDist) * 0.45 - Math.abs(above - S.idealAbove) * 0.25 - sag * 0.6 + (sd === side ? 4 : 0);
           if (!best || score > best.score) best = { score, point: hit.point, normal: hit.normal, side: sd };
         }
       }
@@ -1799,7 +1809,7 @@ function attachWeb(a) {
   const groundLimit = a.point.y - (CFG.player.halfSeg + CFG.player.radius + S.minFeetClearance);
   P.web = {
     anchor: a.point.clone(), normal: a.normal,
-    length: dist, target: Math.max(4, Math.min(dist * S.reelFactor, groundLimit)),
+    length: dist, target: Math.max(4, Math.min(dist * S.reelFactor, groundLimit)), safe: groundLimit,
     hand: a.side > 0 ? 'R' : 'L',
   };
   P.nextSide = -a.side;
@@ -1971,7 +1981,8 @@ function step(dt) {
       const vt = tB.copy(v).addScaledVector(n, -v.dot(n));
       const low = Math.max(0, -n.y);
       if (vt.lengthSq() > 1) v.addScaledVector(vt.normalize(), S.assist * low * low * dt);
-      W.length = moveTowards(W.length, W.target, S.reelRate * dt);
+      // Reel in fast while the rope is long enough to drag you along the street.
+      W.length = moveTowards(W.length, W.target, S.reelRate * (W.length > W.safe ? S.reelRescue : 1) * dt);
       if (!swingHeld || jumpPressed) releaseWeb('full');
       else if (n.y > S.autoReleaseAbove) releaseWeb('forward');
       else avoidWalls(dt);
