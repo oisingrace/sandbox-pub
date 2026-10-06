@@ -16,7 +16,7 @@
 //
 // Messages are small JSON objects:
 //   hello   { name, vehicle, car }       client -> host on connect (car: custom design, or null)
-//   welcome { id, players, mode }        host -> client (mode: the room's game mode)
+//   welcome { id, players, mode, road }  host -> client (mode: the room's game mode; road: Motorway km)
 //   joined  { id, name, vehicle, car }   host -> everyone
 //   left    { id }                       host -> everyone
 //   event   { id, e }                    one-off events; `e.to` sends to one player only
@@ -111,7 +111,7 @@ export class Net {
         const players = Object.fromEntries(this.players);
         const car = msg.car && typeof msg.car === 'object' ? msg.car : null; // checked by carkit.cleanDesign
         this.players.set(id, { name: msg.name, vehicle: msg.vehicle, car });
-        conn.send({ t: 'welcome', id, players, mode: this.mode });
+        conn.send({ t: 'welcome', id, players, mode: this.mode, road: this.roadKm });
         this.relay({ t: 'joined', id, name: msg.name, vehicle: msg.vehicle, car }, id);
         this.emit('joined', id, msg.name, msg.vehicle, car);
       } else if (msg.t === 'event') {
@@ -192,6 +192,7 @@ export class Net {
             this.code = code;
             this.id = msg.id;
             this.mode = msg.mode || 'free';
+            this.roadKm = msg.road || 2.4;
             this.conns.set('host', conn);
             this.players = new Map(Object.entries(msg.players));
             this.players.set(msg.id, { name, vehicle, car });

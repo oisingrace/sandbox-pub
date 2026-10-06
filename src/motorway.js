@@ -4,7 +4,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Terrain } from './terrain.js';
 import { mulberry32 } from './world.js';
 
-// The Motorway: a 2.4 km dual carriageway for flat-out driving. The road
+// The Motorway: a dual carriageway for flat-out driving (2.4 km by default;
+// the player picks the length, see setMotorwayLength). The road
 // runs along Z: three lanes each way either side of a painted (open)
 // central reservation, so the middle is always clear, then hard shoulders
 // and grass verges out to a fence. Everything that gets in the way is on
@@ -13,19 +14,32 @@ import { mulberry32 } from './world.js';
 // on the hard shoulder.
 
 export const ROAD = {
-  half: 1200,      // the road runs from z = -half to +half
+  half: 1200,      // the road runs from z = -half to +half (see setMotorwayLength)
   median: 1.5,     // half width of the painted central reservation
   lane: 3.7,
   lanes: 3,
   shoulder: 3.3,
   fence: 44,       // cars are kept inside |x| < fence
-  overpasses: [-800, -400, 0, 400, 800],
+  overpasses: [], // bridges every 400 m (see setMotorwayLength)
   deckBottom: 4.6, // underside of the overpass decks
 };
 const EDGE = ROAD.median + ROAD.lane * ROAD.lanes;   // edge of the carriageway (12.6 m)
 const SIDE = EDGE + ROAD.shoulder;                   // edge of the hard shoulder (15.9 m)
 const DECK_DEPTH = 10;
-const END = ROAD.half - 4;                           // where the end walls stop cars
+let END = 0;                                         // where the end walls stop cars
+
+/** Lengths the player can pick, in km (Options → Free roam). */
+export const MOTORWAY_LENGTHS = [1.2, 2.4, 5, 10, 20];
+
+/** Lay the road out for a length in km: its ends, bridges and kicker ramps. */
+function layOut(km) {
+  ROAD.half = Math.round(km * 500);
+  END = ROAD.half - 4;
+  ROAD.overpasses = [];
+  for (let z = -Math.floor((ROAD.half - 200) / 400) * 400; z <= ROAD.half - 200; z += 400) ROAD.overpasses.push(z);
+  KICKERS.length = 0;
+  for (let i = 0, z = -ROAD.half + 180; z < ROAD.half - 150; i++, z += 290) KICKERS.push({ s: i % 2 ? 1 : -1, z });
+}
 
 /** Start spots: in the lanes near the south end, facing north. */
 export function motorwaySpawn(slot) {
@@ -33,10 +47,48 @@ export function motorwaySpawn(slot) {
   return { x: xs[slot % xs.length], z: -ROAD.half + 30 + Math.floor(slot / xs.length) * 10 + (slot % 2) * 4, heading: 0 };
 }
 
-export function createMotorway(scene, renderer) {
+export function createMotorway(scene, renderer, km = 2.4) {
   const group = new THREE.Group();
   group.visible = false;
   scene.add(group);
+  const map = {
+    name: 'motorway',
+    group,
+    km: 0,
+    terrain: null,
+    orbit: { radius: 70, height: 26 },
+    recycle: 0,
+    spawn: motorwaySpawn,
+    addColliders(world) {
+      map.terrain.addColliders(world);
+      addMotorwayColliders(world);
+    },
+    populate: populateMotorway,
+    contain: containMotorway,
+    /** Rebuild the road at a new length in km. Returns false if it already is that long. */
+    setLength(next) {
+      next = MOTORWAY_LENGTHS.includes(next) ? next : 2.4;
+      if (next === map.km) return false;
+      for (const child of [...group.children]) {
+        group.remove(child);
+        child.traverse((o) => {
+          o.geometry?.dispose();
+          for (const m of [o.material].flat()) { m?.map?.dispose(); m?.dispose(); }
+        });
+      }
+      layOut(next);
+      map.km = next;
+      map.recycle = ROAD.half + 60; // debris is only cleared once it's off the map
+      map.terrain = buildMotorway(group, renderer);
+      return true;
+    },
+  };
+  map.setLength(km);
+  return map;
+}
+
+/** The road's meshes, into `group`. Returns its terrain (the ramps). */
+function buildMotorway(group, renderer) {
   const L = ROAD.half * 2;
   const aniso = renderer.capabilities.getMaxAnisotropy();
 
@@ -73,12 +125,12 @@ export function createMotorway(scene, renderer) {
   // --- Fence, hard shoulder kerb, end walls -----------------------------------
   const steel = new THREE.MeshStandardMaterial({ color: 0x8a9098, metalness: 0.6, roughness: 0.45 });
   const wood = new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 0.9 });
-  const posts = [], rails = [];
+  const posts = new Map(), rails = [];
   for (const s of [-1, 1]) {
     for (let z = -ROAD.half - 40; z <= ROAD.half + 40; z += 6) {
       const p = new THREE.BoxGeometry(0.14, 1.4, 0.14);
       p.translate(s * ROAD.fence, 0.7, z);
-      posts.push(p);
+      inChunk(posts, z, p);
     }
     for (const y of [0.55, 1.15]) {
       const r = new THREE.BoxGeometry(0.06, 0.12, L + 80);
@@ -86,7 +138,8 @@ export function createMotorway(scene, renderer) {
       rails.push(r);
     }
   }
-  group.add(new THREE.Mesh(mergeGeometries(posts), wood), new THREE.Mesh(mergeGeometries(rails), steel));
+  for (const geos of posts.values()) group.add(new THREE.Mesh(mergeGeometries(geos), wood));
+  group.add(new THREE.Mesh(mergeGeometries(rails), steel));
 
   const concrete = new THREE.MeshStandardMaterial({ color: 0xb9b5ad, roughness: 0.9 });
   const chevron = new THREE.MeshStandardMaterial({ map: chevronTexture(), roughness: 0.6 });
@@ -137,24 +190,32 @@ export function createMotorway(scene, renderer) {
   trunk.translate(0, 1.2, 0);
   const crown = new THREE.ConeGeometry(1.8, 5, 7);
   crown.translate(0, 4.6, 0);
-  const n = 700;
-  const trunks = new THREE.InstancedMesh(trunk, new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 1 }), n);
-  const crowns = new THREE.InstancedMesh(crown, new THREE.MeshStandardMaterial({ color: 0x3f6b35, roughness: 1 }), n);
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3();
-  const tint = new THREE.Color();
+  const n = Math.round(700 * ROAD.half / 1200);
+  const trees = new Map();
   for (let i = 0; i < n; i++) {
     const s = i % 2 ? 1 : -1;
     const x = s * (ROAD.fence + 8 + rng() * 70);
     const z = (rng() * 2 - 1) * (ROAD.half + 80);
     const k = 0.7 + rng() * 0.8;
     const lift = Math.max(0, Math.min(8, (Math.abs(x) - ROAD.fence - 4) * 0.22)) - 0.3;
-    m4.compose(pos.set(x, lift, z), q.setFromAxisAngle(_up, rng() * 6.28), sc.set(k, k * (0.8 + rng() * 0.5), k));
-    trunks.setMatrixAt(i, m4);
-    crowns.setMatrixAt(i, m4);
-    crowns.setColorAt(i, tint.setHSL(0.27 + rng() * 0.06, 0.35 + rng() * 0.2, 0.25 + rng() * 0.12));
+    const m4 = new THREE.Matrix4().compose(new THREE.Vector3(x, lift, z), new THREE.Quaternion().setFromAxisAngle(_up, rng() * 6.28), new THREE.Vector3(k, k * (0.8 + rng() * 0.5), k));
+    inChunk(trees, z, { m4, tint: new THREE.Color().setHSL(0.27 + rng() * 0.06, 0.35 + rng() * 0.2, 0.25 + rng() * 0.12) });
   }
-  crowns.castShadow = true;
-  group.add(trunks, crowns);
+  const barkMat = new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 1 });
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x3f6b35, roughness: 1 });
+  for (const list of trees.values()) {
+    const trunks = new THREE.InstancedMesh(trunk, barkMat, list.length);
+    const crowns = new THREE.InstancedMesh(crown, leafMat, list.length);
+    list.forEach((t, i) => {
+      trunks.setMatrixAt(i, t.m4);
+      crowns.setMatrixAt(i, t.m4);
+      crowns.setColorAt(i, t.tint);
+    });
+    trunks.computeBoundingSphere();
+    crowns.computeBoundingSphere();
+    crowns.castShadow = true;
+    group.add(trunks, crowns);
+  }
 
   // --- Mountains: a range along each side and beyond each end, well clear of the road ---
   const hills = [];
@@ -188,28 +249,23 @@ export function createMotorway(scene, renderer) {
     terrain.addRamp({ x: s * 28, z: -150, heading: s > 0 ? Math.PI : 0, length: 34, width: 8, height: 3.2, profile: 'table', parts: [10, 14] });
   }
   terrain.buildMeshes(group);
-
-  return {
-    name: 'motorway',
-    group,
-    terrain,
-    orbit: { radius: 70, height: 26 },
-    recycle: ROAD.half + 60, // debris is only cleared once it's off the map
-    spawn: motorwaySpawn,
-    addColliders(world) {
-      terrain.addColliders(world);
-      addMotorwayColliders(world);
-    },
-    populate: populateMotorway,
-    contain: containMotorway,
-  };
+  return terrain;
 }
 
 const _up = new THREE.Vector3(0, 1, 0);
 
+/**
+ * Scenery along the whole road is split into 500 m chunks, so the camera
+ * only draws the chunks near it (a 20 km road is a lot of fence posts).
+ */
+function inChunk(chunks, z, item) {
+  const k = Math.floor(z / 500);
+  if (!chunks.has(k)) chunks.set(k, []);
+  chunks.get(k).push(item);
+}
+
 /** Kicker ramps on the hard shoulders, alternating sides (kept clear of obstacles). */
 const KICKERS = [];
-for (let i = 0, z = -ROAD.half + 180; z < ROAD.half - 150; i++, z += 290) KICKERS.push({ s: i % 2 ? 1 : -1, z });
 
 /** Ground under the whole road (the shared ground slab is only 600 m), end walls and overpass decks. */
 function addMotorwayColliders(world) {

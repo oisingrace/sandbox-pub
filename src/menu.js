@@ -14,7 +14,7 @@ const TABS = [
 export const MODE_NAMES = { free: 'Free roam', motorway: 'Motorway', football: 'Car football', versus: 'Versus' };
 const MODE_BLURBS = {
   free: 'Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead. Computer drivers cruise, wreck things or come after you (pick how many and how they drive below), and every car dents and sheds bits when it crashes: ram a bot for points.',
-  motorway: 'A 2.4 km dual carriageway for flat-out driving: three lanes each way and an open, painted middle, so the road ahead is always clear. The hard shoulders and verges are where the trouble is: roadworks, broken-down lorries, barrier runs, lamp posts, drum piles, trees and overpass pillars, all breakable, plus kicker ramps on the shoulder and a big jump on each verge. Smash for points like in free roam; press V to change car. Computer drivers are the traffic: weave through it, or ram it for points.',
+  motorway: 'A dual carriageway for flat-out driving, as long as you like (pick from 1.2 to 20 km below): three lanes each way and an open, painted middle, so the road ahead is always clear. The hard shoulders and verges are where the trouble is: roadworks, broken-down lorries, barrier runs, lamp posts, drum piles, trees and overpass pillars, all breakable, plus kicker ramps on the shoulder and a big jump on each verge. Smash for points like in free roam; press V to change car. Computer drivers are the traffic: weave through it, or ram it for points.',
   versus: 'Every car for itself in the Scrapyard. Your car has health and a roof-mounted machine gun that aims itself at whoever is in front of you (X or click to fire). Drive over the glowing pads for rockets, flamethrowers, mines, repairs, armour and nitro: what they offer changes as you play, and better upgrades turn up as the match goes on. Ram, shoot, and blow up the fuel drums next to your rivals. Most wrecks in five minutes wins. Solo, you fight three computer drivers.',
   football: 'Knock the ball into the orange goal before the clock runs out. Everyone drives the Striker, painted in their team colour. You play Blue against a computer driver, or team up online. The sidelines are lined with things to wreck, and the fuel drums in the corners blow the ball around. Space jumps (twice for a double jump or a flip), W/S pitch in the air, and boost lets you fly. Press Y to toggle ball cam.',
 };
@@ -308,9 +308,10 @@ export class Menu {
     const rows = [];
     const vs = this.mode === 'versus';
     const keys = vs ? [['vsBots', 'Bots'], ['vsBotSkill', 'Skill']] : [['roamBots', 'Bots'], ['roamBotStyle', 'Driving']];
+    if (this.mode === 'motorway') keys.unshift(['motorwayLength', 'Length']);
     const count = vs ? 'vsBots' : 'roamBots';
     for (const [key, label] of keys) {
-      if (key !== count && !settings[count]) continue;
+      if (key === keys.at(-1)[0] && !settings[count]) continue; // no bots: nothing to set about them
       const row = document.createElement('div');
       row.className = 'vs-row';
       row.dataset.key = key;

@@ -101,7 +101,7 @@ arenaRamps(lotTerrain);
 lotTerrain.buildMeshes(world.arena);
 const stadium = createStadium(scene, renderer);
 const scrapyard = createScrapyard(scene, renderer);
-const motorway = createMotorway(scene, renderer);
+const motorway = createMotorway(scene, renderer, settings.motorwayLength);
 const MAPS = {
   free: {
     name: 'lot', group: world.arena, terrain: lotTerrain, orbit: { radius: 135, height: 60 },
@@ -463,6 +463,11 @@ function setSetting(key, value) {
     setupRoamBots();
     if (state !== 'menu') toast(settings.roamBots ? `${settings.roamBots} computer driver${settings.roamBots === 1 ? '' : 's'}` : 'No computer drivers');
   }
+  // A new Motorway length: rebuild the road (online, the room keeps the host's).
+  if (key === 'motorwayLength' && !net.online && motorway.setLength(value) && mode === 'motorway') {
+    enterMode('motorway');
+    if (state !== 'menu') toast(`Motorway: ${value} km`);
+  }
   // Versus bots changed: restart the solo match with the new line-up.
   if (key.startsWith('vsBot') && mode === 'versus' && !net.online) {
     resetAll();
@@ -605,6 +610,7 @@ function keepCameraInStadium(pos) {
 
 /** Switch mode and start it fresh. */
 function enterMode(next) {
+  if (!net.online) motorway.setLength(settings.motorwayLength);
   setMode(next);
   resetAll();
   arenaDirty = mode !== 'free';
@@ -1089,6 +1095,7 @@ async function hostRoom(name) {
   setSetting('playerName', name);
   menu.setOnlineStatus('Creating a room…');
   try {
+    net.roadKm = settings.motorwayLength;
     await net.host(name, menu.vehicle.id, menu.mode, menu.vehicle.custom ? menu.vehicle.design : null);
     slot = 0;
     startOnline();
@@ -1117,6 +1124,7 @@ function startOnline() {
   menu.setOnlineStatus('');
   arenaDirty = true; // start from a fresh arena
   football.teams = new Map();
+  motorway.setLength(net.isHost ? settings.motorwayLength : net.roadKm);
   setMode(net.mode);
   play(menu.vehicle);
   updateOnlineUi();
@@ -1961,6 +1969,6 @@ window.game = {
   get renderer() { return renderer; }, get settings() { return settings; },
   fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu, quake, score, tank,
   football, get bot() { return bot; }, get mode() { return mode; }, enterMode, garage, versus,
-  get roamBots() { return roamBots; }, crashBits,
+  get roamBots() { return roamBots; }, crashBits, motorway,
 };
 requestAnimationFrame(frame);

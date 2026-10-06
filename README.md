@@ -92,7 +92,12 @@ so a pile goes up in a chain.
 ## Motorway
 
 Pick **Motorway** on the main menu for a long drive with free-roam rules (points, combos, V to change
-car, your custom car's weapon) on a 2.4 km dual carriageway (`src/motorway.js`):
+car, your custom car's weapon) on a dual carriageway (`src/motorway.js`):
+
+- **Pick the length:** 1.2, 2.4 (the default), 5, 10 or 20 km, on the main menu under Motorway or in
+  Options → Free roam. The road is rebuilt at that length, with a bridge every 400 m and the kickers,
+  scenery and wrecks spread along all of it (scenery is split into 500 m chunks so only the nearby
+  ones are drawn). Online, everyone gets the host's length.
 
 - **A clear middle:** three lanes each way either side of a painted, hatched central reservation
   (no barrier), so you can use all six lanes and the road ahead is always open.

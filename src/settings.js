@@ -32,6 +32,7 @@ export const OPTIONS = {
     roamBots: { label: 'Computer drivers', hint: 'Free roam and Motorway, solo only', choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']] },
     roamBotStyle: { label: 'How they drive', hint: 'Cruise: traffic to weave through. Wreck: they smash things. Chase: they ram you. Mixed: some of each', choices: [['mixed', 'Mixed'], ['cruise', 'Cruise'], ['smash', 'Wreck'], ['chase', 'Chase']] },
     roamBotCars: { label: 'Bot cars', choices: [['mixed', 'Mixed'], ['mine', 'Same as yours'], ['heavy', 'Heavy'], ['light', 'Light']] },
+    motorwayLength: { label: 'Motorway length', hint: 'Longer roads take a moment more to build. Online, the host\'s length is used', choices: [[1.2, '1.2 km'], [2.4, '2.4 km'], [5, '5 km'], [10, '10 km'], [20, '20 km']] },
   },
   versus: {
     vsBots: { label: 'Computer drivers', hint: 'Solo Versus only; 0 to practise on your own', choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']] },
@@ -78,6 +79,7 @@ export const DEFAULTS = {
   roamBots: 3,
   roamBotStyle: 'mixed',
   roamBotCars: 'mixed',
+  motorwayLength: 2.4,
   crashDamage: 'full',
   startVehicle: 'sports',
   playerName: '',
