@@ -168,6 +168,12 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.3 beta", "date": "2026-10-06", "title": "No more swinging off the sky",
+      "notes": [
+        "Webs only stick to buildings now. With nothing in reach, you fall.",
+        "Web-zip needs a wall or ledge ahead to grab, and reaches further to find one.",
+        "Race routes are rebuilt so every ring has a building to swing from on the way in. Best times start fresh."
+      ] },
     { "version": "0.2 beta", "date": "2026-10-05", "title": "The full game",
       "notes": [
         "Fixed the flickering ground and buildings below you while swinging.",
@@ -357,9 +363,8 @@ const CFG = {
     inputAccel: 16, assist: 22,
     releaseUp: 9, releaseFwd: 6,
     autoReleaseAbove: 0.1, cooldown: 0.12, attachMaxUpVel: 6,
-    skyAnchors: true, skyHeadroom: 12, // nothing in reach? stick to the sky, just above the skyline
   },
-  zip: { speed: 30, up: 12, cooldown: 1.1 },
+  zip: { speed: 30, up: 12, cooldown: 1.1, range: 110 },
   dive: { gravityMult: 2.1, maxFall: 74, steer: 0.5 },
   trick: { duration: 0.6, points: 150 },
   wallKick: { window: 0.35, out: 11, up: 12, points: 120 },
@@ -1247,60 +1252,85 @@ const tokens = (() => {
 // Races: ring routes along the street grid, with a light beam at each start.
 // =====================================================================
 const RACE_NAMES = ['Midtown Dash', 'Avenue Sprint', 'Skyline Loop', 'Harbor Run'];
+/** Is there something solid to swing from when flying through p along dir? (Same fan of rays as a real web.) */
+function anchorAhead(p, dir) {
+  const S = CFG.swing, right = new THREE.Vector3(-dir.z, 0, dir.x), d = new THREE.Vector3();
+  for (const sd of [1, -1]) for (const f of [0.5, 0.9, 1.3]) for (const u of [0.8, 1.2, 1.8]) for (const s of [0.25, 0.6, 1.0]) {
+    d.copy(dir).multiplyScalar(f * 1.4).addScaledVector(UP, u).addScaledVector(right, s * sd).normalize();
+    const hit = city.raycast(p, d, S.maxRange);
+    if (hit && hit.t >= S.minDist && hit.point.y - p.y >= S.minAbove) return true;
+  }
+  return false;
+}
+
 const races = (() => {
   const rnd = mulberry32(CFG.city.seed + 7);
   const xs = city.X.streets, zs = city.Z.streets;
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const out = [];
-  for (let k = 0; k < RACE_NAMES.length; k++) {
-    let path = null;
-    for (let attempt = 0; attempt < 60 && !path; attempt++) {
-      let i = 2 + Math.floor(rnd() * (xs.length - 4)), j = 2 + Math.floor(rnd() * (zs.length - 4));
-      const p = [[i, j]], seen = new Set([i + ',' + j]);
-      let last = -1, ok = true;
-      for (let leg = 0; leg < 4 + k && ok; leg++) {
-        const order = [0, 1, 2, 3].filter((d) => last < 0 || d !== (last ^ 1)).sort(() => rnd() - 0.5);
-        let moved = false;
-        for (const di of order) {
-          const steps = 1 + Math.floor(rnd() * 3);
-          const [dx, dz] = DIRS[di];
-          const seg = [];
-          let ci = i, cj = j, valid = true;
-          for (let s = 0; s < steps; s++) {
-            ci += dx; cj += dz;
-            if (ci < 1 || cj < 1 || ci > xs.length - 2 || cj > zs.length - 2 || seen.has(ci + ',' + cj)) { valid = false; break; }
-            seg.push([ci, cj]);
-          }
-          if (!valid) continue;
-          seg.forEach((s) => { p.push(s); seen.add(s[0] + ',' + s[1]); });
-          i = ci; j = cj; last = di; moved = true;
-          break;
+  /** Random walk along the street grid: a list of intersections, or null. */
+  const walk = (legs) => {
+    let i = 2 + Math.floor(rnd() * (xs.length - 4)), j = 2 + Math.floor(rnd() * (zs.length - 4));
+    const p = [[i, j]], seen = new Set([i + ',' + j]);
+    let last = -1;
+    for (let leg = 0; leg < legs; leg++) {
+      const order = [0, 1, 2, 3].filter((d) => last < 0 || d !== (last ^ 1)).sort(() => rnd() - 0.5);
+      let moved = false;
+      for (const di of order) {
+        const steps = 1 + Math.floor(rnd() * 3);
+        const [dx, dz] = DIRS[di];
+        const seg = [];
+        let ci = i, cj = j, valid = true;
+        for (let s = 0; s < steps; s++) {
+          ci += dx; cj += dz;
+          if (ci < 1 || cj < 1 || ci > xs.length - 2 || cj > zs.length - 2 || seen.has(ci + ',' + cj)) { valid = false; break; }
+          seg.push([ci, cj]);
         }
-        if (!moved) ok = false;
+        if (!valid) continue;
+        seg.forEach((s) => { p.push(s); seen.add(s[0] + ',' + s[1]); });
+        i = ci; j = cj; last = di; moved = true;
+        break;
       }
-      if (ok && p.length >= 6) path = p;
+      if (!moved) return null;
     }
-    if (!path) continue;
+    return p.length >= 6 ? p : null;
+  };
+  /** Rings along a path, each lowered until there's a building to swing from on the way in. */
+  const ringsFor = (path) => {
     const pts = path.map(([i, j]) => new THREE.Vector3(xs[i].c, 0, zs[j].c));
     const ringPos = [];
     for (let n = 1; n < pts.length; n++) { ringPos.push(pts[n - 1].clone().lerp(pts[n], 0.5)); ringPos.push(pts[n].clone()); }
-    const phase = rnd() * 6.28;
-    ringPos.forEach((p, idx) => {
-      const sky = city.skyline(p, 60);
-      p.y = clamp(sky * 0.5, 18, 52) + Math.sin(phase + idx * 0.8) * 5;
-    });
+    const phase = rnd() * 6.28, probe = new THREE.Vector3();
+    let misses = 0;
     const rings = ringPos.map((p, idx) => {
       const nxt = ringPos[idx + 1] || p.clone().add(p.clone().sub(ringPos[idx - 1]));
       const prv = ringPos[idx - 1] || pts[0];
       const dir = new THREE.Vector3().subVectors(nxt, prv).setY(0).normalize();
+      const sky = city.skyline(p, 60);
+      p.y = clamp(sky * 0.5, 18, 52) + Math.sin(phase + idx * 0.8) * 5;
+      while (!anchorAhead(probe.copy(p).addScaledVector(dir, -15), dir) && p.y > 10) p.y -= 3;
+      if (!anchorAhead(probe.copy(p).addScaledVector(dir, -15), dir)) misses++;
       return { pos: p, dir };
     });
+    return { pts, rings, misses };
+  };
+  for (let k = 0; k < RACE_NAMES.length; k++) {
+    let best = null;
+    for (let attempt = 0; attempt < 80 && !(best && best.misses === 0); attempt++) {
+      const path = walk(4 + k);
+      if (!path) continue;
+      const r = ringsFor(path);
+      if (!best || r.misses < best.misses) best = r;
+    }
+    if (!best) continue;
+    const { pts, rings } = best;
     const first = rings[0].pos;
     const startPos = city.nearestRoof(pts[0], 80, 12, first.y + 10) || pts[0].clone().setY(1.2);
     let length = startPos.distanceTo(first);
     for (let n = 1; n < rings.length; n++) length += rings[n].pos.distanceTo(rings[n - 1].pos);
     out.push({
-      id: 'r' + k, name: RACE_NAMES[k], rings, start: startPos, length,
+      // 'b' suffix: routes changed in v0.3, so best times saved for the old routes don't carry over.
+      id: 'r' + k + 'b', name: RACE_NAMES[k], rings, start: startPos, length,
       par: { gold: length / 34, silver: length / 27, bronze: length / 20 },
     });
   }
@@ -1470,6 +1500,7 @@ const audio = {
   fanfare() { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.tone(f, { type: 'triangle', dur: 0.35, gain: 0.2, at: i * 0.11 })); },
   bank() { this.tone(660, { type: 'sine', dur: 0.12, gain: 0.15 }); this.tone(990, { type: 'sine', dur: 0.18, gain: 0.13, at: 0.06 }); },
   fail() { this.tone(220, { type: 'sawtooth', dur: 0.3, gain: 0.08, slide: 0.7 }); },
+  miss() { this.noiseBurst({ f0: 1800, f1: 700, q: 2, dur: 0.1, gain: 0.12 }); },
   click() { this.tone(1400, { type: 'sine', dur: 0.05, gain: 0.08 }); },
 };
 
@@ -1711,7 +1742,7 @@ const player = {
   coyote: 0, webCooldown: 0, zipCooldown: 0, zipT: 0,
   zipPoint: new THREE.Vector3(),
   waitForApex: false, nextSide: 1,
-  web: null,               // { anchor, normal, virtual, length, target, hand }
+  web: null,               // { anchor, normal, length, target, hand }
   diveT: 0, trickT: 0, trickCount: 0, kickT: 0, kickN: new THREE.Vector3(), heroT: 0,
   nearCd: 0, stepN: 0,
   events: [],
@@ -1754,18 +1785,12 @@ function findAnchor(side) {
           if (above < S.minAbove) continue;
           const fwd = dir.x * head.x + dir.z * head.z;
           const score = fwd * 22 - Math.abs(hit.t - S.idealDist) * 0.45 - Math.abs(above - S.idealAbove) * 0.25 + (sd === side ? 4 : 0);
-          if (!best || score > best.score) best = { score, point: hit.point, normal: hit.normal, side: sd, virtual: false };
+          if (!best || score > best.score) best = { score, point: hit.point, normal: hit.normal, side: sd };
         }
       }
     }
   }
-  if (best || !S.skyAnchors) return best;
-  // Nothing in reach: stick to the sky ahead, capped near the local skyline.
-  dir.copy(head).multiplyScalar(0.8).addScaledVector(UP, 1.15).addScaledVector(right, 0.35 * side).normalize();
-  const point = p.clone().addScaledVector(dir, 32);
-  point.y = Math.min(point.y, city.skyline(p, 150) + S.skyHeadroom);
-  if (point.y - p.y < S.minAbove || city.pointInside(point)) return null;
-  return { point, normal: null, side, virtual: true };
+  return best; // null when nothing solid is in reach: webs never stick to thin air
 }
 
 function attachWeb(a) {
@@ -1773,7 +1798,7 @@ function attachWeb(a) {
   const dist = P.pos.distanceTo(a.point);
   const groundLimit = a.point.y - (CFG.player.halfSeg + CFG.player.radius + S.minFeetClearance);
   P.web = {
-    anchor: a.point.clone(), normal: a.normal, virtual: a.virtual,
+    anchor: a.point.clone(), normal: a.normal,
     length: dist, target: Math.max(4, Math.min(dist * S.reelFactor, groundLimit)),
     hand: a.side > 0 ? 'R' : 'L',
   };
@@ -1786,7 +1811,7 @@ function attachWeb(a) {
   combo.add('Swing', 15 + P.vel.length() * 0.8);
   if (P.diveT > 0.5) combo.add('Dive swing', 120);
   P.diveT = 0;
-  P.events.push({ type: 'attach', point: a.point, normal: a.normal, virtual: a.virtual });
+  P.events.push({ type: 'attach', point: a.point, normal: a.normal });
 }
 
 /** boost: 'full' for a deliberate let-go (forward + upward pop), 'forward' for auto-chaining, falsy for none. */
@@ -1807,19 +1832,35 @@ function releaseWeb(boost) {
   if (player.state === State.SWING) player.state = State.AIR;
 }
 
+/** A wall or ledge ahead for the zip line to grab (look direction, tilted up a little). */
+function findZipTarget() {
+  const f = cam.forward3(), fh = new THREE.Vector3(f.x, 0, f.z).normalize(), dir = new THREE.Vector3();
+  const side = new THREE.Vector3(-fh.z, 0, fh.x);
+  for (const lift of [0.2, 0.45, 0.75, 0.05, 1.1]) {
+    for (const turn of [0, 0.3, -0.3]) {
+      dir.copy(fh).addScaledVector(side, turn).addScaledVector(UP, lift + Math.max(0, -f.y)).normalize();
+      const hit = city.raycast(player.pos, dir, CFG.zip.range);
+      if (hit && hit.t > 6) return hit;
+    }
+  }
+  return null;
+}
+
 function webZip() {
   const P = player, Z = CFG.zip, v = P.vel;
+  const hit = findZipTarget();
+  if (!hit) { P.zipCooldown = 0.3; P.events.push({ type: 'miss' }); return; }
   if (P.web) releaseWeb(false);
   const f = cam.forward3();
-  const fh = tA.set(f.x, 0, f.z).normalize();
+  const fh = tA.set(hit.point.x - P.pos.x, 0, hit.point.z - P.pos.z).normalize();
   v.multiplyScalar(0.25).addScaledVector(fh, Z.speed);
   v.y = Math.max(v.y, 0) + Z.up + clamp(-f.y, 0, 0.6) * 10;
   P.state = State.AIR;
   P.zipCooldown = Z.cooldown;
   P.zipT = 0.3;
-  P.zipPoint.copy(P.pos).addScaledVector(fh, 22).addScaledVector(UP, 9);
+  P.zipPoint.copy(hit.point);
   P.webCooldown = 0.25;
-  P.events.push({ type: 'zip' });
+  P.events.push({ type: 'zip', point: hit.point, normal: hit.normal });
 }
 
 function wallKick() {
@@ -1911,7 +1952,10 @@ function step(dt) {
       if (ready && apexOk && chainOk && P.trickT <= 0.15) {
         const a = findAnchor(P.nextSide);
         if (a) attachWeb(a);
-        else P.webCooldown = 0.08;
+        else {
+          P.webCooldown = swingPressed ? 0.3 : 0.08;
+          if (swingPressed) P.events.push({ type: 'miss' });
+        }
       }
       break;
     }
@@ -3087,13 +3131,14 @@ function frame(now) {
     switch (e.type) {
       case 'attach':
         audio.thwip(); learn('swing');
-        if (!e.virtual && e.normal) {
+        if (e.normal) {
           splats.add(e.point, e.normal);
           particles.emit(tA.copy(e.point).addScaledVector(e.normal, 0.3), { count: 8, speed: 3, color: 0xffffff, size: 0.35, life: 0.4 });
         }
         break;
       case 'release': if (e.launched) { learn('launch'); audio.whoosh(); } break;
-      case 'zip': audio.thwip(); audio.whoosh(); learn('zip'); break;
+      case 'zip': audio.thwip(); audio.whoosh(); learn('zip'); splats.add(e.point, e.normal); break;
+      case 'miss': audio.miss(); break;
       case 'trick': audio.whoosh(); learn('trick'); break;
       case 'kick': audio.thud(0.3); particles.emit(player.pos, { count: 10, speed: 4, color: 0xdddddd, size: 0.5 }); break;
       case 'token':
