@@ -620,6 +620,15 @@
   <script type="application/json" id="patch-notes">
   [
     {
+      "version": "0.17",
+      "date": "2026-10-06",
+      "title": "Pick your Motorway length",
+      "notes": [
+        "Choose how long the Motorway is: 1.2, 2.4, 5, 10 or 20 km. It's on the main menu when Motorway is picked, and in Options → Free roam.",
+        "The bridges, ramps, wrecks and scenery stretch along the whole road, however long it is. Online, everyone drives the host's length."
+      ]
+    },
+    {
       "version": "0.16",
       "date": "2026-10-06",
       "title": "Motorbikes and the god car",
@@ -6050,6 +6059,7 @@ const OPTIONS = {
     roamBots: { label: 'Computer drivers', hint: 'Free roam and Motorway, solo only', choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']] },
     roamBotStyle: { label: 'How they drive', hint: 'Cruise: traffic to weave through. Wreck: they smash things. Chase: they ram you. Mixed: some of each', choices: [['mixed', 'Mixed'], ['cruise', 'Cruise'], ['smash', 'Wreck'], ['chase', 'Chase']] },
     roamBotCars: { label: 'Bot cars', choices: [['mixed', 'Mixed'], ['mine', 'Same as yours'], ['heavy', 'Heavy'], ['light', 'Light']] },
+    motorwayLength: { label: 'Motorway length', hint: 'Longer roads take a moment more to build. Online, the host\'s length is used', choices: [[1.2, '1.2 km'], [2.4, '2.4 km'], [5, '5 km'], [10, '10 km'], [20, '20 km']] },
   },
   versus: {
     vsBots: { label: 'Computer drivers', hint: 'Solo Versus only; 0 to practise on your own', choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']] },
@@ -6096,6 +6106,7 @@ const DEFAULTS = {
   roamBots: 3,
   roamBotStyle: 'mixed',
   roamBotCars: 'mixed',
+  motorwayLength: 2.4,
   crashDamage: 'full',
   startVehicle: 'sports',
   playerName: '',
@@ -6164,7 +6175,7 @@ const TABS = [
 const MODE_NAMES = { free: 'Free roam', motorway: 'Motorway', football: 'Car football', versus: 'Versus' };
 const MODE_BLURBS = {
   free: 'Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead. Computer drivers cruise, wreck things or come after you (pick how many and how they drive below), and every car dents and sheds bits when it crashes: ram a bot for points.',
-  motorway: 'A 2.4 km dual carriageway for flat-out driving: three lanes each way and an open, painted middle, so the road ahead is always clear. The hard shoulders and verges are where the trouble is: roadworks, broken-down lorries, barrier runs, lamp posts, drum piles, trees and overpass pillars, all breakable, plus kicker ramps on the shoulder and a big jump on each verge. Smash for points like in free roam; press V to change car. Computer drivers are the traffic: weave through it, or ram it for points.',
+  motorway: 'A dual carriageway for flat-out driving, as long as you like (pick from 1.2 to 20 km below): three lanes each way and an open, painted middle, so the road ahead is always clear. The hard shoulders and verges are where the trouble is: roadworks, broken-down lorries, barrier runs, lamp posts, drum piles, trees and overpass pillars, all breakable, plus kicker ramps on the shoulder and a big jump on each verge. Smash for points like in free roam; press V to change car. Computer drivers are the traffic: weave through it, or ram it for points.',
   versus: 'Every car for itself in the Scrapyard. Your car has health and a roof-mounted machine gun that aims itself at whoever is in front of you (X or click to fire). Drive over the glowing pads for rockets, flamethrowers, mines, repairs, armour and nitro: what they offer changes as you play, and better upgrades turn up as the match goes on. Ram, shoot, and blow up the fuel drums next to your rivals. Most wrecks in five minutes wins. Solo, you fight three computer drivers.',
   football: 'Knock the ball into the orange goal before the clock runs out. Everyone drives the Striker, painted in their team colour. You play Blue against a computer driver, or team up online. The sidelines are lined with things to wreck, and the fuel drums in the corners blow the ball around. Space jumps (twice for a double jump or a flip), W/S pitch in the air, and boost lets you fly. Press Y to toggle ball cam.',
 };
@@ -6458,9 +6469,10 @@ class Menu {
     const rows = [];
     const vs = this.mode === 'versus';
     const keys = vs ? [['vsBots', 'Bots'], ['vsBotSkill', 'Skill']] : [['roamBots', 'Bots'], ['roamBotStyle', 'Driving']];
+    if (this.mode === 'motorway') keys.unshift(['motorwayLength', 'Length']);
     const count = vs ? 'vsBots' : 'roamBots';
     for (const [key, label] of keys) {
-      if (key !== count && !settings[count]) continue;
+      if (key === keys.at(-1)[0] && !settings[count]) continue; // no bots: nothing to set about them
       const row = document.createElement('div');
       row.className = 'vs-row';
       row.dataset.key = key;
@@ -7100,7 +7112,7 @@ function arenaRamps(terrain) {
 //
 // Messages are small JSON objects:
 //   hello   { name, vehicle, car }       client -> host on connect (car: custom design, or null)
-//   welcome { id, players, mode }        host -> client (mode: the room's game mode)
+//   welcome { id, players, mode, road }  host -> client (mode: the room's game mode; road: Motorway km)
 //   joined  { id, name, vehicle, car }   host -> everyone
 //   left    { id }                       host -> everyone
 //   event   { id, e }                    one-off events; `e.to` sends to one player only
@@ -7195,7 +7207,7 @@ class Net {
         const players = Object.fromEntries(this.players);
         const car = msg.car && typeof msg.car === 'object' ? msg.car : null; // checked by carkit.cleanDesign
         this.players.set(id, { name: msg.name, vehicle: msg.vehicle, car });
-        conn.send({ t: 'welcome', id, players, mode: this.mode });
+        conn.send({ t: 'welcome', id, players, mode: this.mode, road: this.roadKm });
         this.relay({ t: 'joined', id, name: msg.name, vehicle: msg.vehicle, car }, id);
         this.emit('joined', id, msg.name, msg.vehicle, car);
       } else if (msg.t === 'event') {
@@ -7276,6 +7288,7 @@ class Net {
             this.code = code;
             this.id = msg.id;
             this.mode = msg.mode || 'free';
+            this.roadKm = msg.road || 2.4;
             this.conns.set('host', conn);
             this.players = new Map(Object.entries(msg.players));
             this.players.set(msg.id, { name, vehicle, car });
@@ -9616,7 +9629,8 @@ function corrugationTexture() {
 }
 
 // ===== motorway.js =====
-// The Motorway: a 2.4 km dual carriageway for flat-out driving. The road
+// The Motorway: a dual carriageway for flat-out driving (2.4 km by default;
+// the player picks the length, see setMotorwayLength). The road
 // runs along Z: three lanes each way either side of a painted (open)
 // central reservation, so the middle is always clear, then hard shoulders
 // and grass verges out to a fence. Everything that gets in the way is on
@@ -9625,19 +9639,32 @@ function corrugationTexture() {
 // on the hard shoulder.
 
 const ROAD = {
-  half: 1200,      // the road runs from z = -half to +half
+  half: 1200,      // the road runs from z = -half to +half (see setMotorwayLength)
   median: 1.5,     // half width of the painted central reservation
   lane: 3.7,
   lanes: 3,
   shoulder: 3.3,
   fence: 44,       // cars are kept inside |x| < fence
-  overpasses: [-800, -400, 0, 400, 800],
+  overpasses: [], // bridges every 400 m (see setMotorwayLength)
   deckBottom: 4.6, // underside of the overpass decks
 };
 const EDGE = ROAD.median + ROAD.lane * ROAD.lanes;   // edge of the carriageway (12.6 m)
 const SIDE = EDGE + ROAD.shoulder;                   // edge of the hard shoulder (15.9 m)
 const DECK_DEPTH = 10;
-const END = ROAD.half - 4;                           // where the end walls stop cars
+let END = 0;                                         // where the end walls stop cars
+
+/** Lengths the player can pick, in km (Options → Free roam). */
+const MOTORWAY_LENGTHS = [1.2, 2.4, 5, 10, 20];
+
+/** Lay the road out for a length in km: its ends, bridges and kicker ramps. */
+function layOut(km) {
+  ROAD.half = Math.round(km * 500);
+  END = ROAD.half - 4;
+  ROAD.overpasses = [];
+  for (let z = -Math.floor((ROAD.half - 200) / 400) * 400; z <= ROAD.half - 200; z += 400) ROAD.overpasses.push(z);
+  KICKERS.length = 0;
+  for (let i = 0, z = -ROAD.half + 180; z < ROAD.half - 150; i++, z += 290) KICKERS.push({ s: i % 2 ? 1 : -1, z });
+}
 
 /** Start spots: in the lanes near the south end, facing north. */
 function motorwaySpawn(slot) {
@@ -9645,10 +9672,48 @@ function motorwaySpawn(slot) {
   return { x: xs[slot % xs.length], z: -ROAD.half + 30 + Math.floor(slot / xs.length) * 10 + (slot % 2) * 4, heading: 0 };
 }
 
-function createMotorway(scene, renderer) {
+function createMotorway(scene, renderer, km = 2.4) {
   const group = new THREE.Group();
   group.visible = false;
   scene.add(group);
+  const map = {
+    name: 'motorway',
+    group,
+    km: 0,
+    terrain: null,
+    orbit: { radius: 70, height: 26 },
+    recycle: 0,
+    spawn: motorwaySpawn,
+    addColliders(world) {
+      map.terrain.addColliders(world);
+      addMotorwayColliders(world);
+    },
+    populate: populateMotorway,
+    contain: containMotorway,
+    /** Rebuild the road at a new length in km. Returns false if it already is that long. */
+    setLength(next) {
+      next = MOTORWAY_LENGTHS.includes(next) ? next : 2.4;
+      if (next === map.km) return false;
+      for (const child of [...group.children]) {
+        group.remove(child);
+        child.traverse((o) => {
+          o.geometry?.dispose();
+          for (const m of [o.material].flat()) { m?.map?.dispose(); m?.dispose(); }
+        });
+      }
+      layOut(next);
+      map.km = next;
+      map.recycle = ROAD.half + 60; // debris is only cleared once it's off the map
+      map.terrain = buildMotorway(group, renderer);
+      return true;
+    },
+  };
+  map.setLength(km);
+  return map;
+}
+
+/** The road's meshes, into `group`. Returns its terrain (the ramps). */
+function buildMotorway(group, renderer) {
   const L = ROAD.half * 2;
   const aniso = renderer.capabilities.getMaxAnisotropy();
 
@@ -9685,12 +9750,12 @@ function createMotorway(scene, renderer) {
   // --- Fence, hard shoulder kerb, end walls -----------------------------------
   const steel = new THREE.MeshStandardMaterial({ color: 0x8a9098, metalness: 0.6, roughness: 0.45 });
   const wood = new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 0.9 });
-  const posts = [], rails = [];
+  const posts = new Map(), rails = [];
   for (const s of [-1, 1]) {
     for (let z = -ROAD.half - 40; z <= ROAD.half + 40; z += 6) {
       const p = new THREE.BoxGeometry(0.14, 1.4, 0.14);
       p.translate(s * ROAD.fence, 0.7, z);
-      posts.push(p);
+      inChunk(posts, z, p);
     }
     for (const y of [0.55, 1.15]) {
       const r = new THREE.BoxGeometry(0.06, 0.12, L + 80);
@@ -9698,7 +9763,8 @@ function createMotorway(scene, renderer) {
       rails.push(r);
     }
   }
-  group.add(new THREE.Mesh(mergeGeometries(posts), wood), new THREE.Mesh(mergeGeometries(rails), steel));
+  for (const geos of posts.values()) group.add(new THREE.Mesh(mergeGeometries(geos), wood));
+  group.add(new THREE.Mesh(mergeGeometries(rails), steel));
 
   const concrete = new THREE.MeshStandardMaterial({ color: 0xb9b5ad, roughness: 0.9 });
   const chevron = new THREE.MeshStandardMaterial({ map: chevronTexture(), roughness: 0.6 });
@@ -9749,24 +9815,32 @@ function createMotorway(scene, renderer) {
   trunk.translate(0, 1.2, 0);
   const crown = new THREE.ConeGeometry(1.8, 5, 7);
   crown.translate(0, 4.6, 0);
-  const n = 700;
-  const trunks = new THREE.InstancedMesh(trunk, new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 1 }), n);
-  const crowns = new THREE.InstancedMesh(crown, new THREE.MeshStandardMaterial({ color: 0x3f6b35, roughness: 1 }), n);
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3();
-  const tint = new THREE.Color();
+  const n = Math.round(700 * ROAD.half / 1200);
+  const trees = new Map();
   for (let i = 0; i < n; i++) {
     const s = i % 2 ? 1 : -1;
     const x = s * (ROAD.fence + 8 + rng() * 70);
     const z = (rng() * 2 - 1) * (ROAD.half + 80);
     const k = 0.7 + rng() * 0.8;
     const lift = Math.max(0, Math.min(8, (Math.abs(x) - ROAD.fence - 4) * 0.22)) - 0.3;
-    m4.compose(pos.set(x, lift, z), q.setFromAxisAngle(_up, rng() * 6.28), sc.set(k, k * (0.8 + rng() * 0.5), k));
-    trunks.setMatrixAt(i, m4);
-    crowns.setMatrixAt(i, m4);
-    crowns.setColorAt(i, tint.setHSL(0.27 + rng() * 0.06, 0.35 + rng() * 0.2, 0.25 + rng() * 0.12));
+    const m4 = new THREE.Matrix4().compose(new THREE.Vector3(x, lift, z), new THREE.Quaternion().setFromAxisAngle(_up, rng() * 6.28), new THREE.Vector3(k, k * (0.8 + rng() * 0.5), k));
+    inChunk(trees, z, { m4, tint: new THREE.Color().setHSL(0.27 + rng() * 0.06, 0.35 + rng() * 0.2, 0.25 + rng() * 0.12) });
   }
-  crowns.castShadow = true;
-  group.add(trunks, crowns);
+  const barkMat = new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 1 });
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x3f6b35, roughness: 1 });
+  for (const list of trees.values()) {
+    const trunks = new THREE.InstancedMesh(trunk, barkMat, list.length);
+    const crowns = new THREE.InstancedMesh(crown, leafMat, list.length);
+    list.forEach((t, i) => {
+      trunks.setMatrixAt(i, t.m4);
+      crowns.setMatrixAt(i, t.m4);
+      crowns.setColorAt(i, t.tint);
+    });
+    trunks.computeBoundingSphere();
+    crowns.computeBoundingSphere();
+    crowns.castShadow = true;
+    group.add(trunks, crowns);
+  }
 
   // --- Mountains: a range along each side and beyond each end, well clear of the road ---
   const hills = [];
@@ -9800,28 +9874,23 @@ function createMotorway(scene, renderer) {
     terrain.addRamp({ x: s * 28, z: -150, heading: s > 0 ? Math.PI : 0, length: 34, width: 8, height: 3.2, profile: 'table', parts: [10, 14] });
   }
   terrain.buildMeshes(group);
-
-  return {
-    name: 'motorway',
-    group,
-    terrain,
-    orbit: { radius: 70, height: 26 },
-    recycle: ROAD.half + 60, // debris is only cleared once it's off the map
-    spawn: motorwaySpawn,
-    addColliders(world) {
-      terrain.addColliders(world);
-      addMotorwayColliders(world);
-    },
-    populate: populateMotorway,
-    contain: containMotorway,
-  };
+  return terrain;
 }
 
 const _up = new THREE.Vector3(0, 1, 0);
 
+/**
+ * Scenery along the whole road is split into 500 m chunks, so the camera
+ * only draws the chunks near it (a 20 km road is a lot of fence posts).
+ */
+function inChunk(chunks, z, item) {
+  const k = Math.floor(z / 500);
+  if (!chunks.has(k)) chunks.set(k, []);
+  chunks.get(k).push(item);
+}
+
 /** Kicker ramps on the hard shoulders, alternating sides (kept clear of obstacles). */
 const KICKERS = [];
-for (let i = 0, z = -ROAD.half + 180; z < ROAD.half - 150; i++, z += 290) KICKERS.push({ s: i % 2 ? 1 : -1, z });
 
 /** Ground under the whole road (the shared ground slab is only 600 m), end walls and overpass decks. */
 function addMotorwayColliders(world) {
@@ -12468,7 +12537,7 @@ arenaRamps(lotTerrain);
 lotTerrain.buildMeshes(world.arena);
 const stadium = createStadium(scene, renderer);
 const scrapyard = createScrapyard(scene, renderer);
-const motorway = createMotorway(scene, renderer);
+const motorway = createMotorway(scene, renderer, settings.motorwayLength);
 const MAPS = {
   free: {
     name: 'lot', group: world.arena, terrain: lotTerrain, orbit: { radius: 135, height: 60 },
@@ -12830,6 +12899,11 @@ function setSetting(key, value) {
     setupRoamBots();
     if (state !== 'menu') toast(settings.roamBots ? `${settings.roamBots} computer driver${settings.roamBots === 1 ? '' : 's'}` : 'No computer drivers');
   }
+  // A new Motorway length: rebuild the road (online, the room keeps the host's).
+  if (key === 'motorwayLength' && !net.online && motorway.setLength(value) && mode === 'motorway') {
+    enterMode('motorway');
+    if (state !== 'menu') toast(`Motorway: ${value} km`);
+  }
   // Versus bots changed: restart the solo match with the new line-up.
   if (key.startsWith('vsBot') && mode === 'versus' && !net.online) {
     resetAll();
@@ -12972,6 +13046,7 @@ function keepCameraInStadium(pos) {
 
 /** Switch mode and start it fresh. */
 function enterMode(next) {
+  if (!net.online) motorway.setLength(settings.motorwayLength);
   setMode(next);
   resetAll();
   arenaDirty = mode !== 'free';
@@ -13456,6 +13531,7 @@ async function hostRoom(name) {
   setSetting('playerName', name);
   menu.setOnlineStatus('Creating a room…');
   try {
+    net.roadKm = settings.motorwayLength;
     await net.host(name, menu.vehicle.id, menu.mode, menu.vehicle.custom ? menu.vehicle.design : null);
     slot = 0;
     startOnline();
@@ -13484,6 +13560,7 @@ function startOnline() {
   menu.setOnlineStatus('');
   arenaDirty = true; // start from a fresh arena
   football.teams = new Map();
+  motorway.setLength(net.isHost ? settings.motorwayLength : net.roadKm);
   setMode(net.mode);
   play(menu.vehicle);
   updateOnlineUi();
@@ -14328,7 +14405,7 @@ window.game = {
   get renderer() { return renderer; }, get settings() { return settings; },
   fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu, quake, score, tank,
   football, get bot() { return bot; }, get mode() { return mode; }, enterMode, garage, versus,
-  get roamBots() { return roamBots; }, crashBits,
+  get roamBots() { return roamBots; }, crashBits, motorway,
 };
 requestAnimationFrame(frame);
 </script>
