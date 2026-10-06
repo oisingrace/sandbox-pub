@@ -75,9 +75,12 @@
     <button class="btn small" id="sizeUp" title="Bigger brush ( ] )">+</button>
     <button class="btn small" id="altBtn" title="Reverse the tool (same as right-click or Shift)">Reverse</button>
     <button class="btn small" id="heatBtn" title="Heat vision (H)">Heat view</button>
+    <button class="btn small" id="tiltBtn" title="Tilt the table (T): everything slides down, while gas, steam and fire float up">Tilt</button>
+    <button class="btn small" id="slowBtn" title="Slow motion (K)">Slow-mo</button>
     <button class="btn small" id="pauseBtn" title="Pause (Space)">Pause</button>
     <button class="btn small" id="clearBtn" title="Clear everything (C)">Clear</button>
     <button class="btn small" id="demoBtn" title="Reload the starting scene (R)">Demo</button>
+    <button class="btn small" id="photoBtn" title="Save a picture of the sandbox">Photo</button>
     <span class="spacer"></span>
     <span class="hint">Right-click / Shift = reverse · Wheel = size</span>
     <a class="btn small link" href="https://oisingrace.github.io/sandbox-pub/#" target="_top" title="All my games and experiments">More projects →</a>
@@ -112,9 +115,18 @@ const DEF = [
   { name: 'Lava',    col: [255,100, 26], drag: .90, jit: .01,  mass: 2.5, ph: 0, cond: .12, cap: 2,   amb: .0005, t: 1400, coh: .02 },
   { name: 'Stone',   col: [112,106,102], drag: .75, jit: 0,    mass: 2,   ph: 0, cond: .08, cap: 1.5, amb: .002,  t: 20 },
   { name: 'Burning', col: [200, 70, 26], drag: .78, jit: 0,    mass: 1.2, ph: 0, cond: .1,  cap: 1,   amb: 0,     t: 720 },
+  { name: 'Salt',    col: [236,234,228], drag: .80, jit: 0,    mass: .9,  ph: 0, cond: .05, cap: 1,   amb: .002,  t: 20 },
+  { name: 'Gas',     col: [150,196,110], drag: .96, jit: .08,  mass: .15, ph: 1, cond: .05, cap: 1,   amb: .003,  t: 20 },
+  { name: 'Nitro',   col: [232,214,120], drag: .95, jit: .004, mass: 1,   ph: 0, cond: .05, cap: 1,   amb: .002,  t: 20,   coh: .03 },
+  { name: 'Thermite',col: [156, 84, 68], drag: .80, jit: 0,    mass: 1.2, ph: 0, cond: .03, cap: 1,   amb: .002,  t: 20 },
+  { name: 'Burning thermite', col: [255,240,200], drag: .80, jit: 0, mass: 1.2, ph: 0, cond: .3, cap: 1, amb: 0, t: 2600 },
+  { name: 'Slime',   col: [196, 92,220], drag: .90, jit: 0,    mass: 1,   ph: 0, cond: .03, cap: 2,   amb: .002,  t: 20,   coh: .22 },
+  { name: 'Virus',   col: [214, 48,100], drag: .82, jit: 0,    mass: .8,  ph: 0, cond: .05, cap: 1,   amb: .002,  t: 20 },
+  { name: 'Molten metal', col: [255,150,60], drag: .92, jit: .01, mass: 2, ph: 0, cond: .4, cap: 1, amb: .0006, t: 1600, coh: .02, elec: 1 },
 ];
 const SAND = 0, WATER = 1, ICE = 2, STEAM = 3, WOOD = 4, OIL = 5, METAL = 6, FIRE = 7, SMOKE = 8,
-      ASH = 9, GLASS = 10, POWDER = 11, PLANT = 12, ACID = 13, LAVA = 14, STONE = 15, EMBER = 16;
+      ASH = 9, GLASS = 10, POWDER = 11, PLANT = 12, ACID = 13, LAVA = 14, STONE = 15, EMBER = 16,
+      SALT = 17, GAS = 18, NITRO = 19, THERMITE = 20, THERMB = 21, SLIME = 22, VIRUS = 23, MOLTEN = 24;
 const NT = DEF.length;
 const f32 = k => Float32Array.from(DEF, d => d[k] || 0);
 const DRAG = f32('drag'), JIT = f32('jit'), MASS = f32('mass'), COND = f32('cond'), CAP = f32('cap'),
@@ -126,10 +138,12 @@ const CURIE = 770;
 
 // Pairs that have a chemical reaction (checked in the neighbour loop).
 const REACT = new Uint8Array(NT * NT);
-const pairs = [[ACID, -1], [PLANT, WATER], [FIRE, WATER], [EMBER, WATER]];
+const pairs = [[ACID, -1], [VIRUS, -1], [PLANT, WATER], [FIRE, WATER], [EMBER, WATER], [SALT, ICE], [SALT, WATER], [WATER, ICE]];
 for (const [a, b] of pairs) for (let t = 0; t < NT; t++) {
   if (b === -1 || t === b) { REACT[a * NT + t] = 1; REACT[t * NT + a] = 1; }
 }
+// What the virus can spread into: anything soft that isn't already burning or molten.
+const INFECT = Uint8Array.from(DEF, (d, t) => d.ph === 0 && ![METAL, GLASS, STONE, LAVA, ACID, VIRUS, MOLTEN, THERMB, EMBER].includes(t) ? 1 : 0);
 
 // ---------------------------------------------------------------- World
 let W = 320, H = 200, SCALE = 3;
@@ -141,9 +155,9 @@ const MAXP = 24000;
 const px = new Float32Array(MAXP), py = new Float32Array(MAXP);
 const vx = new Float32Array(MAXP), vy = new Float32Array(MAXP);
 const temp = new Float32Array(MAXP), life = new Float32Array(MAXP), charge = new Float32Array(MAXP);
-const ptype = new Uint8Array(MAXP), shade = new Uint8Array(MAXP), dead = new Uint8Array(MAXP);
+const ptype = new Uint8Array(MAXP), shade = new Uint8Array(MAXP), dead = new Uint8Array(MAXP), held = new Uint8Array(MAXP);
 const pcell = new Int32Array(MAXP), cellIdx = new Int32Array(MAXP);
-const visited = new Uint8Array(MAXP);
+const visited = new Uint8Array(MAXP), hitStamp = new Int32Array(MAXP);
 let N = 0;
 const CS = 2; // spatial hash cell size (px)
 
@@ -153,6 +167,8 @@ function initLife(t) {
   if (t === FIRE) return 22 + rand() * 26;
   if (t === SMOKE) return 60 + rand() * 90;
   if (t === EMBER) return 260 + rand() * 280;
+  if (t === VIRUS) return 520 + rand() * 200;
+  if (t === THERMB) return 200 + rand() * 160;
   return 0;
 }
 
@@ -161,7 +177,7 @@ function add(t, x, y, ivx = 0, ivy = 0, T = DEF[t].t) {
   const i = N++;
   px[i] = x; py[i] = y; vx[i] = ivx; vy[i] = ivy;
   ptype[i] = t; temp[i] = T; life[i] = initLife(t); charge[i] = 0;
-  shade[i] = (rand() * 4) | 0; dead[i] = 0;
+  shade[i] = (rand() * 4) | 0; dead[i] = 0; held[i] = 0;
   return i;
 }
 
@@ -175,7 +191,7 @@ function compact() {
     if (l !== i) {
       px[i] = px[l]; py[i] = py[l]; vx[i] = vx[l]; vy[i] = vy[l];
       temp[i] = temp[l]; life[i] = life[l]; charge[i] = charge[l];
-      ptype[i] = ptype[l]; shade[i] = shade[l]; dead[i] = dead[l];
+      ptype[i] = ptype[l]; shade[i] = shade[l]; dead[i] = dead[l]; held[i] = held[l];
     }
   }
 }
@@ -219,6 +235,18 @@ function react(a, b, ta, tb) {
       if (rand() < .3) { setType(a, SMOKE); temp[a] = 60; }
     }
   } else if (tb === ACID) react(b, a, tb, ta);
+  else if (ta === VIRUS) {
+    if (INFECT[tb] && life[a] > 40 && rand() < .025) { const l = life[a] * .88; setType(b, VIRUS); life[b] = l; }
+  } else if (tb === VIRUS) react(b, a, tb, ta);
+  else if (ta === SALT) {
+    // salt melts ice, and water it touches stays liquid below zero for a while
+    if (tb === ICE) { if (rand() < .1) { setType(b, WATER); temp[b] = 4; life[b] = 500; if (rand() < .1) dead[a] = 1; } }
+    else { life[b] = 600; if (rand() < .0015) dead[a] = 1; }
+  } else if (tb === SALT) react(b, a, tb, ta);
+  else if (ta === WATER && tb === ICE) {
+    // salty water keeps eating into ice, getting weaker as it goes
+    if (life[a] > 60 && rand() < .02) { setType(b, WATER); temp[b] = Math.max(temp[b], -5); life[b] = life[a] * .8; }
+  } else if (tb === WATER && ta === ICE) react(b, a, tb, ta);
   else if (ta === PLANT && tb === WATER) { if (rand() < .003) setType(b, PLANT); }
   else if (tb === PLANT && ta === WATER) { if (rand() < .003) setType(a, PLANT); }
   else if (ta === FIRE && tb === WATER) { if (rand() < .3) { setType(a, STEAM); temp[a] = 110; } }
@@ -258,13 +286,20 @@ function interact() {
           if (d < R) {
             const ov = R - d;
             if (pi === 0 && pj === 0) {
+              if ((ti === NITRO || tj === NITRO) && (vx[i] - vx[j]) * nx + (vy[i] - vy[j]) * ny > 1.6) {
+                // nitro goes off when something slams into it
+                if (ti === NITRO) temp[i] = 1000;
+                if (tj === NITRO) temp[j] = 1000;
+              }
               const mi = MASS[ti], mj = MASS[tj], s = ov * STIFF / (mi + mj);
               vx[i] -= nx * s * mj; vy[i] -= ny * s * mj;
               vx[j] += nx * s * mi; vy[j] += ny * s * mi;
-              if (ti === ICE && tj === ICE) { // ice sticks together into chunks
+              // ice sticks together into chunks, slime glues onto whatever it touches
+              const stick = ti === ICE && tj === ICE ? .3 : ti === SLIME || tj === SLIME ? .12 : 0;
+              if (stick) {
                 const mx = (vx[i] + vx[j]) * .5, my = (vy[i] + vy[j]) * .5;
-                vx[i] += (mx - vx[i]) * .3; vy[i] += (my - vy[i]) * .3;
-                vx[j] += (mx - vx[j]) * .3; vy[j] += (my - vy[j]) * .3;
+                vx[i] += (mx - vx[i]) * stick; vy[i] += (my - vy[i]) * stick;
+                vx[j] += (mx - vx[j]) * stick; vy[j] += (my - vy[j]) * stick;
               }
             } else if (pi === 1 && pj === 1) {
               const s = ov * .05;
@@ -316,7 +351,11 @@ function update() {
     if (charge[i] > 0) charge[i] = charge[i] < .03 ? 0 : charge[i] * .82;
     switch (t) {
       case SAND: if (T > 1000) setType(i, GLASS); break;
-      case WATER: if (T >= 100) setType(i, STEAM); else if (T < 0) setType(i, ICE); break;
+      case WATER: // life counts down how long salt keeps it from freezing
+        if (T >= 100) setType(i, STEAM);
+        else if (T < (life[i] > 0 ? -20 : 0)) setType(i, ICE);
+        else if (life[i] > 0) life[i]--;
+        break;
       case ICE: if (T > 1) setType(i, WATER); break;
       case STEAM: if (T < 95 && rand() < .03) setType(i, WATER); break;
       case WOOD: if (T > 280) setType(i, EMBER); break;
@@ -348,6 +387,28 @@ function update() {
         break;
       case LAVA: if (T < 700) setType(i, STONE); break;
       case STONE: if (T > 1100) setType(i, LAVA); break;
+      case METAL: if (T > 1500) setType(i, MOLTEN); break;
+      case MOLTEN: if (T < 1400) setType(i, METAL); break;
+      case GAS: if (T > 150) { setType(i, FIRE); life[i] = 10 + rand() * 12; temp[i] = 1000; } break;
+      case NITRO:
+        if (T > 140 && explosionsThisStep < 90) {
+          explosionsThisStep++;
+          explode(px[i], py[i], 9, 2.6, 700, true);
+          setType(i, FIRE); temp[i] = 1200; life[i] = 25 + rand() * 20;
+          shake = Math.max(shake, 3);
+        }
+        break;
+      case THERMITE: if (T > 600) { setType(i, THERMB); temp[i] = 2600; } break;
+      case THERMB:
+        temp[i] = 2600;
+        if (rand() < .12) add(FIRE, px[i] + rand() - .5, py[i] + rand() - .5, (rand() - .5) * 1.2, (rand() - .5) * 1.2);
+        if (--life[i] <= 0) { setType(i, STONE); temp[i] = 1000; }
+        break;
+      case SLIME: if (T > 350) { setType(i, SMOKE); temp[i] = 90; } break;
+      case VIRUS:
+        // heat or deep cold kills it, and every generation is a little weaker
+        if (T > 90 || T < -15 || --life[i] <= 0) setType(i, ASH);
+        break;
     }
   }
 }
@@ -357,6 +418,11 @@ function integrate() {
     if (dead[i]) continue;
     const t = ptype[i];
     let ux = vx[i] * DRAG[t], uy = vy[i] * DRAG[t];
+    if (tilt) {
+      // only pull on things that aren't already resting on a packed pile, so piles don't crush together
+      if (PH[t]) uy -= .05;
+      else if (!(cellCount[pcell[i] + GW] >= 4)) uy += .1;
+    }
     const j = JIT[t];
     if (j) { ux += (rand() - .5) * j; uy += (rand() - .5) * j; }
     const sp2 = ux * ux + uy * uy;
@@ -373,13 +439,15 @@ function integrate() {
       for (let s = 0; s < steps; s++) {
         let nx = x + sx;
         if (nx < 0 || nx >= W || wall[(y | 0) * W + (nx | 0)]) {
-          if (t === ACID && nx >= 0 && nx < W) eatWall(i, nx | 0, y | 0);
+          if (nx >= 0 && nx < W) hitWall(i, t, nx | 0, y | 0);
+          if (t === NITRO && Math.abs(ux) > 1.6) temp[i] = 1000;
           ux *= bounce; sx *= bounce; nx = x;
         }
         x = nx;
         let ny = y + sy;
         if (ny < 0 || ny >= H || wall[(ny | 0) * W + (x | 0)]) {
-          if (t === ACID && ny >= 0 && ny < H) eatWall(i, x | 0, ny | 0);
+          if (ny >= 0 && ny < H) hitWall(i, t, x | 0, ny | 0);
+          if (t === NITRO && Math.abs(uy) > 1.6) temp[i] = 1000;
           uy *= bounce; sy *= bounce; ny = y;
         }
         y = ny;
@@ -387,6 +455,11 @@ function integrate() {
     }
     px[i] = x; py[i] = y; vx[i] = ux; vy[i] = uy;
   }
+}
+
+function hitWall(i, t, x, y) {
+  if (t === ACID) eatWall(i, x, y);
+  else if (t === THERMB && rand() < .06) { wall[y * W + x] = 0; staticDirty = true; }
 }
 
 function eatWall(i, x, y) {
@@ -400,23 +473,30 @@ function eatWall(i, x, y) {
 const TOOLS = [
   { id: 'paint',  name: 'Paint',   key: 'p', col: [255,255,255], tip: 'Spray the selected matter. Reverse: erase particles.' },
   { id: 'stick',  name: 'Stick',   key: 's', col: [214,160, 96], tip: 'Poke, stir and drag particles around.' },
+  { id: 'grab',   name: 'Grab',    key: 'q', col: [240,220,200], tip: 'Grab a handful of particles, carry them around and fling them.' },
   { id: 'magnet', name: 'Magnet',  key: 'm', col: [240, 80, 70], tip: 'Pulls metal. Reverse pushes. Red-hot metal stops being magnetic.' },
   { id: 'burn',   name: 'Burn',    key: 'b', col: [255,150, 40], tip: 'Torch: heats and sets things on fire. Reverse: freeze.' },
   { id: 'freeze', name: 'Freeze',  key: 'f', col: [140,220,255], tip: 'Cools things down, puts fires out, makes ice. Reverse: burn.' },
   { id: 'shock',  name: 'Shock',   key: 'z', col: [180,230,255], tip: 'Lightning that runs through metal, water and acid.' },
+  { id: 'laser',  name: 'Laser',   key: 'a', col: [255, 70, 60], tip: 'Press and drag to aim a beam from where you pressed. It heats what it hits and shines through glass and ice. Reverse: freeze ray.' },
   { id: 'blow',   name: 'Blow',    key: 'w', col: [220,230,240], tip: 'Pushes everything away. Reverse: suck.' },
   { id: 'vortex', name: 'Vortex',  key: 'v', col: [255,130,210], tip: 'Swirls particles around. Reverse spins the other way.' },
   { id: 'well',   name: 'Gravity', key: 'g', col: [160,110,255], tip: 'A gravity well that pulls everything in. Reverse repels.' },
   { id: 'bomb',   name: 'Bomb',    key: 'x', col: [255, 90, 60], tip: 'Click to blow things up (walls too).' },
+  { id: 'spout',  name: 'Spout',   key: 'u', col: [120,200,255], tip: 'Click to place a spout that keeps pouring the selected matter. Reverse: remove spouts and holes.' },
+  { id: 'hole',   name: 'Hole',    key: 'o', col: [170,120,255], tip: 'Click to place a black hole that swallows anything nearby. Reverse: remove spouts and holes.' },
   { id: 'wall',   name: 'Wall',    key: 'l', col: [200,140,110], tip: 'Draw solid brick walls. Reverse: remove walls.' },
   { id: 'erase',  name: 'Erase',   key: 'e', col: [255,160,200], tip: 'Removes particles and walls.' },
 ];
-const PALETTE = [SAND, WATER, ICE, WOOD, OIL, METAL, POWDER, PLANT, ACID, LAVA, STONE, FIRE, STEAM];
+const PALETTE = [SAND, WATER, ICE, WOOD, OIL, METAL, POWDER, PLANT, ACID, LAVA, STONE, FIRE, STEAM,
+                 SALT, GAS, NITRO, THERMITE, SLIME, VIRUS];
 
-let tool = 'paint', mat = SAND, brush = 6, altToggle = false, heatView = false, paused = false;
+let tool = 'paint', mat = SAND, brush = 6, altToggle = false, heatView = false, paused = false, tilt = false, slowmo = false;
 let pointer = { x: -100, y: -100, px: -100, py: -100, vx: 0, vy: 0, down: false, alt: false, inside: false, pressed: false };
 let shiftHeld = false, shockCool = 0, shake = 0;
 let bolts = [];
+let fixtures = []; // placed spouts and black holes
+let beam = null, laserX = 0, laserY = 0, holding = false;
 
 const isAlt = () => pointer.alt || shiftHeld || altToggle;
 
@@ -516,14 +596,97 @@ function paintWall(r, on) {
     }
 }
 
+// Laser: a beam from where you pressed, through the cursor, until a wall or the edge.
+function fireLaser(cold) {
+  if (pointer.pressed) { laserX = pointer.x; laserY = pointer.y; }
+  const dx = pointer.x - laserX, dy = pointer.y - laserY, len = Math.hypot(dx, dy);
+  if (len < 2) { beam = null; return; }
+  const ux = dx / len, uy = dy / len, stamp = stepCount + 1;
+  let x = laserX, y = laserY, power = 1;
+  for (let k = 0; k < 2000; k++) {
+    x += ux * .75; y += uy * .75;
+    if (x < 0 || y < 0 || x >= W || y >= H) break;
+    const w = (y | 0) * W + (x | 0);
+    if (wall[w]) {
+      if (!cold && rand() < .04) { wall[w] = 0; staticDirty = true; }
+      break;
+    }
+    query(x, y, 1.1, i => {
+      if (hitStamp[i] === stamp) return;
+      hitStamp[i] = stamp;
+      const t = ptype[i];
+      if (t === GLASS || t === ICE && !cold) return; // clear stuff lets the beam through
+      temp[i] += (cold ? -14 : 70) * power / CAP[t];
+      if (cold && t === FIRE && rand() < .3) dead[i] = 1;
+      power -= PH[t] ? .005 : .03;
+    });
+    if (power <= 0) break;
+  }
+  beam = { x0: laserX, y0: laserY, x1: x, y1: y, cold };
+}
+
+// Grabbed particles chase the cursor; letting go flings them with whatever speed they had.
+function holdParticles() {
+  if (!holding) return;
+  if (!pointer.down || tool !== 'grab') { holding = false; held.fill(0, 0, N); return; }
+  for (let i = 0; i < N; i++) {
+    if (!held[i]) continue;
+    const tx = Math.max(-3, Math.min(3, (pointer.x - px[i]) * .25)), ty = Math.max(-3, Math.min(3, (pointer.y - py[i]) * .25));
+    vx[i] += (tx - vx[i]) * .6; vy[i] += (ty - vy[i]) * .6;
+  }
+}
+
+function removeFixtures(r) {
+  fixtures = fixtures.filter(f => Math.hypot(f.x - pointer.x, f.y - pointer.y) > r + f.r);
+}
+
+const holeReach = r => r * 6 + 8;
+
+function runFixtures() {
+  for (const f of fixtures) {
+    if (f.kind === 'spout') {
+      for (let k = Math.ceil(f.r * .6); k > 0; k--) {
+        const a = rand() * 6.283, d = Math.sqrt(rand()) * f.r;
+        const x = f.x + Math.cos(a) * d, y = f.y + Math.sin(a) * d;
+        if (x < 0 || y < 0 || x >= W || y >= H || wall[(y | 0) * W + (x | 0)]) continue;
+        const c = ((y / CS) | 0) * GW + ((x / CS) | 0);
+        if (cellCount[c] >= 3) continue;
+        cellCount[c]++;
+        add(f.mat, x, y, (rand() - .5) * .3, (rand() - .5) * .3);
+      }
+    } else {
+      const reach = holeReach(f.r);
+      query(f.x, f.y, reach, (i, dx, dy, d) => {
+        if (d < f.r) { dead[i] = 1; return; }
+        const g = 1 - d / reach, k = .04 + .5 * g * g;
+        vx[i] -= (dx + dy * .35) / d * k; vy[i] -= (dy - dx * .35) / d * k;
+      });
+    }
+  }
+}
+
 function applyTool() {
   if (shockCool > 0) shockCool--;
+  if (!pointer.down || tool !== 'laser') beam = null;
   if (!pointer.down) return;
   const alt = isAlt(), r = brush, mvx = pointer.vx, mvy = pointer.vy;
   switch (tool) {
     case 'paint':
       if (alt) query(pointer.x, pointer.y, r, i => { dead[i] = 1; });
       else spawn(mat, r, mvx, mvy);
+      break;
+    case 'grab':
+      if (pointer.pressed) { query(pointer.x, pointer.y, r, i => { held[i] = 1; }); holding = true; }
+      break;
+    case 'laser': fireLaser(alt); break;
+    case 'spout':
+    case 'hole':
+      if (!pointer.pressed) break;
+      if (alt) removeFixtures(r + 2);
+      else if (fixtures.length < 24) {
+        const fr = Math.max(tool === 'hole' ? 2 : 1.5, r * .5);
+        fixtures.push(tool === 'spout' ? { kind: 'spout', x: pointer.x, y: pointer.y, r: fr, mat } : { kind: 'hole', x: pointer.x, y: pointer.y, r: fr });
+      }
       break;
     case 'stick': {
       const cvx = Math.max(-4, Math.min(4, mvx)), cvy = Math.max(-4, Math.min(4, mvy));
@@ -596,6 +759,8 @@ function step() {
   explosionsThisStep = 0;
   buildGrid();
   applyTool();
+  holdParticles();
+  runFixtures();
   interact();
   update();
   integrate();
@@ -727,6 +892,22 @@ function render() {
           if ((i & 3) === 0) splat(x, y, .16 * k + .03, 255, 100, 30);
           break;
         }
+        case THERMB: {
+          const fl = (i + frame) & 3;
+          r = 255; g = 205 + fl * 12; b = 140 + fl * 28;
+          if ((i & 1) === 0) splat(x, y, .22, 255, 200, 120);
+          break;
+        }
+        case MOLTEN: {
+          const fl = Math.sin(i * .9 + frame * .1) * .5 + .5, k = Math.max(0, Math.min(1, (T - 1400) / 500));
+          r = 230 + 25 * k; g = 110 + 70 * k + fl * 30; b = 40 + 90 * k;
+          if ((i & 3) === 0) splat(x, y, .12 + .08 * k, 255, 150, 60);
+          break;
+        }
+        case GAS: alpha = .35; break;
+        case NITRO: if (shade[i] === 3 && ((i + (frame >> 4)) & 3) === 0) { r += 20; g += 24; b += 40; } break;
+        case SLIME: if (shade[i] === 3) { r = 236; g = 150; b = 250; } break;
+        case VIRUS: if (((i * 3 + (frame >> 2)) & 7) === 0) { r = 255; g = 130; b = 175; } break;
         case SMOKE: alpha = .5 * Math.min(1, life[i] / 60); break;
         case STEAM: alpha = .4; break;
         case GLASS: alpha = .7; break;
@@ -735,7 +916,7 @@ function render() {
         case ICE: if (shade[i] === 3) { r = 240; g = 250; b = 255; } break;
       }
       // anything solid glows when hot
-      if (T > 450 && t !== FIRE && t !== EMBER && t !== LAVA && t !== STEAM && t !== SMOKE) {
+      if (T > 450 && t !== FIRE && t !== EMBER && t !== LAVA && t !== STEAM && t !== SMOKE && t !== THERMB && t !== MOLTEN && t !== GAS) {
         const k = Math.min(1, (T - 450) / 900);
         grad(GLOW_STOPS, k);
         const m = Math.min(1, (T - 450) / 250);
@@ -760,6 +941,35 @@ function render() {
     bolt.ttl--;
   }
   bolts = bolts.filter(b => b.ttl > 0);
+
+  // spouts and black holes
+  for (const f of fixtures) {
+    if (f.kind === 'hole') {
+      const rr = f.r + 1;
+      for (let y = f.y - rr | 0; y <= f.y + rr; y++) for (let x = f.x - rr | 0; x <= f.x + rr; x++) {
+        const d = Math.hypot(x + .5 - f.x, y + .5 - f.y);
+        if (d <= rr) plot(x, y, 4, 2, 10, Math.min(1, (rr - d) * .8 + .3));
+      }
+      circle(f.x, f.y, rr + 1 + (frame >> 3) % 2, [170, 120, 255], .6, true);
+      splat(f.x, f.y, .3, 90, 40, 160);
+    } else {
+      const c = DEF[f.mat].col, x0 = f.x | 0, y0 = f.y | 0;
+      for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) {
+        const edge = Math.abs(x) === 2 || Math.abs(y) === 2;
+        if (heatView) plot(x0 + x, y0 + y, 120, 120, 130);
+        else if (edge) plot(x0 + x, y0 + y, 60, 66, 78);
+        else plot(x0 + x, y0 + y, c[0], c[1], c[2]);
+      }
+    }
+  }
+
+  // laser beam
+  if (beam) {
+    const col = beam.cold ? [200, 240, 255] : [255, 90, 70], gl = beam.cold ? [80, 170, 255] : [255, 40, 30];
+    line(beam.x0, beam.y0, beam.x1, beam.y1, col, gl);
+    circle(beam.x0, beam.y0, 2, col, .9);
+    splat(beam.x1, beam.y1, .6, gl[0], gl[1], gl[2]);
+  }
 
   // cursor-side effects
   if (pointer.down && !heatView && (tool === 'freeze' || (tool === 'burn' && isAlt()))) {
@@ -792,13 +1002,13 @@ function plot(x, y, r, g, b, a = 1) {
   else { data[p] += (r - data[p]) * a; data[p + 1] += (g - data[p + 1]) * a; data[p + 2] += (b - data[p + 2]) * a; }
 }
 
-function line(x0, y0, x1, y1) {
+function line(x0, y0, x1, y1, col = [240, 250, 255], glow = [110, 170, 255]) {
   x0 |= 0; y0 |= 0; x1 |= 0; y1 |= 0;
   const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
   let err = dx + dy;
   for (let guard = 0; guard < 2000; guard++) {
-    plot(x0, y0, 240, 250, 255);
-    if ((guard & 3) === 0) splat(x0, y0, .35, 110, 170, 255);
+    plot(x0, y0, col[0], col[1], col[2]);
+    if ((guard & 3) === 0) splat(x0, y0, .35, glow[0], glow[1], glow[2]);
     if (x0 === x1 && y0 === y1) break;
     const e2 = 2 * err;
     if (e2 >= dy) { err += dy; x0 += sx; }
@@ -823,9 +1033,10 @@ function circle(cx, cy, r, col, a, dotted) {
 function drawCursor() {
   const t = TOOLS.find(o => o.id === tool), col = t.col;
   const cx = pointer.x, cy = pointer.y;
-  const outer = { magnet: brush * 4 + 8, blow: brush * 2.5 + 4, vortex: brush * 2.5 + 4, well: brush * 5 + 10, bomb: 6 + brush * 1.5 }[tool];
+  const outer = { magnet: brush * 4 + 8, blow: brush * 2.5 + 4, vortex: brush * 2.5 + 4, well: brush * 5 + 10, bomb: 6 + brush * 1.5,
+                  hole: isAlt() ? 0 : holeReach(Math.max(2, brush * .5)) }[tool];
   if (outer) circle(cx, cy, outer, col, .35, true);
-  if (tool === 'paint' && !isAlt()) circle(cx, cy, brush, DEF[mat].col, .9);
+  if ((tool === 'paint' || tool === 'spout') && !isAlt()) circle(cx, cy, tool === 'spout' ? Math.max(1.5, brush * .5) : brush, DEF[mat].col, .9);
   else circle(cx, cy, Math.max(1, brush), isAlt() && tool !== 'bomb' ? [255, 255, 255] : col, .9);
   plot(cx, cy, 255, 255, 255);
   plot(cx - 2, cy, 255, 255, 255, .6); plot(cx + 2, cy, 255, 255, 255, .6);
@@ -833,7 +1044,7 @@ function drawCursor() {
 }
 
 // ---------------------------------------------------------------- Scenes
-function clearWorld() { N = 0; wall.fill(0); staticDirty = true; bolts = []; }
+function clearWorld() { N = 0; wall.fill(0); staticDirty = true; bolts = []; fixtures = []; holding = false; beam = null; }
 
 function fillCircle(t, cx, cy, r, keep = 1) {
   for (let y = cy - r; y <= cy + r; y += 1) for (let x = cx - r; x <= cx + r; x += 1) {
@@ -871,6 +1082,9 @@ function demo() {
   fillCircle(METAL, W * .82, H * .72, 7 * u, .8);
   fillRect(ICE, W * .78 | 0, H * .14 | 0, 10 * u | 0, 8 * u | 0, 1);
   fillCircle(LAVA, W * .55, H * .85, 3.6 * u);
+  // a thermite pile next to the metal and a gas cloud by the pen's opening
+  fillCircle(THERMITE, W * .82 - 10 * u, H * .72, 2.4 * u);
+  fillCircle(GAS, bx + bw + 7 * u, cy, 4 * u, .45);
   wallRect(W * .55 - 7 * u | 0, H * .85 - 7 * u | 0, 14 * u | 0, th);
   staticDirty = true;
 }
@@ -902,7 +1116,7 @@ addEventListener('resize', fit);
 
 // ---------------------------------------------------------------- Pixel icons
 const ICON_COLORS = {
-  k: '#101216', w: '#f4f2ea', y: '#b07a40', Y: '#ffd84a', o: '#ff8a1e', r: '#e0463c', s: '#cfd4dc',
+  k: '#101216', w: '#f4f2ea', R: '#ff4a3a', y: '#b07a40', Y: '#ffd84a', o: '#ff8a1e', r: '#e0463c', s: '#cfd4dc',
   c: '#a6e6ff', C: '#5fb8ff', b: '#a35a44', m: '#5b4a42', p: '#ff9fd0', v: '#9a6bff', g: '#d8dee8', d: '#3a3f4b',
 };
 const ICONS = {
@@ -917,6 +1131,10 @@ const ICONS = {
   well:   ['..vvvv..', '.v....v.', 'v..kk..v', 'v.kkkk.v', 'v.kkkk.v', 'v..kk..v', '.v....v.', '..vvvv..'],
   bomb:   ['......Y.', '.....o..', '...kk...', '..kkkk..', '.kkwkkk.', '.kwkkkk.', '.kkkkkk.', '..kkkk..'],
   wall:   ['bbbmbbbb', 'bbbmbbbb', 'mmmmmmmm', 'bmbbbbmb', 'bmbbbbmb', 'mmmmmmmm', 'bbbmbbbb', 'bbbmbbbb'],
+  grab:   ['..w.w...', '..w.w.w.', '..wwwww.', 'w.wwwww.', 'wwwwwww.', '.wwwwww.', '..wwww..', '..wwww..'],
+  laser:  ['ss......', 'sssR....', '.s..R...', '.....R..', '......R.', '.......R', '........', '........'],
+  spout:  ['........', 'sssss...', 'sssss...', '...ss...', '...ss...', '...MM...', '....M...', '...M.M..'],
+  hole:   ['..vvvv..', '.vkkkkv.', 'vkkkkkkv', 'vkkvkkkv', 'vkkkvkkv', 'vkkkkkkv', '.vkkkkv.', '..vvvv..'],
   erase:  ['........', '....kkk.', '...kpppk', '..kpppk.', '.kwwpk..', 'kwwwk...', '.kwk....', '..k.....'],
 };
 const hex = c => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
@@ -944,7 +1162,7 @@ function drawSwatch(cv, t) {
 
 const toolRow = document.getElementById('toolRow'), matRow = document.getElementById('matRow');
 const toolBtns = {}, matBtns = {};
-let paintIcon;
+let paintIcon, spoutIcon;
 
 for (const t of TOOLS) {
   const b = document.createElement('button');
@@ -953,6 +1171,7 @@ for (const t of TOOLS) {
   const cv = document.createElement('canvas'); cv.width = cv.height = 8;
   drawIcon(cv, ICONS[t.id], hex(DEF[mat].col));
   if (t.id === 'paint') paintIcon = cv;
+  if (t.id === 'spout') spoutIcon = cv;
   b.append(cv, t.name);
   b.onclick = () => setTool(t.id);
   toolRow.append(b); toolBtns[t.id] = b;
@@ -976,12 +1195,24 @@ function setMat(t) {
   mat = t;
   for (const k in matBtns) matBtns[k].classList.toggle('on', +k === t);
   drawIcon(paintIcon, ICONS.paint, hex(DEF[t].col));
-  setTool('paint');
+  drawIcon(spoutIcon, ICONS.spout, hex(DEF[t].col));
+  if (tool !== 'spout') setTool('paint');
 }
 function setBrush(v) { brush = Math.max(1, Math.min(30, v)); document.getElementById('sizeVal').textContent = brush; }
 
 const altBtn = document.getElementById('altBtn'), heatBtn = document.getElementById('heatBtn'), pauseBtn = document.getElementById('pauseBtn');
 function toggleHeat() { heatView = !heatView; heatBtn.classList.toggle('on', heatView); staticDirty = true; }
+function toggleTilt() { tilt = !tilt; document.getElementById('tiltBtn').classList.toggle('on', tilt); }
+function toggleSlow() { slowmo = !slowmo; document.getElementById('slowBtn').classList.toggle('on', slowmo); }
+function photo() {
+  const k = 4, c = document.createElement('canvas');
+  c.width = W * k; c.height = H * k;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.drawImage(view, 0, 0, c.width, c.height);
+  const a = document.createElement('a');
+  a.download = 'particle-lab.png'; a.href = c.toDataURL('image/png'); a.click();
+}
 function togglePause() { paused = !paused; pauseBtn.classList.toggle('on', paused); document.getElementById('paused').hidden = !paused; }
 document.getElementById('sizeDown').onclick = () => setBrush(brush - 1);
 document.getElementById('sizeUp').onclick = () => setBrush(brush + 1);
@@ -990,6 +1221,9 @@ heatBtn.onclick = toggleHeat;
 pauseBtn.onclick = togglePause;
 document.getElementById('clearBtn').onclick = clearWorld;
 document.getElementById('demoBtn').onclick = demo;
+document.getElementById('tiltBtn').onclick = toggleTilt;
+document.getElementById('slowBtn').onclick = toggleSlow;
+document.getElementById('photoBtn').onclick = photo;
 
 // ---------------------------------------------------------------- Input
 function toSim(e) {
@@ -1023,6 +1257,8 @@ addEventListener('keydown', e => {
   else if (k === ']') setBrush(brush + 1);
   else if (k === ' ') { togglePause(); e.preventDefault(); }
   else if (k === 'h') toggleHeat();
+  else if (k === 't') toggleTilt();
+  else if (k === 'k') toggleSlow();
   else if (k === 'c') clearWorld();
   else if (k === 'r') demo();
 });
@@ -1053,14 +1289,14 @@ function loop(now) {
   pointer.px = pointer.x; pointer.py = pointer.y;
 
   if (!paused) {
-    acc += dt;
+    acc += slowmo ? dt * .3 : dt;
     let steps = 0;
     while (acc >= 1000 / 60 && steps < 2) { step(); acc -= 1000 / 60; steps++; }
     if (steps === 2) acc = 0;
   } else {
     acc = 0;
     // tools still work on a frozen world, so you can set up scenes
-    if (pointer.down && (tool === 'paint' || tool === 'wall' || tool === 'erase')) { buildGrid(); applyTool(); compact(); }
+    if (pointer.down && ['paint', 'wall', 'erase', 'spout', 'hole'].includes(tool)) { buildGrid(); applyTool(); compact(); }
   }
   buildGrid(); // keep the grid in sync with compacted indices for hover lookups
   render();
@@ -1080,6 +1316,18 @@ requestAnimationFrame(() => { setup(); requestAnimationFrame(loop); });
 </script>
 <script type="application/json" id="patch-notes">
 [
+  {
+    "version": "0.3",
+    "date": "2026-10-06",
+    "title": "Content update: new tools and matter",
+    "notes": [
+      "6 new kinds of matter: Salt melts ice and keeps water from freezing, Gas drifts around and goes up in a flash, Nitro explodes when it is heated or hit hard, Thermite burns white-hot and melts metal and walls, Slime is sticky goo that clings to everything, and Virus spreads through soft matter until heat or cold kills it.",
+      "Metal now melts into glowing molten metal above 1500°C and sets again as it cools.",
+      "4 new tools: Grab picks up a handful of particles so you can carry and fling them, Laser fires a beam that heats what it hits and shines through glass and ice (reverse for a freeze ray), Spout places a tap that keeps pouring the selected matter, and Hole places a black hole that swallows everything nearby.",
+      "Tilt (T) tips the table so everything slides down while gas, steam and fire float up. Slow-mo (K) runs everything at a third of the speed. Photo saves a picture of the sandbox.",
+      "The starting scene now has a thermite pile next to the metal and a gas cloud by the brick pen."
+    ]
+  },
   {
     "version": "0.2",
     "date": "2026-10-05",
