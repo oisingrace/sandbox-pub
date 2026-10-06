@@ -26,6 +26,12 @@ export const OPTIONS = {
     debrisLimit: { label: 'Max debris pieces', hint: 'Oldest settled debris is removed past this', choices: [[250, '250'], [500, '500'], [800, '800'], [1300, '1,300']] },
     debrisLifetime: { label: 'Debris cleanup', hint: 'Small pieces fade out after this long', choices: [[0, 'Never'], [60, '60 s'], [20, '20 s']] },
     physicsQuality: { label: 'Physics accuracy', hint: 'Higher keeps tall stacks steadier, costs CPU', choices: [[2, 'Low'], [4, 'Normal'], [6, 'High']] },
+    crashDamage: { label: 'Crash damage', hint: 'Cars dent, shed bits and smoke. Full: a wrecked car also loses power and pulls to one side. R resets and repairs your car', choices: [['full', 'Full'], ['looks', 'Looks only'], ['off', 'Off']] },
+  },
+  roam: {
+    roamBots: { label: 'Computer drivers', hint: 'Free roam and Motorway, solo only', choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']] },
+    roamBotStyle: { label: 'How they drive', hint: 'Cruise: traffic to weave through. Wreck: they smash things. Chase: they ram you. Mixed: some of each', choices: [['mixed', 'Mixed'], ['cruise', 'Cruise'], ['smash', 'Wreck'], ['chase', 'Chase']] },
+    roamBotCars: { label: 'Bot cars', choices: [['mixed', 'Mixed'], ['mine', 'Same as yours'], ['heavy', 'Heavy'], ['light', 'Light']] },
   },
   versus: {
     vsBots: { label: 'Computer drivers', hint: 'Solo Versus only; 0 to practise on your own', choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']] },
@@ -69,6 +75,10 @@ export const DEFAULTS = {
   vsBots: 3,
   vsBotSkill: 'normal',
   vsBotCars: 'mixed',
+  roamBots: 3,
+  roamBotStyle: 'mixed',
+  roamBotCars: 'mixed',
+  crashDamage: 'full',
   startVehicle: 'sports',
   playerName: '',
   mode: 'free',

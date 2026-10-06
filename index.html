@@ -72,7 +72,7 @@
       background: repeating-linear-gradient(-45deg, var(--hazard) 0 16px, #f0b400 16px 32px); }
     .tagline { margin: 4px 0 14px; font-size: 15px; color: var(--hud-dim); letter-spacing: 0.02em; }
     /* Shorter screens with the Versus setup open: a smaller logo keeps Play on screen. */
-    @media (max-height: 860px) and (min-height: 521px) { body.menu-versus .logo { font-size: clamp(40px, 6.5vw, 60px); } body.menu-versus .tagline { margin-bottom: 8px; } }
+    @media (max-height: 860px) and (min-height: 521px) { body.menu-setup .logo { font-size: clamp(40px, 6.5vw, 60px); } body.menu-setup .tagline { margin-bottom: 8px; } }
     .screen-title { margin: 0 0 6px; font: 400 30px/1.1 var(--font-display); text-transform: uppercase; letter-spacing: 0.03em; }
     #menu button { font: 600 15px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--hud-fg); background: var(--menu-panel);
       border: 1px solid var(--menu-line); border-radius: 10px; padding: 14px 18px; text-align: left; cursor: pointer; transition: background 0.15s, transform 0.15s; }
@@ -382,7 +382,7 @@
     <h1>SMASH LOT</h1>
     <div class="row"><kbd>W</kbd><kbd>S</kbd> <b>throttle / brake</b> (hold S to reverse)</div>
     <div class="row"><kbd>A</kbd><kbd>D</kbd> <b>steer</b> &nbsp;<kbd class="no-jump">Space</kbd><kbd class="jump-only">Q</kbd> <b>handbrake</b> &nbsp;<kbd>Shift</kbd> <b>boost</b></div>
-    <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset car</b></div>
+    <div class="row"><kbd>T</kbd> <b>assists</b> &nbsp;<kbd>C</kbd> <b>camera</b> &nbsp;<kbd>R</kbd> <b>reset + repair</b></div>
     <div class="row"><kbd>V</kbd> <b>change car</b> &nbsp;<kbd>E</kbd> <b>drive a nearby parked one</b></div>
     <div class="row"><kbd>B</kbd> <b>rebuild arena</b> (everything is breakable)</div>
     <div class="row"><kbd>X</kbd> or click <b>fire</b> (flamethrower on the Inferno; any car's weapon in Versus) &nbsp;Keep smashing to raise the <b>multiplier</b></div>
@@ -586,7 +586,7 @@
           <tr><td>Change car (anywhere)</td><td><kbd>V</kbd></td><td>On screen: CAR</td></tr>
           <tr><td>Drive a nearby parked vehicle</td><td><kbd>E</kbd></td><td>On screen: IN</td></tr>
           <tr><td>Camera (chase, far, hood)</td><td><kbd>C</kbd></td><td>X</td></tr>
-          <tr><td>Reset car</td><td><kbd>R</kbd></td><td>Y</td></tr>
+          <tr><td>Reset and repair car</td><td><kbd>R</kbd></td><td>Y</td></tr>
           <tr><td>Rebuild arena</td><td><kbd>B</kbd></td><td>Pause menu</td></tr>
           <tr><td>Driving assists</td><td><kbd>T</kbd></td><td>B</td></tr>
           <tr><td>Pause</td><td><kbd>Esc</kbd> or <kbd>P</kbd></td><td>Start</td></tr>
@@ -618,6 +618,17 @@
        games website (its build script reads this block). Add a new entry at the top for each update. -->
   <script type="application/json" id="patch-notes">
   [
+    {
+      "version": "0.15",
+      "date": "2026-10-06",
+      "title": "Crash damage and computer drivers",
+      "notes": [
+        "Cars crumple when they crash: the panels where you hit fold in, bits of bodywork and glass fly off, a hit next to a wheel knocks it out of line, smashed lights go dark, and a badly damaged car smokes from the engine. It works on every car, in every mode: other cars, walls, landing on your roof and explosions.",
+        "With Crash damage on Full, a wrecked car also loses power and pulls to one side. Set it to Looks only or Off in Options → Destruction. R resets and repairs your car.",
+        "Computer drivers in free roam and on the Motorway: pick none to 5 and how they drive on the main menu. Cruise is traffic to weave through, Wreck goes smashing things, Chase comes after you to ram you, and Mixed is some of each. Bot cars are in Options → Free roam.",
+        "Ramming a computer driver scores points by how hard you hit, into the combo like a smash."
+      ]
+    },
     {
       "version": "0.14",
       "date": "2026-10-05",

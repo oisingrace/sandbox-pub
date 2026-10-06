@@ -490,6 +490,16 @@ export class Destruction {
     this.remoteCars.delete(key);
   }
 
+  /** Move a remote or computer-driven car's body straight to its car (no sweep through what's between). */
+  teleportRemoteCar(key) {
+    const r = this.remoteCars?.get(key);
+    if (!r?.body) return;
+    const p = r.proxy;
+    r.body.setTranslation({ x: p.x, y: p.y || 0, z: p.z }, true);
+    r.body.setRotation(carRotation(p), true);
+    r.last = { x: p.x, y: p.y || 0, z: p.z, h: p.heading, p: p.pitch || 0, r: p.roll || 0 };
+  }
+
   teleportCar(car) {
     const h = car.heading;
     this.lastCarPose = { x: car.x, z: car.z, h, y: car.y || 0, p: car.pitch || 0 };

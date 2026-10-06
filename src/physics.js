@@ -216,7 +216,7 @@ export class CarPhysics {
     // --- Steering ------------------------------------------------------
     // Less lock at speed keeps the front tires near their peak slip angle.
     const steerLimit = s.maxSteer / (1 + (vx * vx) / s.steerSpeedScale);
-    let target = clamp(input.steer, -1, 1) * steerLimit;
+    let target = clamp(input.steer, -1, 1) * steerLimit + (this.pull || 0); // a bent front wheel pulls to one side
     if (s.assists && vx > 4) {
       // Counter-steer toward the direction of travel, like caster trail
       // pulling the wheels into a slide. Stronger with hands off; eased
@@ -265,7 +265,8 @@ export class CarPhysics {
     const engineRpm = Math.max(rpm, drive > 0.05 ? 2400 + drive * 1500 : s.idleRpm);
     let driveForce = 0;
     if (this.shiftTimer === 0 && engineRpm < s.redline) {
-      const torque = engineTorque(engineRpm) * s.torqueScale * drive;
+      // A badly damaged car (see damage.js) loses up to a third of its power.
+      const torque = engineTorque(engineRpm) * s.torqueScale * drive * (1 - 0.35 * (this.damage || 0));
       driveForce = (torque * ratio * s.finalDrive * s.drivetrainEfficiency) / s.wheelRadius;
       if (this.gear < 0) driveForce = -driveForce * 0.6;
     }

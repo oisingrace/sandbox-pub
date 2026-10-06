@@ -52,6 +52,24 @@ faster and stronger as it builds, moving and slightly tilting the camera. Your o
 landings add short jolts on top. A gamepad rumbles along. Options → Game → Screen shake sets it to
 anywhere from Off to 200% on a slider.
 
+**Crash damage** (`src/damage.js`): bodywork is built from boxes split into panels about a hand
+wide, so a hit pushes in the panels around where it lands, with a little sideways buckle so it reads
+as crumpled metal. Every vertex keeps its undamaged position, so a repair (R, a respawn, a rebuild)
+is instant. Car-to-car hits dent both cars at the contact point; walls, the map edge, heavy scenery,
+landings on a corner, side or roof, and explosions dent the side that took it. Bits of bodywork (and
+glass, in a big one) fly off and settle on the ground. A hit next to a wheel bends it, smashed ends
+put the lights out, and past 30% damage the engine smokes (black past 70%). With *Crash damage* on
+Full (Options → Destruction) a wrecked car loses up to a third of its power and a bent front wheel
+pulls it to one side.
+
+**Computer drivers in free roam and on the Motorway** (`src/roambot.js`, solo): none to 5, chosen
+on the main menu with how they drive. *Cruise* drives about the lot, or keeps to its lane on the
+Motorway (slowing behind slower cars, changing lanes, turning round at the ends), so there's
+traffic; *Wreck* picks structures near you and drives flat out into them; *Chase* lines up on you,
+boosts, rams, backs off and comes again; *Mixed* is some of each. A bot that's stuck for a while,
+or left far behind on the Motorway, is put back down near you. Ramming one scores points by how
+hard you hit.
+
 **Points and multiplier** (`src/score.js`, free roam): everything you break, burn or blow up scores
 by its size (a brick 20, a crate 29, a shipping container 160, an explosion 250), times the
 multiplier. Keep destroying, each thing within 2.2 s of the last, and the multiplier climbs:

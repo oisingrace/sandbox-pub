@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mountTurret } from './weapons.js';
+import { CarDamage, panelBox, panelTapered } from './damage.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // Renders any vehicle from `vehicles.js`. The root sits on the ground under
@@ -123,8 +124,9 @@ export class CarModel {
     const kit = {
       THREE, spec, mats, front, rear, r,
       add,
-      box: (w, h, d, mat, x, y, z) => add(new THREE.BoxGeometry(w, h, d), mat, x, y, z),
-      tapered: (w, h, d, topW, topD, off, mat, x, y, z) => add(taperedBox(w, h, d, topW, topD, off), mat, x, y, z),
+      // Bodywork is split into panels so it can dent (see damage.js).
+      box: (w, h, d, mat, x, y, z) => add(panelBox(w, h, d), mat, x, y, z),
+      tapered: (w, h, d, topW, topD, off, mat, x, y, z) => add(panelTapered(w, h, d, topW, topD, off), mat, x, y, z),
       /** Head, tail and reverse lights at the given body ends. */
       lights: ({ frontZ, rearZ, y, headX, tailX, headW = 0.42, tailW = 0.5, h = 0.1, rearY = y }) => {
         for (const s of [-1, 1]) {
@@ -192,6 +194,14 @@ export class CarModel {
 
     this.roll = 0;
     this.pitch = 0;
+    this.lightsOut = { head: false, tail: false };
+    this.damage = new CarDamage(this);
+  }
+
+  /** Headlights go dark once the front is smashed in (the tail lights are set every frame). */
+  applyLights() {
+    this.headMat.emissiveIntensity = this.lightsOut.head ? 0 : 1.2;
+    this.headMat.color.setHex(this.lightsOut.head ? 0x55585c : 0xffffff);
   }
 
   /** Free this model's GPU resources (custom car previews are rebuilt often). */
@@ -229,9 +239,11 @@ export class CarModel {
       w.spin += (surfaceSpeed / car.spec.wheelRadius) * dt;
       w.mesh.rotation.x = w.spin;
       w.pivot.rotation.y = w.front ? car.steer : 0;
+      w.pivot.rotation.z = w.bent || 0; // knocked out of line in a crash
     }
+    this.damage.flush();
 
-    this.tailMat.emissiveIntensity = car.braking > 0.05 || car.handbrake ? 3 : 0.5;
+    this.tailMat.emissiveIntensity = this.lightsOut.tail ? 0.04 : car.braking > 0.05 || car.handbrake ? 3 : 0.5;
     this.reverseMat.emissiveIntensity = car.gear < 0 ? 2.5 : 0;
 
     // Boost flames flicker and stretch while boosting.
@@ -269,8 +281,10 @@ export class CarModel {
       w.spin += (along / this.spec.wheelRadius) * dt;
       w.mesh.rotation.x = w.spin;
       w.pivot.rotation.y = 0;
+      w.pivot.rotation.z = w.bent || 0;
     }
-    this.tailMat.emissiveIntensity = 0.2;
+    this.damage.flush();
+    this.tailMat.emissiveIntensity = this.lightsOut.tail ? 0.04 : 0.2;
     this.reverseMat.emissiveIntensity = 0;
   }
 

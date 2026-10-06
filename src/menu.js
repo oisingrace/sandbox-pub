@@ -8,12 +8,13 @@ const TABS = [
   ['destruction', 'Destruction'],
   ['game', 'Game'],
   ['versus', 'Versus'],
+  ['roam', 'Free roam'],
 ];
 
 export const MODE_NAMES = { free: 'Free roam', motorway: 'Motorway', football: 'Car football', versus: 'Versus' };
 const MODE_BLURBS = {
-  free: 'Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead.',
-  motorway: 'A 2.4 km dual carriageway for flat-out driving: three lanes each way and an open, painted middle, so the road ahead is always clear. The hard shoulders and verges are where the trouble is: roadworks, broken-down lorries, barrier runs, lamp posts, drum piles, trees and overpass pillars, all breakable, plus kicker ramps on the shoulder and a big jump on each verge. Smash for points like in free roam; press V to change car.',
+  free: 'Every wall, tower, window and pole is breakable. More vehicles are parked at the start: press E next to one to drive it. Try the Ember GT: it burns through things instead. Computer drivers cruise, wreck things or come after you (pick how many and how they drive below), and every car dents and sheds bits when it crashes: ram a bot for points.',
+  motorway: 'A 2.4 km dual carriageway for flat-out driving: three lanes each way and an open, painted middle, so the road ahead is always clear. The hard shoulders and verges are where the trouble is: roadworks, broken-down lorries, barrier runs, lamp posts, drum piles, trees and overpass pillars, all breakable, plus kicker ramps on the shoulder and a big jump on each verge. Smash for points like in free roam; press V to change car. Computer drivers are the traffic: weave through it, or ram it for points.',
   versus: 'Every car for itself in the Scrapyard. Your car has health and a roof-mounted machine gun that aims itself at whoever is in front of you (X or click to fire). Drive over the glowing pads for rockets, flamethrowers, mines, repairs, armour and nitro: what they offer changes as you play, and better upgrades turn up as the match goes on. Ram, shoot, and blow up the fuel drums next to your rivals. Most wrecks in five minutes wins. Solo, you fight three computer drivers.',
   football: 'Knock the ball into the orange goal before the clock runs out. Everyone drives the Striker, painted in their team colour. You play Blue against a computer driver, or team up online. The sidelines are lined with things to wreck, and the fuel drums in the corners blow the ball around. Space jumps (twice for a double jump or a flip), W/S pitch in the air, and boost lets you fly. Press Y to toggle ball cam.',
 };
@@ -87,10 +88,11 @@ export class Menu {
     // Car football has one car for everyone (the Striker): no picker.
     document.body.classList.toggle('menu-football', mode === 'football');
     document.body.classList.toggle('menu-versus', mode === 'versus');
-    // Versus: how many bots, how good, in what.
+    document.body.classList.toggle('menu-setup', mode !== 'football'); // the bots panel: a smaller logo makes room
+    // Versus: how many bots, how good, in what. Free roam and Motorway: how many, and how they drive.
     const setup = document.getElementById('vs-setup');
-    setup.hidden = mode !== 'versus';
-    if (mode === 'versus') this.renderVersusSetup();
+    setup.hidden = mode === 'football';
+    if (mode !== 'football') this.renderVersusSetup();
     document.getElementById('room-mode-name').textContent = MODE_NAMES[mode];
   }
 
@@ -304,16 +306,19 @@ export class Menu {
     const settings = this.opts.getSettings();
     const box = document.getElementById('vs-setup');
     const rows = [];
-    for (const [key, label] of [['vsBots', 'Bots'], ['vsBotSkill', 'Skill']]) {
-      if (key !== 'vsBots' && !settings.vsBots) continue;
+    const vs = this.mode === 'versus';
+    const keys = vs ? [['vsBots', 'Bots'], ['vsBotSkill', 'Skill']] : [['roamBots', 'Bots'], ['roamBotStyle', 'Driving']];
+    const count = vs ? 'vsBots' : 'roamBots';
+    for (const [key, label] of keys) {
+      if (key !== count && !settings[count]) continue;
       const row = document.createElement('div');
       row.className = 'vs-row';
       row.dataset.key = key;
       const name = document.createElement('span');
       name.className = 'vs-label';
       name.textContent = label;
-      const def = OPTIONS.versus[key];
-      const choices = key === 'vsBots' ? { ...def, choices: def.choices.map(([v, l]) => [v, v === 0 ? 'None' : l]) } : def;
+      const def = OPTIONS[vs ? 'versus' : 'roam'][key];
+      const choices = key === count ? { ...def, choices: def.choices.map(([v, l]) => [v, v === 0 ? 'None' : l]) } : def;
       row.append(name, this.choiceSeg(key, choices, settings, () => {
         this.renderVersusSetup();
         box.querySelector(`[data-key="${key}"] [aria-checked="true"]`)?.focus({ preventScroll: true });
@@ -322,7 +327,8 @@ export class Menu {
     }
     const note = document.createElement('p');
     note.className = 'vs-note';
-    note.textContent = settings.vsBots ? 'Solo only. Bot cars: Options → Versus.' : 'No bots: try the weapons and pads on your own.';
+    if (vs) note.textContent = settings.vsBots ? 'Solo only. Bot cars: Options → Versus.' : 'No bots: try the weapons and pads on your own.';
+    else note.textContent = settings.roamBots ? 'Solo only. Bot cars: Options → Free roam.' : 'No bots: the map to yourself.';
     box.replaceChildren(...rows, note);
   }
 

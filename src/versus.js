@@ -332,6 +332,7 @@ export class Versus {
     else if (f.bot) {
       f.car.reset(spot.x, spot.z, spot.heading);
       f.bot.stuck = f.bot.reversing = 0;
+      f.model.damage?.repair();
     }
   }
 

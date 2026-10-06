@@ -25,9 +25,11 @@ import { ScreenQuake } from './quake.js';
 import { FlameFX, FlameTank, nozzle } from './flamethrower.js';
 import { Score, pointsFor, EXPLOSION_POINTS, COMBO_WINDOW } from './score.js';
 import { createScrapyard, keepCameraInYard, SPAWNS } from './vsmap.js';
-import { createMotorway } from './motorway.js';
+import { createMotorway, ROAD, motorwaySpawn } from './motorway.js';
 import { Versus } from './versus.js';
 import { turretMount } from './weapons.js';
+import { RoamBot } from './roambot.js';
+import { CrashBits, toCarFrame, toWorld } from './damage.js';
 
 const PHYSICS_DT = 1 / 120;
 // At most this many car steps per frame (2 debris-world steps). A slow
@@ -123,6 +125,7 @@ const skids = new SkidMarks(scene);
 const smoke = new Smoke(scene);
 const dust = new Smoke(scene, 160, 0xb9ad98);
 const soot = new Smoke(scene, 120, 0x2e2a28);
+const crashBits = new CrashBits(scene);
 const burnFx = new BurnEffect(scene);
 const chase = new ChaseCamera(camera);
 const input = new Input();
@@ -151,6 +154,7 @@ const versus = new Versus({
   terrain: () => terrain,
   respawnMe: (spot) => {
     car.reset(spot.x, spot.z, spot.heading);
+    active.model.damage.repair();
     destruction.teleportCar(car);
     skids.clear();
     chase.snap();
@@ -183,6 +187,136 @@ function setupVersusBots() {
   }
   versus.addBots(defs, settings.vsBotSkill);
 }
+
+// --- Computer drivers in free roam and on the Motorway (see roambot.js) ----------
+let roamBots = [];
+const ROAM_NAMES = ['Dex', 'Mags', 'Tilly', 'Rook', 'Juno'];
+// Free roam: open ground south of the start line to put bots down on.
+const ROAM_SPOTS = [[-7, -68], [7, -68], [-18, -68], [18, -68], [0, -78], [-12, -90], [12, -90], [0, -100]].map(([x, z]) => ({ x, z }));
+// What each bot does when the style is "mixed" (by bot number).
+const ROAM_MIX = { lot: ['cruise', 'smash', 'chase', 'cruise', 'smash'], motorway: ['cruise', 'cruise', 'chase', 'cruise', 'smash'] };
+
+/** Cars for `n` computer drivers, by the "Bot cars" setting. */
+function botCars(n, which) {
+  if (which === 'mine') return Array.from({ length: n }, () => active.def);
+  const ids = VS_BOT_CARS[which] || VS_BOT_CARS.mixed;
+  const pool = ids.filter((id) => id !== active.def.id || ids.length < 3).sort(() => Math.random() - 0.5);
+  return Array.from({ length: n }, (_, i) => VEHICLES.find((v) => v.id === pool[i % pool.length]));
+}
+
+function removeRoamBots() {
+  for (const b of roamBots) {
+    scene.remove(b.model.root);
+    b.model.dispose();
+    destruction.removeRemoteCar(b.id);
+  }
+  roamBots = [];
+}
+
+/** Solo free roam and Motorway: the computer drivers from the settings, placed near us. */
+function setupRoamBots() {
+  removeRoamBots();
+  if (!roaming() || net.online) return;
+  const n = Math.max(0, Math.min(5, settings.roamBots | 0));
+  const kind = mode === 'motorway' ? 'motorway' : 'lot';
+  botCars(n, settings.roamBotCars).forEach((def, i) => {
+    const style = settings.roamBotStyle === 'mixed' || !settings.roamBotStyle ? ROAM_MIX[kind][i] : settings.roamBotStyle;
+    const b = new RoamBot(`roam${i + 1}`, ROAM_NAMES[i % ROAM_NAMES.length], def, terrain, style);
+    const tag = nameTag(b.name, def);
+    tag.position.set(0, Math.max(...def.hitbox.map((h) => h.at[1] + h.half[1])) + 1.1, 0);
+    b.model.root.add(tag);
+    scene.add(b.model.root);
+    destruction.addRemoteCar(b.id, def, b.car).react = true; // bumps into things instead of driving through them
+    roamBots.push(b);
+    placeRoamBot(b, i, true);
+  });
+}
+
+/**
+ * Put a bot down. At the start: beside us on the start line (free roam), or
+ * spread up the road in both directions (Motorway). Later (it got stuck or
+ * fell far behind): somewhere ahead of us.
+ */
+function placeRoamBot(b, i, start) {
+  b.model.damage.repair();
+  if (mode === 'motorway') {
+    const fwd = start ? 1 : Math.sign(car.velZ || Math.cos(car.heading)) || 1;
+    const dir = b.style === 'chase' ? fwd : (i % 2 === 0 ? 1 : -1);
+    const lane = (i + (start ? 0 : (Math.random() * 3) | 0)) % ROAD.lanes;
+    // At the start: our side's traffic just up the road, oncoming traffic further off (coming at us).
+    const ahead = start ? (b.style === 'chase' ? -40 : dir === fwd ? 60 + i * 45 : 260 + i * 90) : 260 + Math.random() * 160;
+    const z = Math.max(-ROAD.half + 80, Math.min(ROAD.half - 80, car.z + fwd * ahead));
+    b.dir = dir;
+    b.lane = lane;
+    b.place(dir * (ROAD.median + ROAD.lane * (lane + 0.5)), z, dir > 0 ? 0 : Math.PI);
+    if (start && b.style !== 'chase') { b.car.velZ = dir * b.cruise * 0.8; }
+  } else {
+    // The open ground behind the parked cars at the start line: at the start
+    // in a row behind us, later the free spot furthest from us and the other bots.
+    const spots = start ? [ROAM_SPOTS[i % ROAM_SPOTS.length]] : ROAM_SPOTS;
+    let best = spots[0], bestD = -1;
+    for (const p of spots) {
+      let d = Math.hypot(p.x - car.x, p.z - car.z);
+      for (const o of roamBots) if (o !== b) d = Math.min(d, Math.hypot(p.x - o.car.x, p.z - o.car.z) * 3);
+      if (d > bestD) { bestD = d; best = p; }
+    }
+    b.place(best.x, best.z, 0);
+  }
+  destruction.teleportRemoteCar(b.id);
+}
+
+/** What the bots see: the map, us, every car, and things to smash. */
+const roamWorld = {
+  get map() { return mode === 'motorway' ? 'motorway' : 'lot'; },
+  get player() { return car; },
+  cars: [],
+  limit: DRIVE_LIMIT,
+  road: ROAD,
+  targets: (b) => smashTarget(b),
+};
+
+/**
+ * Somewhere for a wrecker bot to smash: one of the nearer structures
+ * still standing (ones near us first, so you see it happen).
+ */
+function smashTarget(b) {
+  const c = b.car;
+  const options = [];
+  for (const site of destruction.sites) {
+    let p = null;
+    for (const e of site.members) {
+      if (!e.alive) continue;
+      const t = e.frozen || e.body.translation();
+      p = { x: t.x, z: t.z };
+      break;
+    }
+    if (!p) continue;
+    if (mode === 'motorway' && Math.abs(p.x) > ROAD.fence - 3) continue;
+    const dMe = Math.hypot(p.x - car.x, p.z - car.z);
+    if (dMe > 150) continue;
+    const d = Math.hypot(p.x - c.x, p.z - c.z);
+    if (d < 6 || b.lastGoals.includes(site)) continue;
+    options.push({ site, p, score: d + dMe * 0.5 });
+  }
+  options.sort((a, b2) => a.score - b2.score);
+  const pick = options[(Math.random() * Math.min(4, options.length)) | 0];
+  if (!pick) return null;
+  b.lastGoals.push(pick.site);
+  if (b.lastGoals.length > 5) b.lastGoals.shift();
+  return pick.p;
+}
+
+let roamCheck = 0;
+/** Bots stuck for a while, or left far behind on the Motorway, come back near us. */
+function tendRoamBots(dt) {
+  roamCheck -= dt;
+  if (roamCheck > 0) return;
+  roamCheck = 1;
+  roamBots.forEach((b, i) => {
+    const far = Math.hypot(b.car.x - car.x, b.car.z - car.z);
+    if (b.stillFor > 8 || (mode === 'motorway' && far > 480) || (mode === 'free' && far > 260)) placeRoamBot(b, i, false);
+  });
+}
 let ballCam = true;
 let ownTouchUntil = 0; // online: we hit the ball; our local ball leads until then
 let netTimer = 0;
@@ -194,9 +328,10 @@ const myId = () => (net.online ? net.id : 'me');
  * reward boost for) the ones our own car was closest to.
  */
 function creditedToMe(pos) {
-  if (!net.online && !bot) return true;
+  if (!net.online && !bot && !roamBots.length) return true;
   const mine = Math.hypot(pos.x - car.x, pos.z - car.z);
   if (bot && Math.hypot(pos.x - bot.car.x, pos.z - bot.car.z) < mine) return false;
+  for (const b of roamBots) if (Math.hypot(pos.x - b.car.x, pos.z - b.car.z) < mine) return false;
   for (const r of mp.remotes.values()) {
     if (r.seen && Math.hypot(pos.x - r.proxy.x, pos.z - r.proxy.z) < mine) return false;
   }
@@ -242,10 +377,12 @@ destruction.on('explode', (pos, distance) => {
   if (mine) car.boost = Math.min(1, car.boost + 0.05);
   // Versus: fuel drums hurt whoever's parked next to them.
   if (mode === 'versus') versus.explosionDamage(pos, 9, 40, null);
+  blastDents(pos, 9);
 });
 
 /** Versus: a rocket, mine or wreck going off (sound, flash, smoke, shake). */
 function vsExplosion(pos, size = 1) {
+  blastDents(pos, 6 * size);
   burnFx.fireball(pos);
   const puffs = settings.effects === 'high' ? 6 : 2;
   for (let i = 0; i < puffs; i++) {
@@ -307,6 +444,11 @@ function setSetting(key, value) {
   saveSettings(settings);
   if (key === 'startVehicle') return;
   applySettings({ rebuildRenderer: prev.antialias !== settings.antialias });
+  // Free-roam bots changed: a new set of them, near us.
+  if (key.startsWith('roamBot') && roaming() && !net.online) {
+    setupRoamBots();
+    if (state !== 'menu') toast(settings.roamBots ? `${settings.roamBots} computer driver${settings.roamBots === 1 ? '' : 's'}` : 'No computer drivers');
+  }
   // Versus bots changed: restart the solo match with the new line-up.
   if (key.startsWith('vsBot') && mode === 'versus' && !net.online) {
     resetAll();
@@ -356,6 +498,7 @@ function teamSpot(id) {
 function resetCar() {
   const home = homeSpot();
   car.reset(home.x, home.z, home.heading);
+  active.model.damage.repair();
   destruction.teleportCar(car);
   skids.clear();
   chase.setVehicle(active.def);
@@ -381,6 +524,9 @@ function resetAll() {
   if (mode === 'football' && football.referee) football.startMatch();
   if (mode === 'versus' && !net.online) setupVersusBots(); // a fresh line-up (and your current car) each match
   if (versus.active) versus.reset();
+  crashBits.clear();
+  for (const v of fleet) v.model.damage.repair();
+  setupRoamBots();
 }
 
 // --- Game modes ------------------------------------------------------------
@@ -417,6 +563,8 @@ function setMode(next) {
   }
   if (mode === 'versus' && !net.online) setupVersusBots();
   else versus.removeBots();
+  if (!roaming() || net.online) removeRoamBots();
+  for (const b of roamBots) b.car.terrain = terrain;
   if (mode === 'football' && net.online && net.isHost && !football.teams.has('host')) {
     football.teams = new Map([['host', 0]]);
     for (const id of mp.remotes.keys()) assignTeam(id);
@@ -805,6 +953,7 @@ function play(def) {
     resetAll();
   } else {
     resetCar();
+    setupRoamBots();
   }
   refreshTeamGlows();
   arenaDirty = true;
@@ -884,6 +1033,8 @@ net.on('event', (id, e) => {
     }
     applyToCar(car, m, m * car.spec.inertiaScale, e.jx, e.jz, e.px, e.pz);
     collisionFx(Math.hypot(e.jx, e.jz) / m, e.px, e.pz);
+    const j = Math.hypot(e.jx, e.jz) || 1;
+    contactDent(active.model, car, e.px, e.pz, e.jx / j, e.jz / j, (j / m) * 2); // about the closing speed
     return;
   }
   if (['dmg', 'wreck', 'take', 'grant', 'fx'].includes(e.type)) {
@@ -1079,7 +1230,7 @@ input.onPress('Escape', () => {
   else if (['options', 'controls', 'garage', 'patchnotes'].includes(menu.current)) menu.back();
 });
 input.onPress('KeyP', () => { if (state === 'playing') pause(); else if (state === 'paused' && menu.current === 'pause') resume(); });
-input.onPress('KeyR', playing(() => { resetCar(); toast('Car reset'); }));
+input.onPress('KeyR', playing(() => { resetCar(); toast('Car reset and repaired'); }));
 input.onPress('KeyB', playing(() => rebuildArena()));
 input.onPress('KeyC', playing(() => { chase.cycle(); refreshBadges(); toast(`Camera: ${chase.modeName}`); }));
 input.onPress('KeyE', playing(enterNearby));
@@ -1161,6 +1312,7 @@ function containCar() {
     quake.kick(hit * 0.03);
     audio.impact('crash', Math.min(1, hit / 20));
   }
+  return hit;
 }
 
 // --- Main loop ------------------------------------------------------
@@ -1194,13 +1346,27 @@ function frame() {
     if (mode !== 'versus') car.firing = tank.update(dt, !!(active.def.flamethrower && inputNow.fire));
     const wrecked = mode === 'versus' && versus.isWrecked(myId());
     for (const b of versus.bots) b.think(dt, versus);
+    if (roamBots.length) {
+      roamWorld.cars.length = 0;
+      roamWorld.cars.push(car);
+      for (const b of roamBots) roamWorld.cars.push(b.car);
+      for (const b of roamBots) b.think(dt, roamWorld);
+      tendRoamBots(dt);
+    }
+    // Crash damage costs power and pulls the steering (Options → Destruction → Crash damage).
+    const wear = settings.crashDamage === 'full';
+    car.damage = wear ? active.model.damage.level : 0;
+    car.pull = wear ? active.model.damage.pull : 0;
+    for (const b of roamBots) { b.car.damage = wear ? b.model.damage.level * 0.6 : 0; b.car.pull = wear ? b.model.damage.pull : 0; }
     accumulator += dt;
     let steps = 0;
     while (accumulator >= PHYSICS_DT && steps < MAX_STEPS_PER_FRAME) {
       car.aerial = !!active.def.aerial; // jumps, flips and air control (the Striker)
+      const pvx = car.velX, pvz = car.velZ;
       if (!wrecked) {
         car.step(PHYSICS_DT, inputNow);
-        containCar();
+        wallDent(active.model, car, containCar(), pvx, pvz);
+        wallDent(active.model, car, car.blocked, pvx, pvz);
       }
       if (bot) {
         bot.car.aerial = true;
@@ -1211,11 +1377,22 @@ function frame() {
       }
       for (const b of versus.bots) {
         if (versus.isWrecked(b.id)) continue;
+        const vx = b.car.velX, vz = b.car.velZ;
         b.step(PHYSICS_DT);
-        versus.crashed(b.id, map.contain(b.car));
+        const hit = map.contain(b.car);
+        versus.crashed(b.id, hit);
+        wallDent(b.model, b.car, hit, vx, vz);
+        if (b.car.landed) landingDent(b.model, b.car, b.car.landed);
+      }
+      for (const b of roamBots) {
+        const vx = b.car.velX, vz = b.car.velZ;
+        b.step(PHYSICS_DT);
+        wallDent(b.model, b.car, map.contain(b.car), vx, vz);
+        wallDent(b.model, b.car, b.car.blocked, vx, vz);
+        if (b.car.landed) landingDent(b.model, b.car, b.car.landed);
       }
       resolveCarCollisions();
-      if (car.landed) onLanding(car.landed);
+      if (car.landed) { onLanding(car.landed); landingDent(active.model, car, car.landed); }
       if (car.blocked > 3) {
         quake.kick(car.blocked * 0.03);
         audio.impact('crash', Math.min(1, car.blocked / 15));
@@ -1236,6 +1413,8 @@ function frame() {
       streamPoints.length = 0;
       streamPoints.push(car);
       for (const r of mp.remotes.values()) if (r.seen) streamPoints.push(r.proxy);
+      // Computer drivers near us need what they drive into to be solid.
+      for (const b of roamBots) if (Math.hypot(b.car.x - car.x, b.car.z - car.z) < 220) streamPoints.push(b.car);
       destruction.stream(streamPoints, dt);
     }
     if (net.online) {
@@ -1259,6 +1438,7 @@ function frame() {
     if (mode === 'football') football.syncMesh();
     if (bot) bot.model.update(bot.car, 0);
     for (const b of versus.bots) b.model.update(b.car, 0);
+    for (const b of roamBots) b.model.update(b.car, 0);
     for (const v of fleet) if (v.parked) v.model.updateParked(v.parked.body, dt);
     active.model.update(car, 0);
     if (!preview) world.followSun(new THREE.Vector3(0, 0, 0));
@@ -1328,37 +1508,19 @@ function myBody() {
  * (online), with momentum-conserving impulses. Runs every physics step.
  */
 function resolveCarCollisions() {
-  // Parked vehicles are Rapier bodies: push both, by mass.
+  // Parked vehicles are Rapier bodies: push both, by mass (us, and computer drivers in free roam).
   for (const v of fleet) {
     if (!v.parked) continue;
-    const body = v.parked.body;
-    const t = body.translation();
-    const r = body.rotation();
-    _hitFwd.set(0, 0, 1).applyQuaternion(_hitQ.set(r.x, r.y, r.z, r.w));
-    const lv = body.linvel();
-    const fp = footprints.get(v.def);
-    const mass = body.mass();
-    const B = { x: t.x, z: t.z, y: t.y, heading: Math.atan2(_hitFwd.x, _hitFwd.z), velX: lv.x, velZ: lv.z, yawRate: body.angvel().y, mass, inertia: yawInertia(mass, fp), fp };
-    const A = myBody();
-    const c = overlap(A, B);
-    if (!c) continue;
-    // Separate them in proportion to their masses.
-    const share = (1 / A.mass) / (1 / A.mass + 1 / B.mass);
-    car.x += c.nx * c.depth * share;
-    car.z += c.nz * c.depth * share;
-    body.setTranslation({ x: t.x - c.nx * c.depth * (1 - share), y: t.y, z: t.z - c.nz * c.depth * (1 - share) }, true);
-    const imp = contactImpulse(A, B, c);
-    if (!imp) continue;
-    applyToCar(car, A.mass, A.inertia, imp.jx, imp.jz, c.px, c.pz);
-    body.applyImpulseAtPoint({ x: -imp.jx, y: 0, z: -imp.jz }, { x: c.px, y: t.y + fp.top * 0.4, z: c.pz }, true);
-    collisionFx(imp.speed, c.px, c.pz);
+    bumpParked(v, { car, def: active.def, model: active.model });
+    for (const b of roamBots) bumpParked(v, { car: b.car, def: b.def, model: b.model, roam: b });
   }
 
   // Computer drivers (the football bot, Versus bots): both cars are ours to push.
   const locals = [];
-  if (!(mode === 'versus' && versus.isWrecked(myId()))) locals.push({ id: myId(), car, def: active.def });
-  if (bot) locals.push({ id: 'bot', car: bot.car, def: bot.def });
-  for (const b of versus.bots) if (!versus.isWrecked(b.id)) locals.push({ id: b.id, car: b.car, def: b.def });
+  if (!(mode === 'versus' && versus.isWrecked(myId()))) locals.push({ id: myId(), car, def: active.def, model: active.model });
+  if (bot) locals.push({ id: 'bot', car: bot.car, def: bot.def, model: bot.model });
+  for (const b of versus.bots) if (!versus.isWrecked(b.id)) locals.push({ id: b.id, car: b.car, def: b.def, model: b.model });
+  for (const b of roamBots) locals.push({ id: b.id, car: b.car, def: b.def, model: b.model, roam: b });
   for (let i = 0; i < locals.length; i++) {
     for (let j = i + 1; j < locals.length; j++) bump(locals[i], locals[j]);
   }
@@ -1388,6 +1550,8 @@ function resolveCarCollisions() {
     applyToCar(car, A.mass, A.inertia, imp.jx, imp.jz, c.px, c.pz);
     net.sendEvent({ type: 'hit', to: r.id, jx: -imp.jx, jz: -imp.jz, px: c.px, pz: c.pz });
     collisionFx(imp.speed, c.px, c.pz);
+    contactDent(active.model, car, c.px, c.pz, c.nx, c.nz, imp.speed);
+    contactDent(r.model, r.proxy, c.px, c.pz, -c.nx, -c.nz, imp.speed);
   }
 }
 
@@ -1418,6 +1582,170 @@ function bump(a, b) {
   applyToCar(b.car, B.mass, B.inertia, -imp.jx, -imp.jz, c.px, c.pz);
   // Sound and shake only when we're in it or close by.
   if (a.car === car || b.car === car || Math.hypot(c.px - car.x, c.pz - car.z) < 30) collisionFx(imp.speed, c.px, c.pz);
+  // Both cars dent where they met (the normal points from b into a).
+  contactDent(a.model, a.car, c.px, c.pz, c.nx, c.nz, imp.speed);
+  contactDent(b.model, b.car, c.px, c.pz, -c.nx, -c.nz, imp.speed);
+  if (a.roam) a.roam.crashed(imp.speed, b.car === car);
+  if (b.roam) b.roam.crashed(imp.speed, a.car === car);
+  // Points when we do the ramming (not for sitting still while a bot rams us).
+  if (((a.car === car && b.roam) || (b.car === car && a.roam)) && car.speed > 5) crashPoints(imp.speed);
+}
+
+/** A mover (us or a computer driver) against a parked vehicle (a Rapier body). */
+function bumpParked(v, o) {
+  const body = v.parked.body;
+  const t = body.translation();
+  const r = body.rotation();
+  _hitFwd.set(0, 0, 1).applyQuaternion(_hitQ.set(r.x, r.y, r.z, r.w));
+  const lv = body.linvel();
+  const fp = footprints.get(v.def);
+  const mass = body.mass();
+  const B = { x: t.x, z: t.z, y: t.y, heading: Math.atan2(_hitFwd.x, _hitFwd.z), velX: lv.x, velZ: lv.z, yawRate: body.angvel().y, mass, inertia: yawInertia(mass, fp), fp };
+  const c0 = o.car, m = c0.spec.mass;
+  const A = { x: c0.x, z: c0.z, y: c0.y, heading: c0.heading, velX: c0.velX, velZ: c0.velZ, yawRate: c0.yawRate, mass: m, inertia: m * c0.spec.inertiaScale, fp: footprints.get(o.def) };
+  const c = overlap(A, B);
+  if (!c) return;
+  // Separate them in proportion to their masses.
+  const share = (1 / A.mass) / (1 / A.mass + 1 / B.mass);
+  c0.x += c.nx * c.depth * share;
+  c0.z += c.nz * c.depth * share;
+  body.setTranslation({ x: t.x - c.nx * c.depth * (1 - share), y: t.y, z: t.z - c.nz * c.depth * (1 - share) }, true);
+  const imp = contactImpulse(A, B, c);
+  if (!imp) return;
+  applyToCar(c0, A.mass, A.inertia, imp.jx, imp.jz, c.px, c.pz);
+  body.applyImpulseAtPoint({ x: -imp.jx, y: 0, z: -imp.jz }, { x: c.px, y: t.y + fp.top * 0.4, z: c.pz }, true);
+  if (c0 === car || Math.hypot(c.px - car.x, c.pz - car.z) < 30) collisionFx(imp.speed, c.px, c.pz);
+  contactDent(o.model, c0, c.px, c.pz, c.nx, c.nz, imp.speed);
+  // The parked car's pose for its dent: its body as a car state.
+  _parkedPose.x = t.x; _parkedPose.y = t.y; _parkedPose.z = t.z; _parkedPose.heading = B.heading;
+  contactDent(v.model, _parkedPose, c.px, c.pz, -c.nx, -c.nz, imp.speed);
+  o.roam?.crashed(imp.speed, false);
+}
+const _parkedPose = { x: 0, y: 0, z: 0, heading: 0, pitch: 0, roll: 0 };
+
+// --- Crash damage (see damage.js) ----------------------------------------------
+const _dmgP = { x: 0, y: 0, z: 0 };
+const _dmgD = { x: 0, y: 0, z: 0 };
+const _dmgW = new THREE.Vector3();
+const _dmgOut = new THREE.Vector3();
+const _dmgUp = new THREE.Vector3();
+
+/** How far a hit at `speed` (m/s, closing speed) pushes the bodywork in (m). */
+const dentFor = (speed) => Math.max(0, (speed - 4) * 0.026);
+
+/**
+ * Dent a car: `p` and `dir` in the car's frame (dir points into the car).
+ * Throws off bits of bodywork (and glass, in a big one) and adds the crunch.
+ */
+function dentAt(model, c, p, dir, speed) {
+  const dmg = model?.damage;
+  if (settings.crashDamage === 'off' || !dmg) return;
+  const amount = dentFor(speed);
+  if (amount <= 0.01) return;
+  // Grinding against something: one dent, not one every step.
+  const now = performance.now() / 1000;
+  if (now - (dmg.lastAt || 0) < 0.2 && amount < (dmg.lastAmount || 0) * 1.4) return;
+  dmg.lastAt = now;
+  dmg.lastAmount = amount;
+  dmg.hit(p, dir, amount);
+  const w = toWorld(c, p, _dmgW);
+  if (speed > 7 && Math.hypot(w.x - car.x, w.z - car.z) < 90) {
+    toWorld(c, dir, _dmgOut, true).multiplyScalar(-1);
+    _dmgOut.y = 0;
+    _dmgOut.normalize();
+    const n = Math.min(9, Math.round((speed - 6) * 0.5) + 1);
+    crashBits.spawn(w, _dmgOut, Math.min(8, speed * 0.35), n, model.paintMat.color.getHex());
+    if (speed > 12) {
+      crashBits.spawn(w, _dmgOut, Math.min(7, speed * 0.3), Math.ceil(n * 0.7), 0, true);
+      audio.impact('glass', Math.min(1, speed / 26), c === car ? undefined : w);
+    }
+  }
+}
+
+/** A point on the body's surface in the car frame, along `d` (unit, car frame) from its middle. */
+function surfacePoint(model, d, out) {
+  const b = model.damage.bounds;
+  const cx = (b.min.x + b.max.x) / 2, cy = (b.min.y + b.max.y) / 2, cz = (b.min.z + b.max.z) / 2;
+  const hx = (b.max.x - b.min.x) / 2, hy = (b.max.y - b.min.y) / 2, hz = (b.max.z - b.min.z) / 2;
+  const t = Math.min(Math.abs(d.x) > 1e-4 ? hx / Math.abs(d.x) : Infinity, Math.abs(d.y) > 1e-4 ? hy / Math.abs(d.y) : Infinity, Math.abs(d.z) > 1e-4 ? hz / Math.abs(d.z) : Infinity);
+  out.x = cx + d.x * t;
+  out.y = cy + d.y * t;
+  out.z = cz + d.z * t;
+  return out;
+}
+
+/** Car against car: dent at the contact point (world x/z), pushed in along (nx, nz). */
+function contactDent(model, c, px, pz, nx, nz, speed) {
+  if (!model?.damage || !c) return;
+  toCarFrame(c, nx, 0, nz, _dmgD, true);
+  toCarFrame(c, px, (c.y || 0) + 0.6, pz, _dmgP);
+  _dmgP.y = Math.min(_dmgP.y, model.damage.bounds.max.y * 0.6);
+  dentAt(model, c, _dmgP, _dmgD, speed);
+}
+
+/** Hit a wall or the map's edge at `speed`, travelling along (vx, vz) just before. */
+function wallDent(model, c, speed, vx, vz) {
+  if (!(speed > 4) || !model?.damage) return;
+  const l = Math.hypot(vx, vz);
+  if (l < 0.5) return;
+  toCarFrame(c, vx / l, 0, vz / l, _dmgD, true); // towards the wall
+  surfacePoint(model, _dmgD, _dmgP);
+  _dmgP.y = model.damage.bounds.max.y * 0.45;
+  _dmgD.x = -_dmgD.x; _dmgD.y = 0; _dmgD.z = -_dmgD.z;
+  dentAt(model, c, _dmgP, _dmgD, speed);
+}
+
+/** Pushed by something heavy (scenery): dv is the speed change, (jx, jz) the push. */
+function shoveDent(model, c, dv, jx, jz) {
+  if (dv < 1.6) return;
+  wallDent(model, c, 4 + (dv - 1.2) * 6, -jx, -jz);
+}
+
+/** Touchdown off the wheels (on a corner, the side or the roof) crumples whatever hit the ground. */
+function landingDent(model, c, { impact, misalign }) {
+  if (!model?.damage || misalign < 0.5 || impact < 3) return;
+  toCarFrame(c, 0, 1, 0, _dmgD, true); // the ground pushes up, into the car
+  _dmgUp.set(-_dmgD.x, -_dmgD.y, -_dmgD.z);
+  surfacePoint(model, _dmgUp, _dmgP);
+  dentAt(model, c, _dmgP, _dmgD, 4 + impact * (0.6 + misalign * 0.5));
+}
+
+/** Explosions dent every car near them, on the side facing the blast. */
+function blastDents(pos, radius) {
+  const hitCar = (model, c) => {
+    if (!c) return;
+    const d = Math.hypot(c.x - pos.x, c.z - pos.z);
+    if (d > radius) return;
+    wallDent(model, c, 6 + 16 * (1 - d / radius), pos.x - c.x || 0.01, pos.z - c.z);
+  };
+  hitCar(active.model, car);
+  for (const b of roamBots) hitCar(b.model, b.car);
+  for (const b of versus.bots) hitCar(b.model, b.car);
+}
+
+/** Smoke from the engine of a badly damaged car. */
+function damageSmoke(model, c, dt) {
+  const dmg = model.damage;
+  const lvl = dmg.level;
+  if (lvl < 0.3 || settings.crashDamage === 'off') return;
+  dmg.smokeT -= dt;
+  if (dmg.smokeT > 0) return;
+  dmg.smokeT = (lvl > 0.7 ? 0.07 : 0.18) * (settings.effects === 'high' ? 1 : 2);
+  const p = toWorld(c, dmg.enginePoint(), _dmgW);
+  (lvl > 0.7 ? soot : smoke).emit(p, { x: c.velX * 0.6, z: c.velZ * 0.6 }, lvl > 0.7 ? 0.75 : 0.45, p.y);
+}
+
+let crashToastAt = 0;
+/** Free roam: ramming a computer driver scores (by how hard), into the combo. */
+function crashPoints(speed) {
+  if (speed < 5 || !roaming()) return;
+  const pts = Math.round(speed * speed * 1.5);
+  award(pts);
+  const now = performance.now();
+  if (speed > 12 && now > crashToastAt) {
+    crashToastAt = now + 1500;
+    toast(`Crash! +${pts.toLocaleString('en-US')}`);
+  }
 }
 
 let collisionFxCooldown = 0;
@@ -1458,8 +1786,13 @@ function stepWorld() {
   }
   if (mode === 'football') football.step(WORLD_STEP);
   if (mode === 'versus') versus.botReactions();
+  for (const b of roamBots) {
+    const rr = destruction.remoteCars?.get(b.id)?.reaction;
+    if (rr && rr.total > 0) shoveDent(b.model, b.car, b.car.applyImpulse(rr.jx, rr.jz, rr.torque), rr.jx, rr.jz);
+  }
   if (r.total > 0) {
     const dv = car.applyImpulse(r.jx, r.jz, r.torque);
+    shoveDent(active.model, car, dv, r.jx, r.jz);
     quake.kick(dv * 0.12);
     if (dv > 0.6 && crashCooldown <= 0) {
       audio.impact('crash', Math.min(1, dv / 3));
@@ -1474,7 +1807,13 @@ function updateScene(dt, firing = false) {
   active.model.update(car, dt);
   if (bot) bot.model.update(bot.car, dt);
   for (const b of versus.bots) b.model.update(b.car, dt);
+  for (const b of roamBots) b.model.update(b.car, dt);
   versus.update(dt, firing, camera);
+  // Crash damage: smoke from wrecked engines, bits on the ground.
+  damageSmoke(active.model, car, dt);
+  for (const b of roamBots) damageSmoke(b.model, b.car, dt);
+  for (const b of versus.bots) damageSmoke(b.model, b.car, dt);
+  crashBits.update(dt, terrain);
   if (mode === 'football') {
     stadium.update(dt);
     if (football.phase === 'kickoff') {
@@ -1580,6 +1919,7 @@ setMode(menu.mode);
 buildArena();
 resetCar();
 resetBot();
+setupRoamBots();
 applySettings();
 openMainMenu();
 
@@ -1588,5 +1928,6 @@ window.game = {
   get renderer() { return renderer; }, get settings() { return settings; },
   fleet, chase, scene, destruction, switchTo, nearbyVehicle, setSetting, menu, quake, score, tank,
   football, get bot() { return bot; }, get mode() { return mode; }, enterMode, garage, versus,
+  get roamBots() { return roamBots; }, crashBits,
 };
 requestAnimationFrame(frame);
