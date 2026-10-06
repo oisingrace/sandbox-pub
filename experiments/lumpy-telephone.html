@@ -319,10 +319,12 @@
       <button class="toggle" id="btn-undo" type="button" title="Undo (Ctrl+Z)">Undo</button>
     </div>
     <div class="dock-row">
-      <span class="eyebrow">Start over with</span>
+      <span class="eyebrow" id="stock-label">Start over with</span>
       <div class="stock">
         <button class="toggle" data-stock="lump" type="button">Clay lump</button>
         <button class="toggle" data-stock="ice" type="button">Ice block</button>
+        <button class="toggle" data-stock="column" type="button">Marble column</button>
+        <button class="toggle" data-stock="slab" type="button">Clay slab</button>
         <button class="toggle" data-stock="none" type="button">Nothing</button>
       </div>
       <span class="hint grow" id="hint"></span>
@@ -355,6 +357,16 @@
 
   <script type="application/json" id="patch-notes">
   [
+    {
+      "version": "0.2",
+      "date": "2026-10-06",
+      "title": "Luck of the draw",
+      "notes": [
+        "Every sculpting turn now deals you one random tool and one random block to start from, and that's all you get. Good luck sculpting a giraffe with only a spray can.",
+        "Two new blocks to start from: a marble column and a slab of clay. Only the glue gun can be dealt nothing at all.",
+        "Free sculpt still has every tool and block."
+      ]
+    },
     {
       "version": "0.1",
       "date": "2026-10-06",
@@ -396,7 +408,8 @@ const PALETTE = [
 ];
 const PAL_NAMES = ['Terracotta', 'Ochre clay', 'Grey clay', 'Ice', 'Marble', 'Charcoal', 'Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Pink', 'Brown'];
 const PAL_LIN = PALETTE.map((h) => new THREE.Color(h)); // linear values, as vertex colours want
-const STOCKS = { lump: 0, ice: 3, none: 0 };
+const STOCKS = { lump: 0, ice: 3, column: 4, slab: 2, none: 0 };
+const STOCK_NAMES = { lump: 'a lump of clay', ice: 'a block of ice', column: 'a marble column', slab: 'a slab of clay', none: 'nothing at all' };
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const idx = (x, y, z) => x + y * S + z * S2;
@@ -481,6 +494,13 @@ class Sculpture {
       } else if (kind === 'ice') {
         const qx = Math.abs(x - HALF) - 10.5, qy = Math.abs(y - 15) - 13, qz = Math.abs(z - HALF) - 10.5;
         dist = Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0);
+      } else if (kind === 'column') {
+        const q = Math.hypot(x - HALF, z - HALF) - 7.5, qy = Math.abs(y - 18) - 16;
+        dist = Math.hypot(Math.max(q, 0), Math.max(qy, 0)) + Math.min(Math.max(q, qy), 0);
+      } else if (kind === 'slab') {
+        const qx = Math.abs(x - HALF) - 16, qy = Math.abs(y - 7) - 4.5, qz = Math.abs(z - HALF) - 12;
+        dist = Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - 1.2
+          + Math.sin(x * 0.5) * Math.sin(z * 0.45) * 0.5;
       } else continue;
       const v = clamp01(0.5 - dist * 0.6);
       if (v > 0) { const i = idx(x, y, z); this.d[i] = v; this.setColor(i, col); }
@@ -1119,7 +1139,7 @@ addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const n = Number(e.key);
-  if (n >= 1 && n <= TOOLS.length) selectTool(TOOLS[n - 1].id);
+  if (n >= 1 && n <= TOOLS.length && (!sculpt.only || TOOLS[n - 1].id === sculpt.only || TOOLS[n - 1].id === 'turn')) selectTool(TOOLS[n - 1].id);
   else if (e.key === '[') { sculpt.size = Math.max(2, sculpt.size - 1); $('size').value = sculpt.size; }
   else if (e.key === ']') { sculpt.size = Math.min(11, sculpt.size + 1); $('size').value = sculpt.size; }
   else if (e.key.toLowerCase() === 'm') toggle('mirror');
@@ -1322,6 +1342,15 @@ const IDEAS = [
   'a turtle carrying a skyscraper', 'a snake in a sock', 'a rocket made of carrots', 'a chess knight on holiday', 'a lonely sock',
 ];
 const randomIdea = () => IDEAS[(Math.random() * IDEAS.length) | 0];
+const pick = (list) => list[(Math.random() * list.length) | 0];
+
+/** Each sculpting turn gets one random tool and one random block to start from. */
+function dealHand() {
+  const tool = pick(TOOLS.filter((t) => t.id !== 'turn')).id;
+  // Only the glue gun can build from nothing.
+  const stock = pick(Object.keys(STOCKS).filter((k) => k !== 'none' || tool === 'glue'));
+  return { tool, stock };
+}
 
 class Host {
   constructor(players, settings, local) {
@@ -1351,7 +1380,9 @@ class Host {
       const prev = r ? this.chains[c][r - 1] : null;
       this.pending.set(p.id, c);
       if (p.gone) { gone.push(p.id); return; }
-      hostDeliver(p, { r, c, kind, dur, round: r + 1, rounds: this.rounds, prev: prev && { kind: prev.kind, data: prev.data, by: prev.by } });
+      const task = { r, c, kind, dur, round: r + 1, rounds: this.rounds, prev: prev && { kind: prev.kind, data: prev.data, by: prev.by } };
+      if (kind === 'sculpt') Object.assign(task, dealHand());
+      hostDeliver(p, task);
     });
     gone.forEach((id) => this.fill(id));
     this.status();
@@ -1690,10 +1721,19 @@ function runTask(item) {
 
 function startSculpting(task) {
   sculpt.undo = [];
-  sc.stock('lump');
-  selectColor(0);
-  selectTool(sculpt.tool.id === 'turn' ? 'thumb' : sculpt.tool.id);
-  $('tb-label').textContent = task ? `Round ${task.round} of ${task.rounds} · Sculpt this` : 'Free sculpt';
+  // In a game you only get the tool and block you were dealt; free sculpt has everything.
+  const hand = task ? (task.tool ? task : dealHand()) : null;
+  const stock = hand ? hand.stock : 'lump';
+  sculpt.only = hand ? hand.tool : null;
+  sc.stock(stock);
+  selectColor(STOCKS[stock] ?? 0);
+  selectTool(hand ? hand.tool : sculpt.tool.id === 'turn' ? 'thumb' : sculpt.tool.id);
+  document.querySelectorAll('.tool').forEach((b) => { b.hidden = !!hand && b.dataset.tool !== hand.tool && b.dataset.tool !== 'turn'; });
+  document.querySelectorAll('[data-stock]').forEach((b) => { b.hidden = !!hand; });
+  $('stock-label').hidden = !!hand;
+  const toolName = hand && TOOLS.find((t) => t.id === hand.tool).name;
+  $('tb-label').textContent = task ? `Round ${task.round} of ${task.rounds} · ${toolName} on ${STOCK_NAMES[stock]} · Sculpt this` : 'Free sculpt';
+  if (hand) toast(`You get the ${toolName.toLowerCase()} and ${STOCK_NAMES[stock]}`, 3000);
   $('tb-text').textContent = task ? task.prev?.data || randomIdea() : 'Anything you like';
   $('taskbar').hidden = false;
   $('btn-done').textContent = task ? 'Done' : 'Back to menu';
