@@ -1,0 +1,1907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Lumpy Telephone</title>
+  <meta name="description" content="A multiplayer telephone game where you sculpt prompts out of clay, chip them out of ice, melt them with a blowtorch and glue them together, then guess what everyone else made." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bagel+Fat+One&display=swap" />
+  <style>
+    /* Layout: a full-bleed sculptor's studio in 3D, with plaster-white panels
+       floating over it (menus, the prompt bar on top, the tool dock below). */
+    :root {
+      --bench: #1c3230;      /* studio walls and floor */
+      --bench-2: #26423f;
+      --plaster: #efe8da;    /* panels */
+      --plaster-2: #e1d8c5;
+      --ink: #1d2220;
+      --ink-soft: #56605c;
+      --pigment: #f0b429;    /* the one loud colour: buttons, selection */
+      --pigment-ink: #2e2200;
+      --clay: #c4693f;
+      --danger: #c7402c;
+      --line: rgba(29, 34, 32, 0.16);
+      --f-display: "Bagel Fat One", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+      --f-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--bench); color: var(--plaster); font: 16px/1.4 var(--f-body);
+      overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+    }
+    [hidden] { display: none !important; }
+    #stage { position: fixed; inset: 0; }
+    #stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    :focus-visible { outline: 3px solid var(--pigment); outline-offset: 2px; }
+
+    .btn {
+      border: 0; border-radius: 12px; padding: 11px 16px; font-weight: 700;
+      background: var(--plaster-2); color: var(--ink); min-height: 44px;
+    }
+    .btn.primary { background: var(--pigment); color: var(--pigment-ink); }
+    .btn.ghost { background: transparent; color: var(--ink-soft); }
+    .btn:disabled { opacity: 0.45; cursor: default; }
+    .btn:not(:disabled):active { transform: translateY(1px); }
+    input[type="text"], select {
+      width: 100%; min-width: 0; border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px;
+      background: #fffaf0; color: var(--ink); min-height: 44px; user-select: text; -webkit-user-select: text;
+    }
+    input[type="text"]:focus { border-color: var(--ink); outline: none; }
+    label.lbl { display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+
+    /* Floating screens */
+    .screen { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; pointer-events: none; z-index: 5; }
+    .screen.left { place-items: center start; padding-left: max(16px, 7vw); }
+    .card {
+      pointer-events: auto; background: var(--plaster); color: var(--ink); border-radius: 20px; padding: 22px;
+      width: min(430px, 100%); max-height: calc(100% - 8px); overflow-y: auto;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4); display: flex; flex-direction: column; gap: 16px;
+    }
+    .card h1, .card h2 { font-family: var(--f-display); font-weight: 400; margin: 0; line-height: 1; text-wrap: balance; }
+    .card h1 { font-size: clamp(40px, 9vw, 58px); color: var(--clay); letter-spacing: -0.01em; }
+    .card h2 { font-size: 30px; }
+    .card p { margin: 0; color: var(--ink-soft); }
+    .stack { display: flex; flex-direction: column; gap: 10px; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row > input { flex: 1; }
+    .menu-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .menu-actions .wide { grid-column: 1 / -1; }
+    .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
+    .more-link { color: var(--ink-soft); font-size: 14px; text-decoration: none; font-weight: 700; }
+    .more-link:hover { color: var(--ink); }
+    .err { color: var(--danger); font-weight: 700; font-size: 14px; }
+
+    /* Lobby */
+    .code { font-family: var(--f-display); font-size: 46px; letter-spacing: 0.08em; color: var(--ink); line-height: 1; }
+    .players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+    .players li { display: flex; align-items: center; gap: 10px; background: #fffaf0; border-radius: 12px; padding: 8px 10px; min-height: 44px; }
+    .players .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+    .players .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+    .players input { border: 0; background: transparent; padding: 0; min-height: 0; font-weight: 700; }
+    .players .x { border: 0; background: none; color: var(--ink-soft); font-size: 20px; width: 32px; height: 32px; }
+    .tag { font-size: 12px; color: var(--ink-soft); }
+    .settings { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* Prompt bar */
+    #taskbar {
+      position: fixed; z-index: 6; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
+      width: min(760px, calc(100% - 24px)); background: var(--plaster); color: var(--ink); border-radius: 16px;
+      padding: 10px 14px; display: flex; align-items: center; gap: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.35);
+    }
+    #taskbar .tb-main { flex: 1; min-width: 0; }
+    #tb-label { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+    #tb-text { font-family: var(--f-display); font-size: clamp(20px, 4.4vw, 28px); line-height: 1.1; overflow-wrap: anywhere; }
+    #timer { font: 700 22px var(--f-body); font-variant-numeric: tabular-nums; background: var(--ink); color: var(--plaster); border-radius: 10px; padding: 6px 10px; min-width: 70px; text-align: center; }
+    #timer.hurry { background: var(--danger); }
+    #quit { position: fixed; z-index: 6; left: 12px; top: calc(12px + env(safe-area-inset-top, 0px)); }
+    body.has-taskbar #quit { display: none; }
+    #tb-quit { padding: 6px 8px; min-height: 36px; font-size: 14px; }
+
+    /* Tool dock */
+    #dock {
+      position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+      width: min(1040px, calc(100% - 16px)); background: var(--plaster); color: var(--ink); border-radius: 18px;
+      padding: 10px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 -8px 40px rgba(0,0,0,.3);
+    }
+    .tools { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+    .tool {
+      flex: 0 0 auto; width: 76px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+      border: 2px solid transparent; background: var(--plaster-2); color: var(--ink); border-radius: 12px; padding: 6px 2px 5px;
+      font-size: 12px; font-weight: 700; line-height: 1.1;
+    }
+    .tool .ic { font-size: 24px; line-height: 1.1; }
+    .tool[aria-pressed="true"] { background: var(--pigment); border-color: var(--ink); color: var(--pigment-ink); }
+    .dock-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+    .dock-row .grow { flex: 1; }
+    .size { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--ink-soft); }
+    .size input { width: 110px; accent-color: var(--ink); }
+    .swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+    .sw { width: 26px; height: 26px; border-radius: 50%; border: 2px solid rgba(0,0,0,.15); padding: 0; }
+    .sw[aria-pressed="true"] { outline: 3px solid var(--ink); outline-offset: 1px; }
+    .toggle { border: 2px solid var(--line); background: transparent; color: var(--ink); border-radius: 10px; padding: 6px 10px; font-size: 13px; font-weight: 700; min-height: 36px; }
+    .toggle[aria-pressed="true"] { background: var(--ink); color: var(--plaster); border-color: var(--ink); }
+    .stock { display: flex; gap: 4px; }
+    .hint { font-size: 13px; color: var(--ink-soft); min-height: 1.4em; }
+    @media (max-width: 640px) {
+      .tool { width: 64px; font-size: 11px; }
+      .tool .ic { font-size: 21px; }
+      .size input { width: 80px; }
+      .hint, .kbd-only { display: none; }
+      .sw { width: 26px; height: 26px; flex: none; }
+      .swatches { flex: 1 1 100%; min-width: 0; flex-wrap: nowrap; overflow-x: auto; padding: 4px; }
+    }
+
+    /* Guess bar */
+    #guessbar {
+      position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      width: min(620px, calc(100% - 24px)); background: var(--plaster); border-radius: 16px; padding: 10px; box-shadow: 0 -8px 40px rgba(0,0,0,.3);
+    }
+    #guessbar form { display: flex; gap: 8px; }
+    #guessbar input { flex: 1; }
+
+    /* Reveal */
+    #reveal {
+      position: fixed; z-index: 6; right: 12px; top: 12px; bottom: 12px; width: min(400px, calc(100% - 24px));
+      background: var(--plaster); color: var(--ink); border-radius: 20px; display: flex; flex-direction: column;
+      box-shadow: 0 24px 70px rgba(0,0,0,.4); overflow: hidden;
+    }
+    #reveal header { padding: 18px 18px 10px; border-bottom: 1px solid var(--line); }
+    #reveal h2 { font-family: var(--f-display); font-weight: 400; font-size: 28px; margin: 2px 0 0; line-height: 1.05; }
+    #feed { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+    .item { display: flex; flex-direction: column; gap: 4px; animation: pop .35s ease-out; }
+    .item .who { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+    .item .said { background: #fffaf0; border-radius: 14px; padding: 10px 14px; font-family: var(--f-display); font-size: 22px; line-height: 1.15; overflow-wrap: anywhere; }
+    .item.guess .said { background: var(--ink); color: var(--plaster); align-self: flex-end; }
+    .item.guess .who { align-self: flex-end; }
+    .item .pic { border: 3px solid transparent; border-radius: 14px; overflow: hidden; padding: 0; background: var(--bench); display: block; width: 100%; aspect-ratio: 4 / 3; }
+    .item .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .item .pic.on { border-color: var(--pigment); }
+    .item .empty { background: var(--plaster-2); border-radius: 14px; padding: 18px; text-align: center; color: var(--ink-soft); }
+    #reveal footer { padding: 12px 18px calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: center; }
+    #reveal footer .btn { flex: 1; }
+    #rv-wait { flex: 1; color: var(--ink-soft); font-size: 14px; }
+    @keyframes pop { from { transform: translateY(8px); opacity: 0.2; } to { transform: none; opacity: 1; } }
+    @media (max-width: 760px) {
+      #reveal { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; height: 50%; }
+      #reveal header { padding: 12px 14px 8px; }
+      #reveal h2 { font-size: 22px; }
+    }
+
+    #toast {
+      position: fixed; z-index: 20; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--ink); color: var(--plaster);
+      padding: 12px 18px; border-radius: 12px; font-weight: 700; pointer-events: none; max-width: calc(100% - 32px); text-align: center;
+    }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; font-family: var(--f-display); font-size: 28px; color: var(--plaster); z-index: 30; background: var(--bench); }
+    #mute { position: fixed; z-index: 6; right: 12px; top: calc(12px + env(safe-area-inset-top, 0px)); width: 44px; height: 44px; border-radius: 12px; border: 0; background: var(--plaster); color: var(--ink); font-size: 20px; }
+    body.has-taskbar #mute, body.revealing #mute { display: none; }
+    @media (prefers-reduced-motion: reduce) { .item { animation: none; } }
+  </style>
+  <!-- PeerJS: browser-to-browser multiplayer (UMD build, defines window.Peer). -->
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <div id="stage"></div>
+  <div id="loading">Wetting the clay…</div>
+  <button id="mute" type="button" aria-label="Sound on" title="Sound">🔊</button>
+
+  <!-- Main menu -->
+  <section class="screen left" id="scr-menu">
+    <div class="card">
+      <div class="stack" style="gap:8px">
+        <h1>Lumpy Telephone</h1>
+        <p>Write something. The next player sculpts it out of clay, ice and glue. The player after that guesses what it is from the sculpture alone. Then watch every chain fall apart.</p>
+      </div>
+      <div>
+        <label class="lbl" for="name">Your name</label>
+        <input id="name" type="text" maxlength="18" autocomplete="nickname" placeholder="Sculptor" />
+      </div>
+      <div class="menu-actions">
+        <button class="btn primary wide" id="btn-host" type="button">Host an online game</button>
+        <div class="row wide">
+          <input id="join-code" type="text" maxlength="5" placeholder="Room code" autocomplete="off" style="text-transform:uppercase" aria-label="Room code" />
+          <button class="btn" id="btn-join" type="button">Join</button>
+        </div>
+        <button class="btn" id="btn-local" type="button">Pass and play</button>
+        <button class="btn" id="btn-free" type="button">Free sculpt</button>
+      </div>
+      <div class="err" id="menu-err" role="alert"></div>
+      <a class="more-link" href="https://oisingrace.github.io/sandbox-pub/" target="_top">More of my projects<span aria-hidden="true"> →</span></a>
+    </div>
+  </section>
+
+  <!-- Lobby (online and pass and play) -->
+  <section class="screen left" id="scr-lobby" hidden>
+    <div class="card">
+      <div id="lobby-online" class="stack" style="gap:4px">
+        <span class="eyebrow">Room code</span>
+        <div class="row" style="justify-content:space-between">
+          <span class="code" id="lobby-code">-----</span>
+          <button class="btn" id="btn-copy" type="button">Copy link</button>
+        </div>
+        <p id="lobby-note">Friends join from the main menu with this code.</p>
+      </div>
+      <div id="lobby-local" class="stack" style="gap:4px">
+        <h2>Pass and play</h2>
+        <p>Everyone shares this device. Pass it round when it asks you to.</p>
+      </div>
+      <div class="stack">
+        <span class="eyebrow" id="lobby-count">Players</span>
+        <ul class="players" id="lobby-players"></ul>
+        <button class="btn" id="btn-add" type="button">Add a player</button>
+      </div>
+      <div class="settings">
+        <div>
+          <label class="lbl" for="set-sculpt">Sculpting time</label>
+          <select id="set-sculpt">
+            <option value="60">1 minute</option><option value="90">1½ minutes</option><option value="120" selected>2 minutes</option>
+            <option value="180">3 minutes</option><option value="300">5 minutes</option><option value="0">No limit</option>
+          </select>
+        </div>
+        <div>
+          <label class="lbl" for="set-text">Writing time</label>
+          <select id="set-text">
+            <option value="30">30 seconds</option><option value="45" selected>45 seconds</option><option value="60">1 minute</option>
+            <option value="90">1½ minutes</option><option value="0">No limit</option>
+          </select>
+        </div>
+      </div>
+      <div class="err" id="lobby-err" role="alert"></div>
+      <div class="row">
+        <button class="btn ghost" id="btn-leave" type="button">Leave</button>
+        <button class="btn primary" id="btn-start" type="button" style="flex:1">Start game</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Writing a prompt -->
+  <section class="screen" id="scr-write" hidden>
+    <div class="card">
+      <span class="eyebrow" id="write-round">Round 1</span>
+      <h2>Write something to sculpt</h2>
+      <p>Keep it short and lumpy. The next player has to make it with their hands.</p>
+      <form id="write-form" class="stack" autocomplete="off">
+        <div class="row">
+          <input id="write-input" type="text" maxlength="80" placeholder="a snail in a race car" aria-label="Your prompt" />
+          <button class="btn" id="btn-dice" type="button" aria-label="Suggest something" title="Suggest something">🎲</button>
+        </div>
+        <button class="btn primary" type="submit">Send it on</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Pass and play handoff -->
+  <section class="screen" id="scr-handoff" hidden>
+    <div class="card" style="text-align:center">
+      <span class="eyebrow" id="handoff-round">Round 2 of 4</span>
+      <h2 id="handoff-title">Pass it to Bob</h2>
+      <p id="handoff-what">You'll be sculpting.</p>
+      <button class="btn primary" id="btn-ready" type="button">I'm Bob, start</button>
+    </div>
+  </section>
+
+  <!-- Waiting for the others -->
+  <section class="screen" id="scr-wait" hidden>
+    <div class="card" style="text-align:center">
+      <h2 id="wait-title">Sent!</h2>
+      <p id="wait-text">Waiting for everyone else…</p>
+    </div>
+  </section>
+
+  <header id="taskbar" hidden>
+    <div class="tb-main">
+      <div id="tb-label">Sculpt this</div>
+      <div id="tb-text"></div>
+    </div>
+    <div id="timer" hidden>2:00</div>
+    <button class="btn ghost" id="tb-quit" type="button">Leave</button>
+  </header>
+
+  <nav id="dock" hidden aria-label="Sculpting tools">
+    <div class="tools" id="tools"></div>
+    <div class="dock-row">
+      <label class="size" for="size">Size <input id="size" type="range" min="2" max="11" step="1" value="5" /></label>
+      <div class="swatches" id="swatches" role="group" aria-label="Colour for glue and paint"></div>
+      <span class="grow"></span>
+      <button class="toggle" id="tg-mirror" type="button" aria-pressed="false" title="Mirror left and right (M)">Mirror</button>
+      <button class="toggle" id="tg-wheel" type="button" aria-pressed="false" title="Pottery wheel: everything you do goes all the way round (W)">Pottery wheel</button>
+      <button class="toggle" id="btn-undo" type="button" title="Undo (Ctrl+Z)">Undo</button>
+    </div>
+    <div class="dock-row">
+      <span class="eyebrow">Start over with</span>
+      <div class="stock">
+        <button class="toggle" data-stock="lump" type="button">Clay lump</button>
+        <button class="toggle" data-stock="ice" type="button">Ice block</button>
+        <button class="toggle" data-stock="none" type="button">Nothing</button>
+      </div>
+      <span class="hint grow" id="hint"></span>
+      <button class="btn primary" id="btn-done" type="button">Done</button>
+    </div>
+  </nav>
+
+  <div id="guessbar" hidden>
+    <form id="guess-form" autocomplete="off">
+      <input id="guess-input" type="text" maxlength="80" placeholder="It's definitely a…" aria-label="Your guess" />
+      <button class="btn primary" type="submit">Guess</button>
+    </form>
+  </div>
+
+  <aside id="reveal" hidden aria-live="polite">
+    <header>
+      <span class="eyebrow" id="rv-eyebrow">Chain 1 of 3</span>
+      <h2 id="rv-title">Alice's chain</h2>
+    </header>
+    <div id="feed"></div>
+    <footer>
+      <span id="rv-wait" hidden>The host is turning the pages.</span>
+      <button class="btn ghost" id="btn-rv-menu" type="button" hidden>Menu</button>
+      <button class="btn primary" id="btn-rv-next" type="button">Next</button>
+    </footer>
+  </aside>
+
+  <button class="btn" id="quit" type="button" hidden>Leave</button>
+  <div id="toast" hidden></div>
+
+  <script type="application/json" id="patch-notes">
+  [
+    {
+      "version": "0.1",
+      "date": "2026-10-06",
+      "title": "First lump",
+      "notes": [
+        "A telephone game in 3D: write a prompt, the next player sculpts it, the player after that guesses what the sculpture is, and so on round the group. At the end everyone flicks through each chain together.",
+        "Eight tools: Thumb and Pinch for pushing and pulling clay, a Wet sponge to smooth, an Ice pick that chips off sharp shards, a Mallet that flattens, a Blowtorch that melts things so they droop, a Glue gun for adding blobs and a Spray can for colour.",
+        "Start from a lump of clay, a block of ice or nothing at all. Mirror and Pottery wheel make everything you do symmetrical.",
+        "Play online with a room code, pass one device round, or just sculpt on your own."
+      ]
+    }
+  ]
+  </script>
+
+  <script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const $ = (id) => document.getElementById(id);
+
+// ===== sculpture.js =====
+// A sculpture is a 48³ grid of "how much stuff is here" (0 empty, 1 solid)
+// plus a colour per cell. Marching cubes turns it into a mesh wherever the
+// amount crosses 0.5. Every tool is just a different way of rewriting the
+// numbers near where you clicked.
+
+const S = 48, S2 = S * S, S3 = S2 * S, HALF = S / 2;
+const SCALE = 1.2;                 // half the grid's width in world units
+const BASE = 1.5;                  // grid height of the plinth top
+const Y_OFF = -((BASE - HALF) / HALF) * SCALE; // lifts the grid so BASE sits at y = 0
+const LO = 2, HI = S - 3;          // cells the tools may touch (the border stays empty so the mesh closes)
+const ISO = 0.5;
+
+const PALETTE = [
+  '#c4693f', '#d9a35a', '#8e8781', '#a6d6ee', '#f1ede4', '#2f2b2a', '#d63c32',
+  '#ef8a2a', '#f2cf3a', '#4c9f55', '#3a6bd0', '#8b55c9', '#e889b0', '#6b4428',
+];
+const PAL_NAMES = ['Terracotta', 'Ochre clay', 'Grey clay', 'Ice', 'Marble', 'Charcoal', 'Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Pink', 'Brown'];
+const PAL_LIN = PALETTE.map((h) => new THREE.Color(h)); // linear values, as vertex colours want
+const STOCKS = { lump: 0, ice: 3, none: 0 };
+
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+const idx = (x, y, z) => x + y * S + z * S2;
+
+function tri(a, x, y, z) {
+  x = x < 0 ? 0 : x > S - 1.001 ? S - 1.001 : x;
+  y = y < 0 ? 0 : y > S - 1.001 ? S - 1.001 : y;
+  z = z < 0 ? 0 : z > S - 1.001 ? S - 1.001 : z;
+  const x0 = x | 0, y0 = y | 0, z0 = z | 0, fx = x - x0, fy = y - y0, fz = z - z0;
+  const i = x0 + y0 * S + z0 * S2;
+  const c00 = a[i] + (a[i + 1] - a[i]) * fx;
+  const c10 = a[i + S] + (a[i + S + 1] - a[i + S]) * fx;
+  const c01 = a[i + S2] + (a[i + S2 + 1] - a[i + S2]) * fx;
+  const c11 = a[i + S2 + S] + (a[i + S2 + S + 1] - a[i + S2 + S]) * fx;
+  const c0 = c00 + (c10 - c00) * fy, c1 = c01 + (c11 - c01) * fy;
+  return c0 + (c1 - c0) * fz;
+}
+
+function nearest(a, x, y, z) {
+  x = Math.round(x); y = Math.round(y); z = Math.round(z);
+  if (x < 0 || y < 0 || z < 0 || x >= S || y >= S || z >= S) return -1;
+  return x + y * S + z * S2;
+}
+
+const toGrid = (w) => new THREE.Vector3(w.x / SCALE * HALF + HALF, (w.y - Y_OFF) / SCALE * HALF + HALF, w.z / SCALE * HALF + HALF);
+const toWorld = (g) => new THREE.Vector3((g.x - HALF) / HALF * SCALE, (g.y - HALF) / HALF * SCALE + Y_OFF, (g.z - HALF) / HALF * SCALE);
+
+class Sculpture {
+  constructor(material) {
+    const mc = this.mesh = new MarchingCubes(S, material, false, true, 100000);
+    mc.isolation = ISO;
+    mc.scale.setScalar(SCALE);
+    mc.position.y = Y_OFF;
+    mc.castShadow = mc.receiveShadow = true;
+    mc.frustumCulled = false;
+    this.d = mc.field;
+    this.pal = mc.palette;
+    this.c = new Uint8Array(S3);
+    this.tmp = new Float32Array(S3);
+    this.tmpC = new Uint8Array(S3);
+    this.dirty = true;
+  }
+
+  remesh() {
+    const mc = this.mesh;
+    mc.normal_cache.fill(0);
+    mc.update();
+    // Only upload the part of the buffers that holds triangles.
+    for (const name of ['position', 'normal', 'color']) {
+      const attr = mc.geometry.getAttribute(name);
+      if (attr.clearUpdateRanges) { attr.clearUpdateRanges(); attr.addUpdateRange(0, Math.max(3, mc.count * 3)); }
+    }
+    this.dirty = false;
+  }
+
+  setColor(i, ci) {
+    this.c[i] = ci;
+    const col = PAL_LIN[ci], k = i * 3;
+    this.pal[k] = col.r; this.pal[k + 1] = col.g; this.pal[k + 2] = col.b;
+  }
+
+  refreshPalette() {
+    for (let i = 0; i < S3; i++) {
+      const col = PAL_LIN[this.c[i]] || PAL_LIN[0], k = i * 3;
+      this.pal[k] = col.r; this.pal[k + 1] = col.g; this.pal[k + 2] = col.b;
+    }
+  }
+
+  clear() {
+    this.d.fill(0); this.c.fill(0); this.refreshPalette(); this.dirty = true;
+  }
+
+  stock(kind) {
+    this.clear();
+    const col = STOCKS[kind] ?? 0;
+    for (let z = LO; z <= HI; z++) for (let y = LO; y <= HI; y++) for (let x = LO; x <= HI; x++) {
+      let dist;
+      if (kind === 'lump') {
+        const r = 12.5, ry = 13.5;
+        const e = Math.hypot((x - HALF) / r, (y - 14) / ry, (z - HALF) / r);
+        dist = (e - 1) * r + Math.sin(x * 0.7 + y * 0.3) * Math.sin(z * 0.6 - y * 0.4) * 0.7;
+      } else if (kind === 'ice') {
+        const qx = Math.abs(x - HALF) - 10.5, qy = Math.abs(y - 15) - 13, qz = Math.abs(z - HALF) - 10.5;
+        dist = Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0);
+      } else continue;
+      const v = clamp01(0.5 - dist * 0.6);
+      if (v > 0) { const i = idx(x, y, z); this.d[i] = v; this.setColor(i, col); }
+    }
+    this.dirty = true;
+  }
+
+  snapshot() { return { d: this.d.slice(), c: this.c.slice() }; }
+  restore(s) { this.d.set(s.d); this.c.set(s.c); this.refreshPalette(); this.dirty = true; }
+
+  isEmpty() { for (let i = 0; i < S3; i++) if (this.d[i] > ISO) return false; return true; }
+
+  /** Outward surface normal at grid point p. */
+  normal(p, fallback) {
+    const h = 1;
+    const g = new THREE.Vector3(
+      tri(this.d, p.x + h, p.y, p.z) - tri(this.d, p.x - h, p.y, p.z),
+      tri(this.d, p.x, p.y + h, p.z) - tri(this.d, p.x, p.y - h, p.z),
+      tri(this.d, p.x, p.y, p.z + h) - tri(this.d, p.x, p.y, p.z - h));
+    if (g.lengthSq() < 1e-6) return fallback.clone().negate();
+    return g.negate().normalize();
+  }
+
+  /**
+   * Where a world-space ray first meets the surface, in grid space.
+   * Misses land on the plinth, or failing that the point on the ray
+   * nearest the middle (so the glue gun can build in mid-air).
+   */
+  raycast(originW, dirW) {
+    const o = toGrid(originW), dv = dirW.clone().normalize();
+    let t0 = 0, t1 = Infinity;
+    for (const k of ['x', 'y', 'z']) {
+      if (Math.abs(dv[k]) < 1e-9) { if (o[k] < 1 || o[k] > S - 2) { t1 = -1; break; } continue; }
+      const ta = (1 - o[k]) / dv[k], tb = (S - 2 - o[k]) / dv[k];
+      t0 = Math.max(t0, Math.min(ta, tb)); t1 = Math.min(t1, Math.max(ta, tb));
+    }
+    if (t0 <= t1) {
+      let prev = t0;
+      for (let t = t0; t <= t1; t += 0.35) {
+        if (tri(this.d, o.x + dv.x * t, o.y + dv.y * t, o.z + dv.z * t) >= ISO) {
+          let a = prev, b = t;
+          for (let k = 0; k < 8; k++) {
+            const m = (a + b) / 2;
+            if (tri(this.d, o.x + dv.x * m, o.y + dv.y * m, o.z + dv.z * m) >= ISO) b = m; else a = m;
+          }
+          const p = o.clone().addScaledVector(dv, b);
+          return { p, n: this.normal(p, dv), v: dv, surface: true };
+        }
+        prev = t;
+      }
+    }
+    if (dv.y < -0.05) {
+      const t = (BASE - o.y) / dv.y, p = o.clone().addScaledVector(dv, t);
+      if (Math.hypot(p.x - HALF, p.z - HALF) < HALF - 4) {
+        p.y = BASE + 1;
+        return { p, n: new THREE.Vector3(0, 1, 0), v: dv, surface: false };
+      }
+    }
+    const c = new THREE.Vector3(HALF, HALF * 0.8, HALF);
+    const p = o.clone().addScaledVector(dv, c.clone().sub(o).dot(dv));
+    p.x = Math.min(HI - 2, Math.max(LO + 2, p.x)); p.y = Math.min(HI - 2, Math.max(LO + 1, p.y)); p.z = Math.min(HI - 2, Math.max(LO + 2, p.z));
+    return { p, n: dv.clone().negate(), v: dv, surface: false };
+  }
+
+  /** Calls fn(i, x, y, z) for each tool-editable cell in the box round p. */
+  each(p, r, fn) {
+    const x0 = Math.max(LO, Math.floor(p.x - r)), x1 = Math.min(HI, Math.ceil(p.x + r));
+    const y0 = Math.max(LO, Math.floor(p.y - r)), y1 = Math.min(HI, Math.ceil(p.y + r));
+    const z0 = Math.max(LO, Math.floor(p.z - r)), z1 = Math.min(HI, Math.ceil(p.z + r));
+    for (let z = z0; z <= z1; z++) for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) fn(x + y * S + z * S2, x, y, z);
+  }
+
+  /** Thumb (amt > 0) and Pinch (amt < 0): drag the surface along the normal. */
+  displace(p, n, r, amt) {
+    const { d, tmp, tmpC } = this;
+    tmp.set(d); tmpC.set(this.c);
+    const r2 = r * r;
+    this.each(p, r + 1, (i, x, y, z) => {
+      const dd = (x - p.x) ** 2 + (y - p.y) ** 2 + (z - p.z) ** 2;
+      if (dd >= r2) return;
+      const f = (1 - dd / r2) ** 2, a = amt * f;
+      const sx = x + n.x * a, sy = y + n.y * a, sz = z + n.z * a;
+      const v = tri(tmp, sx, sy, sz);
+      if (amt < 0 && v > 0.2 && d[i] < 0.5) {
+        const j = nearest(tmp, sx, sy, sz);
+        if (j >= 0 && tmp[j] > 0.05) this.setColor(i, tmpC[j]);
+      }
+      d[i] = v;
+    });
+  }
+
+  /** Wet sponge: blur toward the neighbours. */
+  smooth(p, r, k = 0.7) {
+    const { d, tmp } = this;
+    tmp.set(d);
+    const r2 = r * r;
+    this.each(p, r, (i, x, y, z) => {
+      const dd = (x - p.x) ** 2 + (y - p.y) ** 2 + (z - p.z) ** 2;
+      if (dd >= r2) return;
+      const f = (1 - dd / r2) ** 2;
+      const avg = (tmp[i] * 2 + tmp[i + 1] + tmp[i - 1] + tmp[i + S] + tmp[i - S] + tmp[i + S2] + tmp[i - S2]) / 8;
+      d[i] = tmp[i] + (avg - tmp[i]) * f * k;
+    });
+  }
+
+  /** Blowtorch: soften and let it sag downwards. */
+  melt(p, r) {
+    const { d, tmp } = this;
+    tmp.set(d);
+    const r2 = r * r;
+    this.each(p, r, (i, x, y, z) => {
+      const dd = (x - p.x) ** 2 + (y - p.y) ** 2 + (z - p.z) ** 2;
+      if (dd >= r2) return;
+      const f = (1 - dd / r2) ** 2;
+      const above = tri(tmp, x, y + 0.9, z);
+      const b = (above * 2 + tmp[i + 1] + tmp[i - 1] + tmp[i + S2] + tmp[i - S2]) / 6 * 0.995;
+      d[i] = tmp[i] + (b - tmp[i]) * f * 0.55;
+    });
+  }
+
+  /** Glue gun: a new blob of colour col. */
+  blob(p, n, r, col) {
+    const q = p.clone().addScaledVector(n, r * 0.3), rad = r * 0.5;
+    const d = this.d;
+    this.each(q, rad + 2, (i, x, y, z) => {
+      const dist = Math.hypot(x - q.x, y - q.y, z - q.z) - rad;
+      const v = clamp01(0.5 - dist * 0.8);
+      if (v > d[i]) {
+        if (v > 0.3 || d[i] < 0.05) this.setColor(i, col);
+        d[i] = v;
+      }
+    });
+  }
+
+  /** Spray can: speckle colour onto the surface. */
+  paint(p, r, col, rng) {
+    const r2 = r * r, d = this.d;
+    this.each(p, r, (i, x, y, z) => {
+      const dd = (x - p.x) ** 2 + (y - p.y) ** 2 + (z - p.z) ** 2;
+      if (dd >= r2 || d[i] < 0.05) return;
+      if (rng() < (1 - dd / r2) * 0.6) this.setColor(i, col);
+    });
+  }
+
+  /**
+   * Ice pick: knock out a random sharp-faced shard (a small convex block cut
+   * by a handful of random planes), deeper along the direction of the blow.
+   * Returns how much came off.
+   */
+  chip(p, v, r, rng) {
+    const u1 = v.clone().normalize();
+    const u2 = new THREE.Vector3().crossVectors(u1, Math.abs(u1.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)).normalize();
+    u2.applyAxisAngle(u1, rng() * Math.PI * 2);
+    const u3 = new THREE.Vector3().crossVectors(u1, u2);
+    const jitter = (w) => w.clone().add(new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).multiplyScalar(0.7)).normalize();
+    const planes = [
+      [jitter(u1), r * (0.55 + 0.5 * rng())],
+      [jitter(u1.clone().negate()), r * 0.9],
+      [jitter(u2), r * (0.3 + 0.4 * rng())],
+      [jitter(u2.clone().negate()), r * (0.3 + 0.4 * rng())],
+      [jitter(u3), r * (0.3 + 0.4 * rng())],
+      [jitter(u3.clone().negate()), r * (0.3 + 0.4 * rng())],
+    ];
+    for (let k = 0; k < 2; k++) planes.push([new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize(), r * (0.3 + 0.35 * rng())]);
+    const cc = p.clone().addScaledVector(u1, r * 0.15);
+    const d = this.d;
+    let removed = 0;
+    this.each(cc, r * 1.4, (i, x, y, z) => {
+      if (d[i] <= 0) return;
+      const rx = x - cc.x, ry = y - cc.y, rz = z - cc.z;
+      let m = -Infinity;
+      for (const [nk, ok] of planes) { const s = rx * nk.x + ry * nk.y + rz * nk.z - ok; if (s > m) m = s; }
+      const nv = clamp01(0.5 + m * 1.1);
+      if (nv < d[i]) { removed += d[i] - nv; d[i] = nv; }
+    });
+    return removed;
+  }
+
+  /** Mallet: a flat dent facing the blow, squeezing a lip up round the edge. */
+  whack(p, n, v, r) {
+    const nn = n.clone().multiplyScalar(0.5).addScaledVector(v, -0.5).normalize();
+    const depth = r * 0.35, R = r * 1.1;
+    const { d, tmp, tmpC } = this;
+    tmp.set(d); tmpC.set(this.c);
+    this.each(p, R * 1.7, (i, x, y, z) => {
+      const rx = x - p.x, ry = y - p.y, rz = z - p.z;
+      const h = rx * nn.x + ry * nn.y + rz * nn.z;
+      const lat = Math.hypot(rx - nn.x * h, ry - nn.y * h, rz - nn.z * h);
+      if (lat <= R * 0.75 || lat >= R * 1.7 || Math.abs(h) >= r) return;
+      const rf = Math.sin(Math.PI * (lat - R * 0.75) / (R * 0.95)) * (1 - Math.abs(h) / r);
+      const k = depth * 0.8 * rf;
+      const sx = x - nn.x * k, sy = y - nn.y * k, sz = z - nn.z * k;
+      const nv = tri(tmp, sx, sy, sz);
+      if (nv > d[i] + 0.01 && d[i] < 0.5) {
+        const j = nearest(tmp, sx, sy, sz);
+        if (j >= 0 && tmp[j] > 0.05) this.setColor(i, tmpC[j]);
+      }
+      d[i] = Math.max(d[i], nv);
+    });
+    const q = p.clone().addScaledVector(nn, -depth);
+    this.each(p, R * 1.3, (i, x, y, z) => {
+      const rx = x - p.x, ry = y - p.y, rz = z - p.z;
+      const h = rx * nn.x + ry * nn.y + rz * nn.z;
+      const lat = Math.hypot(rx - nn.x * h, ry - nn.y * h, rz - nn.z * h);
+      if (lat >= R) return;
+      const w = 1 - smoothstep(R * 0.7, R, lat);
+      const s = (x - q.x) * nn.x + (y - q.y) * nn.y + (z - q.z) * nn.z;
+      const nv = clamp01(0.5 - s);
+      if (nv < d[i]) d[i] += (nv - d[i]) * w;
+    });
+  }
+
+  loadBytes(b) {
+    for (let i = 0; i < S3; i++) { this.d[i] = b[i] / 63; this.c[i] = b[S3 + i] < PALETTE.length ? b[S3 + i] : 0; }
+    this.refreshPalette();
+    this.dirty = true;
+  }
+}
+
+function smoothstep(a, b, x) { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); }
+
+// Sculptures travel as base64 of the zlib-squashed grid: 6 bits of amount per
+// cell, then a colour per cell. A finished sculpture is usually 5-30 KB.
+function toB64(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function fromB64(str) {
+  const s = atob(str), out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
+}
+async function encodeSculpture(sc) {
+  const b = new Uint8Array(S3 * 2);
+  for (let i = 0; i < S3; i++) {
+    const q = Math.round(clamp01(sc.d[i]) * 63);
+    b[i] = q; b[S3 + i] = q ? sc.c[i] : 0;
+  }
+  if (window.CompressionStream) {
+    try {
+      const stream = new Blob([b]).stream().pipeThrough(new CompressionStream('deflate'));
+      return 'z' + toB64(new Uint8Array(await new Response(stream).arrayBuffer()));
+    } catch { /* fall through to raw */ }
+  }
+  return 'r' + toB64(b);
+}
+const decodeCache = new Map();
+async function decodeSculpture(str) {
+  if (typeof str !== 'string' || str.length < 2) return null;
+  if (decodeCache.has(str)) return decodeCache.get(str);
+  try {
+    let b = fromB64(str.slice(1));
+    if (str[0] === 'z') {
+      const stream = new Blob([b]).stream().pipeThrough(new DecompressionStream('deflate'));
+      b = new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+    if (b.length !== S3 * 2) return null;
+    decodeCache.set(str, b);
+    return b;
+  } catch { return null; }
+}
+
+// ===== studio.js =====
+const stage = $('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+stage.appendChild(renderer.domElement);
+
+function makeStudio(scn, rend) {
+  scn.background = new THREE.Color('#1c3230');
+  scn.fog = new THREE.Fog('#1c3230', 10, 26);
+  const pmrem = new THREE.PMREMGenerator(rend);
+  scn.environment = pmrem.fromScene(new RoomEnvironment(rend), 0.04).texture;
+  scn.add(new THREE.HemisphereLight('#fff4e2', '#20302e', 0.55));
+  const key = new THREE.DirectionalLight('#fff1dc', 2.0);
+  key.position.set(3.5, 6.5, 4.5);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  Object.assign(key.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3, near: 1, far: 20 });
+  key.shadow.bias = -0.0015;
+  key.shadow.normalBias = 0.02;
+  scn.add(key);
+  const rim = new THREE.DirectionalLight('#a8d8ff', 0.9);
+  rim.position.set(-4, 3, -4);
+  scn.add(rim);
+  const stoneMat = new THREE.MeshStandardMaterial({ color: '#d9cfbd', roughness: 0.92 });
+  const wheel = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.6, 0.16, 72), new THREE.MeshStandardMaterial({ color: '#8a6a4c', roughness: 0.7 }));
+  wheel.position.y = -0.08;
+  wheel.receiveShadow = true;
+  scn.add(wheel);
+  const groove = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.012, 6, 96), new THREE.MeshStandardMaterial({ color: '#5e4632', roughness: 0.8 }));
+  groove.rotation.x = Math.PI / 2;
+  groove.position.y = 0.002;
+  scn.add(groove);
+  const column = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.25, 1.7, 48), stoneMat);
+  column.position.y = -1.0;
+  column.receiveShadow = true;
+  scn.add(column);
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(40, 48), new THREE.MeshStandardMaterial({ color: '#25403d', roughness: 1 }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -1.85;
+  floor.receiveShadow = true;
+  scn.add(floor);
+  return { wheel, groove };
+}
+
+const scene = new THREE.Scene();
+const studio = makeStudio(scene, renderer);
+const world = new THREE.Group();
+scene.add(world);
+const sculptMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0, envMapIntensity: 0.6 });
+const sc = new Sculpture(sculptMat);
+world.add(sc.mesh);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 100);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 2.6;
+controls.maxDistance = 11;
+controls.maxPolarAngle = Math.PI * 0.62;
+controls.target.set(0, 1.05, 0);
+
+function resetCamera() {
+  const aspect = innerWidth / innerHeight;
+  const dist = aspect < 0.8 ? 7.4 : 5.6;
+  camera.position.set(dist * 0.55, 1.05 + dist * 0.38, dist * 0.75);
+  controls.target.set(0, 1.05, 0);
+  controls.update();
+}
+resetCamera();
+
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+/** Keep the sculpture centred in the part of the screen the panels leave free. */
+let lastOffset = '';
+function updateViewOffset() {
+  let top = 0, bottom = 0, right = 0;
+  const vis = (el) => !el.hidden && el.getClientRects().length > 0;
+  if (vis($('taskbar'))) top = $('taskbar').offsetHeight + 12;
+  if (vis($('dock'))) bottom = $('dock').offsetHeight + 10;
+  if (vis($('guessbar'))) bottom = $('guessbar').offsetHeight + 12;
+  let left = 0;
+  const side = document.querySelector('.screen.left:not([hidden]) .card');
+  if (side && innerWidth > 760) left = side.getBoundingClientRect().right;
+  else if (side) bottom = Math.max(bottom, innerHeight * 0.45);
+  if (vis($('reveal'))) {
+    const r = $('reveal').getBoundingClientRect();
+    if (r.width < innerWidth * 0.7) right = r.width + 12; else bottom = r.height + 8;
+  }
+  const key = `${innerWidth}x${innerHeight}:${top}:${bottom}:${right}:${left}`;
+  if (key === lastOffset) return;
+  lastOffset = key;
+  camera.setViewOffset(innerWidth, innerHeight, (right - left) / 2, (bottom - top) / 2, innerWidth, innerHeight);
+}
+
+// ===== particles.js =====
+const PMAX = 260;
+const chipGeo = new THREE.TetrahedronGeometry(0.045);
+const chipMat = new THREE.MeshStandardMaterial({ roughness: 0.45 });
+const chips = new THREE.InstancedMesh(chipGeo, chipMat, PMAX);
+chips.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+chips.frustumCulled = false;
+chips.count = 0;
+chips.castShadow = true;
+for (let i = 0; i < PMAX; i++) chips.setColorAt(i, new THREE.Color('#ffffff'));
+world.add(chips);
+const parts = [];
+const dummy = new THREE.Object3D();
+
+function spawn(pos, dir, color, n, o = {}) {
+  const col = new THREE.Color(color);
+  for (let k = 0; k < n && parts.length < PMAX; k++) {
+    const v = dir.clone().multiplyScalar(o.speed ?? 1.5).add(new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.3, Math.random() - 0.5).multiplyScalar(o.spread ?? 1.6));
+    parts.push({
+      p: pos.clone(), v, life: (o.life ?? 1) * (0.6 + Math.random() * 0.6), g: o.gravity ?? 9,
+      s: (o.size ?? 1) * (0.5 + Math.random() * 0.8), rot: new THREE.Euler(Math.random() * 6, Math.random() * 6, 0), spin: (Math.random() - 0.5) * 20, col,
+    });
+  }
+}
+
+function updateParts(dt) {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const q = parts[i];
+    q.life -= dt;
+    if (q.life <= 0) { parts.splice(i, 1); continue; }
+    q.v.y -= q.g * dt;
+    q.p.addScaledVector(q.v, dt);
+    if (q.p.y < 0.03 && Math.hypot(q.p.x, q.p.z) < 1.55 && q.v.y < 0) { q.p.y = 0.03; q.v.y *= -0.3; q.v.x *= 0.6; q.v.z *= 0.6; q.spin *= 0.5; }
+    q.rot.x += q.spin * dt; q.rot.y += q.spin * 0.7 * dt;
+  }
+  for (let i = 0; i < parts.length; i++) {
+    const q = parts[i];
+    dummy.position.copy(q.p);
+    dummy.rotation.copy(q.rot);
+    dummy.scale.setScalar(q.s * Math.min(1, q.life * 4));
+    dummy.updateMatrix();
+    chips.setMatrixAt(i, dummy.matrix);
+    chips.setColorAt(i, q.col);
+  }
+  chips.count = parts.length;
+  chips.instanceMatrix.needsUpdate = true;
+  if (chips.instanceColor) chips.instanceColor.needsUpdate = true;
+}
+
+// ===== sound.js =====
+let actx = null, noiseBuf = null, muted = false;
+try { muted = localStorage.getItem('lumpy-muted') === '1'; } catch { /* storage blocked */ }
+function audio() {
+  if (muted) return null;
+  try {
+    if (!actx) {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      noiseBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+      const ch = noiseBuf.getChannelData(0);
+      for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+    }
+    if (actx.state === 'suspended') actx.resume();
+  } catch { return null; }
+  return actx;
+}
+function tone(f1, f2, dur, type = 'sine', gain = 0.2) {
+  const a = audio(); if (!a) return;
+  const t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + dur);
+  g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+function hiss(dur, kind, f1, f2, gain, q = 1) {
+  const a = audio(); if (!a) return;
+  const t = a.currentTime, src = a.createBufferSource(), flt = a.createBiquadFilter(), g = a.createGain();
+  src.buffer = noiseBuf; src.playbackRate.value = 0.8 + Math.random() * 0.4;
+  flt.type = kind; flt.Q.value = q; flt.frequency.setValueAtTime(f1, t); flt.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(flt).connect(g).connect(a.destination); src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.02);
+}
+const SFX = {
+  thumb: () => hiss(0.14, 'lowpass', 600, 180, 0.22),
+  pinch: () => { hiss(0.1, 'lowpass', 500, 900, 0.18); tone(160, 230, 0.08, 'sine', 0.05); },
+  sponge: () => hiss(0.12, 'bandpass', 900, 500, 0.12, 0.7),
+  pick: () => { tone(2300 + Math.random() * 900, 1700, 0.09, 'triangle', 0.12); hiss(0.05, 'highpass', 3500, 3000, 0.16); },
+  miss: () => tone(900, 700, 0.05, 'square', 0.03),
+  hammer: () => { tone(150, 42, 0.28, 'sine', 0.55); hiss(0.16, 'lowpass', 1000, 120, 0.35); },
+  torch: () => hiss(0.09, 'bandpass', 1300, 1100, 0.07, 0.5),
+  glue: () => tone(200, 420, 0.09, 'sine', 0.08),
+  spray: () => hiss(0.07, 'highpass', 5000, 4000, 0.06),
+  click: () => tone(600, 500, 0.04, 'triangle', 0.05),
+  ding: () => { tone(880, 880, 0.18, 'sine', 0.1); setTimeout(() => tone(1320, 1320, 0.25, 'sine', 0.08), 90); },
+};
+function syncMute() { $('mute').textContent = muted ? '🔇' : '🔊'; $('mute').setAttribute('aria-label', muted ? 'Sound off' : 'Sound on'); }
+syncMute();
+$('mute').onclick = () => {
+  muted = !muted;
+  try { localStorage.setItem('lumpy-muted', muted ? '1' : '0'); } catch { /* storage blocked */ }
+  syncMute();
+};
+
+// ===== tools.js =====
+const TOOLS = [
+  { id: 'thumb', name: 'Thumb', ic: '👍', every: 45, hint: 'Press dents into it. Hold still to push deeper.' },
+  { id: 'pinch', name: 'Pinch', ic: '🤏', every: 45, hint: 'Pull the surface out towards you. Drag to draw out noses and arms.' },
+  { id: 'sponge', name: 'Sponge', ic: '🧽', every: 40, hint: 'Wipe bumps smooth.' },
+  { id: 'pick', name: 'Ice pick', ic: '⛏️', every: 110, hint: 'Chip off sharp shards. Works on clay too.' },
+  { id: 'hammer', name: 'Mallet', ic: '🔨', every: 380, hint: 'Whack a flat face into it. The edges bulge.' },
+  { id: 'torch', name: 'Blowtorch', ic: '🔥', every: 45, hint: 'Melt it. Anything you heat droops downwards.' },
+  { id: 'glue', name: 'Glue gun', ic: '🧴', every: 40, hint: 'Squeeze out new blobs, even into thin air. Drag for sausages.' },
+  { id: 'spray', name: 'Spray can', ic: '🎨', every: 40, hint: 'Paint the surface with the chosen colour.' },
+  { id: 'turn', name: 'Turn', ic: '✋', every: 1e9, hint: 'Drag to look around. You can also right-drag or use two fingers.' },
+];
+const sculpt = { tool: TOOLS[0], size: 5, color: 0, mirror: false, wheel: false, undo: [], enabled: false };
+
+function rng() { return Math.random(); }
+
+function copies(hit) {
+  const list = [{ p: hit.p, n: hit.n, v: hit.v }];
+  if (sculpt.mirror) {
+    for (const c of [...list]) list.push({ p: new THREE.Vector3(2 * HALF - c.p.x, c.p.y, c.p.z), n: new THREE.Vector3(-c.n.x, c.n.y, c.n.z), v: new THREE.Vector3(-c.v.x, c.v.y, c.v.z) });
+  }
+  if (sculpt.wheel) {
+    const base = [...list], K = 12;
+    for (let k = 1; k < K; k++) {
+      const a = (k / K) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+      const rot = (w, around) => {
+        const x = around ? w.x - HALF : w.x, z = around ? w.z - HALF : w.z;
+        return new THREE.Vector3(x * ca - z * sa + (around ? HALF : 0), w.y, x * sa + z * ca + (around ? HALF : 0));
+      };
+      for (const c of base) list.push({ p: rot(c.p, true), n: rot(c.n, false), v: rot(c.v, false) });
+    }
+  }
+  return list;
+}
+
+let shake = 0, dabCount = 0;
+function applyTool(id, hit) {
+  const r = sculpt.size;
+  let removed = 0;
+  for (const c of copies(hit)) {
+    switch (id) {
+      case 'thumb': sc.displace(c.p, c.n, r, r * 0.28); break;
+      case 'pinch': sc.displace(c.p, c.n, r, -r * 0.22); break;
+      case 'sponge': sc.smooth(c.p, r * 1.2); break;
+      case 'pick': removed += sc.chip(c.p, c.v, Math.max(1.6, r * 0.75), rng); break;
+      case 'hammer': sc.whack(c.p, c.n, c.v, r); break;
+      case 'torch': sc.melt(c.p, r * 1.1); break;
+      case 'glue': sc.blob(c.p, c.n, r, sculpt.color); break;
+      case 'spray': sc.paint(c.p, r * 1.2, sculpt.color, rng); break;
+    }
+  }
+  sc.dirty = true;
+  const w = toWorld(hit.p), nW = hit.n.clone();
+  const hitCol = (() => { const j = nearest(sc.d, hit.p.x - hit.n.x, hit.p.y - hit.n.y, hit.p.z - hit.n.z); return PALETTE[j >= 0 ? sc.c[j] : 0]; })();
+  dabCount++;
+  switch (id) {
+    case 'pick':
+      if (removed > 0.05) { SFX.pick(); spawn(w, nW, hitCol, Math.min(14, 3 + Math.round(removed * 0.8)), { speed: 1.8, life: 1.2, size: 1 }); }
+      else SFX.miss();
+      break;
+    case 'hammer': SFX.hammer(); shake = 0.05; spawn(w, nW, '#cfc6b6', 10, { speed: 0.6, spread: 2.2, life: 0.6, size: 0.5, gravity: 3 }); break;
+    case 'torch': if (dabCount % 2 === 0) SFX.torch(); spawn(w, nW, Math.random() < 0.5 ? '#ffb02e' : '#ff5a1f', 3, { speed: 0.8, spread: 0.6, life: 0.45, size: 0.5, gravity: -3 }); break;
+    case 'spray': if (dabCount % 2 === 0) SFX.spray(); spawn(w, nW, PALETTE[sculpt.color], 2, { speed: 0.5, spread: 0.5, life: 0.3, size: 0.35, gravity: 0 }); break;
+    case 'glue': if (dabCount % 3 === 0) SFX.glue(); break;
+    default: if (dabCount % 3 === 0) SFX[id]?.();
+  }
+}
+
+// Pointer handling: one finger or the left button sculpts; right-drag, two
+// fingers or the Turn tool orbit the camera (OrbitControls does that part).
+const raycaster = new THREE.Raycaster();
+const pointers = new Map();
+let stroke = null;
+
+function ndcOf(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  return new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+}
+
+function dab(now) {
+  stroke.last = now;
+  raycaster.setFromCamera(stroke.ndc, camera);
+  const hit = sc.raycast(raycaster.ray.origin, raycaster.ray.direction);
+  if (!hit.surface && stroke.tool.id !== 'glue') return;
+  applyTool(stroke.tool.id, hit);
+  stroke.changed = true;
+}
+
+function endStroke() {
+  if (stroke && !stroke.changed) sculpt.undo.pop();
+  stroke = null;
+}
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  pointers.set(e.pointerId, e.pointerType);
+  audio();
+  if (pointers.size > 1) { endStroke(); return; }
+  if (!sculpt.enabled || sculpt.tool.id === 'turn' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  e.preventDefault();
+  sculpt.undo.push(sc.snapshot());
+  if (sculpt.undo.length > 20) sculpt.undo.shift();
+  stroke = { tool: sculpt.tool, ndc: ndcOf(e), id: e.pointerId, last: 0, changed: false };
+  dab(performance.now());
+});
+addEventListener('pointermove', (e) => { if (stroke && e.pointerId === stroke.id) stroke.ndc = ndcOf(e); });
+const pointerUp = (e) => { pointers.delete(e.pointerId); if (stroke && e.pointerId === stroke.id) endStroke(); };
+addEventListener('pointerup', pointerUp);
+addEventListener('pointercancel', pointerUp);
+renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+
+function setControlsFor(mode) {
+  const sculpting = mode === 'sculpt' && sculpt.tool.id !== 'turn';
+  controls.mouseButtons = { LEFT: sculpting ? -1 : THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+  controls.touches = { ONE: sculpting ? -1 : THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE };
+}
+
+// Dock UI
+function buildDock() {
+  const tools = $('tools');
+  TOOLS.forEach((t, k) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'tool'; b.dataset.tool = t.id;
+    b.title = `${t.name} (${k + 1})`;
+    b.innerHTML = `<span class="ic" aria-hidden="true">${t.ic}</span><span>${t.name}</span>`;
+    b.onclick = () => selectTool(t.id);
+    tools.appendChild(b);
+  });
+  const sw = $('swatches');
+  PALETTE.forEach((hex, k) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'sw'; b.style.background = hex; b.title = PAL_NAMES[k]; b.setAttribute('aria-label', PAL_NAMES[k]);
+    b.onclick = () => selectColor(k);
+    sw.appendChild(b);
+  });
+  $('size').oninput = (e) => { sculpt.size = Number(e.target.value); };
+  $('tg-mirror').onclick = () => toggle('mirror');
+  $('tg-wheel').onclick = () => toggle('wheel');
+  $('btn-undo').onclick = undo;
+  document.querySelectorAll('[data-stock]').forEach((b) => {
+    b.onclick = () => {
+      sculpt.undo.push(sc.snapshot());
+      sc.stock(b.dataset.stock);
+      selectColor(STOCKS[b.dataset.stock]);
+      SFX.click();
+    };
+  });
+}
+function selectTool(id) {
+  sculpt.tool = TOOLS.find((t) => t.id === id) || TOOLS[0];
+  document.querySelectorAll('.tool').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === sculpt.tool.id)));
+  $('hint').textContent = sculpt.tool.hint;
+  setControlsFor(app.view);
+}
+function selectColor(k) {
+  sculpt.color = k;
+  document.querySelectorAll('.sw').forEach((b, i) => b.setAttribute('aria-pressed', String(i === k)));
+}
+function toggle(which) {
+  sculpt[which] = !sculpt[which];
+  $(which === 'mirror' ? 'tg-mirror' : 'tg-wheel').setAttribute('aria-pressed', String(sculpt[which]));
+  controls.autoRotate = app.view === 'sculpt' && sculpt.wheel;
+  controls.autoRotateSpeed = 3;
+}
+function undo() {
+  const s = sculpt.undo.pop();
+  if (s) { sc.restore(s); SFX.click(); }
+}
+addEventListener('keydown', (e) => {
+  if (app.view !== 'sculpt' || e.target.closest('input, select')) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const n = Number(e.key);
+  if (n >= 1 && n <= TOOLS.length) selectTool(TOOLS[n - 1].id);
+  else if (e.key === '[') { sculpt.size = Math.max(2, sculpt.size - 1); $('size').value = sculpt.size; }
+  else if (e.key === ']') { sculpt.size = Math.min(11, sculpt.size + 1); $('size').value = sculpt.size; }
+  else if (e.key.toLowerCase() === 'm') toggle('mirror');
+  else if (e.key.toLowerCase() === 'w') toggle('wheel');
+});
+buildDock();
+
+// ===== thumbnails.js =====
+// A second, small renderer that photographs sculptures for the reveal feed.
+let thumb = null;
+async function photograph(data) {
+  const bytes = await decodeSculpture(data);
+  if (!bytes) return null;
+  if (!thumb) {
+    const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    r.setSize(400, 300); r.setPixelRatio(1);
+    r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap; r.toneMapping = THREE.ACESFilmicToneMapping;
+    const s = new THREE.Scene();
+    makeStudio(s, r);
+    const t = new Sculpture(sculptMat);
+    s.add(t.mesh);
+    const cam = new THREE.PerspectiveCamera(36, 4 / 3, 0.1, 100);
+    cam.position.set(2.4, 2.2, 3.3);
+    cam.lookAt(0, 1.0, 0);
+    thumb = { r, s, t, cam };
+  }
+  thumb.t.loadBytes(bytes);
+  thumb.t.remesh();
+  thumb.r.render(thumb.s, thumb.cam);
+  return thumb.r.domElement.toDataURL('image/jpeg', 0.85);
+}
+
+// ===== net.js =====
+// Peer-to-peer over WebRTC (PeerJS), the same way Smash Lot does it: the
+// player who creates a room is the host and runs the game; everyone else
+// connects straight to the host's browser. PeerJS's free public broker only
+// introduces browsers to each other. Messages are JSON; anything big (a
+// sculpture) is cut into parts so it fits through the data channel.
+//
+//   hello   { name }                 client -> host
+//   welcome { id }                   host -> client
+//   busy    {}                       host -> client, game already started
+//   lobby   { code, players, settings } host -> everyone
+//   start   { rounds }               host -> everyone
+//   task    { task }                 host -> one player
+//   submit  { r, c, data }           client -> host
+//   status  { done, total }          host -> everyone
+//   reveal  { c, i, of, chains, owner, item } host -> everyone
+//   part    { k, i, n, s }           a slice of a big message
+
+const PREFIX = 'lumpytel-';
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+const PART = 48000;
+
+function randomCode() {
+  let s = '';
+  for (let i = 0; i < 5; i++) s += CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0];
+  return s;
+}
+/** `?peerhost=host:port` points at a self-hosted broker (for testing). */
+function peerOptions() {
+  let custom = null;
+  try { custom = new URLSearchParams(location.search).get('peerhost'); } catch { /* no query */ }
+  if (!custom) return { debug: 0 };
+  const [host, port] = custom.split(':');
+  return { host, port: Number(port) || 9000, path: '/', secure: false, debug: 0, config: { iceServers: [] } };
+}
+function friendlyError(err) {
+  const messages = {
+    'peer-unavailable': 'No room with that code. Check it and try again.',
+    network: 'Could not reach the multiplayer service. Check your connection.',
+    'server-error': 'The multiplayer service is having trouble. Try again in a moment.',
+    'socket-error': 'Could not reach the multiplayer service. Check your connection.',
+    'browser-incompatible': 'This browser does not support online play. Try Pass and play instead.',
+  };
+  return new Error(messages[err?.type] || err?.message || 'Something went wrong with online play.');
+}
+
+class Net {
+  constructor() { this.peer = null; this.isHost = false; this.code = null; this.conns = new Map(); this.parts = new Map(); this.handlers = {}; }
+  on(ev, fn) { (this.handlers[ev] ||= []).push(fn); }
+  emit(ev, ...a) { for (const fn of this.handlers[ev] || []) fn(...a); }
+
+  host() {
+    if (!window.Peer) return Promise.reject(new Error('Online play could not load. Try Pass and play instead.'));
+    return new Promise((resolve, reject) => {
+      const attempt = (tries) => {
+        const code = randomCode();
+        const peer = new window.Peer(PREFIX + code, peerOptions());
+        peer.on('open', () => {
+          this.peer = peer; this.isHost = true; this.code = code;
+          peer.on('connection', (conn) => this.accept(conn));
+          resolve(code);
+        });
+        peer.on('error', (err) => {
+          if (err.type === 'unavailable-id' && tries < 5) { peer.destroy(); attempt(tries + 1); }
+          else if (!this.peer) { peer.destroy(); reject(friendlyError(err)); }
+          else this.emit('error', friendlyError(err));
+        });
+        peer.on('disconnected', () => { if (!peer.destroyed) peer.reconnect?.(); });
+      };
+      attempt(0);
+    });
+  }
+
+  accept(conn) {
+    conn.on('data', (raw) => {
+      const msg = this.unpack(conn.peer, raw);
+      if (!msg) return;
+      if (msg.t === 'hello') this.conns.set(conn.peer, conn);
+      this.emit('msg', conn.peer, msg, conn);
+    });
+    const drop = () => {
+      if (!this.conns.has(conn.peer)) return;
+      this.conns.delete(conn.peer);
+      this.emit('left', conn.peer);
+    };
+    conn.on('close', drop);
+    conn.on('error', drop);
+  }
+
+  join(code, name) {
+    if (!window.Peer) return Promise.reject(new Error('Online play could not load. Try Pass and play instead.'));
+    code = code.trim().toUpperCase();
+    return new Promise((resolve, reject) => {
+      const peer = new window.Peer(undefined, peerOptions());
+      let settled = false;
+      const fail = (err) => { if (settled) return; settled = true; clearTimeout(timer); peer.destroy(); reject(err); };
+      const timer = setTimeout(() => fail(new Error('Could not reach that room. Check the code and try again.')), 15000);
+      peer.on('error', (err) => { if (!settled) fail(friendlyError(err)); else this.emit('error', friendlyError(err)); });
+      peer.on('open', () => {
+        const conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'json' });
+        conn.on('open', () => conn.send({ t: 'hello', name }));
+        conn.on('data', (raw) => {
+          const msg = this.unpack('host', raw);
+          if (!msg) return;
+          if (!settled) {
+            if (msg.t === 'busy') return fail(new Error('That game has already started. Wait for the next one.'));
+            if (msg.t !== 'welcome') return;
+            settled = true; clearTimeout(timer);
+            this.peer = peer; this.isHost = false; this.code = code;
+            this.conns.set('host', conn);
+            resolve(msg.id);
+            return;
+          }
+          this.emit('msg', 'host', msg);
+        });
+        conn.on('close', () => { if (settled && this.peer === peer) { this.emit('hostLeft'); this.leave(); } });
+      });
+    });
+  }
+
+  unpack(from, raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    if (raw.t !== 'part') return raw;
+    const key = from + ':' + raw.k;
+    const buf = this.parts.get(key) || { n: raw.n, got: 0, s: [] };
+    if (buf.s[raw.i] === undefined) { buf.s[raw.i] = String(raw.s); buf.got++; }
+    this.parts.set(key, buf);
+    if (buf.got < buf.n) return null;
+    this.parts.delete(key);
+    try { return JSON.parse(buf.s.join('')); } catch { return null; }
+  }
+
+  sendOn(conn, msg) {
+    if (!conn?.open) return;
+    const s = JSON.stringify(msg);
+    if (s.length <= PART) { conn.send(msg); return; }
+    const k = Math.random().toString(36).slice(2, 9), n = Math.ceil(s.length / PART);
+    for (let i = 0; i < n; i++) conn.send({ t: 'part', k, i, n, s: s.slice(i * PART, (i + 1) * PART) });
+  }
+  sendTo(id, msg) { this.sendOn(this.conns.get(id), msg); }
+  broadcast(msg) { for (const conn of this.conns.values()) this.sendOn(conn, msg); }
+  toHost(msg) { this.sendTo('host', msg); }
+
+  leave() {
+    for (const c of this.conns.values()) c.close();
+    this.conns.clear(); this.parts.clear();
+    this.peer?.destroy();
+    this.peer = null; this.isHost = false; this.code = null;
+  }
+}
+const net = new Net();
+
+// ===== game.js =====
+// The host runs the game. Chain c starts with player c's prompt; in round r
+// player p works on chain (p - r) mod N, so nobody sees the same chain twice
+// in a row. Rounds go write, sculpt, guess, sculpt, guess…
+
+const IDEAS = [
+  'a cat stuck in a bin', 'grandma on a jet ski', 'the moon eating a sandwich', 'a sad volcano', 'a snail in a race car',
+  'a haunted toaster', 'a dog doing its taxes', 'a snowman at the beach', 'a giraffe in a lift', 'a shark with stage fright',
+  'a teapot with legs', 'a dragon at the dentist', 'a penguin with a jetpack', 'a melting clock', 'a king who lost his crown',
+  'a duck wearing wellies', 'a cactus hugging a balloon', 'a robot learning to dance', 'the tiniest elephant', 'a pizza with feelings',
+  'a frog on a lily pad', 'a lighthouse in a storm', 'a worm reading a book', 'a mushroom house', 'an octopus playing drums',
+  'a burger tower', 'a whale in a bathtub', 'a skeleton at the gym', 'a cow jumping over the moon', 'a ghost eating spaghetti',
+  'a bear on a unicycle', 'a castle made of cheese', 'a sloth winning a race', 'a fish riding a bicycle', 'a crab with scissors',
+  'a sleepy dinosaur', 'a tree with a face', "a wizard's hat", 'a bowling ball with eyebrows', 'a hedgehog in a hot air balloon',
+  'an alien buying milk', 'tiny Stonehenge', 'a banana phone', 'a monster under the bed', 'a pear with a moustache',
+  'a turtle carrying a skyscraper', 'a snake in a sock', 'a rocket made of carrots', 'a chess knight on holiday', 'a lonely sock',
+];
+const randomIdea = () => IDEAS[(Math.random() * IDEAS.length) | 0];
+
+class Host {
+  constructor(players, settings, local) {
+    this.players = players.map((p) => ({ ...p, gone: false }));
+    this.settings = { ...settings };
+    this.local = local;
+    this.N = this.players.length;
+    this.rounds = Math.max(3, this.N);
+    this.chains = this.players.map(() => []);
+    this.r = -1;
+    this.pending = new Map();
+    this.timer = null;
+    this.phase = 'rounds';
+    this.rev = { c: 0, i: -1 };
+  }
+  kind(r) { return r === 0 ? 'write' : r % 2 ? 'sculpt' : 'guess'; }
+  start() { hostBroadcast({ t: 'start', rounds: this.rounds }); this.next(); }
+  next() {
+    clearTimeout(this.timer);
+    this.r++;
+    if (this.r >= this.rounds) { this.beginReveal(); return; }
+    const r = this.r, kind = this.kind(r), dur = kind === 'sculpt' ? this.settings.sculpt : this.settings.text;
+    this.pending.clear();
+    const gone = [];
+    this.players.forEach((p, k) => {
+      const c = (((k - r) % this.N) + this.N) % this.N;
+      const prev = r ? this.chains[c][r - 1] : null;
+      this.pending.set(p.id, c);
+      if (p.gone) { gone.push(p.id); return; }
+      hostDeliver(p, { r, c, kind, dur, round: r + 1, rounds: this.rounds, prev: prev && { kind: prev.kind, data: prev.data, by: prev.by } });
+    });
+    gone.forEach((id) => this.fill(id));
+    this.status();
+    // Online, don't wait forever for someone whose browser fell asleep.
+    if (!this.local && dur) this.timer = setTimeout(() => this.fillAll(), (dur + 12) * 1000);
+  }
+  submit(pid, r, c, data) {
+    if (this.phase !== 'rounds' || r !== this.r || this.pending.get(pid) !== c) return;
+    const p = this.players.find((q) => q.id === pid), kind = this.kind(r);
+    let clean;
+    if (kind === 'sculpt') clean = typeof data === 'string' && data.length < 3e6 ? data : null;
+    else clean = String(data ?? '').trim().slice(0, 80) || (kind === 'write' ? randomIdea() : '(no guess)');
+    this.chains[c][r] = { kind, by: p ? p.name : '?', data: clean };
+    this.pending.delete(pid);
+    this.status();
+    if (!this.pending.size) { clearTimeout(this.timer); setTimeout(() => this.next(), 600); }
+  }
+  fill(pid) { const c = this.pending.get(pid); if (c !== undefined) this.submit(pid, this.r, c, null); }
+  fillAll() { for (const pid of [...this.pending.keys()]) this.fill(pid); }
+  left(pid) {
+    const p = this.players.find((q) => q.id === pid);
+    if (!p) return;
+    p.gone = true;
+    if (this.phase === 'rounds') this.fill(pid);
+  }
+  status() { hostBroadcast({ t: 'status', done: this.N - this.pending.size, total: this.N }); }
+  beginReveal() { this.phase = 'reveal'; this.rev = { c: 0, i: -1 }; this.revealNext(); }
+  revealNext() {
+    const ch = this.chains[this.rev.c];
+    if (this.rev.i + 1 < ch.length) {
+      this.rev.i++;
+      hostBroadcast({ t: 'reveal', c: this.rev.c, i: this.rev.i, of: ch.length, chains: this.N, owner: this.players[this.rev.c].name, item: ch[this.rev.i] });
+    } else if (this.rev.c + 1 < this.N) {
+      this.rev.c++; this.rev.i = -1; this.revealNext();
+    }
+  }
+}
+
+// ===== app.js =====
+const app = {
+  view: 'menu',
+  name: '',
+  role: null,        // 'host' | 'client' | 'local' | 'free'
+  players: [],       // lobby: [{ id, name }]
+  settings: { sculpt: 120, text: 45 },
+  host: null,        // Host, when this browser runs the game
+  myId: null,
+  queue: [],         // tasks for players on this device
+  current: null,     // { task, player } being worked on
+  deadline: 0, onTimeout: null, lastSec: -1,
+  reveal: null,      // last reveal message
+};
+try { app.name = localStorage.getItem('lumpy-name') || ''; } catch { /* storage blocked */ }
+$('name').value = app.name;
+
+const DOTS = ['#c4693f', '#3a6bd0', '#4c9f55', '#d63c32', '#8b55c9', '#ef8a2a', '#e889b0', '#2f2b2a', '#f2cf3a', '#6b4428', '#bfe3f2', '#8e8781'];
+const SCREENS = ['scr-menu', 'scr-lobby', 'scr-write', 'scr-handoff', 'scr-wait'];
+
+function showScreen(id) { for (const s of SCREENS) $(s).hidden = s !== id; }
+
+/** Sets what's on screen around the 3D view: 'menu' | 'idle' | 'sculpt' | 'view' | 'reveal'. */
+function setView(view) {
+  app.view = view;
+  sculpt.enabled = view === 'sculpt';
+  $('dock').hidden = view !== 'sculpt';
+  $('guessbar').hidden = !(view === 'view' && app.current?.task.kind === 'guess');
+  $('reveal').hidden = view !== 'reveal';
+  if (view !== 'sculpt' && view !== 'view') $('taskbar').hidden = true;
+  document.body.classList.toggle('has-taskbar', !$('taskbar').hidden);
+  document.body.classList.toggle('has-dock', view === 'sculpt');
+  document.body.classList.toggle('revealing', view === 'reveal');
+  $('quit').hidden = !(view === 'sculpt' || view === 'view' || view === 'idle');
+  setControlsFor(view);
+  controls.autoRotate = view === 'menu' || view === 'idle' || view === 'view' || view === 'reveal' || (view === 'sculpt' && sculpt.wheel);
+  controls.autoRotateSpeed = view === 'sculpt' ? 3 : 0.8;
+  if (view !== 'sculpt') endStroke();
+}
+
+function toast(text, ms = 2600) {
+  const t = $('toast');
+  t.textContent = text; t.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { t.hidden = true; }, ms);
+}
+
+function myName() {
+  const n = $('name').value.trim().slice(0, 18) || 'Sculptor';
+  try { localStorage.setItem('lumpy-name', n); } catch { /* storage blocked */ }
+  return n;
+}
+
+// A little demo sculpture for the menus: a lump with ears and a face.
+function demoSculpture() {
+  sc.stock('lump');
+  const P = (x, y, z) => new THREE.Vector3(x, y, z);
+  sc.blob(P(HALF - 7, 26, HALF), P(-0.4, 1, 0).normalize(), 6, 0);
+  sc.blob(P(HALF + 7, 26, HALF), P(0.4, 1, 0).normalize(), 6, 0);
+  sc.chip(P(HALF - 7, 30, HALF), P(0.5, -1, 0).normalize(), 2.5, () => 0.5);
+  sc.blob(P(HALF - 4.5, 17, HALF + 12), P(0, 0, 1), 3.2, 5);
+  sc.blob(P(HALF + 4.5, 17, HALF + 12), P(0, 0, 1), 3.2, 5);
+  sc.blob(P(HALF, 13, HALF + 12.5), P(0, 0, 1), 2.6, 12);
+  sc.paint(P(HALF, 4, HALF), 9, 1, () => 0.3);
+  sc.dirty = true;
+}
+
+function toMenu(err = '') {
+  clearTask();
+  app.queue = []; app.host = null; app.role = null; app.reveal = null;
+  net.leave();
+  showScreen('scr-menu');
+  setView('menu');
+  $('menu-err').textContent = err;
+  demoSculpture();
+  resetCamera();
+}
+
+// ----- Lobby -----
+function renderLobby() {
+  const local = app.role === 'local', host = app.role === 'host' || local;
+  $('lobby-online').hidden = local;
+  $('lobby-local').hidden = !local;
+  $('lobby-code').textContent = net.code || '-----';
+  $('lobby-count').textContent = `Players (${app.players.length})`;
+  const ul = $('lobby-players');
+  ul.replaceChildren(...app.players.map((p, k) => {
+    const li = document.createElement('li');
+    const dot = document.createElement('span');
+    dot.className = 'dot'; dot.style.background = DOTS[k % DOTS.length];
+    li.appendChild(dot);
+    if (local) {
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.maxLength = 18; inp.value = p.name; inp.setAttribute('aria-label', `Player ${k + 1} name`);
+      inp.id = `pp-${k}`;
+      inp.oninput = () => { p.name = inp.value.trim() || `Player ${k + 1}`; };
+      li.appendChild(inp);
+      if (app.players.length > 2) {
+        const x = document.createElement('button');
+        x.className = 'x'; x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', `Remove ${p.name}`);
+        x.onclick = () => { app.players.splice(k, 1); renderLobby(); };
+        li.appendChild(x);
+      }
+    } else {
+      const nm = document.createElement('span');
+      nm.className = 'nm'; nm.textContent = p.name;
+      li.appendChild(nm);
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = [p.id === 'host' ? 'host' : '', p.id === app.myId ? 'you' : ''].filter(Boolean).join(', ');
+      li.appendChild(tag);
+    }
+    return li;
+  }));
+  $('btn-add').hidden = !local || app.players.length >= 12;
+  $('set-sculpt').value = String(app.settings.sculpt);
+  $('set-text').value = String(app.settings.text);
+  $('set-sculpt').disabled = $('set-text').disabled = !host;
+  $('btn-start').hidden = !host;
+  $('btn-start').disabled = app.players.length < 2;
+  $('btn-start').textContent = app.players.length < 2 ? 'Waiting for players…' : 'Start game';
+  $('lobby-note').textContent = host ? 'Friends join from the main menu with this code.' : 'Waiting for the host to start.';
+  $('btn-copy').hidden = false;
+}
+function enterLobby() {
+  clearTask();
+  app.queue = []; app.reveal = null;
+  showScreen('scr-lobby');
+  setView('idle');
+  $('quit').hidden = true;
+  renderLobby();
+}
+function broadcastLobby() {
+  if (app.role !== 'host') return;
+  net.broadcast({ t: 'lobby', code: net.code, players: app.players, settings: app.settings });
+}
+
+$('btn-host').onclick = async () => {
+  audio();
+  const name = myName();
+  $('menu-err').textContent = 'Opening a room…';
+  try {
+    await net.host();
+  } catch (err) { $('menu-err').textContent = err.message; return; }
+  app.role = 'host'; app.myId = 'host';
+  app.players = [{ id: 'host', name }];
+  $('menu-err').textContent = '';
+  enterLobby();
+};
+$('btn-join').onclick = async () => {
+  audio();
+  const code = $('join-code').value.trim().toUpperCase();
+  if (code.length !== 5) { $('menu-err').textContent = 'Room codes are 5 letters.'; return; }
+  $('menu-err').textContent = 'Joining…';
+  try { app.myId = await net.join(code, myName()); } catch (err) { $('menu-err').textContent = err.message; return; }
+  app.role = 'client';
+  $('menu-err').textContent = '';
+  enterLobby();
+};
+$('join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-join').click(); });
+$('btn-local').onclick = () => {
+  audio();
+  app.role = 'local';
+  app.players = [{ id: 'p0', name: myName() }, { id: 'p1', name: 'Player 2' }, { id: 'p2', name: 'Player 3' }];
+  enterLobby();
+};
+$('btn-add').onclick = () => {
+  const k = app.players.length;
+  app.players.push({ id: 'p' + Date.now().toString(36) + k, name: `Player ${k + 1}` });
+  renderLobby();
+  $(`pp-${k}`)?.select();
+};
+$('btn-free').onclick = () => {
+  audio();
+  app.role = 'free';
+  showScreen(null);
+  startSculpting(null);
+};
+$('btn-leave').onclick = () => toMenu();
+$('btn-copy').onclick = async () => {
+  const url = location.href.split(/[?#]/)[0] + '?room=' + net.code;
+  try { await navigator.clipboard.writeText(url); toast('Link copied'); }
+  catch { toast(`Room code: ${net.code}`); }
+};
+$('set-sculpt').onchange = (e) => { app.settings.sculpt = Number(e.target.value); broadcastLobby(); };
+$('set-text').onchange = (e) => { app.settings.text = Number(e.target.value); broadcastLobby(); };
+$('btn-start').onclick = () => {
+  if (app.players.length < 2) return;
+  audio();
+  if (app.role === 'local') app.players.forEach((p, k) => { p.name = p.name.trim() || `Player ${k + 1}`; });
+  const players = app.players.map((p) => ({ ...p, local: app.role === 'local' || p.id === 'host' }));
+  app.host = new Host(players, app.settings, app.role === 'local');
+  app.host.start();
+};
+
+// Host-side wiring
+function hostDeliver(p, task) {
+  if (p.local) enqueue(task, p);
+  else net.sendTo(p.id, { t: 'task', task });
+}
+function hostBroadcast(msg) {
+  if (app.role === 'host') net.broadcast(msg);
+  onGameMsg(msg);
+}
+
+net.on('msg', (from, msg, conn) => {
+  if (app.role === 'host') {
+    if (msg.t === 'hello') {
+      if (app.host || app.players.length >= 12) { net.sendOn(conn, { t: 'busy' }); setTimeout(() => conn.close(), 500); net.conns.delete(from); return; }
+      app.players.push({ id: from, name: String(msg.name || 'Sculptor').slice(0, 18) });
+      net.sendOn(conn, { t: 'welcome', id: from });
+      broadcastLobby();
+      renderLobby();
+      SFX.click();
+    } else if (msg.t === 'submit') {
+      app.host?.submit(from, msg.r, msg.c, msg.data);
+    }
+  } else if (app.role === 'client') {
+    if (msg.t === 'lobby') {
+      app.players = msg.players; app.settings = msg.settings;
+      if (app.view === 'reveal' || app.view === 'menu' || !$('scr-lobby').hidden) enterLobby();
+      else renderLobby();
+    } else if (msg.t === 'task') {
+      enqueue(msg.task, { id: app.myId, name: myName() });
+    } else {
+      onGameMsg(msg);
+    }
+  }
+});
+net.on('left', (id) => {
+  if (app.role !== 'host') return;
+  const p = app.players.find((q) => q.id === id);
+  if (app.host) { app.host.left(id); if (p) toast(`${p.name} left`); }
+  else { app.players = app.players.filter((q) => q.id !== id); broadcastLobby(); renderLobby(); }
+});
+net.on('hostLeft', () => toMenu('The host left, so the game ended.'));
+net.on('error', (err) => toast(err.message));
+
+function onGameMsg(msg) {
+  if (msg.t === 'start') {
+    app.queue = []; app.reveal = null;
+    $('feed').replaceChildren();
+    $('wait-title').textContent = 'Here we go';
+    $('wait-text').textContent = 'Handing out the first round…';
+    showWaiting();
+  } else if (msg.t === 'status') {
+    $('wait-text').textContent = msg.done >= msg.total ? 'Everyone is done. Shuffling…' : `${msg.done} of ${msg.total} done. Waiting for everyone else…`;
+  } else if (msg.t === 'reveal') {
+    showReveal(msg);
+  }
+}
+
+// ----- Tasks -----
+function enqueue(task, player) {
+  app.queue.push({ task, player });
+  if (!app.current && app.view !== 'handoff') nextTask();
+}
+function nextTask() {
+  const item = app.queue.shift();
+  if (!item) { $('wait-title').textContent = 'Sent!'; showWaiting(); return; }
+  if (app.role === 'local') {
+    app.pendingHandoff = item;
+    const what = { write: 'You\'re writing the first prompt.', sculpt: 'You\'re sculpting.', guess: 'You\'re guessing what a sculpture is.' }[item.task.kind];
+    $('handoff-round').textContent = `Round ${item.task.round} of ${item.task.rounds}`;
+    $('handoff-title').textContent = `Pass it to ${item.player.name}`;
+    $('handoff-what').textContent = what + ' Nobody else look!';
+    $('btn-ready').textContent = `I'm ${item.player.name}, start`;
+    sc.clear();
+    showScreen('scr-handoff');
+    setView('handoff');
+    return;
+  }
+  runTask(item);
+}
+$('btn-ready').onclick = () => { audio(); const item = app.pendingHandoff; app.pendingHandoff = null; if (item) runTask(item); };
+
+function runTask(item) {
+  app.current = item;
+  const { task } = item;
+  SFX.ding();
+  if (task.kind === 'write') {
+    sc.clear();
+    showScreen('scr-write');
+    setView('idle');
+    $('write-round').textContent = `Round ${task.round} of ${task.rounds}`;
+    $('write-input').value = '';
+    $('write-input').placeholder = randomIdea();
+    setTimeout(() => $('write-input').focus(), 50);
+    startTimer(task.dur, () => submitTask($('write-input').value.trim() || $('write-input').placeholder));
+  } else if (task.kind === 'sculpt') {
+    showScreen(null);
+    startSculpting(task);
+  } else {
+    showScreen(null);
+    startGuessing(task);
+  }
+}
+
+function startSculpting(task) {
+  sculpt.undo = [];
+  sc.stock('lump');
+  selectColor(0);
+  selectTool(sculpt.tool.id === 'turn' ? 'thumb' : sculpt.tool.id);
+  $('tb-label').textContent = task ? `Round ${task.round} of ${task.rounds} · Sculpt this` : 'Free sculpt';
+  $('tb-text').textContent = task ? task.prev?.data || randomIdea() : 'Anything you like';
+  $('taskbar').hidden = false;
+  $('btn-done').textContent = task ? 'Done' : 'Back to menu';
+  $('tb-quit').hidden = !task;
+  resetCamera();
+  setView('sculpt');
+  if (task) startTimer(task.dur, finishSculpt); else startTimer(0);
+}
+
+let finishing = false;
+async function finishSculpt() {
+  if (finishing) return;
+  if (!app.current) { toMenu(); return; }
+  finishing = true;
+  endStroke();
+  const data = sc.isEmpty() ? null : await encodeSculpture(sc);
+  finishing = false;
+  submitTask(data);
+}
+$('btn-done').onclick = finishSculpt;
+
+async function startGuessing(task) {
+  $('tb-label').textContent = `Round ${task.round} of ${task.rounds} · What is this?`;
+  $('tb-text').textContent = task.prev?.data ? 'Turn it round and take a guess' : 'They sculpted nothing at all. Guess anyway!';
+  $('taskbar').hidden = false;
+  $('tb-quit').hidden = false;
+  $('guess-input').value = '';
+  sc.clear();
+  const bytes = task.prev?.data ? await decodeSculpture(task.prev.data) : null;
+  if (app.current?.task !== task) return;
+  if (bytes) sc.loadBytes(bytes);
+  resetCamera();
+  setView('view');
+  setTimeout(() => $('guess-input').focus(), 50);
+  startTimer(task.dur, () => submitTask($('guess-input').value.trim()));
+}
+
+$('write-form').onsubmit = (e) => {
+  e.preventDefault();
+  const v = $('write-input').value.trim();
+  if (!v) { $('write-input').value = $('write-input').placeholder; return; }
+  submitTask(v);
+};
+$('btn-dice').onclick = () => { $('write-input').value = randomIdea(); SFX.click(); };
+$('guess-form').onsubmit = (e) => {
+  e.preventDefault();
+  const v = $('guess-input').value.trim();
+  if (!v) { $('guess-input').focus(); return; }
+  submitTask(v);
+};
+
+function submitTask(data) {
+  const item = app.current;
+  if (!item) return;
+  clearTask();
+  const { task, player } = item;
+  if (app.host) app.host.submit(player.id, task.r, task.c, data);
+  else net.toHost({ t: 'submit', r: task.r, c: task.c, data });
+  nextTask();
+}
+function clearTask() {
+  app.current = null;
+  startTimer(0);
+  $('taskbar').hidden = true;
+}
+function showWaiting() {
+  if (app.view === 'reveal') return;
+  if (app.role === 'local') { showScreen(null); setView('idle'); return; }
+  showScreen('scr-wait');
+  setView('idle');
+}
+
+for (const b of [$('quit'), $('tb-quit')]) {
+  b.onclick = () => {
+    if (b.dataset.armed) { delete b.dataset.armed; b.textContent = 'Leave'; toMenu(); return; }
+    b.dataset.armed = '1';
+    b.textContent = 'Tap again to leave';
+    setTimeout(() => { delete b.dataset.armed; b.textContent = 'Leave'; }, 2500);
+  };
+}
+
+// ----- Timer -----
+function startTimer(sec, cb) {
+  app.deadline = sec ? performance.now() + sec * 1000 : 0;
+  app.onTimeout = cb || null;
+  app.lastSec = -1;
+  $('timer').hidden = !sec;
+  $('timer').classList.remove('hurry');
+}
+function tickTimer(now) {
+  if (!app.deadline) return;
+  const left = Math.max(0, Math.ceil((app.deadline - now) / 1000));
+  if (left !== app.lastSec) {
+    app.lastSec = left;
+    $('timer').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    $('timer').classList.toggle('hurry', left <= 10);
+    if (left <= 5 && left > 0) SFX.click();
+  }
+  if (now >= app.deadline) {
+    const cb = app.onTimeout;
+    app.deadline = 0; app.onTimeout = null;
+    cb?.();
+  }
+}
+
+// ----- Reveal -----
+async function showReveal(msg) {
+  app.reveal = msg;
+  if (app.view !== 'reveal') { clearTask(); showScreen(null); setView('reveal'); }
+  const feed = $('feed');
+  if (msg.i === 0) { feed.replaceChildren(); sc.clear(); }
+  $('rv-eyebrow').textContent = `Chain ${msg.c + 1} of ${msg.chains}`;
+  $('rv-title').textContent = `${msg.owner}'s chain`;
+  const it = msg.item, div = document.createElement('div');
+  div.className = `item ${it.kind}`;
+  const who = document.createElement('span');
+  who.className = 'who';
+  who.textContent = it.kind === 'write' ? `${it.by} wrote` : it.kind === 'guess' ? `${it.by} guessed` : `${it.by} sculpted`;
+  div.appendChild(who);
+  if (it.kind === 'sculpt') {
+    if (it.data) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'pic'; b.setAttribute('aria-label', `Look at ${it.by}'s sculpture`);
+      const img = document.createElement('img');
+      img.alt = `${it.by}'s sculpture`;
+      b.appendChild(img);
+      b.onclick = () => viewSculpture(it.data, b);
+      div.appendChild(b);
+      photograph(it.data).then((url) => { if (url) img.src = url; });
+      viewSculpture(it.data, b);
+    } else {
+      const e = document.createElement('div');
+      e.className = 'empty'; e.textContent = 'Nothing. They sculpted nothing.';
+      div.appendChild(e);
+    }
+  } else {
+    const said = document.createElement('div');
+    said.className = 'said'; said.textContent = it.data;
+    div.appendChild(said);
+  }
+  feed.appendChild(div);
+  div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  SFX.click();
+  updateRevealButtons();
+}
+async function viewSculpture(data, btn) {
+  document.querySelectorAll('.pic.on').forEach((b) => b.classList.remove('on'));
+  btn?.classList.add('on');
+  const bytes = await decodeSculpture(data);
+  if (bytes) sc.loadBytes(bytes);
+}
+function updateRevealButtons() {
+  const m = app.reveal, runs = !!app.host;
+  const last = m.i + 1 >= m.of, lastChain = m.c + 1 >= m.chains;
+  $('btn-rv-next').hidden = !runs;
+  $('rv-wait').hidden = runs;
+  $('btn-rv-menu').hidden = !(last && lastChain);
+  $('btn-rv-next').textContent = !last ? 'Next' : !lastChain ? 'Next chain' : app.role === 'local' ? 'Play again' : 'Back to the lobby';
+  if (!runs && last && lastChain) $('rv-wait').textContent = 'That was the last chain.';
+  else $('rv-wait').textContent = 'The host is turning the pages.';
+}
+$('btn-rv-next').onclick = () => {
+  const m = app.reveal;
+  if (!m || !app.host) return;
+  if (m.i + 1 >= m.of && m.c + 1 >= m.chains) {
+    app.host = null;
+    sc.clear();
+    if (app.role === 'host') app.players = app.players.filter((p) => p.id === 'host' || net.conns.has(p.id));
+    enterLobby();
+    broadcastLobby();
+    return;
+  }
+  app.host.revealNext();
+};
+$('btn-rv-menu').onclick = () => toMenu();
+
+// ===== loop =====
+let last = performance.now();
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (stroke && now - stroke.last >= stroke.tool.every) dab(now);
+  tickTimer(now);
+  controls.update();
+  updateParts(dt);
+  if (shake > 0.001) {
+    world.position.set((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+    shake *= 0.82;
+  } else world.position.set(0, 0, 0);
+  studio.wheel.rotation.y += sculpt.wheel && app.view === 'sculpt' ? dt * 2 : 0;
+  if (sc.dirty) sc.remesh();
+  updateViewOffset();
+  renderer.render(scene, camera);
+}
+
+// ===== boot =====
+try {
+  const room = new URLSearchParams(location.search).get('room');
+  if (room) $('join-code').value = room.toUpperCase().slice(0, 5);
+} catch { /* no query string */ }
+selectTool('thumb');
+selectColor(0);
+toMenu();
+$('loading').hidden = true;
+requestAnimationFrame(loop);
+// For headless tests.
+window.__lumpy = { sc, app, net, sculpt, applyTool, toWorld, toGrid, camera, controls, encodeSculpture, decodeSculpture };
+  </script>
+</body>
+</html>
