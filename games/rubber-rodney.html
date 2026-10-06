@@ -88,6 +88,11 @@
 <body>
 <script type="application/json" id="patch-notes">
 [
+  { "version": "2.1", "date": "2026-10-06", "title": "Shorter names",
+    "notes": [
+      "Your money is now shown as just a $ amount.",
+      "Taffy Pull is now called Pull."
+    ] },
   { "version": "2.0", "date": "2026-10-05", "title": "Rodney goes 3D",
     "notes": [
       "Rodney is now a lit, shaded 3D figure in a photo studio, seen through one fixed camera.",
@@ -112,7 +117,7 @@
     <canvas id="overlay" aria-label="Rubber Rodney play area"></canvas>
     <div id="loading">Setting up the studio…</div>
     <div id="hud">
-      <div class="glass" id="bucksPill" title="Bounce Bucks"><span class="label">Bounce Bucks</span><span id="bucks">0</span></div>
+      <div class="glass" id="bucksPill" title="Money"><span id="bucks">0</span></div>
       <div class="glass" id="malfPill"><div id="malfRow"><span class="label">Malformed</span><span id="malf">0%</span></div><span id="malfBar"><span id="malfFill"></span></span></div>
     </div>
     <div id="utils">
@@ -910,7 +915,7 @@ const ICONS = {
 const TOOLS = [
   { id: 'hand', name: 'Hand', price: 0, hint: 'Grab his face or body and pull. The skin stretches and snaps back.' },
   { id: 'mallet', name: 'Mallet', price: 0, hint: 'Tap to strike. Heavy blows leave dents.' },
-  { id: 'taffy', name: 'Taffy Pull', price: 0, hint: 'Pull skin or limbs. The stretch stays.' },
+  { id: 'taffy', name: 'Pull', price: 0, hint: 'Pull skin or limbs. The stretch stays.' },
   { id: 'pin', name: 'Thumbtack', price: 30, hint: 'Tap a body part to pin it in place. Tap the tack again to pull it.' },
   { id: 'bomb', name: 'Bomb', price: 50, hint: 'Tap to drop a lit bomb. Blasts burst puffed-up parts.' },
   { id: 'pump', name: 'Air Pump', price: 80, hint: 'Hold on a body part to inflate it. Too much air and it bursts.' },
