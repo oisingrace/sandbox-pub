@@ -163,19 +163,23 @@ export class CarModel {
     }
     this.boostLevel = 0;
 
-    // Wheels: front ones live under a steering pivot.
+    // Wheels: front ones live under a steering pivot. A bike keeps four
+    // wheel slots (skid marks and smoke expect them) but both of an axle's
+    // sit on the centre line and only one is drawn.
     this.wheels = [];
     const wheelW = def.wheelWidth ?? 0.26;
+    const wx = def.bike ? 0 : halfTrack;
     const placements = [
-      { x: halfTrack, z: front, front: true },
-      { x: -halfTrack, z: front, front: true },
-      { x: halfTrack, z: rear, front: false },
-      { x: -halfTrack, z: rear, front: false },
+      { x: wx, z: front, front: true },
+      { x: -wx, z: front, front: true, hidden: def.bike },
+      { x: wx, z: rear, front: false },
+      { x: -wx, z: rear, front: false, hidden: def.bike },
     ];
     for (const p of placements) {
       const pivot = new THREE.Group();
       pivot.position.set(p.x - Math.sign(p.x) * wheelW * 0.3, r, p.z);
       const mesh = makeWheel(r, wheelW);
+      mesh.visible = !p.hidden;
       pivot.add(mesh);
       this.root.add(pivot);
       this.wheels.push({ ...p, pivot, mesh, spin: 0 });
@@ -194,6 +198,7 @@ export class CarModel {
 
     this.roll = 0;
     this.pitch = 0;
+    this.lean = 0; // bikes: how far it's leaned over into a corner
     this.lightsOut = { head: false, tail: false };
     this.damage = new CarDamage(this);
   }
@@ -216,7 +221,13 @@ export class CarModel {
   /** Sync visuals to the physics state of the car being driven. */
   update(car, dt) {
     this.root.position.set(car.x, car.y || 0, car.z);
-    _modelEuler.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
+    if (this.def.bike) {
+      // Lean into the corner by the angle that balances the cornering force
+      // (right over at speed), and stand up in the air or when tumbling.
+      const want = car.airborne || car.tumbling ? 0 : THREE.MathUtils.clamp(-Math.atan2(car.accelLat || 0, 9.81) * 1.1, -0.85, 0.85);
+      this.lean += (want - this.lean) * (1 - Math.exp(-dt * 7));
+    }
+    _modelEuler.set(-(car.pitch || 0), car.heading, (car.roll || 0) + this.lean, 'YXZ');
     this.root.quaternion.setFromEuler(_modelEuler);
     this.blob.visible = !car.airborne;
     if (this.teamGlow) this.teamGlow.visible = !car.airborne; // car football team glow
@@ -226,7 +237,7 @@ export class CarModel {
 
     // Body roll/pitch from smoothed accelerations (a cheap suspension).
     const soft = this.def.suspension ?? 1;
-    const targetRoll = THREE.MathUtils.clamp(car.accelLat * 0.012 * soft, -0.08, 0.08);
+    const targetRoll = this.def.bike ? 0 : THREE.MathUtils.clamp(car.accelLat * 0.012 * soft, -0.08, 0.08);
     const targetPitch = THREE.MathUtils.clamp(-car.accelLong * 0.008 * soft, -0.06, 0.06);
     const k = 1 - Math.exp(-dt * 8);
     this.roll += (targetRoll - this.roll) * k;
@@ -272,7 +283,7 @@ export class CarModel {
     this.root.quaternion.set(q.x, q.y, q.z, q.w);
     this.body.rotation.set(0, 0, 0);
     this.body.position.y = 0;
-    this.roll = this.pitch = 0;
+    this.roll = this.pitch = this.lean = 0;
     // Let the wheels roll along with the body's motion.
     const v = body.linvel();
     const fwd = _fwd.set(0, 0, 1).applyQuaternion(this.root.quaternion);

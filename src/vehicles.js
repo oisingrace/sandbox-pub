@@ -1,5 +1,5 @@
 import { DEFAULT_SPEC } from './physics.js';
-import { compileCar } from './carkit.js';
+import { compileCar, measure } from './carkit.js';
 
 // The drivable fleet. Each entry carries:
 //   spec    overrides for the handling model (merged over physics.js DEFAULT_SPEC)
@@ -275,8 +275,139 @@ const inferno = {
   },
 };
 
+// Motorbikes. The handling model is already a "bicycle" (one tyre force
+// per axle), so a bike is a light, narrow vehicle with `bike: true`: the
+// model draws two wheels on the centre line, leans into corners and puts a
+// rider on top (see carModel.js and riderAndBars below).
+
+/** A rider in leathers, hunched over the bars at `barZ`, sitting at `seatY`. */
+function riderAndBars({ THREE, box, add }, { seatY, seatZ, barY, barZ, crouch }) {
+  // Handlebars and grips.
+  box(0.62, 0.04, 0.04, 'dark', 0, barY, barZ);
+  // Legs: thighs along the tank, shins down to the pegs.
+  for (const s of [-1, 1]) {
+    box(0.13, 0.13, 0.46, 'dark', s * 0.15, seatY + 0.06, seatZ + 0.16).rotation.x = -0.25;
+    box(0.12, 0.42, 0.12, 'dark', s * 0.19, seatY - 0.22, seatZ + 0.02).rotation.x = 0.45;
+    box(0.13, 0.08, 0.22, 'dark', s * 0.19, seatY - 0.42, seatZ - 0.02);
+  }
+  // Torso leaning forward, arms to the grips, helmet with a visor.
+  const torsoH = 0.56;
+  const torso = box(0.38, torsoH, 0.26, 'trim', 0, seatY + 0.08 + torsoH / 2 * Math.cos(crouch), seatZ + torsoH / 2 * Math.sin(crouch));
+  torso.rotation.x = crouch;
+  const shoulderY = seatY + 0.08 + torsoH * Math.cos(crouch) - 0.06;
+  const shoulderZ = seatZ + torsoH * Math.sin(crouch) - 0.02;
+  for (const s of [-1, 1]) {
+    const dy = barY - shoulderY, dz = barZ - shoulderZ;
+    const len = Math.hypot(dy, dz);
+    const arm = box(0.09, 0.09, len, 'trim', s * 0.24, (shoulderY + barY) / 2, (shoulderZ + barZ) / 2);
+    arm.rotation.x = -Math.atan2(dy, dz);
+  }
+  const headY = shoulderY + 0.22, headZ = shoulderZ + 0.08;
+  add(new THREE.SphereGeometry(0.16, 16, 12), 'paint', 0, headY, headZ);
+  box(0.24, 0.08, 0.04, 'glass', 0, headY + 0.01, headZ + 0.15);
+}
+
+const streetbike = {
+  id: 'streetbike',
+  name: 'Street bike',
+  voice: 'hatch',
+  blurb: 'A sports bike. Tiny, fast and leans hard into corners. Thread it through traffic.',
+  color: 0x18b46b,
+  trim: 0x23262c,
+  swatch: 0x18b46b,
+  bike: true,
+  length: 2.05,
+  width: 0.72,
+  suspension: 1,
+  spec: {
+    mass: 290, inertiaScale: 0.36, cgToFront: 0.72, cgToRear: 0.72, cgHeight: 0.62,
+    trackWidth: 0.45, wheelRadius: 0.31, tireGrip: 1.3, rearGripBias: 1.25, handbrakeGrip: 0.5,
+    maxSteer: 0.42, steerSpeed: 3, brakeForce: 4300, dragCoef: 0.2, rollingResistance: 3, engineBrake: 70,
+    torqueScale: 0.42, gearRatios: [2.9, 2.0, 1.55, 1.25, 1.05, 0.9], finalDrive: 3.7, boostAccel: 8, engineTone: 1.4,
+  },
+  hitbox: [
+    { half: [0.3, 0.38, 1.0], at: [0, 0.62, 0] },
+    { half: [0.26, 0.34, 0.36], at: [0, 1.28, -0.05] },
+  ],
+  home: { x: 11, z: -52, heading: 0 },
+  cam: { scale: 0.8, hoodY: 1.45, hoodZ: 0.2 },
+  exhaust: [[0.16, 0.62, -0.92]],
+  wheelWidth: 0.16,
+  build(kit) {
+    const { THREE, box, tapered, add, lights } = kit;
+    // Engine, frame and swingarm.
+    box(0.3, 0.32, 0.44, 'dark', 0, 0.5, 0.05);
+    box(0.34, 0.06, 0.95, 'trim', 0, 0.72, 0.02);
+    for (const s of [-1, 1]) box(0.05, 0.06, 0.72, 'trim', s * 0.11, 0.36, -0.36).rotation.x = -0.08;
+    // Front forks, raked back.
+    for (const s of [-1, 1]) box(0.05, 0.62, 0.05, 'chrome', s * 0.1, 0.62, 0.62).rotation.x = -0.42;
+    // Tank, fairing, screen, seat and tail.
+    tapered(0.36, 0.26, 0.66, 0.26, 0.48, -0.04, 'paint', 0, 0.88, 0.14);
+    tapered(0.42, 0.46, 0.44, 0.2, 0.22, 0.08, 'paint', 0, 0.76, 0.6);
+    tapered(0.3, 0.2, 0.1, 0.2, 0.06, -0.06, 'glass', 0, 1.08, 0.66);
+    box(0.28, 0.08, 0.5, 'dark', 0, 0.88, -0.32);
+    tapered(0.3, 0.16, 0.46, 0.1, 0.3, -0.04, 'paint', 0, 0.98, -0.62);
+    // Exhaust can under the tail, mudguard over the front wheel.
+    const can = add(new THREE.CylinderGeometry(0.07, 0.06, 0.5, 12), 'chrome', 0.16, 0.62, -0.68);
+    can.rotation.x = Math.PI / 2 - 0.3;
+    box(0.16, 0.03, 0.42, 'paint', 0, 0.66, 0.74);
+    riderAndBars(kit, { seatY: 0.92, seatZ: -0.3, barY: 1.0, barZ: 0.48, crouch: 0.75 });
+    lights({ frontZ: 0.84, rearZ: -0.85, y: 0.82, headX: 0.06, tailX: 0.06, headW: 0.1, tailW: 0.1, h: 0.07, rearY: 0.98 });
+  },
+};
+
+const dirtbike = {
+  id: 'dirtbike',
+  name: 'Dirt bike',
+  voice: 'hatch',
+  blurb: 'Long-travel trail bike with jumps and air control (Space). Loose at the back, made for ramps.',
+  color: 0xf26a1b,
+  trim: 0x2b5bd7,
+  swatch: 0xf26a1b,
+  bike: true,
+  aerial: true,
+  length: 2.1,
+  width: 0.8,
+  suspension: 1.5,
+  spec: {
+    mass: 230, inertiaScale: 0.38, cgToFront: 0.74, cgToRear: 0.74, cgHeight: 0.72,
+    trackWidth: 0.45, wheelRadius: 0.36, tireGrip: 1.12, rearGripBias: 1.05, handbrakeGrip: 0.4,
+    maxSteer: 0.5, steerSpeed: 3.2, brakeForce: 3200, dragCoef: 0.3, rollingResistance: 4, engineBrake: 60,
+    torqueScale: 0.3, gearRatios: [3.0, 2.1, 1.6, 1.3, 1.1], finalDrive: 4.8, boostAccel: 7, engineTone: 1.55,
+  },
+  hitbox: [
+    { half: [0.3, 0.42, 1.02], at: [0, 0.72, 0] },
+    { half: [0.26, 0.34, 0.34], at: [0, 1.42, -0.08] },
+  ],
+  home: { x: 14, z: -52, heading: 0 },
+  cam: { scale: 0.82, hoodY: 1.6, hoodZ: 0.2 },
+  exhaust: [[0.17, 0.92, -0.8]],
+  wheelWidth: 0.15,
+  build(kit) {
+    const { THREE, box, tapered, add, lights } = kit;
+    box(0.26, 0.3, 0.38, 'dark', 0, 0.6, 0.04);
+    box(0.08, 0.08, 0.9, 'trim', 0, 0.84, 0.02);
+    for (const s of [-1, 1]) box(0.05, 0.06, 0.76, 'chrome', s * 0.11, 0.42, -0.38).rotation.x = -0.12;
+    for (const s of [-1, 1]) box(0.06, 0.8, 0.06, 'chrome', s * 0.1, 0.74, 0.62).rotation.x = -0.4;
+    // Slim tank and side panels, a long flat seat, plastics front and back.
+    tapered(0.34, 0.22, 0.5, 0.24, 0.36, 0, 'paint', 0, 0.98, 0.22);
+    for (const s of [-1, 1]) box(0.03, 0.26, 0.42, 'paint', s * 0.17, 0.88, -0.22);
+    box(0.24, 0.08, 0.84, 'dark', 0, 1.06, -0.18);
+    tapered(0.22, 0.04, 0.6, 0.18, 0.5, 0.06, 'paint', 0, 1.0, -0.72);
+    tapered(0.22, 0.04, 0.56, 0.16, 0.42, 0.08, 'paint', 0, 1.02, 0.84);
+    // Number plate on the front, high pipe out the back.
+    box(0.3, 0.26, 0.03, 'trim', 0, 1.14, 0.78).rotation.x = -0.35;
+    const pipe = add(new THREE.CylinderGeometry(0.06, 0.06, 0.52, 12), 'chrome', 0.17, 0.86, -0.56);
+    pipe.rotation.x = Math.PI / 2 - 0.45;
+    riderAndBars(kit, { seatY: 1.08, seatZ: -0.22, barY: 1.24, barZ: 0.52, crouch: 0.42 });
+    lights({ frontZ: 0.82, rearZ: -1.0, y: 1.0, headX: 0.05, tailX: 0.05, headW: 0.09, tailW: 0.08, h: 0.06, rearY: 1.02 });
+  },
+};
+
 // Fill in every handling value so models and parked bodies can read them too.
-const BUILT = [sports, hatch, pickup, bus, ember, inferno].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec, body: bodyBox(v.hitbox) } }));
+const BUILT = [sports, hatch, pickup, bus, ember, inferno, streetbike, dirtbike].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec, body: bodyBox(v.hitbox) } }));
+// The bikes' numbers are measured (the cars' were tuned by hand).
+for (const v of BUILT) v.stats ||= measure(v.spec);
 
 // The Striker: the car football car (everyone drives it there), also a
 // normal car everywhere else. It's built with the custom car kit (see

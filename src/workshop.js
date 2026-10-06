@@ -1,5 +1,6 @@
-import { STYLES, ENGINES, ABILITIES, WEAPON_MOUNTS, PARTS, SIZE_KEYS, TUNE_KEYS, DEFAULT_DESIGN, cleanDesign, compileCar, designToCode, codeToDesign, newDesignId } from './carkit.js';
+import { STYLES, ENGINES, ABILITIES, WEAPON_MOUNTS, PARTS, SIZE_KEYS, TUNE_KEYS, GOD_TUNE_KEYS, GOD_RANGES, DEFAULT_DESIGN, cleanDesign, compileCar, designToCode, codeToDesign, newDesignId } from './carkit.js';
 import { MAX_CUSTOM } from './customs.js';
+import { GOD_HINT, codeUnlocks, isUnlocked } from './unlocks.js';
 
 // The car workshop: a list of your custom cars, and an editor with a live
 // 3D preview (drawn by main.js behind the menu) and measured stats.
@@ -11,6 +12,7 @@ import { MAX_CUSTOM } from './customs.js';
 //   onSaved(def)      a design was saved (refresh the fleet)
 //   onDeleted(id)
 //   onTestDrive(def)  save done; go and drive it
+//   onUnlock(key)     a valid unlock code was typed in the code box
 
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
 const el = (tag, attrs = {}, ...kids) => {
@@ -63,7 +65,15 @@ export class Workshop {
         return b;
       }));
     }
-    document.getElementById('btn-new-car').disabled = garage.custom.length >= MAX_CUSTOM;
+    if (!isUnlocked('god')) {
+      // A locked card saying how to get the god car.
+      const card = el('div', { class: 'garage-card locked', role: 'listitem' });
+      const dot = el('i');
+      dot.style.background = '#3a3d44';
+      card.append(dot, el('span', { class: 'g-name', text: 'God car (locked)' }), el('span', { class: 'g-blurb', text: GOD_HINT }));
+      this.list.append(card);
+    }
+    document.getElementById('btn-new-car').disabled = garage.designs.filter((d) => d.id !== 'god-car').length >= MAX_CUSTOM;
     this.opts.show('workshop');
   }
 
@@ -126,9 +136,10 @@ export class Workshop {
       paint();
       return g;
     };
-    const slider = (obj, key) => {
+    // God cars' sliders run far past the normal 0..1 (see GOD_RANGES).
+    const slider = (obj, key, [min, max] = [0, 1]) => {
       const wrap = el('label', { class: 'slider' });
-      const input = el('input', { type: 'range', min: 0, max: 1, step: 0.01 });
+      const input = el('input', { type: 'range', min, max, step: max - min > 1 ? 0.02 : 0.01 });
       input.value = obj[key];
       const out = el('output', { text: `${Math.round(obj[key] * 100)}` });
       input.addEventListener('input', () => { obj[key] = Number(input.value); out.textContent = Math.round(obj[key] * 100); this.changed(); });
@@ -154,7 +165,17 @@ export class Workshop {
       colours.append(el('label', { class: 'colour' }, input, el('span', { text: label })));
     }
     rows.push(row('Colours', colours));
-    for (const [k, label] of Object.entries(SIZE_KEYS)) rows.push(row(label, slider(d.size, k)));
+    if (isUnlocked('god')) {
+      const god = el('button', { type: 'button', text: d.god ? 'On' : 'Off', 'aria-pressed': String(!!d.god) });
+      god.addEventListener('click', () => {
+        // Off pulls every slider back into the normal range.
+        this.design = cleanDesign({ ...d, god: !d.god });
+        this.render();
+        this.changed();
+      });
+      rows.push(row('God mode', el('div', { class: 'seg' }, god), 'Endless boost, and every slider goes way past normal. Push them far enough and things get buggy'));
+    }
+    for (const [k, label] of Object.entries(SIZE_KEYS)) rows.push(row(label, slider(d.size, k, d.god ? GOD_RANGES.size : undefined)));
 
     rows.push(head('Parts'));
     const parts = el('div', { class: 'seg parts' });
@@ -169,7 +190,7 @@ export class Workshop {
     }
     rows.push(parts);
     rows.push(row('Weapon', seg('Weapon', WEAPON_MOUNTS, () => d.weapon, (v) => { d.weapon = v; }),
-      'On the roof. In Versus it is your car\'s own weapon (rockets and mines reload over time); in free roam, fire it at the scenery with X or a click'));
+      'Optional, on the roof. In Versus it is your car\'s own weapon (rockets and mines reload over time; with none you get the machine gun there); in free roam, fire it at the scenery with X or a click'));
     rows.push(row('Special', seg('Special ability', ABILITIES, () => d.ability, (v) => { d.ability = v; })));
     const jump = el('button', { type: 'button', text: d.aerial ? 'On' : 'Off', 'aria-pressed': String(!!d.aerial) });
     jump.addEventListener('click', () => {
@@ -182,7 +203,8 @@ export class Workshop {
 
     rows.push(head('Engine and handling'));
     rows.push(row('Engine sound', seg('Engine sound', ENGINES, () => d.engine, (v) => { d.engine = v; })));
-    for (const [k, [label, hint]] of Object.entries(TUNE_KEYS)) rows.push(row(label, slider(d.tune, k), hint));
+    const tunes = { ...TUNE_KEYS, ...(d.god ? GOD_TUNE_KEYS : {}) };
+    for (const [k, [label, hint]] of Object.entries(tunes)) rows.push(row(label, slider(d.tune, k, d.god ? GOD_RANGES[k] : undefined), hint));
 
     this.form.replaceChildren(...rows);
   }
@@ -222,8 +244,14 @@ export class Workshop {
 
   importCode() {
     const input = document.getElementById('import-code');
+    const key = codeUnlocks(input.value);
+    if (key) {
+      input.value = '';
+      this.opts.onUnlock(key);
+      return;
+    }
     try {
-      const design = codeToDesign(input.value);
+      const design = this.opts.garage.allowed(codeToDesign(input.value));
       input.value = '';
       this.edit(design);
       this.setStatus('Imported. Save it to keep it.');

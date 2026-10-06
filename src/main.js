@@ -30,6 +30,7 @@ import { Versus } from './versus.js';
 import { turretMount } from './weapons.js';
 import { RoamBot } from './roambot.js';
 import { CrashBits, toCarFrame, toWorld } from './damage.js';
+import { isUnlocked, unlock, GOD_POINTS } from './unlocks.js';
 
 const PHYSICS_DT = 1 / 120;
 // At most this many car steps per frame (2 debris-world steps). A slow
@@ -168,9 +169,9 @@ const versus = new Versus({
   },
 });
 const VS_BOT_CARS = {
-  mixed: ['sports', 'pickup', 'ember', 'hatch', 'inferno', 'bus', 'striker'],
+  mixed: ['sports', 'pickup', 'ember', 'hatch', 'inferno', 'bus', 'striker', 'streetbike', 'dirtbike'],
   heavy: ['bus', 'pickup', 'inferno'],
-  light: ['hatch', 'sports', 'ember', 'striker'],
+  light: ['hatch', 'sports', 'ember', 'striker', 'streetbike', 'dirtbike'],
 };
 
 /** Solo Versus: the computer drivers from the settings (how many, how good, in what). */
@@ -403,6 +404,19 @@ function award(base) {
 score.onComboEnd = ({ count, mult, points }) => {
   toast(`Combo over: ${count} smashed at ×${mult}, +${points.toLocaleString('en-US')}`);
 };
+
+/**
+ * Unlock the god car (a ×10 combo, a big score, a Versus win, or the code
+ * in the workshop): it goes in the garage, parked behind the start line.
+ */
+function unlockGod(why) {
+  if (!unlock('god')) return false;
+  const def = garage.addGod();
+  syncFleet();
+  toast(`${why}: God car unlocked! It's in your garage and the workshop`);
+  audio.pickup();
+  return def;
+}
 
 // --- Settings ----------------------------------------------------------
 let shadowsWere = null;
@@ -668,7 +682,12 @@ football.on('restart', () => {
   resetAll();
   if (net.online) net.sendEvent({ type: 'rebuild' });
 });
-versus.on('ended', () => audio.whistle(true));
+versus.on('ended', () => {
+  audio.whistle(true);
+  // Beating the computer drivers solo unlocks the god car.
+  const [win, next] = versus.standings();
+  if (!net.online && versus.bots.length && win?.me && !(next && next.k === win.k && next.d === win.d)) unlockGod('You won');
+});
 versus.on('restart', () => {
   // Referee: a fresh arena and match for everyone.
   resetAll();
@@ -825,6 +844,17 @@ const workshop = new Workshop({
   onSaved: (def) => { syncFleet(); menu.selectVehicle(def.id); setSetting('startVehicle', def.id); },
   onDeleted: () => { syncFleet(); menu.selectVehicle(active.def.id); },
   onTestDrive: (def) => { showPreview(null); play(fleet.find((v) => v.def.id === def.id)?.def); },
+  onUnlock: (key) => {
+    if (key !== 'god') return;
+    if (isUnlocked('god')) {
+      workshop.setStatus('The god car is already unlocked.');
+      return;
+    }
+    const def = unlockGod('Code accepted');
+    menu.selectVehicle(def.id);
+    workshop.open();
+    workshop.setStatus('Code accepted: the god car is in your garage. Open it to push it way past the normal limits.');
+  },
 });
 
 /** Match the fleet to the garage after custom cars are saved or deleted. */
@@ -1210,6 +1240,9 @@ function flameSources() {
 /** Points, multiplier and combo timer (free roam). */
 function updateScoreHud(dt) {
   score.update(dt);
+  if (roaming() && (score.mult >= 10 || score.points >= GOD_POINTS) && !isUnlocked('god')) {
+    unlockGod(score.mult >= 10 ? '×10 combo' : `${GOD_POINTS.toLocaleString('en-US')} points`);
+  }
   hud.scorePanel.hidden = !roaming();
   hud.points.textContent = score.points.toLocaleString('en-US');
   hud.mult.textContent = `×${score.mult}`;

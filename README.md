@@ -217,7 +217,7 @@ minutes wins.
 - **Paint:** body, trim and glow colours.
 - **Parts:** rear wing, hood scoop, bull bar, roof lights, exhaust stacks, racing stripes, roll cage.
 - **Jumps and air control:** on or off, like the Striker.
-- **Weapon:** machine gun, rockets, rocket salvo, flamethrower (a turret like the Inferno pickup's)
+- **Weapon (optional):** none (the default for new designs), machine gun, rockets, rocket salvo, flamethrower (a turret like the Inferno pickup's)
   or mines, mounted on the roof (rockets and mines get a post in a pickup's bed; mines a dispenser at
   the back). Fire it with X, a left click, B or FIRE. In **Versus** it's your car's own weapon instead
   of the machine gun: rockets, salvos and mines come from a magazine (3, 2 and 3) that refills one
@@ -236,6 +236,11 @@ minutes wins.
 - **Share code** gives a short text code; a friend pastes it under *Import* to get a copy.
 - **Online**, your design travels with you: other players see and collide with your custom car, and
   if you switch cars mid-game they get the new one.
+- **The god car** (`src/unlocks.js`): unlocked by a ×10 combo, 100,000 points in one run, a solo
+  Versus win against computer drivers, or a cheat code typed into the workshop's code box. It joins
+  the garage as a gold muscle car with endless boost, and its **God mode** switch widens every slider
+  far past normal (see `GOD_RANGES` in `src/carkit.js`) and adds a **Gearing** slider. Maxed out it
+  gets buggy, on purpose. Unlocks are saved in this browser (`smash-lot-unlocks-v1`).
 
 ### The framework (for adding more in code)
 
@@ -378,6 +383,11 @@ and the game also pauses automatically when the tab is hidden. Options are saved
 | Pickup truck | 2100 kg | 6.4 s | 197 km/h | Torquey, leans more, heavier hits |
 | School bus | 9000 kg | 18 s | 133 km/h | Slow, and plows through almost anything |
 | Ember GT | 1400 kg | 5.4 s | 255 km/h | Burns through objects instead of hitting them |
+| Street bike | 290 kg | 2.9 s | 246 km/h | Fastest off the line; leans into corners |
+| Dirt bike | 230 kg | 5.3 s | 180 km/h | Soft suspension, jumps and air control |
+
+**Motorbikes** use the same single-track handling model as the cars (one tyre force per axle), with
+`bike: true` drawing one wheel per axle and leaning the body with the cornering force.
 
 **Boost** (Shift, gamepad LB, or BST on touch) adds rocket thrust on top of the engine for up to 3 s.
 The meter refills over about 9 s, and a little faster every time you smash or burn something.

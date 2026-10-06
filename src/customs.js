@@ -1,5 +1,6 @@
 import { VEHICLES } from './vehicles.js';
 import { compileCar, cleanDesign } from './carkit.js';
+import { GOD_DESIGN, isUnlocked } from './unlocks.js';
 
 // The vehicle registry: the built-in fleet plus custom cars. Your own
 // designs are saved in this browser; other players' designs (received
@@ -18,12 +19,27 @@ export class Garage {
     this.designs = [];
     try {
       const saved = JSON.parse(localStorage.getItem(CUSTOMS_KEY) || '[]');
-      if (Array.isArray(saved)) this.designs = saved.slice(0, MAX_CUSTOM).map(cleanDesign);
+      if (Array.isArray(saved)) this.designs = saved.slice(0, MAX_CUSTOM + 1).map((d) => this.allowed(d));
     } catch {
       this.designs = [];
     }
     this.custom = this.designs.map((d, i) => compileCar(d, customHome(i)));
     this.remote = new Map(); // id -> compiled def, other players' designs
+  }
+
+  /** A design as this browser may keep it: god mode only once the god car is unlocked. */
+  allowed(raw) {
+    return cleanDesign(raw?.god && !isUnlocked('god') ? { ...raw, god: false } : raw);
+  }
+
+  /** Just unlocked: put the god car in the garage (it doesn't count toward the limit). Returns its vehicle. */
+  addGod() {
+    const have = this.custom.find((v) => v.id === GOD_DESIGN.id);
+    if (have) return have;
+    this.designs.push(cleanDesign(GOD_DESIGN));
+    this.custom.push(compileCar(this.designs.at(-1), customHome(this.designs.length - 1)));
+    this.persist();
+    return this.custom.at(-1);
   }
 
   /** Everything you can drive: built-ins first, then your custom cars. */
@@ -45,13 +61,13 @@ export class Garage {
 
   /** Add or update a design. Returns its compiled vehicle. */
   save(raw) {
-    const design = cleanDesign(raw);
+    const design = this.allowed(raw);
     const i = this.designs.findIndex((d) => d.id === design.id);
     if (i >= 0) {
       this.designs[i] = design;
       this.custom[i] = compileCar(design, customHome(i));
     } else {
-      if (this.designs.length >= MAX_CUSTOM) throw new Error(`You can keep up to ${MAX_CUSTOM} custom cars. Delete one first.`);
+      if (this.designs.filter((d) => d.id !== GOD_DESIGN.id).length >= MAX_CUSTOM) throw new Error(`You can keep up to ${MAX_CUSTOM} custom cars. Delete one first.`);
       this.designs.push(design);
       this.custom.push(compileCar(design, customHome(this.designs.length - 1)));
     }

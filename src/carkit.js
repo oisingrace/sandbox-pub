@@ -14,9 +14,15 @@ import { CarPhysics, DEFAULT_SPEC } from './physics.js';
 //     tune:   { power, weight, grip, balance, boost }  // 0..1, 0.5 is neutral
 //     engine: 'sport' | 'hatch' | 'v8' | 'diesel' | 'ember',
 //     ability: 'none' | 'burner',
-//     weapon: 'mg' | 'rockets' | 'salvo' | 'flamethrower' | 'mines',  // the roof-mounted weapon
+//     weapon: 'none' | 'mg' | 'rockets' | 'salvo' | 'flamethrower' | 'mines',  // the roof-mounted weapon
 //     parts:  ['spoiler', 'scoop', 'bullbar', 'lightbar', 'stacks', 'stripes', 'cage'],
-//     aerial: true | false }  // jumps, double jumps, flips and air control (Space)
+//     aerial: true | false,  // jumps, double jumps, flips and air control (Space)
+//     god: true | false }    // god car: sliders go far past the normal range, endless boost
+//
+// God cars (unlocked in play, see unlocks.js) take their size and tune
+// sliders from GOD_RANGES instead of 0..1, and add a gearing slider. The
+// handling formulas just keep going past their normal ends, so at the far
+// ends the car gets silly: that's the point.
 
 export const STYLES = {
   coupe: { label: 'Coupe', length: 4.3, width: 1.82, roof: 1.3, body: 0.42, ride: 0.2, cabin: [0.24, 0.62], taper: 0.55, wheel: 0.34, engine: 'sport', power: 1 },
@@ -30,7 +36,7 @@ export const STYLES = {
 export const ENGINES = { sport: 'Sports', hatch: 'Four-pot', v8: 'V8', diesel: 'Diesel', ember: 'Turbine' };
 export const ABILITIES = { none: 'None', burner: 'Burner (burns what it hits)' };
 /** Roof weapons a custom car can carry (fired with X / click; see weapons.js). */
-export const WEAPON_MOUNTS = { mg: 'Machine gun', rockets: 'Rockets', salvo: 'Rocket salvo', flamethrower: 'Flamethrower', mines: 'Mines' };
+export const WEAPON_MOUNTS = { none: 'None', mg: 'Machine gun', rockets: 'Rockets', salvo: 'Rocket salvo', flamethrower: 'Flamethrower', mines: 'Mines' };
 export const PARTS = {
   spoiler: 'Rear wing', scoop: 'Hood scoop', bullbar: 'Bull bar', lightbar: 'Roof lights',
   stacks: 'Exhaust stacks', stripes: 'Racing stripes', cage: 'Roll cage',
@@ -43,15 +49,23 @@ export const TUNE_KEYS = {
   balance: ['Balance', 'Low: stable and planted · High: loose, tail-happy'],
   boost: ['Boost', 'Rocket boost strength'],
 };
+/** God cars only: the gearing slider (low: quick off the line, high: an absurd top speed). */
+export const GOD_TUNE_KEYS = { gearing: ['Gearing', 'Low: quick off the line · High: an absurd top speed'] };
+/** How far each slider goes on a god car (a normal car's sliders are 0..1). */
+export const GOD_RANGES = {
+  size: [0, 5],
+  power: [0, 8], weight: [-1, 4], grip: [0, 5], balance: [-1, 2], boost: [0, 8], gearing: [0, 4],
+};
 
 export const DEFAULT_DESIGN = {
   name: 'My car', style: 'coupe', color: 0xe8b21c, trim: 0x1c1c22, accent: 0xff6a10,
   size: { length: 0.5, width: 0.5, height: 0.5, ride: 0.5, wheels: 0.5 },
   tune: { power: 0.5, weight: 0.5, grip: 0.5, balance: 0.5, boost: 0.5 },
-  engine: null, ability: 'none', weapon: 'mg', parts: ['stripes'], aerial: false,
+  engine: null, ability: 'none', weapon: 'none', parts: ['stripes'], aerial: false,
 };
 
-const clamp01 = (v, d = 0.5) => (Number.isFinite(+v) ? Math.max(0, Math.min(1, +v)) : d);
+const clampTo = (v, lo, hi, d = 0.5) => (Number.isFinite(+v) && v !== null && v !== '' ? Math.max(lo, Math.min(hi, +v)) : d);
+const clamp01 = (v, d = 0.5) => clampTo(v, 0, 1, d);
 const colour = (v, d) => (Number.isFinite(+v) ? Math.max(0, Math.min(0xffffff, Math.round(+v))) : d);
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -75,8 +89,15 @@ export function cleanDesign(raw = {}) {
     parts: [...new Set((Array.isArray(raw.parts) ? raw.parts : d.parts).filter((p) => PARTS[p]))],
     aerial: !!raw.aerial,
   };
-  for (const k of Object.keys(SIZE_KEYS)) out.size[k] = clamp01(raw.size?.[k]);
-  for (const k of Object.keys(TUNE_KEYS)) out.tune[k] = clamp01(raw.tune?.[k]);
+  if (raw.god) {
+    out.god = true;
+    const [lo, hi] = GOD_RANGES.size;
+    for (const k of Object.keys(SIZE_KEYS)) out.size[k] = clampTo(raw.size?.[k], lo, hi);
+    for (const k of [...Object.keys(TUNE_KEYS), ...Object.keys(GOD_TUNE_KEYS)]) out.tune[k] = clampTo(raw.tune?.[k], ...GOD_RANGES[k]);
+  } else {
+    for (const k of Object.keys(SIZE_KEYS)) out.size[k] = clamp01(raw.size?.[k]);
+    for (const k of Object.keys(TUNE_KEYS)) out.tune[k] = clamp01(raw.tune?.[k]);
+  }
   return out;
 }
 
@@ -150,6 +171,13 @@ export function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats =
     boostAccel: lerp(4, 11, t.boost),
     engineTone: lerp(1.15, 0.75, Math.min(1, mass / 3000)),
   };
+  if (d.god) {
+    // Endless boost, and a gearing slider: each step past the middle halves
+    // (or doubles) the final drive, so the top speed keeps climbing.
+    spec.boostDuration = 1e9;
+    spec.finalDrive = DEFAULT_SPEC.finalDrive * 2 ** (-(t.gearing - 0.5) * 2);
+    spec.mass = Math.max(40, spec.mass);
+  }
   spec.body = { halfW: W / 2, halfL: L / 2, top: roof };
 
   const flamer = d.weapon === 'flamethrower';
@@ -168,7 +196,7 @@ export function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats =
     design: d,
     name: d.name,
     voice: d.engine,
-    blurb: `Custom ${st.label.toLowerCase()} with ${[WEAPON_MOUNTS[d.weapon].toLowerCase(), d.ability !== 'none' && ABILITIES[d.ability].split(' (')[0].toLowerCase()].filter(Boolean).join(' and ')}${d.aerial ? ', jumps and flips' : ''}.`,
+    blurb: carBlurb(d, st),
     color: d.color,
     trim: d.trim,
     accent: d.accent,
@@ -180,7 +208,8 @@ export function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats =
     aerial: d.aerial,
     flamethrower: flamer ? { mount: [0, turret.y + 0.32, turret.z + 1.15] } : undefined,
     // Other weapons: a turret on the roof (built by CarModel, fired by versus.js).
-    weapon: flamer ? undefined : d.weapon,
+    weapon: flamer || d.weapon === 'none' ? undefined : d.weapon,
+    god: !!d.god,
     turretMount: [0, turret.y - 0.05, turret.z],
     spec,
     hitbox,
@@ -194,6 +223,18 @@ export function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats =
   };
   def.stats = withStats ? measure(spec) : null;
   return def;
+}
+
+/** One line about a design for the car picker. */
+function carBlurb(d, st) {
+  const extras = [
+    d.weapon !== 'none' && WEAPON_MOUNTS[d.weapon].toLowerCase(),
+    d.ability !== 'none' && ABILITIES[d.ability].split(' (')[0].toLowerCase(),
+    d.aerial && 'jumps and flips',
+  ].filter(Boolean);
+  const kind = d.god ? `God-mode ${st.label.toLowerCase()} with endless boost` : `Custom ${st.label.toLowerCase()}`;
+  if (!extras.length) return `${kind}.`;
+  return `${kind}${d.god ? ',' : ' with'} ${extras.length > 1 ? `${extras.slice(0, -1).join(', ')} and ${extras.at(-1)}` : extras[0]}.`;
 }
 
 /** The bodywork, from boxes and tapered boxes (CarModel merges them by material). */
@@ -278,7 +319,7 @@ function buildBody({ THREE, box, tapered, add, lights }, d, g, turret) {
     for (const sx of [-1, 1]) box(0.03, 0.05, L - 0.8, 'glow', sx * (W / 2 + 0.01), ride + body * 0.5, -0.1);
     box(W - 0.3, 0.03, 0.04, 'glow', 0, ride + 0.12, front + 0.06);
   }
-  if (st.bed && d.weapon !== 'flamethrower') {
+  if (st.bed && d.weapon !== 'flamethrower' && d.weapon !== 'none') {
     // A post in the bed for the roof weapon to sit on.
     box(0.36, turret.y - 0.05 - deck, 0.36, 'dark', 0, deck + (turret.y - 0.05 - deck) / 2, turret.z);
   }

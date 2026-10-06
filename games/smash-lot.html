@@ -236,6 +236,7 @@
     .garage-card .g-blurb { grid-column: 2; font-size: 13px; font-weight: 400; color: var(--hud-dim); line-height: 1.4; }
     .garage-card .g-stats { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; font-weight: 400; color: var(--hud-dim); font-variant-numeric: tabular-nums; }
     .garage-card .g-stats b { color: var(--hud-fg); }
+    #menu .garage-card.locked { border: 1px dashed rgba(255, 255, 255, 0.22); border-radius: 10px; color: var(--hud-dim); }
     #t-boost { right: 140px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
     /* --- Game modes / football --- */
     .mode-picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 4px; background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; }
@@ -532,7 +533,7 @@
       <div class="workshop-actions">
         <button type="button" class="primary" id="btn-new-car">New car</button>
         <div class="import-row">
-          <input id="import-code" type="text" placeholder="Paste a share code" autocomplete="off" spellcheck="false" aria-label="Share code">
+          <input id="import-code" type="text" placeholder="Paste a share code or a cheat code" autocomplete="off" spellcheck="false" aria-label="Share code or cheat code">
           <button type="button" id="btn-import-car">Import</button>
         </div>
       </div>
@@ -618,6 +619,17 @@
        games website (its build script reads this block). Add a new entry at the top for each update. -->
   <script type="application/json" id="patch-notes">
   [
+    {
+      "version": "0.16",
+      "date": "2026-10-06",
+      "title": "Motorbikes and the god car",
+      "notes": [
+        "Two motorbikes in the fleet: a quick street bike and a dirt bike built for jumps. They lean into corners, and computer drivers ride them too.",
+        "The god car: a gold muscle car with endless boost whose workshop sliders go far past the normal range, plus a Gearing slider for an absurd top speed. Push them to the limit and things get buggy, on purpose.",
+        "Unlock it by hitting a ×10 combo, scoring 100,000 points in one run, or winning a Versus match against computer drivers. Or type a cheat code into the workshop's code box.",
+        "Weapons are now optional when you design a car. New designs start with None."
+      ]
+    },
     {
       "version": "0.15",
       "date": "2026-10-06",
@@ -1584,9 +1596,15 @@ class CarPhysics {
 //     tune:   { power, weight, grip, balance, boost }  // 0..1, 0.5 is neutral
 //     engine: 'sport' | 'hatch' | 'v8' | 'diesel' | 'ember',
 //     ability: 'none' | 'burner',
-//     weapon: 'mg' | 'rockets' | 'salvo' | 'flamethrower' | 'mines',  // the roof-mounted weapon
+//     weapon: 'none' | 'mg' | 'rockets' | 'salvo' | 'flamethrower' | 'mines',  // the roof-mounted weapon
 //     parts:  ['spoiler', 'scoop', 'bullbar', 'lightbar', 'stacks', 'stripes', 'cage'],
-//     aerial: true | false }  // jumps, double jumps, flips and air control (Space)
+//     aerial: true | false,  // jumps, double jumps, flips and air control (Space)
+//     god: true | false }    // god car: sliders go far past the normal range, endless boost
+//
+// God cars (unlocked in play, see unlocks.js) take their size and tune
+// sliders from GOD_RANGES instead of 0..1, and add a gearing slider. The
+// handling formulas just keep going past their normal ends, so at the far
+// ends the car gets silly: that's the point.
 
 const STYLES = {
   coupe: { label: 'Coupe', length: 4.3, width: 1.82, roof: 1.3, body: 0.42, ride: 0.2, cabin: [0.24, 0.62], taper: 0.55, wheel: 0.34, engine: 'sport', power: 1 },
@@ -1600,7 +1618,7 @@ const STYLES = {
 const ENGINES = { sport: 'Sports', hatch: 'Four-pot', v8: 'V8', diesel: 'Diesel', ember: 'Turbine' };
 const ABILITIES = { none: 'None', burner: 'Burner (burns what it hits)' };
 /** Roof weapons a custom car can carry (fired with X / click; see weapons.js). */
-const WEAPON_MOUNTS = { mg: 'Machine gun', rockets: 'Rockets', salvo: 'Rocket salvo', flamethrower: 'Flamethrower', mines: 'Mines' };
+const WEAPON_MOUNTS = { none: 'None', mg: 'Machine gun', rockets: 'Rockets', salvo: 'Rocket salvo', flamethrower: 'Flamethrower', mines: 'Mines' };
 const PARTS = {
   spoiler: 'Rear wing', scoop: 'Hood scoop', bullbar: 'Bull bar', lightbar: 'Roof lights',
   stacks: 'Exhaust stacks', stripes: 'Racing stripes', cage: 'Roll cage',
@@ -1613,15 +1631,23 @@ const TUNE_KEYS = {
   balance: ['Balance', 'Low: stable and planted · High: loose, tail-happy'],
   boost: ['Boost', 'Rocket boost strength'],
 };
+/** God cars only: the gearing slider (low: quick off the line, high: an absurd top speed). */
+const GOD_TUNE_KEYS = { gearing: ['Gearing', 'Low: quick off the line · High: an absurd top speed'] };
+/** How far each slider goes on a god car (a normal car's sliders are 0..1). */
+const GOD_RANGES = {
+  size: [0, 5],
+  power: [0, 8], weight: [-1, 4], grip: [0, 5], balance: [-1, 2], boost: [0, 8], gearing: [0, 4],
+};
 
 const DEFAULT_DESIGN = {
   name: 'My car', style: 'coupe', color: 0xe8b21c, trim: 0x1c1c22, accent: 0xff6a10,
   size: { length: 0.5, width: 0.5, height: 0.5, ride: 0.5, wheels: 0.5 },
   tune: { power: 0.5, weight: 0.5, grip: 0.5, balance: 0.5, boost: 0.5 },
-  engine: null, ability: 'none', weapon: 'mg', parts: ['stripes'], aerial: false,
+  engine: null, ability: 'none', weapon: 'none', parts: ['stripes'], aerial: false,
 };
 
-const clamp01 = (v, d = 0.5) => (Number.isFinite(+v) ? Math.max(0, Math.min(1, +v)) : d);
+const clampTo = (v, lo, hi, d = 0.5) => (Number.isFinite(+v) && v !== null && v !== '' ? Math.max(lo, Math.min(hi, +v)) : d);
+const clamp01 = (v, d = 0.5) => clampTo(v, 0, 1, d);
 const colour = (v, d) => (Number.isFinite(+v) ? Math.max(0, Math.min(0xffffff, Math.round(+v))) : d);
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -1645,8 +1671,15 @@ function cleanDesign(raw = {}) {
     parts: [...new Set((Array.isArray(raw.parts) ? raw.parts : d.parts).filter((p) => PARTS[p]))],
     aerial: !!raw.aerial,
   };
-  for (const k of Object.keys(SIZE_KEYS)) out.size[k] = clamp01(raw.size?.[k]);
-  for (const k of Object.keys(TUNE_KEYS)) out.tune[k] = clamp01(raw.tune?.[k]);
+  if (raw.god) {
+    out.god = true;
+    const [lo, hi] = GOD_RANGES.size;
+    for (const k of Object.keys(SIZE_KEYS)) out.size[k] = clampTo(raw.size?.[k], lo, hi);
+    for (const k of [...Object.keys(TUNE_KEYS), ...Object.keys(GOD_TUNE_KEYS)]) out.tune[k] = clampTo(raw.tune?.[k], ...GOD_RANGES[k]);
+  } else {
+    for (const k of Object.keys(SIZE_KEYS)) out.size[k] = clamp01(raw.size?.[k]);
+    for (const k of Object.keys(TUNE_KEYS)) out.tune[k] = clamp01(raw.tune?.[k]);
+  }
   return out;
 }
 
@@ -1720,6 +1753,13 @@ function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats = true) 
     boostAccel: lerp(4, 11, t.boost),
     engineTone: lerp(1.15, 0.75, Math.min(1, mass / 3000)),
   };
+  if (d.god) {
+    // Endless boost, and a gearing slider: each step past the middle halves
+    // (or doubles) the final drive, so the top speed keeps climbing.
+    spec.boostDuration = 1e9;
+    spec.finalDrive = DEFAULT_SPEC.finalDrive * 2 ** (-(t.gearing - 0.5) * 2);
+    spec.mass = Math.max(40, spec.mass);
+  }
   spec.body = { halfW: W / 2, halfL: L / 2, top: roof };
 
   const flamer = d.weapon === 'flamethrower';
@@ -1738,7 +1778,7 @@ function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats = true) 
     design: d,
     name: d.name,
     voice: d.engine,
-    blurb: `Custom ${st.label.toLowerCase()} with ${[WEAPON_MOUNTS[d.weapon].toLowerCase(), d.ability !== 'none' && ABILITIES[d.ability].split(' (')[0].toLowerCase()].filter(Boolean).join(' and ')}${d.aerial ? ', jumps and flips' : ''}.`,
+    blurb: carBlurb(d, st),
     color: d.color,
     trim: d.trim,
     accent: d.accent,
@@ -1750,7 +1790,8 @@ function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats = true) 
     aerial: d.aerial,
     flamethrower: flamer ? { mount: [0, turret.y + 0.32, turret.z + 1.15] } : undefined,
     // Other weapons: a turret on the roof (built by CarModel, fired by versus.js).
-    weapon: flamer ? undefined : d.weapon,
+    weapon: flamer || d.weapon === 'none' ? undefined : d.weapon,
+    god: !!d.god,
     turretMount: [0, turret.y - 0.05, turret.z],
     spec,
     hitbox,
@@ -1764,6 +1805,18 @@ function compileCar(raw, home = { x: 0, z: -64, heading: 0 }, withStats = true) 
   };
   def.stats = withStats ? measure(spec) : null;
   return def;
+}
+
+/** One line about a design for the car picker. */
+function carBlurb(d, st) {
+  const extras = [
+    d.weapon !== 'none' && WEAPON_MOUNTS[d.weapon].toLowerCase(),
+    d.ability !== 'none' && ABILITIES[d.ability].split(' (')[0].toLowerCase(),
+    d.aerial && 'jumps and flips',
+  ].filter(Boolean);
+  const kind = d.god ? `God-mode ${st.label.toLowerCase()} with endless boost` : `Custom ${st.label.toLowerCase()}`;
+  if (!extras.length) return `${kind}.`;
+  return `${kind}${d.god ? ',' : ' with'} ${extras.length > 1 ? `${extras.slice(0, -1).join(', ')} and ${extras.at(-1)}` : extras[0]}.`;
 }
 
 /** The bodywork, from boxes and tapered boxes (CarModel merges them by material). */
@@ -1848,7 +1901,7 @@ function buildBody({ THREE, box, tapered, add, lights }, d, g, turret) {
     for (const sx of [-1, 1]) box(0.03, 0.05, L - 0.8, 'glow', sx * (W / 2 + 0.01), ride + body * 0.5, -0.1);
     box(W - 0.3, 0.03, 0.04, 'glow', 0, ride + 0.12, front + 0.06);
   }
-  if (st.bed && d.weapon !== 'flamethrower') {
+  if (st.bed && d.weapon !== 'flamethrower' && d.weapon !== 'none') {
     // A post in the bed for the roof weapon to sit on.
     box(0.36, turret.y - 0.05 - deck, 0.36, 'dark', 0, deck + (turret.y - 0.05 - deck) / 2, turret.z);
   }
@@ -2365,19 +2418,23 @@ class CarModel {
     }
     this.boostLevel = 0;
 
-    // Wheels: front ones live under a steering pivot.
+    // Wheels: front ones live under a steering pivot. A bike keeps four
+    // wheel slots (skid marks and smoke expect them) but both of an axle's
+    // sit on the centre line and only one is drawn.
     this.wheels = [];
     const wheelW = def.wheelWidth ?? 0.26;
+    const wx = def.bike ? 0 : halfTrack;
     const placements = [
-      { x: halfTrack, z: front, front: true },
-      { x: -halfTrack, z: front, front: true },
-      { x: halfTrack, z: rear, front: false },
-      { x: -halfTrack, z: rear, front: false },
+      { x: wx, z: front, front: true },
+      { x: -wx, z: front, front: true, hidden: def.bike },
+      { x: wx, z: rear, front: false },
+      { x: -wx, z: rear, front: false, hidden: def.bike },
     ];
     for (const p of placements) {
       const pivot = new THREE.Group();
       pivot.position.set(p.x - Math.sign(p.x) * wheelW * 0.3, r, p.z);
       const mesh = makeWheel(r, wheelW);
+      mesh.visible = !p.hidden;
       pivot.add(mesh);
       this.root.add(pivot);
       this.wheels.push({ ...p, pivot, mesh, spin: 0 });
@@ -2396,6 +2453,7 @@ class CarModel {
 
     this.roll = 0;
     this.pitch = 0;
+    this.lean = 0; // bikes: how far it's leaned over into a corner
     this.lightsOut = { head: false, tail: false };
     this.damage = new CarDamage(this);
   }
@@ -2418,7 +2476,13 @@ class CarModel {
   /** Sync visuals to the physics state of the car being driven. */
   update(car, dt) {
     this.root.position.set(car.x, car.y || 0, car.z);
-    _modelEuler.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
+    if (this.def.bike) {
+      // Lean into the corner by the angle that balances the cornering force
+      // (right over at speed), and stand up in the air or when tumbling.
+      const want = car.airborne || car.tumbling ? 0 : THREE.MathUtils.clamp(-Math.atan2(car.accelLat || 0, 9.81) * 1.1, -0.85, 0.85);
+      this.lean += (want - this.lean) * (1 - Math.exp(-dt * 7));
+    }
+    _modelEuler.set(-(car.pitch || 0), car.heading, (car.roll || 0) + this.lean, 'YXZ');
     this.root.quaternion.setFromEuler(_modelEuler);
     this.blob.visible = !car.airborne;
     if (this.teamGlow) this.teamGlow.visible = !car.airborne; // car football team glow
@@ -2428,7 +2492,7 @@ class CarModel {
 
     // Body roll/pitch from smoothed accelerations (a cheap suspension).
     const soft = this.def.suspension ?? 1;
-    const targetRoll = THREE.MathUtils.clamp(car.accelLat * 0.012 * soft, -0.08, 0.08);
+    const targetRoll = this.def.bike ? 0 : THREE.MathUtils.clamp(car.accelLat * 0.012 * soft, -0.08, 0.08);
     const targetPitch = THREE.MathUtils.clamp(-car.accelLong * 0.008 * soft, -0.06, 0.06);
     const k = 1 - Math.exp(-dt * 8);
     this.roll += (targetRoll - this.roll) * k;
@@ -2474,7 +2538,7 @@ class CarModel {
     this.root.quaternion.set(q.x, q.y, q.z, q.w);
     this.body.rotation.set(0, 0, 0);
     this.body.position.y = 0;
-    this.roll = this.pitch = 0;
+    this.roll = this.pitch = this.lean = 0;
     // Let the wheels roll along with the body's motion.
     const v = body.linvel();
     const fwd = _fwd.set(0, 0, 1).applyQuaternion(this.root.quaternion);
@@ -2797,8 +2861,139 @@ const inferno = {
   },
 };
 
+// Motorbikes. The handling model is already a "bicycle" (one tyre force
+// per axle), so a bike is a light, narrow vehicle with `bike: true`: the
+// model draws two wheels on the centre line, leans into corners and puts a
+// rider on top (see carModel.js and riderAndBars below).
+
+/** A rider in leathers, hunched over the bars at `barZ`, sitting at `seatY`. */
+function riderAndBars({ THREE, box, add }, { seatY, seatZ, barY, barZ, crouch }) {
+  // Handlebars and grips.
+  box(0.62, 0.04, 0.04, 'dark', 0, barY, barZ);
+  // Legs: thighs along the tank, shins down to the pegs.
+  for (const s of [-1, 1]) {
+    box(0.13, 0.13, 0.46, 'dark', s * 0.15, seatY + 0.06, seatZ + 0.16).rotation.x = -0.25;
+    box(0.12, 0.42, 0.12, 'dark', s * 0.19, seatY - 0.22, seatZ + 0.02).rotation.x = 0.45;
+    box(0.13, 0.08, 0.22, 'dark', s * 0.19, seatY - 0.42, seatZ - 0.02);
+  }
+  // Torso leaning forward, arms to the grips, helmet with a visor.
+  const torsoH = 0.56;
+  const torso = box(0.38, torsoH, 0.26, 'trim', 0, seatY + 0.08 + torsoH / 2 * Math.cos(crouch), seatZ + torsoH / 2 * Math.sin(crouch));
+  torso.rotation.x = crouch;
+  const shoulderY = seatY + 0.08 + torsoH * Math.cos(crouch) - 0.06;
+  const shoulderZ = seatZ + torsoH * Math.sin(crouch) - 0.02;
+  for (const s of [-1, 1]) {
+    const dy = barY - shoulderY, dz = barZ - shoulderZ;
+    const len = Math.hypot(dy, dz);
+    const arm = box(0.09, 0.09, len, 'trim', s * 0.24, (shoulderY + barY) / 2, (shoulderZ + barZ) / 2);
+    arm.rotation.x = -Math.atan2(dy, dz);
+  }
+  const headY = shoulderY + 0.22, headZ = shoulderZ + 0.08;
+  add(new THREE.SphereGeometry(0.16, 16, 12), 'paint', 0, headY, headZ);
+  box(0.24, 0.08, 0.04, 'glass', 0, headY + 0.01, headZ + 0.15);
+}
+
+const streetbike = {
+  id: 'streetbike',
+  name: 'Street bike',
+  voice: 'hatch',
+  blurb: 'A sports bike. Tiny, fast and leans hard into corners. Thread it through traffic.',
+  color: 0x18b46b,
+  trim: 0x23262c,
+  swatch: 0x18b46b,
+  bike: true,
+  length: 2.05,
+  width: 0.72,
+  suspension: 1,
+  spec: {
+    mass: 290, inertiaScale: 0.36, cgToFront: 0.72, cgToRear: 0.72, cgHeight: 0.62,
+    trackWidth: 0.45, wheelRadius: 0.31, tireGrip: 1.3, rearGripBias: 1.25, handbrakeGrip: 0.5,
+    maxSteer: 0.42, steerSpeed: 3, brakeForce: 4300, dragCoef: 0.2, rollingResistance: 3, engineBrake: 70,
+    torqueScale: 0.42, gearRatios: [2.9, 2.0, 1.55, 1.25, 1.05, 0.9], finalDrive: 3.7, boostAccel: 8, engineTone: 1.4,
+  },
+  hitbox: [
+    { half: [0.3, 0.38, 1.0], at: [0, 0.62, 0] },
+    { half: [0.26, 0.34, 0.36], at: [0, 1.28, -0.05] },
+  ],
+  home: { x: 11, z: -52, heading: 0 },
+  cam: { scale: 0.8, hoodY: 1.45, hoodZ: 0.2 },
+  exhaust: [[0.16, 0.62, -0.92]],
+  wheelWidth: 0.16,
+  build(kit) {
+    const { THREE, box, tapered, add, lights } = kit;
+    // Engine, frame and swingarm.
+    box(0.3, 0.32, 0.44, 'dark', 0, 0.5, 0.05);
+    box(0.34, 0.06, 0.95, 'trim', 0, 0.72, 0.02);
+    for (const s of [-1, 1]) box(0.05, 0.06, 0.72, 'trim', s * 0.11, 0.36, -0.36).rotation.x = -0.08;
+    // Front forks, raked back.
+    for (const s of [-1, 1]) box(0.05, 0.62, 0.05, 'chrome', s * 0.1, 0.62, 0.62).rotation.x = -0.42;
+    // Tank, fairing, screen, seat and tail.
+    tapered(0.36, 0.26, 0.66, 0.26, 0.48, -0.04, 'paint', 0, 0.88, 0.14);
+    tapered(0.42, 0.46, 0.44, 0.2, 0.22, 0.08, 'paint', 0, 0.76, 0.6);
+    tapered(0.3, 0.2, 0.1, 0.2, 0.06, -0.06, 'glass', 0, 1.08, 0.66);
+    box(0.28, 0.08, 0.5, 'dark', 0, 0.88, -0.32);
+    tapered(0.3, 0.16, 0.46, 0.1, 0.3, -0.04, 'paint', 0, 0.98, -0.62);
+    // Exhaust can under the tail, mudguard over the front wheel.
+    const can = add(new THREE.CylinderGeometry(0.07, 0.06, 0.5, 12), 'chrome', 0.16, 0.62, -0.68);
+    can.rotation.x = Math.PI / 2 - 0.3;
+    box(0.16, 0.03, 0.42, 'paint', 0, 0.66, 0.74);
+    riderAndBars(kit, { seatY: 0.92, seatZ: -0.3, barY: 1.0, barZ: 0.48, crouch: 0.75 });
+    lights({ frontZ: 0.84, rearZ: -0.85, y: 0.82, headX: 0.06, tailX: 0.06, headW: 0.1, tailW: 0.1, h: 0.07, rearY: 0.98 });
+  },
+};
+
+const dirtbike = {
+  id: 'dirtbike',
+  name: 'Dirt bike',
+  voice: 'hatch',
+  blurb: 'Long-travel trail bike with jumps and air control (Space). Loose at the back, made for ramps.',
+  color: 0xf26a1b,
+  trim: 0x2b5bd7,
+  swatch: 0xf26a1b,
+  bike: true,
+  aerial: true,
+  length: 2.1,
+  width: 0.8,
+  suspension: 1.5,
+  spec: {
+    mass: 230, inertiaScale: 0.38, cgToFront: 0.74, cgToRear: 0.74, cgHeight: 0.72,
+    trackWidth: 0.45, wheelRadius: 0.36, tireGrip: 1.12, rearGripBias: 1.05, handbrakeGrip: 0.4,
+    maxSteer: 0.5, steerSpeed: 3.2, brakeForce: 3200, dragCoef: 0.3, rollingResistance: 4, engineBrake: 60,
+    torqueScale: 0.3, gearRatios: [3.0, 2.1, 1.6, 1.3, 1.1], finalDrive: 4.8, boostAccel: 7, engineTone: 1.55,
+  },
+  hitbox: [
+    { half: [0.3, 0.42, 1.02], at: [0, 0.72, 0] },
+    { half: [0.26, 0.34, 0.34], at: [0, 1.42, -0.08] },
+  ],
+  home: { x: 14, z: -52, heading: 0 },
+  cam: { scale: 0.82, hoodY: 1.6, hoodZ: 0.2 },
+  exhaust: [[0.17, 0.92, -0.8]],
+  wheelWidth: 0.15,
+  build(kit) {
+    const { THREE, box, tapered, add, lights } = kit;
+    box(0.26, 0.3, 0.38, 'dark', 0, 0.6, 0.04);
+    box(0.08, 0.08, 0.9, 'trim', 0, 0.84, 0.02);
+    for (const s of [-1, 1]) box(0.05, 0.06, 0.76, 'chrome', s * 0.11, 0.42, -0.38).rotation.x = -0.12;
+    for (const s of [-1, 1]) box(0.06, 0.8, 0.06, 'chrome', s * 0.1, 0.74, 0.62).rotation.x = -0.4;
+    // Slim tank and side panels, a long flat seat, plastics front and back.
+    tapered(0.34, 0.22, 0.5, 0.24, 0.36, 0, 'paint', 0, 0.98, 0.22);
+    for (const s of [-1, 1]) box(0.03, 0.26, 0.42, 'paint', s * 0.17, 0.88, -0.22);
+    box(0.24, 0.08, 0.84, 'dark', 0, 1.06, -0.18);
+    tapered(0.22, 0.04, 0.6, 0.18, 0.5, 0.06, 'paint', 0, 1.0, -0.72);
+    tapered(0.22, 0.04, 0.56, 0.16, 0.42, 0.08, 'paint', 0, 1.02, 0.84);
+    // Number plate on the front, high pipe out the back.
+    box(0.3, 0.26, 0.03, 'trim', 0, 1.14, 0.78).rotation.x = -0.35;
+    const pipe = add(new THREE.CylinderGeometry(0.06, 0.06, 0.52, 12), 'chrome', 0.17, 0.86, -0.56);
+    pipe.rotation.x = Math.PI / 2 - 0.45;
+    riderAndBars(kit, { seatY: 1.08, seatZ: -0.22, barY: 1.24, barZ: 0.52, crouch: 0.42 });
+    lights({ frontZ: 0.82, rearZ: -1.0, y: 1.0, headX: 0.05, tailX: 0.05, headW: 0.09, tailW: 0.08, h: 0.06, rearY: 1.02 });
+  },
+};
+
 // Fill in every handling value so models and parked bodies can read them too.
-const BUILT = [sports, hatch, pickup, bus, ember, inferno].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec, body: bodyBox(v.hitbox) } }));
+const BUILT = [sports, hatch, pickup, bus, ember, inferno, streetbike, dirtbike].map((v) => ({ ...v, spec: { ...DEFAULT_SPEC, ...v.spec, body: bodyBox(v.hitbox) } }));
+// The bikes' numbers are measured (the cars' were tuned by hand).
+for (const v of BUILT) v.stats ||= measure(v.spec);
 
 // The Striker: the car football car (everyone drives it there), also a
 // normal car everywhere else. It's built with the custom car kit (see
@@ -11790,6 +11985,64 @@ class RoamBot {
   }
 }
 
+// ===== unlocks.js =====
+// Things you unlock by playing (or with a code), saved in this browser.
+//
+// The god car: a custom car whose workshop sliders go far past the normal
+// range (see GOD_RANGES in carkit.js) and whose boost never runs out.
+// Unlock it by hitting a ×10 combo, scoring 100,000 points in one run of
+// free roam or the Motorway, or winning a solo Versus match against
+// computer drivers; or type the code into the workshop's code box.
+
+const UNLOCKS_KEY = 'smash-lot-unlocks-v1';
+
+/** Codes typed into the workshop's code box, and what each unlocks. */
+const CODES = { GOON321: 'god' };
+
+const GOD_POINTS = 100000;
+const GOD_HINT = `Hit a ×10 combo, score ${GOD_POINTS.toLocaleString('en-US')} points in one run, or win a Versus match against computer drivers. Or enter a code below.`;
+
+/** The god car as it first appears in your garage (then edit it in the workshop). */
+const GOD_DESIGN = {
+  id: 'god-car', name: 'God car', style: 'muscle', god: true,
+  color: 0xf2c230, trim: 0x111114, accent: 0xfff2b0,
+  size: { length: 0.7, width: 0.7, height: 0.35, ride: 0.6, wheels: 0.9 },
+  tune: { power: 2.6, weight: 0.9, grip: 1.7, balance: 0.4, boost: 3, gearing: 1.4 },
+  engine: 'v8', ability: 'none', weapon: 'none', parts: ['spoiler', 'scoop', 'stripes', 'lightbar'], aerial: true,
+};
+
+let unlocked = load();
+
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(UNLOCKS_KEY) || '{}');
+    return saved && typeof saved === 'object' ? saved : {};
+  } catch {
+    return {};
+  }
+}
+
+function isUnlocked(key) {
+  return !!unlocked[key];
+}
+
+/** Unlock `key`. Returns true only the first time. */
+function unlock(key) {
+  if (unlocked[key]) return false;
+  unlocked = { ...unlocked, [key]: true };
+  try {
+    localStorage.setItem(UNLOCKS_KEY, JSON.stringify(unlocked));
+  } catch {
+    // Storage blocked (private mode): unlocked for this visit only.
+  }
+  return true;
+}
+
+/** What a typed code unlocks, or null if it isn't one. */
+function codeUnlocks(text) {
+  return CODES[String(text).trim().toUpperCase()] ?? null;
+}
+
 // ===== customs.js =====
 // The vehicle registry: the built-in fleet plus custom cars. Your own
 // designs are saved in this browser; other players' designs (received
@@ -11808,12 +12061,27 @@ class Garage {
     this.designs = [];
     try {
       const saved = JSON.parse(localStorage.getItem(CUSTOMS_KEY) || '[]');
-      if (Array.isArray(saved)) this.designs = saved.slice(0, MAX_CUSTOM).map(cleanDesign);
+      if (Array.isArray(saved)) this.designs = saved.slice(0, MAX_CUSTOM + 1).map((d) => this.allowed(d));
     } catch {
       this.designs = [];
     }
     this.custom = this.designs.map((d, i) => compileCar(d, customHome(i)));
     this.remote = new Map(); // id -> compiled def, other players' designs
+  }
+
+  /** A design as this browser may keep it: god mode only once the god car is unlocked. */
+  allowed(raw) {
+    return cleanDesign(raw?.god && !isUnlocked('god') ? { ...raw, god: false } : raw);
+  }
+
+  /** Just unlocked: put the god car in the garage (it doesn't count toward the limit). Returns its vehicle. */
+  addGod() {
+    const have = this.custom.find((v) => v.id === GOD_DESIGN.id);
+    if (have) return have;
+    this.designs.push(cleanDesign(GOD_DESIGN));
+    this.custom.push(compileCar(this.designs.at(-1), customHome(this.designs.length - 1)));
+    this.persist();
+    return this.custom.at(-1);
   }
 
   /** Everything you can drive: built-ins first, then your custom cars. */
@@ -11835,13 +12103,13 @@ class Garage {
 
   /** Add or update a design. Returns its compiled vehicle. */
   save(raw) {
-    const design = cleanDesign(raw);
+    const design = this.allowed(raw);
     const i = this.designs.findIndex((d) => d.id === design.id);
     if (i >= 0) {
       this.designs[i] = design;
       this.custom[i] = compileCar(design, customHome(i));
     } else {
-      if (this.designs.length >= MAX_CUSTOM) throw new Error(`You can keep up to ${MAX_CUSTOM} custom cars. Delete one first.`);
+      if (this.designs.filter((d) => d.id !== GOD_DESIGN.id).length >= MAX_CUSTOM) throw new Error(`You can keep up to ${MAX_CUSTOM} custom cars. Delete one first.`);
       this.designs.push(design);
       this.custom.push(compileCar(design, customHome(this.designs.length - 1)));
     }
@@ -11881,6 +12149,7 @@ class Garage {
 //   onSaved(def)      a design was saved (refresh the fleet)
 //   onDeleted(id)
 //   onTestDrive(def)  save done; go and drive it
+//   onUnlock(key)     a valid unlock code was typed in the code box
 
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
 const el = (tag, attrs = {}, ...kids) => {
@@ -11933,7 +12202,15 @@ class Workshop {
         return b;
       }));
     }
-    document.getElementById('btn-new-car').disabled = garage.custom.length >= MAX_CUSTOM;
+    if (!isUnlocked('god')) {
+      // A locked card saying how to get the god car.
+      const card = el('div', { class: 'garage-card locked', role: 'listitem' });
+      const dot = el('i');
+      dot.style.background = '#3a3d44';
+      card.append(dot, el('span', { class: 'g-name', text: 'God car (locked)' }), el('span', { class: 'g-blurb', text: GOD_HINT }));
+      this.list.append(card);
+    }
+    document.getElementById('btn-new-car').disabled = garage.designs.filter((d) => d.id !== 'god-car').length >= MAX_CUSTOM;
     this.opts.show('workshop');
   }
 
@@ -11996,9 +12273,10 @@ class Workshop {
       paint();
       return g;
     };
-    const slider = (obj, key) => {
+    // God cars' sliders run far past the normal 0..1 (see GOD_RANGES).
+    const slider = (obj, key, [min, max] = [0, 1]) => {
       const wrap = el('label', { class: 'slider' });
-      const input = el('input', { type: 'range', min: 0, max: 1, step: 0.01 });
+      const input = el('input', { type: 'range', min, max, step: max - min > 1 ? 0.02 : 0.01 });
       input.value = obj[key];
       const out = el('output', { text: `${Math.round(obj[key] * 100)}` });
       input.addEventListener('input', () => { obj[key] = Number(input.value); out.textContent = Math.round(obj[key] * 100); this.changed(); });
@@ -12024,7 +12302,17 @@ class Workshop {
       colours.append(el('label', { class: 'colour' }, input, el('span', { text: label })));
     }
     rows.push(row('Colours', colours));
-    for (const [k, label] of Object.entries(SIZE_KEYS)) rows.push(row(label, slider(d.size, k)));
+    if (isUnlocked('god')) {
+      const god = el('button', { type: 'button', text: d.god ? 'On' : 'Off', 'aria-pressed': String(!!d.god) });
+      god.addEventListener('click', () => {
+        // Off pulls every slider back into the normal range.
+        this.design = cleanDesign({ ...d, god: !d.god });
+        this.render();
+        this.changed();
+      });
+      rows.push(row('God mode', el('div', { class: 'seg' }, god), 'Endless boost, and every slider goes way past normal. Push them far enough and things get buggy'));
+    }
+    for (const [k, label] of Object.entries(SIZE_KEYS)) rows.push(row(label, slider(d.size, k, d.god ? GOD_RANGES.size : undefined)));
 
     rows.push(head('Parts'));
     const parts = el('div', { class: 'seg parts' });
@@ -12039,7 +12327,7 @@ class Workshop {
     }
     rows.push(parts);
     rows.push(row('Weapon', seg('Weapon', WEAPON_MOUNTS, () => d.weapon, (v) => { d.weapon = v; }),
-      'On the roof. In Versus it is your car\'s own weapon (rockets and mines reload over time); in free roam, fire it at the scenery with X or a click'));
+      'Optional, on the roof. In Versus it is your car\'s own weapon (rockets and mines reload over time; with none you get the machine gun there); in free roam, fire it at the scenery with X or a click'));
     rows.push(row('Special', seg('Special ability', ABILITIES, () => d.ability, (v) => { d.ability = v; })));
     const jump = el('button', { type: 'button', text: d.aerial ? 'On' : 'Off', 'aria-pressed': String(!!d.aerial) });
     jump.addEventListener('click', () => {
@@ -12052,7 +12340,8 @@ class Workshop {
 
     rows.push(head('Engine and handling'));
     rows.push(row('Engine sound', seg('Engine sound', ENGINES, () => d.engine, (v) => { d.engine = v; })));
-    for (const [k, [label, hint]] of Object.entries(TUNE_KEYS)) rows.push(row(label, slider(d.tune, k), hint));
+    const tunes = { ...TUNE_KEYS, ...(d.god ? GOD_TUNE_KEYS : {}) };
+    for (const [k, [label, hint]] of Object.entries(tunes)) rows.push(row(label, slider(d.tune, k, d.god ? GOD_RANGES[k] : undefined), hint));
 
     this.form.replaceChildren(...rows);
   }
@@ -12092,8 +12381,14 @@ class Workshop {
 
   importCode() {
     const input = document.getElementById('import-code');
+    const key = codeUnlocks(input.value);
+    if (key) {
+      input.value = '';
+      this.opts.onUnlock(key);
+      return;
+    }
     try {
-      const design = codeToDesign(input.value);
+      const design = this.opts.garage.allowed(codeToDesign(input.value));
       input.value = '';
       this.edit(design);
       this.setStatus('Imported. Save it to keep it.');
@@ -12241,9 +12536,9 @@ const versus = new Versus({
   },
 });
 const VS_BOT_CARS = {
-  mixed: ['sports', 'pickup', 'ember', 'hatch', 'inferno', 'bus', 'striker'],
+  mixed: ['sports', 'pickup', 'ember', 'hatch', 'inferno', 'bus', 'striker', 'streetbike', 'dirtbike'],
   heavy: ['bus', 'pickup', 'inferno'],
-  light: ['hatch', 'sports', 'ember', 'striker'],
+  light: ['hatch', 'sports', 'ember', 'striker', 'streetbike', 'dirtbike'],
 };
 
 /** Solo Versus: the computer drivers from the settings (how many, how good, in what). */
@@ -12476,6 +12771,19 @@ function award(base) {
 score.onComboEnd = ({ count, mult, points }) => {
   toast(`Combo over: ${count} smashed at ×${mult}, +${points.toLocaleString('en-US')}`);
 };
+
+/**
+ * Unlock the god car (a ×10 combo, a big score, a Versus win, or the code
+ * in the workshop): it goes in the garage, parked behind the start line.
+ */
+function unlockGod(why) {
+  if (!unlock('god')) return false;
+  const def = garage.addGod();
+  syncFleet();
+  toast(`${why}: God car unlocked! It's in your garage and the workshop`);
+  audio.pickup();
+  return def;
+}
 
 // --- Settings ----------------------------------------------------------
 let shadowsWere = null;
@@ -12741,7 +13049,12 @@ football.on('restart', () => {
   resetAll();
   if (net.online) net.sendEvent({ type: 'rebuild' });
 });
-versus.on('ended', () => audio.whistle(true));
+versus.on('ended', () => {
+  audio.whistle(true);
+  // Beating the computer drivers solo unlocks the god car.
+  const [win, next] = versus.standings();
+  if (!net.online && versus.bots.length && win?.me && !(next && next.k === win.k && next.d === win.d)) unlockGod('You won');
+});
 versus.on('restart', () => {
   // Referee: a fresh arena and match for everyone.
   resetAll();
@@ -12898,6 +13211,17 @@ const workshop = new Workshop({
   onSaved: (def) => { syncFleet(); menu.selectVehicle(def.id); setSetting('startVehicle', def.id); },
   onDeleted: () => { syncFleet(); menu.selectVehicle(active.def.id); },
   onTestDrive: (def) => { showPreview(null); play(fleet.find((v) => v.def.id === def.id)?.def); },
+  onUnlock: (key) => {
+    if (key !== 'god') return;
+    if (isUnlocked('god')) {
+      workshop.setStatus('The god car is already unlocked.');
+      return;
+    }
+    const def = unlockGod('Code accepted');
+    menu.selectVehicle(def.id);
+    workshop.open();
+    workshop.setStatus('Code accepted: the god car is in your garage. Open it to push it way past the normal limits.');
+  },
 });
 
 /** Match the fleet to the garage after custom cars are saved or deleted. */
@@ -13283,6 +13607,9 @@ function flameSources() {
 /** Points, multiplier and combo timer (free roam). */
 function updateScoreHud(dt) {
   score.update(dt);
+  if (roaming() && (score.mult >= 10 || score.points >= GOD_POINTS) && !isUnlocked('god')) {
+    unlockGod(score.mult >= 10 ? '×10 combo' : `${GOD_POINTS.toLocaleString('en-US')} points`);
+  }
   hud.scorePanel.hidden = !roaming();
   hud.points.textContent = score.points.toLocaleString('en-US');
   hud.mult.textContent = `×${score.mult}`;

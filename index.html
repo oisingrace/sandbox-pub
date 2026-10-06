@@ -236,6 +236,7 @@
     .garage-card .g-blurb { grid-column: 2; font-size: 13px; font-weight: 400; color: var(--hud-dim); line-height: 1.4; }
     .garage-card .g-stats { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; font-weight: 400; color: var(--hud-dim); font-variant-numeric: tabular-nums; }
     .garage-card .g-stats b { color: var(--hud-fg); }
+    #menu .garage-card.locked { border: 1px dashed rgba(255, 255, 255, 0.22); border-radius: 10px; color: var(--hud-dim); }
     #t-boost { right: 140px; bottom: 116px; width: 64px; height: 64px; font-size: 12px; }
     /* --- Game modes / football --- */
     .mode-picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 4px; background: var(--menu-panel); border: 1px solid var(--menu-line); border-radius: 12px; }
@@ -532,7 +533,7 @@
       <div class="workshop-actions">
         <button type="button" class="primary" id="btn-new-car">New car</button>
         <div class="import-row">
-          <input id="import-code" type="text" placeholder="Paste a share code" autocomplete="off" spellcheck="false" aria-label="Share code">
+          <input id="import-code" type="text" placeholder="Paste a share code or a cheat code" autocomplete="off" spellcheck="false" aria-label="Share code or cheat code">
           <button type="button" id="btn-import-car">Import</button>
         </div>
       </div>
@@ -618,6 +619,17 @@
        games website (its build script reads this block). Add a new entry at the top for each update. -->
   <script type="application/json" id="patch-notes">
   [
+    {
+      "version": "0.16",
+      "date": "2026-10-06",
+      "title": "Motorbikes and the god car",
+      "notes": [
+        "Two motorbikes in the fleet: a quick street bike and a dirt bike built for jumps. They lean into corners, and computer drivers ride them too.",
+        "The god car: a gold muscle car with endless boost whose workshop sliders go far past the normal range, plus a Gearing slider for an absurd top speed. Push them to the limit and things get buggy, on purpose.",
+        "Unlock it by hitting a ×10 combo, scoring 100,000 points in one run, or winning a Versus match against computer drivers. Or type a cheat code into the workshop's code box.",
+        "Weapons are now optional when you design a car. New designs start with None."
+      ]
+    },
     {
       "version": "0.15",
       "date": "2026-10-06",
