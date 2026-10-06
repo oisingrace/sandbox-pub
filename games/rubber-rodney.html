@@ -26,8 +26,10 @@
   #app { display: flex; flex-direction: column; height: 100%; }
   #stageWrap { position: relative; flex: 1; min-height: 0; background: var(--ground); }
   #gl, #overlay { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #stageWrap::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 75% 70% at 50% 55%, transparent 55%, rgba(8, 7, 6, .45)); }
   #overlay { touch-action: none; cursor: crosshair; }
 
+  #hud, #utils, #hint, #toast, #loading { z-index: 1; }
   .glass { background: var(--glass); border: 1px solid var(--line); border-radius: 10px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
   #hud { position: absolute; top: 14px; left: 16px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
   #bucksPill { padding: 8px 12px 7px; display: flex; flex-direction: column; gap: 1px; min-width: 150px; }
@@ -54,9 +56,11 @@
   #toast { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%) translateY(12px); opacity: 0; transition: .25s; font-size: 14px; font-weight: 500; padding: 8px 14px; pointer-events: none; white-space: nowrap; }
   #toast.show { opacity: 1; transform: translateX(-50%); }
 
+  #tools::-webkit-scrollbar { height: 6px; }
+  #tools::-webkit-scrollbar-thumb { background: rgba(255,250,244,.18); border-radius: 3px; }
   #tools { flex: none; background: #0b0a0a; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; border-top: 1px solid var(--line); }
   .track { display: flex; gap: 6px; width: max-content; margin: 0 auto; padding-top: 6px; }
-  .tool { position: relative; width: 72px; height: 68px; border-radius: 10px; border: 1px solid var(--line); background: #1a1817; color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font: 500 11px/1.1 var(--sans); cursor: pointer; padding: 6px 2px 4px; transition: background .15s, border-color .15s; }
+  .tool { position: relative; width: 72px; height: 68px; border-radius: 10px; border: 1px solid var(--line); background: #1a1817; color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font: 500 11px/1.1 var(--sans); cursor: pointer; padding: 6px 2px 4px; transition: background .15s, border-color .15s, color .15s; }
   .tool svg { width: 26px; height: 26px; }
   .tool:hover { border-color: rgba(255,250,244,.35); }
   .tool.active { background: var(--text); color: var(--ground); border-color: var(--text); }
@@ -73,7 +77,7 @@
     .util span { display: none; }
     .util { padding: 8px; }
     #hint { top: auto; bottom: 14px; max-width: calc(100% - 32px); width: max-content; font-size: 12.5px; }
-    #toast { bottom: 64px; }
+    #toast { bottom: 84px; }
     #bucksPill, #malfPill { min-width: 120px; }
     #bucks { font-size: 20px; }
     .tool { width: 62px; height: 62px; }
@@ -88,6 +92,15 @@
 <body>
 <script type="application/json" id="patch-notes">
 [
+  { "version": "1.1", "date": "2026-10-06", "title": "Toy box",
+    "notes": [
+      "10 new toys: Bouncy Balls, Watermelon, Boxing Glove, Balloons, Leaf Blower, Trampoline, Lightning, Wrecking Ball, Piano and Black Hole. 21 in all.",
+      "Rodney now stands up at the start and gets back on his feet after he's knocked down, instead of lying on the floor.",
+      "Balls and other toys bump into his arms and legs along their whole length, and can no longer get stuck inside his head or body.",
+      "Explosions and lightning leave soot on him that slowly fades.",
+      "Hair, collar and skin look cleaner, with softer shadows and a darker studio edge.",
+      "The toy tray scrolls with the mouse wheel and follows the toy you pick. Keyboard: 1-9, 0, - and = pick the first 12 toys; [ and ] step through the rest."
+    ] },
   { "version": "1.0", "date": "2026-10-06", "title": "Meet Rodney",
     "notes": [
       "A rubbery 3D man in a photo studio to stretch, squash, dent and blow up.",
@@ -154,6 +167,11 @@ const malfFill = document.getElementById('malfFill');
 const hintEl = document.getElementById('hint');
 const toastEl = document.getElementById('toast');
 const track = document.getElementById('track');
+// a mouse wheel scrolls the long tray sideways
+document.getElementById('tools').addEventListener('wheel', e => {
+  const el = e.currentTarget; if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || el.scrollWidth <= el.clientWidth) return;
+  el.scrollLeft += e.deltaY; e.preventDefault();
+}, { passive: false });
 
 // ---------------- save ----------------
 const SAVE_KEY = 'rubber-rodney-v1';
@@ -206,7 +224,19 @@ const sfx = {
   buy() { [523, 659, 784].forEach((f, i) => tone('sine', f, f, 0.18, 0.18, i * 0.06)); },
   deny() { tone('sine', 150, 120, 0.2, 0.15); },
   coin() { tone('sine', 1568, 1568, 0.08, 0.05); },
-  throw() { noise(0.22, 0.14, 'bandpass', 500, 1500, 1); }
+  throw() { noise(0.22, 0.14, 'bandpass', 500, 1500, 1); },
+  boing(v = 1) { const f = rnd(180, 240); tone('sine', f, f * 2.6, 0.22, 0.3 * v); tone('triangle', f * 0.5, f * 1.4, 0.3, 0.12 * v, 0.02); },
+  punch() { noise(0.09, 0.8, 'lowpass', 2200, 300, 0.8); tone('sine', 140, 45, 0.2, 0.7); },
+  zap() { noise(0.5, 0.5, 'highpass', 6000, 1200, 0.7); tone('sawtooth', 120, 60, 0.45, 0.12); noise(0.9, 0.35, 'lowpass', 900, 60, 0.7, 0.05); },
+  buzz() { tone('square', rnd(90, 130), 70, 0.05, 0.035); },
+  hum() { tone('sine', 55, 48, 0.4, 0.18); },
+  warp() { tone('sine', 900, 60, 0.8, 0.25); noise(0.8, 0.2, 'bandpass', 3000, 200, 2); },
+  squeak() { tone('sine', 900, 1400, 0.12, 0.08); tone('sine', 1200, 800, 0.1, 0.06, 0.1); },
+  splat() { noise(0.35, 0.7, 'lowpass', 1400, 120, 1); tone('sine', 90, 40, 0.25, 0.5); },
+  piano(v = 1) {
+    [55, 82.4, 98, 116.5, 146.8, 174.6, 207.6, 293.7].forEach((f, i) => { const g = f * pick([1, 1.06, 0.94]); tone('triangle', g, g * 0.995, 2.2 - i * 0.15, 0.09 * v, i * 0.012); tone('sine', g * 2, g * 2, 1.2, 0.04 * v, i * 0.012); });
+    noise(0.3, 0.6 * v, 'lowpass', 800, 80); tone('sine', 70, 30, 0.5, 0.7 * v);
+  }
 };
 
 // ---------------- layout ----------------
@@ -271,7 +301,7 @@ function buildFella(cx, cy) {
   const armR = makeLimb('right arm', tr[15], [[20 * S, 30 * S], [8 * S, 32 * S]], 16 * S, 'hand');
   legL.side = -1; legR.side = 1; armL.side = -1; armR.side = 1;
   head.color = 'skin'; torso.color = 'shirt'; armL.color = armR.color = 'skin'; legL.color = legR.color = 'pants';
-  fella = { head, torso, legL, legR, armL, armR, limbs: [legL, legR, armL, armR] };
+  fella = { head, torso, legL, legR, armL, armR, limbs: [legL, legR, armL, armR], standH: floorY - cy, neckH: 102 * S };
   updateLimbRadii();
 }
 const SC = 1.4; // overall size of Rodney
@@ -323,11 +353,19 @@ function applyPressure(b) {
 }
 
 // ---------------- props ----------------
+// Circles have r; boxes have hw/hh. Heavy props dent Rodney when they land on him.
+const HEAVY = { anvil: 14, piano: 16, wreck: 12 };
+const BALLOON_COLS = [0xd8352a, 0xf2b630, 0x2f7fd8, 0x3fae5a, 0xe86fb0, 0xf07a2a];
 function makeProp(kind, x, y) {
   const o = { kind, x, y, px: x, py: y, angle: 0, held: false, born: frameNo };
   if (kind === 'ball') { o.r = 24; o.im = 1 / 6; o.bounce = 0.45; }
   if (kind === 'bomb') { o.r = 15; o.im = 1 / 1.5; o.bounce = 0.35; o.fuse = 150; }
   if (kind === 'anvil') { o.hw = 52; o.hh = 29; o.im = 1 / 25; o.bounce = 0.05; }
+  if (kind === 'bouncy') { o.r = 10; o.im = 1 / 0.4; o.bounce = 0.9; o.color = pick(BALLOON_COLS); }
+  if (kind === 'melon') { o.r = 22; o.im = 1 / 4; o.bounce = 0.2; }
+  if (kind === 'piano') { o.hw = 92; o.hh = 62; o.im = 1 / 45; o.bounce = 0.04; }
+  if (kind === 'wreck') { o.r = 36; o.im = 1 / 30; o.bounce = 0.2; }
+  if (kind === 'tramp') { o.hw = 78; o.hh = 9; o.im = 0; o.bounce = 0; o.static = true; o.boing = 0; }
   o.im0 = o.im;
   props.push(o); return o;
 }
@@ -336,6 +374,7 @@ function limitProps(kind, max) {
   while (list.length > max) { const o = list.shift(); props.splice(props.indexOf(o), 1); }
 }
 function boundProp(o) {
+  if (o.static) return;
   const ex = o.r || o.hw, ey = o.r || o.hh;
   if (o.y > floorY - ey) {
     const vy = o.y - o.py; o.y = floorY - ey;
@@ -343,32 +382,44 @@ function boundProp(o) {
       const sp = vy / h;
       if (sp > 4) {
         if (o.kind === 'anvil') { if (sp > 6) { sfx.clang(); shake(8); dust(o.x, floorY, 12); } }
+        else if (o.kind === 'piano') { if (sp > 6) { sfx.piano(Math.min(1, sp / 20)); shake(12); dust(o.x, floorY, 18); } }
+        else if (o.kind === 'wreck') { sfx.thud(1); shake(5); }
         else if (o.kind === 'ball') sfx.thud(Math.min(1, sp / 20));
+        else if (o.kind === 'bouncy') sfx.boing(Math.min(1, sp / 25));
+        else if (o.kind === 'melon') { if (sp > 11) o.smash = true; else sfx.thud(0.4); }
         else sfx.tick();
       }
       o.py = o.y + vy * o.bounce;
     }
-    o.px = o.x - (o.x - o.px) * (o.kind === 'ball' ? 0.995 : 0.9);
+    o.px = o.x - (o.x - o.px) * (o.r ? 0.995 : 0.9);
   }
   if (o.x < ex) { const vx = o.x - o.px; o.x = ex; if (vx < 0) o.px = o.x + vx * o.bounce; }
   if (o.x > W - ex) { const vx = o.x - o.px; o.x = W - ex; if (vx > 0) o.px = o.x + vx * o.bounce; }
   if (o.y < -400) { o.y = -400; o.py = Math.min(o.py, o.y); }
   if (gravMode === 2 && o.y < ey) { const vy = o.y - o.py; o.y = ey; if (vy < 0) o.py = o.y + vy * o.bounce; }
 }
+// a trampoline throws whatever lands on its top back up
+function boing(o, p) {
+  const vy = (p.y - p.py) / h;
+  if (vy < -2) return;
+  const up = Math.max(16, Math.abs(vy) * 1.15);
+  p.py = p.y + up * h;
+  if (o.boing < 4) sfx.boing(Math.min(1, up / 30));
+  o.boing = 14;
+}
 function resolve(p, o, nx, ny, pen) {
   const w = p.im + o.im; if (!w) return;
   if (p.part) {
     const rv = ((o.x - o.px) - (p.x - p.px)) * nx + ((o.y - o.py) - (p.y - p.py)) * ny;
-    if (rv / h > 3 && o.kind !== 'bomb') {
-      p.plastic = Math.max(p.plastic, o.kind === 'anvil' ? 14 : 8);
-      if (rv / h > 6 && o.kind === 'anvil' && !o.squashed) o.squashed = true;
-    }
+    if (rv / h > 3 && o.kind !== 'bomb' && o.kind !== 'tramp') p.plastic = Math.max(p.plastic, HEAVY[o.kind] || 8);
+    if (rv / h > 12 && o.kind === 'melon') o.smash = true;
   }
   p.x += nx * pen * p.im / w; p.y += ny * pen * p.im / w;
   o.x -= nx * pen * o.im / w; o.y -= ny * pen * o.im / w;
+  if (o.kind === 'tramp' && ny < -0.7) boing(o, p);
 }
 function collideCircleBody(p, pr, o) {
-  if (o.kind === 'anvil') {
+  if (o.hw) {
     const cx = clamp(p.x, o.x - o.hw, o.x + o.hw), cy = clamp(p.y, o.y - o.hh, o.y + o.hh);
     const dx = p.x - cx, dy = p.y - cy, d2 = dx * dx + dy * dy;
     if (d2 > pr * pr) return;
@@ -383,12 +434,44 @@ function collideCircleBody(p, pr, o) {
   }
 }
 function collideProps(a, b) {
-  if (a.kind !== 'anvil') collideCircleBody(a, a.r, b);
-  else if (b.kind !== 'anvil') collideCircleBody(b, b.r, a);
+  if (a.static && b.static) return;
+  if (!a.hw) collideCircleBody(a, a.r, b);
+  else if (!b.hw) collideCircleBody(b, b.r, a);
   else {
     const dx = a.x - b.x, dy = a.y - b.y, ox = a.hw + b.hw - Math.abs(dx), oy = a.hh + b.hh - Math.abs(dy);
     if (ox <= 0 || oy <= 0) return;
     if (ox < oy) resolve(a, b, Math.sign(dx) || 1, 0, ox); else resolve(a, b, 0, Math.sign(dy) || 1, oy);
+  }
+}
+// limbs collide along their whole length, not only at the joints
+function collideLimbs(o) {
+  if (o.hw) return;
+  for (const L of fella.limbs) {
+    const r = limbThick(L) / 2;
+    for (let s = 0; s < 2; s++) {
+      const a = L.pts[s], b = L.pts[s + 1];
+      const ex = b.x - a.x, ey = b.y - a.y, l2 = ex * ex + ey * ey || 1;
+      const t = clamp(((o.x - a.x) * ex + (o.y - a.y) * ey) / l2, 0, 1);
+      if (t < 0.08 || t > 0.92) continue; // the joints themselves already collide
+      const qx = a.x + ex * t, qy = a.y + ey * t, dx = qx - o.x, dy = qy - o.y, R = r + o.r, d2 = dx * dx + dy * dy;
+      if (d2 >= R * R || d2 < 1e-6) continue;
+      const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, pen = R - d;
+      const wa = a.im * (1 - t), wb = b.im * t, w = wa + wb + o.im; if (!w) continue;
+      const k = pen / w;
+      a.x += nx * k * wa; a.y += ny * k * wa; b.x += nx * k * wb; b.y += ny * k * wb;
+      o.x -= nx * k * o.im; o.y -= ny * k * o.im;
+    }
+  }
+}
+// round props that slip between skin points get pushed back out of the head or torso
+function unstick(o) {
+  if (o.hw || o.held || !o.im) return;
+  for (const b of [fella.head, fella.torso]) {
+    if (b.popped || !inPoly(o.x, o.y, b.ring)) continue;
+    let dx = o.x - b.center.x, dy = o.y - b.center.y; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    let far = 0; for (const q of b.ring) far = Math.max(far, (q.x - b.center.x) * dx + (q.y - b.center.y) * dy);
+    const push = Math.max(0, far + o.r - d);
+    o.x += dx * push; o.y += dy * push; o.px = o.x - dx * 2 * h; o.py = o.y - dy * 2 * h;
   }
 }
 
@@ -400,7 +483,13 @@ let skinGrab = null;   // skin pull being dragged
 let pumping = null;
 let aim = null;
 let magnetOn = false;
+let blowing = false;
 let mallet = null;
+let glove = null;      // boxing glove punch in flight {x, y, from, t}
+let holes = [];        // black holes {x, y, t, life}
+let balloons = [];     // helium balloons tied to a body point
+let wreck = null;      // wrecking ball {o, ax, ay, len}
+let bolts = [], zapT = 0, soot = 0;
 
 function boundPoint(p) {
   const r = p.r;
@@ -420,6 +509,22 @@ function partRef(p) {
 }
 function partPoints(pt) { return pt.type === 'blob' ? [pt.center, ...pt.ring] : pt.pts.slice(1); }
 
+// an inextensible string: only pulls when taut. a = body point (or null for a fixed anchor at ax, ay)
+function rope(a, b, len, ax, ay) {
+  const x0 = a ? a.x : ax, y0 = a ? a.y : ay;
+  const dx = b.x - x0, dy = b.y - y0, d = Math.hypot(dx, dy); if (d <= len) return;
+  const wa = a ? a.im : 0, wb = b.im, w = wa + wb; if (!w) return;
+  const k = (d - len) / d / w;
+  if (a) { a.x += dx * k * wa; a.y += dy * k * wa; }
+  b.x -= dx * k * wb; b.y -= dy * k * wb;
+}
+function boundBalloon(bl) {
+  const r = bl.r;
+  if (bl.y < r) { bl.y = r; if (bl.py < bl.y) bl.py = bl.y; }
+  if (bl.y > floorY - r) { bl.y = floorY - r; if (bl.py > bl.y) bl.py = bl.y; }
+  if (bl.x < r) { bl.x = r; bl.px = Math.max(bl.px, bl.x - 1); }
+  if (bl.x > W - r) { bl.x = W - r; bl.px = Math.min(bl.px, bl.x + 1); }
+}
 function substep() {
   const g = gravity(), damp = gravMode === 1 ? 0.993 : 0.998, hh2 = h * h;
   for (const p of pts) {
@@ -428,10 +533,19 @@ function substep() {
     p.px = p.x; p.py = p.y; p.x += vx; p.y += vy + g * hh2;
   }
   for (const o of props) {
-    if (o.held) continue;
+    if (o.held || o.static) continue;
     const vx = (o.x - o.px) * 0.999, vy = (o.y - o.py) * 0.999;
-    o.px = o.x; o.py = o.y; o.x += vx; o.y += vy + g * hh2 * (o.kind === 'anvil' ? 1.3 : 1);
-    if (o.kind === 'ball') o.angle += vx / o.r;
+    o.px = o.x; o.py = o.y; o.x += vx; o.y += vy + g * hh2 * (o.hw ? 1.3 : 1);
+    if (o.r) o.angle += vx / o.r;
+  }
+  for (const bl of balloons) {
+    const vx = (bl.x - bl.px) * 0.985, vy = (bl.y - bl.py) * 0.985;
+    bl.px = bl.x; bl.py = bl.y; bl.x += vx + Math.sin(frameNo * 0.03 + bl.ph) * 0.02; bl.y += vy - 1.7 * g * hh2;
+    // a taut string lifts the body part it is tied to; about five balloons lift Rodney off the floor
+    if (Math.hypot(bl.x - bl.p.x, bl.y - bl.p.y) > bl.len * 0.9) {
+      const q = partPoints(bl.p.part), f = 10 * g * hh2 / q.length;
+      for (const o of q) if (o.im) o.y -= f;
+    }
   }
   for (const b of [fella.head, fella.torso]) applyPressure(b);
   posture(hh2);
@@ -442,6 +556,31 @@ function substep() {
     const acc = rk.p.part.type === 'blob' ? 2.6 : 5.5;
     for (const q of partPoints(rk.p.part)) if (q.im) { q.x += dx * acc * hh2; q.y += dy * acc * hh2; }
   }
+  if (blowing) {
+    // a cone of air from the blower toward Rodney
+    const tc = fella.torso.center; let ax = tc.x - ptr.x, ay = tc.y - ptr.y; const al = Math.hypot(ax, ay) || 1; ax /= al; ay /= al;
+    const gust = 1 + 0.35 * Math.sin(frameNo * 0.4);
+    const blow = (o, k) => {
+      const dx = o.x - ptr.x, dy = o.y - ptr.y, d = Math.hypot(dx, dy); if (d < 8 || d > 620) return;
+      const c = (dx * ax + dy * ay) / d; if (c < 0.8) return;
+      const a = k * gust * (1 - d / 620) * smooth(0.8, 0.95, c);
+      o.x += dx / d * a * hh2; o.y += dy / d * a * hh2;
+    };
+    for (const p of pts) if (p.im) blow(p, 2.2);
+    for (const o of props) if (!o.held && !o.static) blow(o, 3.4 * Math.min(1, o.im * 3));
+    for (const bl of balloons) blow(bl, 4);
+  }
+  for (const bh of holes) {
+    const pull = (o, k, R) => {
+      const dx = bh.x - o.x, dy = bh.y - o.y, d = Math.hypot(dx, dy); if (d < 6 || d > R) return;
+      const a = k * Math.pow(1 - d / R, 1.5) * smooth(0, 30, bh.t);
+      o.x += (dx / d * a - dy / d * a * 0.35) * hh2; o.y += (dy / d * a + dx / d * a * 0.35) * hh2; // a little swirl
+    };
+    for (const p of pts) if (p.im) pull(p, 4.5, 520);
+    for (const o of props) if (!o.held && !o.static) pull(o, 5.5, 620);
+    for (const bl of balloons) pull(bl, 5, 520);
+  }
+  if (zapT > 0) for (const p of pts) if (p.im) { p.x += rnd(-1, 1) * 2.2 * (zapT / 40); p.y += rnd(-1, 1) * 2.2 * (zapT / 40); }
   if (magnetOn) {
     for (const p of pts) {
       if (!p.im) continue; const dx = ptr.x - p.x, dy = ptr.y - p.y, d = Math.hypot(dx, dy);
@@ -463,33 +602,55 @@ function substep() {
   if (grab) {
     const o = grab.obj; o.px = o.x; o.py = o.y;
     o.x += (ptr.x - o.x) * 0.55; o.y += (ptr.y - o.y) * 0.55;
+    if (o.static) { o.x = clamp(o.x, o.hw, W - o.hw); o.y = o.py = floorY - o.hh; }
   }
   if (aim) { aim.ball.px = aim.ball.x = aim.x; aim.ball.py = aim.ball.y = aim.y; }
   for (const p of pts) if (p.pin) { p.x = p.px = p.pin.x; p.y = p.py = p.pin.y; }
 
   for (let it = 0; it < ITERS; it++) {
     for (const c of cons) solve(c);
-    for (const o of props) for (const p of pts) collideCircleBody(p, p.r, o);
+    for (const bl of balloons) rope(bl.p, bl, bl.len);
+    if (wreck && !wreck.o.held) rope(null, wreck.o, wreck.len, wreck.ax, wreck.ay);
+    for (const o of props) { for (const p of pts) collideCircleBody(p, p.r, o); collideLimbs(o); }
     for (let i = 0; i < props.length; i++) for (let j = i + 1; j < props.length; j++) collideProps(props[i], props[j]);
     for (const p of pts) boundPoint(p);
     for (const o of props) boundProp(o);
+    for (const bl of balloons) boundBalloon(bl);
   }
+  for (const o of props) unstick(o);
 }
 
-// Rodney tries to sit upright when left alone.
-let calm = 0;
+// Rodney gets back on his feet when left alone: once something rests on the floor, his legs
+// carry his torso and head back up over his feet. Dizziness makes him wait longer.
+let calm = 400;
 function posture(hh2) {
-  if (gravMode !== 0 || fella.torso.popped || mood.dizzy > 0.7 || grab || skinGrab || rockets.some(r => r.t >= r.ignite)) { calm = 0; return; }
+  const F = fella;
+  if (gravMode !== 0 || F.torso.popped || grab || skinGrab || blowing || magnetOn || zapT > 0 || holes.length || rockets.some(r => r.t >= r.ignite && r.fuel > 0)) { calm = 0; return; }
   calm = Math.min(calm + 1, 400);
-  const s = clamp((calm - 80) / 200, 0, 1); if (s <= 0) return;
-  const hc = fella.head.center, tc = fella.torso.center;
-  const neckLen = Math.hypot(hc.x - tc.x, hc.y - tc.y);
-  const tx = tc.x, ty = tc.y - neckLen;
-  const ax = clamp((tx - hc.x) * 0.02, -0.6, 0.6) * s, ay = clamp((ty - hc.y) * 0.02, -0.6, 0.6) * s;
-  for (const p of fella.head.ring) if (p.im) { p.x += ax * hh2; p.y += ay * hh2; }
-  if (hc.im) { hc.x += ax * hh2; hc.y += ay * hh2; }
-  const low = [fella.legL.pts[2], fella.legR.pts[2], fella.legL.pts[1], fella.legR.pts[1]];
-  for (const p of low) if (p.im) { p.x -= ax * hh2 * 2.4; p.y -= ay * hh2 * 2.4; }
+  const s = clamp((calm - 50 - mood.dizzy * 60) / 120, 0, 1); if (s <= 0) return;
+  // only push off from something solid: the floor, or anything he is lying still on
+  let low = -1e9; for (const p of pts) low = Math.max(low, p.y + p.r);
+  if (low < floorY - 6 && Math.abs(F.torso.center.y - F.torso.center.py) / h > 1.5) return;
+  const S = SC, tc = F.torso.center, fl = F.legL.pts[2], fr = F.legR.pts[2];
+  // the feet are the anchor: the torso rises over them and the head over the torso
+  const baseX = clamp((fl.x + fr.x) / 2, 50 * S, W - 50 * S);
+  const push = (list, tx, ty, k, max, lift) => {
+    let cx = 0, cy = 0, vx = 0, vy = 0, n = 0;
+    for (const o of list) { cx += o.x; cy += o.y; vx += o.x - o.px; vy += o.y - o.py; n++; }
+    cx /= n; cy /= n; vx /= n * h; vy /= n * h;
+    let ax = (tx - cx) * k - vx * 0.5, ay = (ty - cy) * k - vy * 0.5;
+    const m = Math.hypot(ax, ay); if (m > max) { ax *= max / m; ay *= max / m; }
+    ay -= lift;
+    for (const o of list) if (o.im) { o.x += ax * s * hh2; o.y += ay * s * hh2; }
+  };
+  const ty = floorY - F.standH;
+  push([tc, ...F.torso.ring], baseX, ty, 0.025, 2, G * 0.9 * s);
+  push([F.head.center, ...F.head.ring], tc.x, tc.y - F.neckH, 0.04, 2.4, G * 0.95 * s);
+  for (const [L, side] of [[F.legL, -1], [F.legR, 1]]) {
+    const hip = L.pts[0], knee = L.pts[1], foot = L.pts[2];
+    push([foot], baseX + side * 16 * S, floorY - foot.r, 0.03, 2, 0);
+    push([knee], (hip.x + foot.x) / 2 + side * 3 * S, (hip.y + foot.y) / 2, 0.04, 2, G * 0.5 * s);
+  }
 }
 
 function step() {
@@ -591,9 +752,10 @@ function afterPhysics() {
   const hc = fella.head.center; let fear = false;
   for (const o of props) {
     if (o.kind === 'bomb' && Math.hypot(o.x - hc.x, o.y - hc.y) < 260) fear = true;
-    if (o.kind === 'anvil' && o.y < hc.y && Math.abs(o.x - hc.x) < 90 && (o.y - o.py) > 0.5) fear = true;
+    if (o.hw && !o.static && o.y < hc.y && Math.abs(o.x - hc.x) < o.hw + 40 && (o.y - o.py) > 0.5) fear = true;
+    if (o.kind === 'wreck' && Math.hypot(o.x - hc.x, o.y - hc.y) < 220) fear = true;
   }
-  if (rockets.some(r => r.t < r.ignite)) fear = true;
+  if (rockets.some(r => r.t < r.ignite) || holes.length || glove) fear = true;
   mood.scared = fear ? Math.min(mood.scared + 1, 30) : Math.max(mood.scared - 1, 0);
 
   for (const o of props.slice()) {
@@ -614,6 +776,29 @@ function afterPhysics() {
       if (rk.fuel <= 0) { rockets.splice(rockets.indexOf(rk), 1); explode(rk.p.x, rk.p.y, 0.45); }
     }
   }
+  for (const o of props.slice()) {
+    if (o.smash) smashMelon(o);
+    if (o.boing > 0) o.boing -= fs;
+  }
+  for (const bh of holes.slice()) {
+    bh.t += fs;
+    if (frameNo % 2 === 0) { const a = rnd(0, TAU), r = rnd(60, 160); spark(bh.x + Math.cos(a) * r, bh.y + Math.sin(a) * r, rnd(-20, 20), -Math.cos(a) * 3 - Math.sin(a) * 4, -Math.sin(a) * 3 + Math.cos(a) * 4, 0, pick([0xb48cff, 0x7a5cff, 0xffffff]), 22); }
+    if (frameNo % 20 === 0) sfx.hum();
+    if (bh.t >= bh.life) { holes.splice(holes.indexOf(bh), 1); explode(bh.x, bh.y, 0.55); }
+  }
+  for (const bl of balloons.slice()) {
+    bl.t += fs;
+    if (bl.t > 1500 || bl.p.part.popped) popBalloon(bl);
+  }
+  if (glove) {
+    glove.t += fs;
+    if (!glove.hit && glove.t >= 6) { glove.hit = true; punchAt(glove.x, glove.y, glove.from); }
+    if (glove.t > 22) glove = null;
+  }
+  for (const b of bolts) b.t += fs;
+  bolts = bolts.filter(b => b.t < 12);
+  if (zapT > 0) { zapT -= fs; if (frameNo % 3 === 0) sfx.buzz(); mood.ouch = Math.max(mood.ouch, 4); }
+  soot = Math.max(0, soot - 0.0012 * fs);
   if (pumping) {
     const pt = pumping;
     pt.inflate += (pt.type === 'blob' ? 0.011 : 0.028) * fs;
@@ -697,6 +882,8 @@ function explode(x, y, power) {
       }
     }
   }
+  for (const bl of balloons.slice()) if (Math.hypot(bl.x - x, bl.y - y) < R * 0.8) popBalloon(bl);
+  if (Math.hypot(fella.torso.center.x - x, fella.torso.center.y - y) < R * 0.8) soot = Math.min(1, soot + 0.45 * power);
   flashAt(x, y, power);
   for (let i = 0; i < 70 * power; i++) { const a = rnd(0, TAU), b = rnd(-1, 1), s = rnd(3, 13); spark(x, y, 0, Math.cos(a) * s, Math.sin(a) * s, b * s, pick([0xffe2a8, 0xffb347, 0xff7a2a, 0xffffff]), rnd(16, 32)); }
   for (let i = 0; i < 16 * power; i++) { const a = rnd(0, TAU), s = rnd(0.5, 2.5); smoke(x, y, rnd(-30, 30), Math.cos(a) * s, Math.sin(a) * s - 1, rnd(26, 50), rnd(70, 110), pick([0x3a3633, 0x4d4843, 0x2a2725])); }
@@ -744,8 +931,9 @@ function malletHit(x, y) {
   }
   for (const o of props) {
     const d = Math.hypot(o.x - x, o.y - y);
-    if (d < R + (o.r || o.hw)) { addVel(o, dx * 18 * Math.min(1, o.im * 5), dy * 18 * Math.min(1, o.im * 5)); hitAny = true; if (o.kind === 'anvil') sfx.clang(); else sfx.bonk(); }
+    if (!o.static && d < R + (o.r || o.hw)) { addVel(o, dx * 18 * Math.min(1, o.im * 5), dy * 18 * Math.min(1, o.im * 5)); hitAny = true; if (o.kind === 'anvil') sfx.clang(); else sfx.bonk(); }
   }
+  for (const bl of balloons.slice()) if (Math.hypot(bl.x - x, bl.y - y) < bl.r + 40) { popBalloon(bl); hitAny = true; }
   if (!hitAny) sfx.thud(0.4);
 }
 
@@ -791,7 +979,7 @@ function ringDist(b, x, y) {
 function propAt(x, y) {
   for (let i = props.length - 1; i >= 0; i--) {
     const o = props[i];
-    if (o.kind === 'anvil' ? (Math.abs(x - o.x) < o.hw + 8 && Math.abs(y - o.y) < o.hh + 8) : Math.hypot(x - o.x, y - o.y) < o.r + 12) return o;
+    if (o.hw ? (Math.abs(x - o.x) < o.hw + 8 && Math.abs(y - o.y) < o.hh + 8) : Math.hypot(x - o.x, y - o.y) < o.r + 12) return o;
   }
   return null;
 }
@@ -836,12 +1024,100 @@ function attachRocket(x, y) {
   sfx.pin();
   return true;
 }
+// the glove flies in from the nearer side of the screen and lands where you tapped
+function startPunch(x, y) {
+  if (glove) return;
+  glove = { x, y, from: x < fella.torso.center.x ? -1 : 1, t: 0, hit: false };
+  sfx.throw();
+}
+function punchAt(x, y, from) {
+  const dx = -from, R = 80; let hitAny = false;
+  for (const p of pts) {
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d < R) { hitAny = true; const f = 1 - d / R; if (p.im) { addVel(p, dx * 34 * f, -6 * f); p.x += dx * 12 * f; } if (d < R * 0.6) p.plastic = Math.max(p.plastic, 9); }
+  }
+  const b = blobAt(x, y);
+  if (b && b.st) { const dc = diskCoords(b, x, y); addPull(b, dc.fx, dc.fy, { vx: dx * 6, vz: -18, rz: -rnd(4, 8), sigma: 0.24 }); }
+  for (const o of props) if (!o.static && Math.hypot(o.x - x, o.y - y) < R + (o.r || o.hw)) { addVel(o, dx * 26 * Math.min(1, o.im * 5), -5); hitAny = true; }
+  for (const bl of balloons.slice()) if (Math.hypot(bl.x - x, bl.y - y) < bl.r + 30) popBalloon(bl);
+  if (hitAny) { for (const p of pts) if (p.im) addVel(p, dx * 6, -2); sfx.punch(); shake(9); mood.ouch = 28; calm = 0; }
+  else sfx.throw();
+}
+function zapAt(x, y) {
+  // jagged bolt from the top of the studio down to the target
+  const path = [[x + rnd(-120, 120), -20]];
+  for (let k = 1; k <= 10; k++) { const t = k / 10; path.push([lerp(path[0][0], x, t) + (k < 10 ? rnd(-34, 34) : 0), lerp(-20, y, t)]); }
+  bolts.push({ path, t: 0 });
+  const p0 = nearestPoint(x, y, 140, true);
+  if (p0) {
+    zapT = 40; soot = Math.min(1, soot + 0.6); mood.dizzy = Math.min(1.6, mood.dizzy + 0.6); mood.ouch = 30; calm = 0;
+    for (const p of pts) { const d = Math.hypot(p.x - x, p.y - y); if (d < 160 && p.im) addVel(p, rnd(-8, 8), rnd(-14, -2)); }
+    earn(12, x, y);
+  }
+  for (const bl of balloons.slice()) if (Math.hypot(bl.x - x, bl.y - y) < 120) popBalloon(bl);
+  for (const o of props) if (o.kind === 'bomb' && Math.hypot(o.x - x, o.y - y) < 100) o.fuse = Math.min(o.fuse, 6);
+  for (let i = 0; i < 30; i++) { const a = rnd(0, TAU), v = rnd(2, 9); spark(x, y, rnd(-10, 30), Math.cos(a) * v, Math.sin(a) * v, rnd(-3, 3), pick([0xbfe3ff, 0x7fb6ff, 0xffffff]), rnd(12, 24)); }
+  flashAt(x, y, 0.7, 0x8cc4ff);
+  sfx.zap(); shake(10);
+}
+function placeHole(x, y) {
+  if (holes.length >= 2) holes.shift();
+  holes.push({ x, y, t: 0, life: 260 });
+  sfx.warp();
+}
+function tieBalloon(x, y) {
+  const p = nearestPoint(x, y, 50, false);
+  if (!p) return false;
+  if (balloons.length >= 8) popBalloon(balloons[0]);
+  const len = rnd(70, 110);
+  balloons.push({ p, x: p.x + rnd(-20, 20), y: p.y - len, px: p.x, py: p.y - len, im: 1 / 0.3, r: 21, len, t: 0, ph: rnd(0, TAU), color: BALLOON_COLS[balloons.length % BALLOON_COLS.length] });
+  calm = 0; sfx.squeak();
+  return true;
+}
+function popBalloon(bl) {
+  const i = balloons.indexOf(bl); if (i < 0) return;
+  balloons.splice(i, 1);
+  for (let k = 0; k < 10; k++) { const a = rnd(0, TAU), s = rnd(2, 7); shard(bl.x, bl.y, 10, Math.cos(a) * s, Math.sin(a) * s - 2, rnd(-4, 4), bl.color); }
+  sfx.pop(); earn(3, bl.x, bl.y);
+}
+function balloonAt(x, y) { for (const bl of balloons) if (Math.hypot(bl.x - x, bl.y - y) < bl.r + 8) return bl; return null; }
+function launchWreck(x) {
+  // hang it from the ceiling above the tap and swing it in from the far side
+  if (wreck) props.splice(props.indexOf(wreck.o), 1);
+  const ax = clamp(x, 60, W - 60), ay = -10, len = clamp(fella.torso.center.y - ay, 200, floorY - 60);
+  const side = ax < W / 2 ? 1 : -1, ang = 1.15;
+  const o = makeProp('wreck', ax + side * Math.sin(ang) * len, ay + Math.cos(ang) * len);
+  o.py = o.y; o.px = o.x;
+  wreck = { o, ax, ay, len };
+  sfx.whoosh();
+}
+function placeTramp(x) {
+  limitProps('tramp', 2);
+  const o = makeProp('tramp', clamp(x, 80, W - 80), floorY - 9);
+  o.py = o.y; sfx.boing(0.6);
+}
+function smashMelon(o) {
+  const i = props.indexOf(o); if (i < 0) return;
+  props.splice(i, 1);
+  for (let k = 0; k < 16; k++) { const a = rnd(0, TAU), s = rnd(2, 8); shard(o.x, o.y, 10, Math.cos(a) * s, Math.sin(a) * s - 3, rnd(-5, 5), k % 3 ? 0xd8323c : 0x3b7a2e); }
+  for (let k = 0; k < 24; k++) { const a = rnd(0, TAU), s = rnd(2, 7); spark(o.x, o.y, 10, Math.cos(a) * s, Math.sin(a) * s - 2, rnd(-2, 2), 0xff4a5a, rnd(14, 26)); }
+  for (const p of pts) { const d = Math.hypot(p.x - o.x, p.y - o.y); if (d < 70 && p.im) addVel(p, (p.x - o.x) / (d || 1) * 6, (p.y - o.y) / (d || 1) * 6); }
+  sfx.splat(); shake(4); earn(6, o.x, o.y);
+}
+function spawnBouncy(x, y) {
+  for (let k = 0; k < 3; k++) {
+    const o = makeProp('bouncy', x + rnd(-8, 8), y + rnd(-8, 8));
+    addVel(o, rnd(-9, 9), rnd(-14, -4));
+  }
+  limitProps('bouncy', 18); sfx.boing(0.5);
+}
 function doReform() {
   reformT = 50;
   for (const p of pts) { p.pin = null; p.im = p.held ? 0 : p.im0; }
-  rockets = []; pumping = null;
+  rockets = []; pumping = null; zapT = 0; soot = 0;
+  for (const bl of balloons.slice()) popBalloon(bl);
   for (const pt of parts) pt.popped = false;
-  mood.dizzy = 0;
+  mood.dizzy = 0; calm = 400;
   sfx.wobble(1);
 }
 
@@ -857,29 +1133,49 @@ const ICONS = {
   feather: '<path d="M19 3C12 4 6 10 5.5 19 11 18.5 17.5 13 19 3z"/><path d="M3.5 20.5L15 8"/>',
   anvil: '<path d="M3 7h14c.5 2 3 3 5 3-2.5 1.5-6 1.5-7.5 1.5v2l2.5 3.5V19H7v-2l2.5-3.5v-2C5 11.5 3 10 3 7z"/>',
   rocket: '<path d="M12 2.5c3.5 3 4.5 8.5 2.7 13.5H9.3C7.5 11 8.5 5.5 12 2.5z"/><circle cx="12" cy="8.5" r="1.6"/><path d="M9.3 12.5L6.5 16.5l3-.5M14.7 12.5l2.8 4-3-.5M10.5 18.5L12 21.5l1.5-3"/>',
-  magnet: '<path d="M5 4v8a7 7 0 0 0 14 0V4h-4.5v8a2.5 2.5 0 0 1-5 0V4z"/><path d="M5 8h4.5M14.5 8H19"/>'
+  magnet: '<path d="M5 4v8a7 7 0 0 0 14 0V4h-4.5v8a2.5 2.5 0 0 1-5 0V4z"/><path d="M5 8h4.5M14.5 8H19"/>',
+  bouncy: '<circle cx="8" cy="15" r="4"/><circle cx="16.5" cy="8.5" r="3"/><circle cx="17.5" cy="18" r="2.2"/>',
+  melon: '<path d="M3 9h18a9 9 0 0 1-18 0z"/><path d="M6.2 9a5.8 5.8 0 0 0 11.6 0"/><path d="M10 12.2v.6M14 12.2v.6M12 14.6v.6"/>',
+  glove: '<path d="M7.5 15V9.5C7.5 6 10 4 13.5 4S20 6 20 9.5V12c0 2.8-2.2 5-5 5h-4.5z"/><path d="M7.5 15H5v6h9.5v-4M13 4.2c-1.6 1-2.2 3.3-1.2 5.3l3.2-.3"/>',
+  balloon: '<ellipse cx="12" cy="9" rx="6" ry="7"/><path d="M12 16l-1.2 1.6h2.4zM12 17.6c0 2-2 2.6-.8 4.4"/>',
+  blower: '<path d="M3 9.5h7v5H3zM10 10.5l5-2.5v8l-5-2.5"/><path d="M18 9.5c1.2.8 1.2 4.2 0 5M20.5 7.5c2 1.9 2 7.1 0 9"/>',
+  tramp: '<path d="M2.5 11c4.5 2.5 14.5 2.5 19 0"/><path d="M5 12l-1.5 7.5M19 12l1.5 7.5M12 7.5V3M9.8 5.2L12 3l2.2 2.2"/>',
+  lightning: '<path d="M13.5 2.5L5.5 13.5h6l-1 8 8-11h-6z"/>',
+  wreck: '<path d="M12 2.5V10M8.5 2.5h7"/><circle cx="12" cy="15.5" r="5.5"/>',
+  piano: '<rect x="3" y="6" width="18" height="11" rx="1.2"/><path d="M3 12h18M7.5 12v5M12 12v5M16.5 12v5M5 17v3.5M19 17v3.5"/>',
+  hole: '<circle cx="12" cy="12" r="2.6"/><path d="M14.5 4.4a8 8 0 0 1 5.1 7M19.6 14.5a8 8 0 0 1-7.1 5.1M9.5 19.6a8 8 0 0 1-5.1-7.1M4.4 9.5a8 8 0 0 1 7.1-5.1"/>'
 };
 const TOOLS = [
-  { id: 'hand', name: 'Hand', price: 0, hint: 'Grab his face or body and pull. The skin stretches and snaps back.' },
+  { id: 'hand', name: 'Hand', price: 0, hint: 'Grab his face or body and pull. The skin stretches and snaps back. Grab toys to throw them.' },
   { id: 'mallet', name: 'Mallet', price: 0, hint: 'Tap to strike. Heavy blows leave dents.' },
   { id: 'taffy', name: 'Pull', price: 0, hint: 'Pull skin or limbs. The stretch stays.' },
-  { id: 'pin', name: 'Thumbtack', price: 30, hint: 'Tap a body part to pin it in place. Tap the tack again to pull it.' },
+  { id: 'pin', name: 'Thumbtack', price: 30, hint: 'Tap a body part to pin it in place. Tap the tack again to pull it. Tacks pop balloons too.' },
+  { id: 'bouncy', name: 'Bouncy Balls', price: 40, hint: 'Tap to throw a handful of super bouncy balls.' },
   { id: 'bomb', name: 'Bomb', price: 50, hint: 'Tap to drop a lit bomb. Blasts burst puffed-up parts.' },
+  { id: 'melon', name: 'Watermelon', price: 70, hint: 'Press, drag back and let go to throw a watermelon. It smashes on a hard hit.' },
   { id: 'pump', name: 'Air Pump', price: 80, hint: 'Hold on a body part to inflate it. Too much air and it bursts.' },
+  { id: 'glove', name: 'Boxing Glove', price: 100, hint: 'Tap to throw a punch from the side.' },
   { id: 'ball', name: 'Bowling Ball', price: 120, hint: 'Press, drag back and let go to launch a ball.' },
+  { id: 'balloon', name: 'Balloons', price: 140, hint: 'Tap a body part to tie on a balloon. Four or more lift him off the floor.' },
   { id: 'feather', name: 'Feather', price: 150, hint: 'Brush the feather over him. Ticklish.' },
+  { id: 'blower', name: 'Leaf Blower', price: 180, hint: 'Hold to blow air at Rodney from where you point.' },
+  { id: 'tramp', name: 'Trampoline', price: 220, hint: 'Tap the floor to set down a trampoline. Throw him on it.' },
   { id: 'anvil', name: 'Anvil', price: 250, hint: 'Tap to drop a 100 kg anvil from above.' },
+  { id: 'lightning', name: 'Lightning', price: 320, hint: 'Tap to call down a lightning bolt.' },
   { id: 'rocket', name: 'Rocket', price: 400, hint: 'Tap a body part to strap on a rocket. It lights after a second.' },
-  { id: 'magnet', name: 'Magnet', price: 600, hint: 'Hold to pull Rodney and every toy toward you.' }
+  { id: 'wreck', name: 'Wrecking Ball', price: 450, hint: 'Tap to hang a wrecking ball from the ceiling and swing it in.' },
+  { id: 'piano', name: 'Piano', price: 550, hint: 'Tap to drop a grand piano from above.' },
+  { id: 'magnet', name: 'Magnet', price: 600, hint: 'Hold to pull Rodney and every toy toward you.' },
+  { id: 'hole', name: 'Black Hole', price: 800, hint: 'Tap to open a tiny black hole. It swallows the room, then bursts.' }
 ];
-const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'];
+const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '='];
 function owned(id) { return save.free || save.unlocked.includes(id); }
 function buildTools() {
   track.innerHTML = '';
   TOOLS.forEach((t, i) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'tool'; b.id = 'tool-' + t.id; b.dataset.id = t.id;
-    b.innerHTML = `<span class="key">${KEYS[i]}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[t.id]}</svg><span>${t.name}</span>` + (t.price ? `<span class="price">$${t.price}</span>` : '');
+    b.innerHTML = (KEYS[i] ? `<span class="key">${KEYS[i]}</span>` : '') + `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[t.id]}</svg><span>${t.name}</span>` + (t.price ? `<span class="price">$${t.price}</span>` : '');
     b.addEventListener('click', () => selectTool(t.id));
     track.appendChild(b);
   });
@@ -907,8 +1203,9 @@ function selectTool(id, quiet) {
       sfx.deny(); toast(`$${t.price - save.bucks} more for the ${t.name}`); return;
     }
   }
-  endGrab(); endSkin(); pumping = null; aim = null; magnetOn = false;
+  endGrab(); endSkin(); pumping = null; dropAim(); magnetOn = false; blowing = false;
   tool = id; refreshTools(); hint(t.hint);
+  const btn = document.getElementById('tool-' + id); if (btn && btn.scrollIntoView) btn.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: quiet || reduceMotion ? 'auto' : 'smooth' });
 }
 let hintTimer = 0, toastTimer = 0;
 function hint(text) { hintEl.textContent = text; hintEl.classList.remove('hide'); clearTimeout(hintTimer); hintTimer = setTimeout(() => hintEl.classList.add('hide'), 5000); }
@@ -920,7 +1217,7 @@ function setPtr(e) {
   ptr.x = e.clientX - r.left; ptr.y = e.clientY - r.top; ptr.mouse = e.pointerType === 'mouse';
 }
 ov.addEventListener('pointerdown', e => {
-  audio(); setPtr(e); ptr.down = true; ptr.inside = true; mood.idle = 0; calm = 0;
+  audio(); setPtr(e); ptr.down = true; ptr.inside = true; mood.idle = 0;
   try { ov.setPointerCapture(e.pointerId); } catch (err) {}
   const x = ptr.x, y = ptr.y;
   switch (tool) {
@@ -939,7 +1236,17 @@ ov.addEventListener('pointerdown', e => {
       break;
     }
     case 'mallet': malletHit(x, y); break;
-    case 'pin': if (!togglePin(x, y)) toast('Tap on Rodney to pin him'); break;
+    case 'pin': { const bl = balloonAt(x, y); if (bl) popBalloon(bl); else if (!togglePin(x, y)) toast('Tap on Rodney to pin him'); break; }
+    case 'bouncy': spawnBouncy(x, y); break;
+    case 'melon': { limitProps('melon', 4); const m = makeProp('melon', x, y); m.held = true; m.im = 0; aim = { ball: m, x, y }; break; }
+    case 'glove': startPunch(x, y); break;
+    case 'balloon': if (!tieBalloon(x, y)) toast('Tap on Rodney to tie on a balloon'); break;
+    case 'blower': blowing = true; break;
+    case 'tramp': placeTramp(x); break;
+    case 'lightning': zapAt(x, y); break;
+    case 'wreck': launchWreck(x); break;
+    case 'piano': { limitProps('piano', 2); const a = makeProp('piano', clamp(x, 92, W - 92), -120); a.py = a.y - 2; sfx.whoosh(); break; }
+    case 'hole': placeHole(x, y); break;
     case 'bomb': { limitProps('bomb', 4); makeProp('bomb', x, y); sfx.tick(); break; }
     case 'pump': { const part = partAt(x, y); if (part && !part.popped) pumping = part; else if (part) toast('That part burst. Press Reform.'); break; }
     case 'ball': { limitProps('ball', 5); const b = makeProp('ball', x, y); b.held = true; b.im = 0; aim = { ball: b, x, y }; break; }
@@ -955,7 +1262,7 @@ ov.addEventListener('pointermove', e => {
 function pointerUp(e) {
   if (e) setPtr(e);
   ptr.down = false;
-  endGrab(); endSkin(); pumping = null; magnetOn = false;
+  endGrab(); endSkin(); pumping = null; magnetOn = false; blowing = false;
   if (aim) {
     const b = aim.ball; b.held = false; b.im = b.im0;
     const vx = clamp((aim.x - ptr.x) * 0.22, -45, 45), vy = clamp((aim.y - ptr.y) * 0.22, -45, 45);
@@ -964,6 +1271,8 @@ function pointerUp(e) {
     aim = null;
   }
 }
+// a ball or melon still being aimed when the tool changes is dropped where it is
+function dropAim() { if (aim) { aim.ball.held = false; aim.ball.im = aim.ball.im0; aim = null; } }
 ov.addEventListener('pointerup', pointerUp);
 ov.addEventListener('pointercancel', () => pointerUp());
 ov.addEventListener('pointerleave', () => { if (!ptr.down) ptr.inside = false; });
@@ -987,7 +1296,10 @@ function toggleSound() {
   document.getElementById('waves').style.display = save.muted ? 'none' : '';
 }
 document.getElementById('uSound').addEventListener('click', toggleSound);
-document.getElementById('uClear').addEventListener('click', () => { props = []; rockets = []; aim = null; if (grab && grab.isProp) grab = null; sfx.thud(0.3); });
+document.getElementById('uClear').addEventListener('click', () => {
+  props = []; rockets = []; holes = []; wreck = null; glove = null; aim = null; balloons = [];
+  if (grab && grab.isProp) grab = null; sfx.thud(0.3);
+});
 document.getElementById('uFree').addEventListener('click', () => {
   save.free = !save.free; persist(); audio(); sfx.buy();
   document.getElementById('uFree').classList.toggle('on', save.free);
@@ -998,6 +1310,10 @@ window.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const i = KEYS.indexOf(e.key);
   if (i >= 0 && TOOLS[i]) { selectTool(TOOLS[i].id); return; }
+  if (e.key === '[' || e.key === ']') {
+    const mine = TOOLS.filter(t => owned(t.id)), j = mine.findIndex(t => t.id === tool);
+    selectTool(mine[(j + (e.key === ']' ? 1 : -1) + mine.length) % mine.length].id); return;
+  }
   const k = e.key.toLowerCase();
   if (k === 'r') { audio(); doReform(); }
   else if (k === 'g') cycleGravity();
@@ -1021,7 +1337,7 @@ scene.background = new THREE.Color(0x121110);
 const FOV = 28;
 const camera = new THREE.PerspectiveCamera(FOV, 1, 10, 20000);
 
-const COL = { skin: 0xd9a083, shirt: 0x3b4450, pants: 0x2f3747, shoe: 0x2a211b, hair: 0x2a1d15, lip: 0xb5675c };
+const COL = { skin: 0xd9a083, shirt: 0x3b4450, pants: 0x2f3747, shoe: 0x2a211b, hair: 0x1c130d, lip: 0xb5675c };
 
 // a small soft-box room for reflections
 (() => {
@@ -1054,7 +1370,7 @@ const COL = { skin: 0xd9a083, shirt: 0x3b4450, pants: 0x2f3747, shoe: 0x2a211b, 
 const hemi = new THREE.HemisphereLight(0xe6ecf5, 0x3b322b, 0.45); scene.add(hemi);
 const key = new THREE.SpotLight(0xfff0de, 2.2, 0, 0.42, 0.75, 0);
 key.position.set(-500, 1100, 900); key.castShadow = true;
-key.shadow.mapSize.set(2048, 2048); key.shadow.camera.near = 400; key.shadow.camera.far = 4000; key.shadow.bias = -0.0004; key.shadow.normalBias = 0.6; key.shadow.radius = 4;
+key.shadow.mapSize.set(2048, 2048); key.shadow.camera.near = 400; key.shadow.camera.far = 4000; key.shadow.bias = -0.0006; key.shadow.normalBias = 2.5; key.shadow.radius = 4;
 scene.add(key); scene.add(key.target);
 const rim = new THREE.DirectionalLight(0xb9cff0, 0.9); rim.position.set(600, 500, -700); scene.add(rim);
 const fill = new THREE.DirectionalLight(0xffe6d2, 0.25); fill.position.set(700, 200, 800); scene.add(fill);
@@ -1063,7 +1379,7 @@ const boomLight = new THREE.PointLight(0xffa860, 0, 900, 1.5); scene.add(boomLig
 const wx = x => x - W / 2, wy = y => floorY - y;
 
 // ---------- materials ----------
-const skinMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.48, clearcoat: 0.25, clearcoatRoughness: 0.45, sheen: 0.6, sheenColor: new THREE.Color(0xffc0a8), sheenRoughness: 0.5 });
+const skinMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.5, clearcoat: 0.15, clearcoatRoughness: 0.5, sheen: 0.2, sheenColor: new THREE.Color(0xffc0a8), sheenRoughness: 0.8 });
 const limbSkinMat = skinMat.clone();
 const clothMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
 const legMat = clothMat.clone();
@@ -1079,8 +1395,8 @@ const darkMetal = new THREE.MeshStandardMaterial({ color: 0x1c1c1f, metalness: 0
 
 // ---------- blob meshes (head, torso) ----------
 const COLS = 72, ROWS = 48;
-// rows bunch up toward the front pole so the face gets the detail
-const phiOf = i => Math.PI * Math.pow(i / ROWS, 1.35);
+// on the head, rows bunch up toward the front pole so the face gets the detail
+const phiOf = (i, bunch) => Math.PI * Math.pow(i / ROWS, bunch);
 function faceRelief(fx, fy) {
   let z = 0;
   z += 0.13 * g2(fx, fy, 0, 0.15, 0.06, 0.08);         // nose tip
@@ -1099,7 +1415,7 @@ function faceRelief(fx, fy) {
   return z;
 }
 function headColor(fx, fy, dz) {
-  const c = new THREE.Color(COL.skin), front = dz > 0 ? 1 : 0;
+  const c = new THREE.Color(COL.skin), front = smooth(-0.1, 0.3, dz);
   const lip = Math.max(g2(fx, fy, 0, 0.395, 0.12, 0.028), g2(fx, fy, 0, 0.475, 0.11, 0.032)) * front;
   c.lerp(new THREE.Color(COL.lip), lip * 0.85);
   const cheek = (g2(fx, fy, -0.4, 0.2, 0.13, 0.11) + g2(fx, fy, 0.4, 0.2, 0.13, 0.11)) * front;
@@ -1108,28 +1424,27 @@ function headColor(fx, fy, dz) {
   c.lerp(new THREE.Color(0x9c6a58), sock * 0.25);
   const brow = (g2(fx, fy, -0.3, -0.26, 0.13, 0.028) + g2(fx, fy, 0.3, -0.26, 0.13, 0.028)) * front;
   // short hair: hairline high on the forehead, lower around the back
-  const up = -fy, line = 0.5 - 0.7 * smooth(0, 1, -dz) - 0.12 * Math.abs(fx);
-  const hair = Math.max(smooth(line - 0.04, line + 0.06, up), Math.min(1, brow));
+  const up = -fy, line = 0.4 + 0.1 * fx * fx - 0.75 * smooth(0, 1, -dz);
+  const hair = Math.max(smooth(line - 0.05, line + 0.05, up) * (1 - 0.6 * smooth(0.55, 0.9, Math.abs(fx)) * smooth(0, 0.3, dz)), Math.min(1, brow));
   c.lerp(new THREE.Color(COL.hair), hair * 0.92);
   return c;
 }
 function torsoColor(fx, fy, dz) {
   const c = new THREE.Color(COL.shirt);
-  const neck = g2(fx, fy, 0, -0.82, 0.26, 0.17) * (dz > 0 ? 1 : 0);
-  c.lerp(new THREE.Color(0x262c34), smooth(0.25, 0.4, neck) * (1 - smooth(0.42, 0.6, neck))); // collar seam
-  c.lerp(new THREE.Color(COL.skin), smooth(0.42, 0.6, neck));
+  const neck = g2(fx, fy, 0, -0.82, 0.26, 0.17) * smooth(-0.15, 0.35, dz);
+  c.lerp(new THREE.Color(0x232830), smooth(0.2, 0.45, neck)); // collar
   // trousers and belt over the hips
   c.lerp(new THREE.Color(COL.pants), smooth(0.56, 0.64, fy));
   c.lerp(new THREE.Color(0x1d1714), smooth(0.46, 0.54, fy) * (1 - smooth(0.58, 0.66, fy)));
   return c;
 }
-function makeBlobMesh(blob, depthK, colorFn, reliefFn, mat) {
+function makeBlobMesh(blob, depthK, colorFn, reliefFn, mat, bunch) {
   const nV = COLS * (ROWS + 1);
   const g = new THREE.BufferGeometry();
   const pos = new Float32Array(nV * 3), col = new Float32Array(nV * 3);
   const fxA = new Float32Array(nV), fyA = new Float32Array(nV), relA = new Float32Array(nV), frontA = new Float32Array(nV);
   for (let i = 0; i <= ROWS; i++) {
-    const phi = phiOf(i), sp = Math.sin(phi), cp = Math.cos(phi);
+    const phi = phiOf(i, bunch), sp = Math.sin(phi), cp = Math.cos(phi);
     for (let j = 0; j < COLS; j++) {
       const th = j / COLS * TAU, v = i * COLS + j;
       const fx = sp * Math.cos(th), fy = sp * Math.sin(th);
@@ -1152,7 +1467,7 @@ function makeBlobMesh(blob, depthK, colorFn, reliefFn, mat) {
   mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
   scene.add(mesh);
   if (reliefFn) mesh.receiveShadow = false; // self-shadowing the face looks blotchy at this resolution
-  blob.mesh = { mesh, g, pos, fxA, fyA, relA, frontA, depthK, checked: false };
+  blob.mesh = { mesh, g, pos, fxA, fyA, relA, frontA, depthK, bunch, checked: false };
   blob.st = { cx: 0, cy: 0, sx: new Float32Array(COLS), sy: new Float32Array(COLS), r: new Float32Array(COLS), rMean: 1, depth: 1 };
 }
 function catmull(ring, t) {
@@ -1208,7 +1523,7 @@ function updateBlobMesh(b) {
   const myPulls = pulls.filter(p => p.blob === b);
   const wrinkle = b.popped;
   for (let i = 0; i <= ROWS; i++) {
-    const phi = phiOf(i), sp = Math.sin(phi), cp = Math.cos(phi);
+    const phi = phiOf(i, m.bunch), sp = Math.sin(phi), cp = Math.cos(phi);
     for (let j = 0; j < COLS; j++) {
       const v = i * COLS + j;
       let x = st.cx + (st.sx[j] - st.cx) * sp, y = st.cy + (st.sy[j] - st.cy) * sp;
@@ -1436,7 +1751,9 @@ function inflateTint(pt, mat) {
   const lim = pt.type === 'blob' ? 2.5 : 3.2, f = clamp((pt.inflate - 1) / (lim - 1), 0, 1);
   mat.color.setRGB(1, 1, 1).lerp(new THREE.Color(0xff8f80), f * f * 0.8);
   if (pumping === pt && f > 0.7 && frameNo % 12 < 6) mat.color.multiplyScalar(1.25);
+  if (soot > 0) mat.color.lerp(_soot, soot * 0.75);
 }
+const _soot = new THREE.Color(0x2b2522);
 
 // ---------- props ----------
 const anvilShape = (() => {
@@ -1465,9 +1782,49 @@ function makePropMesh(o) {
     const led = new THREE.Mesh(new THREE.SphereGeometry(2, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff2a1a })); led.position.set(0, 2, o.r); g.add(led); g.led = led;
   } else if (o.kind === 'anvil') {
     const m = new THREE.Mesh(anvilGeo, metalMat); m.castShadow = true; m.receiveShadow = true; g.add(m);
-  }
+  } else if (o.kind === 'bouncy') {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(o.r, 24, 16), new THREE.MeshPhysicalMaterial({ color: o.color, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 }));
+    m.castShadow = true; g.add(m);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(o.r * 1.0, o.r * 0.12, 8, 24), new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.3, clearcoat: 1 })); band.rotation.y = 0.6; g.add(band);
+  } else if (o.kind === 'melon') {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(o.r, 32, 20), melonMat); m.scale.set(1.25, 1, 1); m.castShadow = true; g.add(m);
+  } else if (o.kind === 'piano') g.add(pianoModel());
+  else if (o.kind === 'wreck') {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(o.r, 36, 24), darkMetal); m.castShadow = true; g.add(m);
+    const lug = new THREE.Mesh(new THREE.TorusGeometry(7, 2.5, 8, 16), metalMat); lug.position.y = o.r + 4; g.add(lug);
+  } else if (o.kind === 'tramp') { const t = trampModel(o); g.add(t); g.bed = t.bed; }
   g.userData.prop = o;
   scene.add(g); o.mesh = g;
+}
+// watermelon stripes painted once into a texture
+const melonMat = (() => {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64; const x = c.getContext('2d');
+  x.fillStyle = '#3f7d2c'; x.fillRect(0, 0, 256, 64);
+  x.fillStyle = '#1f4a19'; for (let i = 0; i < 12; i++) { x.beginPath(); for (let y = 0; y <= 64; y += 4) x.lineTo(i * 21.3 + Math.sin(y * 0.25 + i) * 3, y); for (let y = 64; y >= 0; y -= 4) x.lineTo(i * 21.3 + 9 + Math.sin(y * 0.25 + i) * 3, y); x.fill(); }
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+  return new THREE.MeshPhysicalMaterial({ map: t, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3 });
+})();
+const lacquer = new THREE.MeshPhysicalMaterial({ color: 0x0c0b0d, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.04 });
+const ivory = new THREE.MeshPhysicalMaterial({ color: 0xf3eee3, roughness: 0.3, clearcoat: 0.5 });
+function pianoModel() {
+  // a grand piano seen from the keyboard side: case, lid, keys and legs, sized to the 184 x 124 collision box
+  const g = new THREE.Group();
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m); return m; };
+  add(new THREE.BoxGeometry(184, 44, 110), lacquer, 0, 8, -20);
+  const lid = add(new THREE.BoxGeometry(180, 4, 106), lacquer, 0, 34, -48); lid.rotation.x = -0.55;
+  add(new THREE.BoxGeometry(168, 7, 24), lacquer, 0, -6, 44);
+  add(new THREE.BoxGeometry(160, 5, 20), ivory, 0, -0.5, 46);
+  for (let i = 0; i < 21; i++) if ([0, 1, 3, 4, 5].includes(i % 7)) add(new THREE.BoxGeometry(3.8, 3.5, 12), lacquer, -80 + (i + 1) * 160 / 22, 3, 41); // black keys
+  for (const [x, z] of [[-80, 30], [80, 30], [0, -60]]) add(new THREE.CylinderGeometry(5, 3.5, 46, 12), lacquer, x, -39, z);
+  return g;
+}
+function trampModel(o) {
+  const g = new THREE.Group();
+  const frame = new THREE.Mesh(new THREE.TorusGeometry(o.hw, 4, 10, 48), metalMat); frame.rotation.x = Math.PI / 2; frame.scale.set(1, 0.42, 1); frame.position.y = o.hh - 2; frame.castShadow = true; g.add(frame);
+  const mat = new THREE.Mesh(new THREE.CircleGeometry(o.hw - 3, 40), new THREE.MeshStandardMaterial({ color: 0x1b1d22, roughness: 0.8, side: THREE.DoubleSide })); mat.rotation.x = -Math.PI / 2; mat.scale.set(1, 0.42, 1); mat.position.y = o.hh - 2; mat.receiveShadow = true; g.add(mat); g.bed = mat;
+  const pad = new THREE.Mesh(new THREE.TorusGeometry(o.hw, 5, 10, 48), new THREE.MeshStandardMaterial({ color: 0x2f6fd0, roughness: 0.6 })); pad.rotation.x = Math.PI / 2; pad.scale.set(1, 0.42, 1); pad.position.y = o.hh + 1; g.add(pad);
+  for (let k = 0; k < 6; k++) { const a = k / 6 * TAU + 0.3; const leg = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, o.hh * 2 + 4, 8), metalMat); leg.position.set(Math.cos(a) * o.hw * 0.95, 0, Math.sin(a) * o.hw * 0.4); leg.castShadow = true; g.add(leg); }
+  return g;
 }
 const rocketWhite = new THREE.MeshPhysicalMaterial({ color: 0xe9e6e0, roughness: 0.35, clearcoat: 0.6 });
 const rocketRed = new THREE.MeshPhysicalMaterial({ color: 0xb3261e, roughness: 0.35, clearcoat: 0.6 });
@@ -1517,6 +1874,47 @@ const featherMesh = (() => {
   g.add(vane, shaft); g.traverse(o => { o.castShadow = true; }); scene.add(g); g.visible = false; return g;
 })();
 
+const gloveMesh = (() => {
+  const g = new THREE.Group();
+  const red = new THREE.MeshPhysicalMaterial({ color: 0xc0231b, roughness: 0.32, clearcoat: 0.9, clearcoatRoughness: 0.15 });
+  const fist = new THREE.Mesh(sphereG, red); fist.scale.set(30, 26, 24); g.add(fist);
+  const thumb = new THREE.Mesh(sphereG, red); thumb.scale.set(14, 11, 11); thumb.position.set(-6, -16, 14); g.add(thumb);
+  const cuff = new THREE.Mesh(new THREE.CylinderGeometry(17, 19, 26, 24), new THREE.MeshPhysicalMaterial({ color: 0xf1ede6, roughness: 0.5 })); cuff.rotation.z = Math.PI / 2; cuff.position.x = -34; g.add(cuff);
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 1, 12), metalMat); arm.rotation.z = Math.PI / 2; g.add(arm); g.arm = arm;
+  g.traverse(o => { o.castShadow = true; }); scene.add(g); g.visible = false; return g;
+})();
+const blowerMesh = (() => {
+  const g = new THREE.Group();
+  const orange = new THREE.MeshPhysicalMaterial({ color: 0xe26a1c, roughness: 0.4, clearcoat: 0.5 });
+  const body = new THREE.Mesh(sphereG, orange); body.scale.set(26, 20, 18); body.position.x = -40; g.add(body);
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(7, 10, 70, 18, 1, true), new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.5, side: THREE.DoubleSide })); tube.rotation.z = -Math.PI / 2; tube.position.x = 0; g.add(tube);
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(12, 3.5, 8, 16, Math.PI), orange); handle.position.set(-42, 18, 0); g.add(handle);
+  g.traverse(o => { o.castShadow = true; }); scene.add(g); g.visible = false; return g;
+})();
+const holeMeshes = [0, 1].map(() => {
+  const g = new THREE.Group();
+  const core = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), new THREE.MeshBasicMaterial({ color: 0x000000 })); g.add(core);
+  const disk = new THREE.Mesh(new THREE.RingGeometry(1.2, 3.2, 64), new THREE.MeshBasicMaterial({ map: null, color: 0x9a6bff, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  disk.rotation.x = -1.2; g.add(disk); g.disk = disk;
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: null, color: 0x6a3cff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false })); glow.scale.setScalar(9); g.add(glow); g.glow = glow;
+  scene.add(g); g.visible = false; return g;
+});
+const balloonGeo = new THREE.SphereGeometry(1, 28, 20);
+const knotGeo = new THREE.ConeGeometry(0.16, 0.22, 10);
+const balloonPool = [];
+function balloonMesh(i) {
+  while (balloonPool.length <= i) {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.08, transmission: 0, sheen: 0.3 });
+    const body = new THREE.Mesh(balloonGeo, mat); body.scale.set(1, 1.18, 1); body.castShadow = true; g.add(body);
+    const knot = new THREE.Mesh(knotGeo, mat); knot.position.y = -1.24; g.add(knot);
+    const line = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(9 * 3), 3)), new THREE.LineBasicMaterial({ color: 0xdedad2 }));
+    line.frustumCulled = false; scene.add(line);
+    g.mat = mat; g.line = line; scene.add(g); balloonPool.push(g);
+  }
+  return balloonPool[i];
+}
+const chain = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 1, 8), metalMat); chain.castShadow = true; chain.visible = false; scene.add(chain);
 // ---------- particles ----------
 const MAXS = 900;
 const sparkGeo = new THREE.BufferGeometry();
@@ -1549,7 +1947,7 @@ function shard(x, y, z, vx, vy, vz, color) {
 }
 const flashSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffd7a0, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 })); scene.add(flashSprite);
 let flashT = 0;
-function flashAt(x, y, power) { boomLight.position.set(wx(x), wy(y), 60); boomLight.intensity = 6 * power; flashSprite.position.set(wx(x), wy(y), 40); flashSprite.scale.setScalar(380 * power); flashT = 1; }
+function flashAt(x, y, power, color = 0xffa860) { boomLight.color.set(color); flashSprite.material.color.set(color === 0xffa860 ? 0xffd7a0 : color); boomLight.position.set(wx(x), wy(y), 60); boomLight.intensity = 6 * power; flashSprite.position.set(wx(x), wy(y), 40); flashSprite.scale.setScalar(380 * power); flashT = 1; }
 function stepParticles(fs) {
   const g = gravity() * 0.6;
   for (const p of sparks) { p.x += p.vx * fs; p.y += p.vy * fs; p.z += p.vz * fs; p.vy += g * fs; p.vx *= 0.98; p.vz *= 0.98; p.life -= fs; if (p.y > floorY) { p.y = floorY; p.vy *= -0.3; } }
@@ -1589,10 +1987,20 @@ function drawOverlay() {
   octx.lineCap = 'round'; octx.lineJoin = 'round';
   if (ptr.inside && (ptr.mouse || ptr.down)) {
     const x = ptr.x, y = ptr.y;
-    if (tool === 'anvil') {
+    if (tool === 'anvil' || tool === 'piano' || tool === 'wreck') {
       octx.setLineDash([3, 7]); octx.strokeStyle = 'rgba(255,250,244,.35)'; octx.lineWidth = 1.5;
-      octx.beginPath(); octx.moveTo(x, 0); octx.lineTo(x, floorY); octx.stroke(); octx.setLineDash([]);
-    } else if (tool === 'ball' && aim) {
+      octx.beginPath(); octx.moveTo(x, 0); octx.lineTo(x, tool === 'wreck' ? fella.torso.center.y : floorY); octx.stroke(); octx.setLineDash([]);
+    } else if (tool === 'tramp') {
+      octx.setLineDash([3, 7]); octx.strokeStyle = 'rgba(255,250,244,.4)'; octx.lineWidth = 1.5;
+      const tx = clamp(x, 80, W - 80); octx.beginPath(); octx.ellipse(tx, floorY - 2, 78, 10, 0, 0, TAU); octx.stroke(); octx.setLineDash([]);
+    } else if (tool === 'blower' && blowing) {
+      const tc = fella.torso.center, a0 = Math.atan2(tc.y - y, tc.x - x);
+      octx.strokeStyle = 'rgba(255,250,244,.22)'; octx.lineWidth = 1.5;
+      for (let k = 0; k < 7; k++) {
+        const a = a0 + (k - 3) * 0.09, r0 = ((frameNo * 9 + k * 53) % 260) + 40;
+        octx.beginPath(); octx.moveTo(x + Math.cos(a) * r0, y + Math.sin(a) * r0); octx.lineTo(x + Math.cos(a) * (r0 + 46), y + Math.sin(a) * (r0 + 46)); octx.stroke();
+      }
+    } else if ((tool === 'ball' || tool === 'melon') && aim) {
       const vx = clamp((aim.x - x) * 0.22, -45, 45), vy = clamp((aim.y - y) * 0.22, -45, 45);
       octx.fillStyle = 'rgba(255,250,244,.55)';
       let sx = aim.x, sy = aim.y, svy = vy;
@@ -1609,11 +2017,19 @@ function drawOverlay() {
         octx.font = '500 11px "IBM Plex Mono", monospace'; octx.textAlign = 'left'; octx.textBaseline = 'alphabetic';
         octx.fillStyle = 'rgba(241,236,230,.85)'; octx.fillText(Math.round(part.inflate * 100) + '% air', x + 16, y - 12);
       }
-    } else if ((tool === 'pin' || tool === 'rocket') && ptr.mouse) {
+    } else if ((tool === 'pin' || tool === 'rocket' || tool === 'balloon') && ptr.mouse) {
       const p = nearestPoint(x, y, tool === 'pin' ? 40 : 50, false);
       if (p) { octx.strokeStyle = 'rgba(255,250,244,.6)'; octx.lineWidth = 1.5; octx.beginPath(); octx.arc(p.x, p.y, 11, 0, TAU); octx.stroke(); }
     } else if ((tool === 'hand' || tool === 'taffy') && !grab && !skinGrab && ptr.mouse && partAt(x, y)) {
       octx.strokeStyle = 'rgba(255,250,244,.55)'; octx.lineWidth = 1.5; octx.beginPath(); octx.arc(x, y, 9, 0, TAU); octx.stroke();
+    }
+  }
+  for (const b of bolts) {
+    // lightning: a wide blue glow under a thin white core, fading fast
+    const a = 1 - b.t / 12;
+    for (const [wd, col] of [[10, `rgba(110,170,255,${0.25 * a})`], [4, `rgba(170,210,255,${0.6 * a})`], [1.6, `rgba(255,255,255,${a})`]]) {
+      octx.strokeStyle = col; octx.lineWidth = wd; octx.beginPath();
+      b.path.forEach(([px, py], k) => k ? octx.lineTo(px, py) : octx.moveTo(px, py)); octx.stroke();
     }
   }
   octx.textAlign = 'center'; octx.textBaseline = 'middle'; octx.font = '500 15px "IBM Plex Mono", monospace';
@@ -1633,10 +2049,12 @@ function syncScene() {
   inflateTint(fella.head, skinMat); inflateTint(fella.torso, clothMat);
   inflateTint(fella.armL.inflate > fella.armR.inflate ? fella.armL : fella.armR, limbSkinMat);
   inflateTint(fella.legL.inflate > fella.legR.inflate ? fella.legL : fella.legR, legMat);
+  plainSkin.color.set(COL.skin).lerp(_soot, soot * 0.75);
   for (const o of props) {
     if (!o.mesh) makePropMesh(o);
     o.mesh.position.set(wx(o.x), wy(o.y), 0);
-    if (o.kind === 'ball') o.mesh.rotation.z = -o.angle;
+    if (o.r && o.kind !== 'bomb') o.mesh.rotation.z = -o.angle;
+    if (o.kind === 'tramp') { const b = Math.max(0, o.boing) / 14; o.mesh.bed.position.y = o.hh - 2 - Math.sin(b * Math.PI) * 10; }
     if (o.kind === 'bomb') { o.mesh.led.visible = !!(o.fuse < 50 ? (frameNo >> 2) % 2 : (frameNo >> 4) % 2); o.mesh.rotation.z = -(o.x - o.px) * 0.05; }
   }
   const live = new Set(props), liveR = new Set(rockets);
@@ -1670,6 +2088,47 @@ function syncScene() {
   if (magnetMesh.visible) { magnetMesh.position.set(wx(ptr.x), wy(ptr.y) + 4, 60); magnetMesh.rotation.set(0.3, 0, Math.PI); }
   featherMesh.visible = showCursor && tool === 'feather';
   if (featherMesh.visible) { featherMesh.position.set(wx(ptr.x), wy(ptr.y), 50); featherMesh.rotation.set(0.2, 0.4 + Math.sin(frameNo * 0.2) * 0.3, -0.6 + Math.sin(frameNo * 0.3) * 0.25); }
+  gloveMesh.visible = !!glove;
+  if (glove) {
+    // out fast, hold, then pull back on the spring arm
+    const t = glove.t, e = t < 6 ? t / 6 : t < 10 ? 1 : 1 - (t - 10) / 12;
+    const sx = glove.from < 0 ? -40 : W + 40, gx = lerp(sx, glove.x - glove.from * 22, e);
+    gloveMesh.position.set(wx(gx), wy(glove.y), 30);
+    gloveMesh.rotation.set(0, glove.from < 0 ? 0 : Math.PI, 0);
+    const armLen = Math.abs(gx - sx);
+    gloveMesh.arm.scale.y = Math.max(1, armLen); gloveMesh.arm.position.x = -34 - armLen / 2;
+  }
+  blowerMesh.visible = showCursor && tool === 'blower';
+  if (blowerMesh.visible) {
+    const tcx = fella.torso.center.x, tcy = fella.torso.center.y;
+    blowerMesh.position.set(wx(ptr.x), wy(ptr.y), 60);
+    blowerMesh.rotation.set(0, 0, Math.atan2(-(tcy - ptr.y), tcx - ptr.x));
+    blowerMesh.position.x -= Math.cos(blowerMesh.rotation.z) * 36; blowerMesh.position.y -= Math.sin(blowerMesh.rotation.z) * 36;
+  }
+  holeMeshes.forEach((m, i) => {
+    const bh = holes[i]; m.visible = !!bh; if (!bh) return;
+    if (!m.glow.material.map) { m.glow.material.map = dotTex; m.glow.material.needsUpdate = true; m.disk.material.map = dotTex; m.disk.material.needsUpdate = true; }
+    const grow = smooth(0, 30, bh.t) * (1 - smooth(bh.life - 12, bh.life, bh.t) * 0.7);
+    m.position.set(wx(bh.x), wy(bh.y), 20); m.scale.setScalar(26 * grow + 0.01);
+    m.disk.rotation.z += 0.08; m.glow.material.opacity = 0.35 + 0.15 * Math.sin(frameNo * 0.3);
+  });
+  balloons.forEach((bl, i) => {
+    const m = balloonMesh(i); m.visible = true; m.line.visible = true;
+    m.mat.color.set(bl.color);
+    m.position.set(wx(bl.x), wy(bl.y), 24); m.scale.setScalar(bl.r);
+    m.rotation.z = clamp(-(bl.x - bl.p.x) / bl.len, -0.6, 0.6);
+    const pa = m.line.geometry.attributes.position, x0 = bl.x, y0 = bl.y + bl.r * 1.4, x1 = bl.p.x, y1 = bl.p.y;
+    const slack = Math.max(0, bl.len - Math.hypot(x1 - x0, y1 - y0));
+    for (let k = 0; k <= 8; k++) { const t = k / 8; pa.setXYZ(k, wx(lerp(x0, x1, t) + Math.sin(t * Math.PI) * slack * 0.4), wy(lerp(y0, y1, t)), lerp(24, 16, t)); }
+    pa.needsUpdate = true;
+  });
+  for (let i = balloons.length; i < balloonPool.length; i++) { balloonPool[i].visible = false; balloonPool[i].line.visible = false; }
+  chain.visible = !!wreck;
+  if (wreck) {
+    const o = wreck.o, a3 = _v.set(wx(wreck.ax), wy(wreck.ay), 0), b3 = _v2.set(wx(o.x), wy(o.y - o.r - 6), 0);
+    chain.position.copy(a3).add(b3).multiplyScalar(0.5); chain.scale.y = a3.distanceTo(b3);
+    chain.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b3.clone().sub(a3).normalize());
+  }
   const tc = fella.torso.center;
   key.target.position.lerp(_v.set(wx(tc.x), wy(tc.y) * 0.6, 0), 0.08);
   renderParticles();
@@ -1725,8 +2184,8 @@ function loop(now) {
 function init() {
   resize();
   buildFella(W / 2, floorY - 156 * SC);
-  makeBlobMesh(fella.head, 0.92, headColor, faceRelief, skinMat);
-  makeBlobMesh(fella.torso, 0.62, torsoColor, null, clothMat);
+  makeBlobMesh(fella.head, 0.92, headColor, faceRelief, skinMat, 1.25);
+  makeBlobMesh(fella.torso, 0.62, torsoColor, null, clothMat, 1);
   const skinC = new THREE.Color(COL.skin), shirtC = new THREE.Color(COL.shirt), pantsC = new THREE.Color(COL.pants);
   for (const L of [fella.armL, fella.armR]) makeLimbMesh(L, limbSkinMat, t => t < 0.3 ? shirtC : skinC);
   for (const L of [fella.legL, fella.legR]) makeLimbMesh(L, legMat, () => pantsC);
