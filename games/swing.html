@@ -119,6 +119,12 @@
     .race-btn .rd { grid-column: 1 / -1; color: var(--dim); font: 500 12px var(--body); letter-spacing: 0; display: flex; gap: 12px; flex-wrap: wrap; }
     .medal { width: 14px; height: 14px; border-radius: 50%; display: inline-block; vertical-align: -2px; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25); }
     .medal.gold { background: #ffc23d; } .medal.silver { background: #cfd6e0; } .medal.bronze { background: #cd8a52; }
+    .medal.done { background: #7cf27a; }
+    .race-btn[aria-disabled="true"] { opacity: 0.45; }
+    #levelList { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+    #levelList .race-btn { padding: 10px 12px; }
+    #levelList .rn { font-size: 14px; }
+    [data-panel="levels"] { width: min(680px, 100%); }
     .medal.none { background: transparent; box-shadow: inset 0 0 0 2px rgba(255,255,255,0.25); }
     .settings { display: grid; }
     .setting { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--line); min-height: 48px; }
@@ -188,6 +194,15 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.6 beta", "date": "2026-10-08", "title": "Levels",
+      "notes": [
+        "26 numbered levels, indoor and outdoor, each bringing in something new. Reach the green gate at the end to finish.",
+        "Moving doors, crushers, lifts, laser fences, sweepers, slime and shock floors.",
+        "Bounce pads, boost rings, wind that lifts or shoves you, crumbling floors, switches that open gates, and slick white walls webs won't stick to.",
+        "No landing needed: fly through the green gate's beam or a checkpoint's beam at any height and it counts.",
+        "Hazards and falls send you back to the last checkpoint. R also takes you back to it.",
+        "Finishing a level unlocks the next one and saves your best time and how often you were sent back."
+      ] },
     { "version": "0.5 beta", "date": "2026-10-07", "title": "Multiplayer",
       "notes": [
         "Play online with up to 7 friends: create a room from Play online and share its 5-letter code.",
@@ -292,6 +307,7 @@
       <div class="menu-btns">
         <button class="mbtn primary" data-act="play">Play <small>Free roam</small></button>
         <button class="mbtn" data-act="online">Play online <small>With friends, by room code</small></button>
+        <button class="mbtn" data-act="levels">Levels <small id="titleLevels"></small></button>
         <button class="mbtn" data-act="races">Races <small id="titleMedals"></small></button>
         <button class="mbtn" data-act="settings">Settings <small>Suits, controls, graphics</small></button>
         <button class="mbtn" data-act="controls">Controls</button>
@@ -310,6 +326,9 @@
         <button class="mbtn primary" data-act="resume">Resume</button>
         <button class="mbtn" data-act="restartRace" data-race-only>Restart race</button>
         <button class="mbtn" data-act="quitRace" data-race-only>Quit race</button>
+        <button class="mbtn" data-act="restartLevel" data-level-only>Restart level</button>
+        <button class="mbtn" data-act="quitLevel" data-level-only>Quit level</button>
+        <button class="mbtn" data-act="levels">Levels</button>
         <button class="mbtn" data-act="races">Races</button>
         <button class="mbtn" data-act="settings">Settings</button>
         <button class="mbtn" data-act="controls">Controls</button>
@@ -331,6 +350,27 @@
       </div>
       <p class="tag" id="netStatus" role="status"></p>
       <button class="mbtn" data-act="back">Back</button>
+    </section>
+
+    <section class="panel" data-panel="levels" hidden>
+      <h2>Levels</h2>
+      <p class="tag">Get to the green gate at the end. Each level adds something new. Finish one to unlock the next.</p>
+      <div class="menu-btns" id="levelList"></div>
+      <button class="mbtn" data-act="back">Back</button>
+    </section>
+
+    <section class="panel" data-panel="levelDone" hidden>
+      <h2 id="lvTitle">Level complete</h2>
+      <div class="res-line" id="lvName"></div>
+      <div class="res-time" id="lvTime">0:00.00</div>
+      <div class="res-line" id="lvBest"></div>
+      <div class="res-line" id="lvDeaths"></div>
+      <div class="menu-btns">
+        <button class="mbtn primary" data-act="nextLevel">Next level</button>
+        <button class="mbtn" data-act="retryLevel">Play again</button>
+        <button class="mbtn" data-act="levels">All levels</button>
+        <button class="mbtn" data-act="quitLevel">Free roam</button>
+      </div>
     </section>
 
     <section class="panel" data-panel="races" hidden>
@@ -617,6 +657,7 @@ class City {
     this.billboards = [];
     this.beacons = [];      // antenna tip lights
     this.lamps = [];
+    this.extra = [];        // level boxes, searched along with the city (see levels)
     this.generate();
     this.buildMeshes();
   }
@@ -646,6 +687,10 @@ class City {
         if (!list) continue;
         for (const b of list) { if (b.q !== q) { b.q = q; fn(b); } }
       }
+    }
+    for (const b of this.extra) {
+      if (b.max.x < minX || b.min.x > maxX || b.max.z < minZ || b.min.z > maxZ) continue;
+      if (b.q !== q) { b.q = q; fn(b); }
     }
   }
   /** A box that is both drawn (with the facade shader) and solid. */
@@ -1100,10 +1145,11 @@ class City {
 
   // ---------- queries ----------
   /** Ray vs nearby boxes (slab test). Returns { t, point, normal } or null. */
-  raycast(origin, dir, maxDist) {
+  raycast(origin, dir, maxDist, forWeb = false) {
     const ex = origin.x + dir.x * maxDist, ez = origin.z + dir.z * maxDist;
     let best = null;
     this.forEachIn(Math.min(origin.x, ex), Math.min(origin.z, ez), Math.max(origin.x, ex), Math.max(origin.z, ez), (b) => {
+      if (forWeb && b.noWeb) return; // slick level walls
       let tmin = 0, tmax = best ? best.t : maxDist, axis = -1, sign = 0;
       for (let a = 0; a < 3; a++) {
         const o = origin.getComponent(a), d = dir.getComponent(a);
@@ -1838,7 +1884,7 @@ function findAnchor(side) {
       for (const u of [0.6, 0.9, 1.3, 1.8, 2.6]) {
         for (const s of [0.15, 0.45, 0.8, 1.3]) {
           dir.copy(head).multiplyScalar(f * reach).addScaledVector(UP, u).addScaledVector(right, s * sd).normalize();
-          const hit = city.raycast(p, dir, S.maxRange);
+          const hit = city.raycast(p, dir, S.maxRange, true);
           if (!hit || hit.t < S.minDist) continue;
           const above = hit.point.y - p.y;
           if (above < S.minAbove) continue;
@@ -1900,7 +1946,7 @@ function findZipTarget() {
   for (const lift of [0.2, 0.45, 0.75, 0.05, 1.1]) {
     for (const turn of [0, 0.3, -0.3]) {
       dir.copy(fh).addScaledVector(side, turn).addScaledVector(UP, lift + Math.max(0, -f.y)).normalize();
-      const hit = city.raycast(player.pos, dir, CFG.zip.range);
+      const hit = city.raycast(player.pos, dir, CFG.zip.range, true);
       if (hit && hit.t > 6) return hit;
     }
   }
@@ -1970,6 +2016,7 @@ function step(dt) {
   const P = player, S = CFG.swing, v = P.vel;
   P.prevPos.copy(P.pos);
   if (P.frozen) { ['jump', 'swing', 'zip', 'trick'].forEach((a) => input.consume(a)); return; }
+  levelStep(dt);
   P.webCooldown -= dt; P.zipCooldown -= dt; P.zipT -= dt; P.coyote -= dt;
   P.kickT -= dt; P.nearCd -= dt; P.heroT -= dt;
   const dirIn = inputDir();
@@ -2113,6 +2160,9 @@ function step(dt) {
   for (const t of tokens.list) {
     if (!t.got && t.pos.distanceToSquared(P.pos) < 6.2) collectToken(t);
   }
+
+  // ---------- levels: hazards, checkpoints, the exit ----------
+  if (level.def && levelCheck()) return;
 
   // ---------- water ----------
   if (P.pos.y < -1.0) { P.events.push({ type: 'splash', point: P.pos.clone() }); onSplash(); return; }
@@ -2529,6 +2579,7 @@ const race = {
 function startRace(def, share = false) {
   if (share && net.online) net.sendEvent({ k: 'race', race: def.id });
   race.room = new Map([[net.online ? net.id : 'me', null]]); // who's racing -> finish time
+  quitLevel();
   quitRace(true);
   race.def = def; race.state = 'countdown'; race.idx = 0; race.time = 0; race.countdown = 3.2; race.lastBeep = 4;
   for (const [i, rg] of def.rings.entries()) {
@@ -2808,6 +2859,7 @@ const markerEl = $('#marker'), markerArrow = markerEl.querySelector('.arrowWrap'
 function updateMarker() {
   let target = null;
   if (race.state === 'running' || race.state === 'countdown') target = race.def.rings[Math.min(race.idx, race.def.rings.length - 1)].pos;
+  else if (level.state === 'playing') target = levelTarget();
   if (!target || game.mode !== 'play') { markerEl.hidden = true; return; }
   markerEl.hidden = false;
   const v = tC.copy(target).project(camera);
@@ -2861,7 +2913,22 @@ const minimap = (() => {
         if (t.got || Math.abs(t.pos.x - p.x) > RANGE * 1.5 || Math.abs(t.pos.z - p.z) > RANGE * 1.5) continue;
         dot(t.pos.x, t.pos.z, 3.5, '#ffc23d');
       }
-      if (race.state === 'idle') for (const r of races) dot(r.start.x, r.start.z, 6, '#45d8ea');
+      if (level.def) {
+        for (const b of level.boxes) {
+          if (b.max.y < 1) continue; // floors under the hall
+          ctx.fillStyle = b.base ? '#e0a82e' : `hsl(212 12% ${Math.round(52 + Math.min(b.max.y, 80) / 80 * 30)}%)`;
+          ctx.fillRect(b.min.x, b.min.z, b.max.x - b.min.x, b.max.z - b.min.z);
+        }
+        for (const h of level.hazards) if (h.active && !HAZARD_KINDS[h.kind].hidden) {
+          ctx.fillStyle = h.kind === 'toxic' ? 'rgba(124,242,122,0.45)' : 'rgba(255,60,70,0.7)';
+          ctx.fillRect(h.min.x, h.min.z, Math.max(h.max.x - h.min.x, 1.5), Math.max(h.max.z - h.min.z, 1.5));
+        }
+        for (const p of level.pads) dot(p.pos.x, p.pos.z, 4, '#b8ff3d');
+        for (const b of level.boosts) dot(b.pos.x, b.pos.z, 4, '#ffa53d');
+        for (const s of level.switches) dot(s.pos.x, s.pos.z, 5, s.done ? '#7cf27a' : '#ff3a4a');
+        level.checkpoints.forEach((c, i) => { if (i > level.cp) dot(c.pos.x, c.pos.z, 5, '#45d8ea'); });
+        if (level.exit) dot(level.exit.pos.x, level.exit.pos.z, 7, '#7cf27a');
+      } else if (race.state === 'idle') for (const r of races) dot(r.start.x, r.start.z, 6, '#45d8ea');
       else if (race.def) {
         ctx.strokeStyle = 'rgba(69,216,234,0.7)'; ctx.lineWidth = 3 / S;
         ctx.beginPath();
@@ -2885,6 +2952,936 @@ const minimap = (() => {
     },
   };
 })();
+
+// =====================================================================
+// Levels: numbered courses out at sea, away from the city. Each one
+// adds a mechanic; the goal is always the green gate at the end.
+// Level geometry is a short list of boxes that the city's collision and
+// web raycasts also search (city.extra), so swinging, zipping and wall
+// bounces all work the same. Doors and lifts are boxes that move as a
+// function of level time; hazards are volumes that send you back to the
+// last checkpoint. Later levels add bounce pads, boost rings, wind,
+// crumbling floors, switches that open gates and walls webs won't stick to.
+// =====================================================================
+const LEVEL_ORIGIN = new THREE.Vector3(3200, 0, 0);
+const LEVEL_KINDS = {
+  concrete: { color: 0x8d9097, roughness: 0.9 },
+  brick:    { color: 0x8a4a3a, roughness: 0.95 },
+  steel:    { color: 0x3b414a, roughness: 0.5, metalness: 0.5 },
+  floor:    { color: 0x6c7077, roughness: 0.95 },
+  wall:     { color: 0x9a968e, roughness: 0.95 },
+  door:     { color: 0xe0a82e, roughness: 0.45, metalness: 0.3 },
+  lift:     { color: 0x4f8fb8, roughness: 0.5, metalness: 0.3 },
+  sign:     { color: 0x45d8ea, roughness: 0.6 },
+  post:     { color: 0x3b414a, roughness: 0.6, metalness: 0.4 },
+  piston:   { color: 0xc23b3b, roughness: 0.5, metalness: 0.4 },
+  light:    { color: 0xfff3d6, basic: true },
+  crumble:  { color: 0xb58b5a, roughness: 1 },
+  tile:     { color: 0xe9eef2, roughness: 0.2, metalness: 0.1 }, // slick: webs don't stick
+  gate:     { color: 0xd04a8a, roughness: 0.45, metalness: 0.3 },
+  pad:      { color: 0xb8ff3d, basic: true },
+};
+const HAZARD_KINDS = {
+  laser:  { color: 0xff2a3a, opacity: 0.85, label: 'Zapped' },
+  toxic:  { color: 0x7cf27a, opacity: 0.55, label: 'Slimed' },
+  shock:  { color: 0x45d8ea, opacity: 0.6, label: 'Shocked' },
+  crush:  { color: 0xc23b3b, opacity: 0, hidden: true, label: 'Squashed' }, // the underside of a falling crusher
+  block:  { color: 0xc23b3b, opacity: 1, solidLook: true, label: 'Smashed' },
+  curtain: { color: 0xff2a3a, opacity: 0.32, label: 'Zapped' },
+};
+// Checkpoints and the exit count anywhere in a tall column above them, so you never have to land on them.
+const CP_RADIUS = 7, CP_HEIGHT = 45, EXIT_RADIUS = 8, EXIT_HEIGHT = 120;
+function inColumn(p, radius, height) {
+  const P = player.pos, dx = P.x - p.x, dz = P.z - p.z;
+  return dx * dx + dz * dz < radius * radius && P.y > p.y - 3 && P.y < p.y + height;
+}
+const lvMats = {};
+function lvMat(kind) {
+  if (lvMats[kind]) return lvMats[kind];
+  const k = LEVEL_KINDS[kind] || LEVEL_KINDS.concrete;
+  return (lvMats[kind] = k.basic ? new THREE.MeshBasicMaterial({ color: k.color })
+    : new THREE.MeshStandardMaterial({ color: k.color, roughness: k.roughness, metalness: k.metalness || 0 }));
+}
+/** Smooth 0..1 "open" amount for something that cycles: closed, opens, stays open, closes. */
+function cycle(t, period, openFrac, phase = 0) {
+  const u = (((t / period + phase) % 1) + 1) % 1, ramp = 0.12;
+  if (u < ramp) return smooth(0, 1, u / ramp);
+  if (u < ramp + openFrac) return 1;
+  if (u < 2 * ramp + openFrac) return 1 - smooth(0, 1, (u - ramp - openFrac) / ramp);
+  return 0;
+}
+const blink = (period, onFrac, phase = 0) => (t) => (((t / period + phase) % 1) + 1) % 1 < onFrac;
+/** Builder shortcuts: a tower standing in the sea (top at h), and a floating slab whose top is at y. */
+const tower = (L, x, z, w, h, kind = 'concrete', d = w) => L.solid(x - w, -3, z - d, x + w, h, z + d, kind);
+const slab = (L, x, y, z, w, d = w, kind = 'concrete') => L.solid(x - w, y - 3, z - d, x + w, y, z + d, kind);
+
+const LEVELS = [
+  {
+    id: 'l1', name: 'First Swing', where: 'Outdoor',
+    intro: 'Hold swing to web onto the towers and let go to fly. Reach the green gate.',
+    build(L) {
+      L.solid(-9, -3, -9, 9, 40, 9, 'concrete');
+      L.start(0, 41.2, 0);
+      for (let i = 0; i < 6; i++) {
+        const z = -42 - i * 38, x = i % 2 ? 13 : -13;
+        L.solid(x - 4, -3, z - 4, x + 4, 72 + (i % 3) * 6, z + 4, 'concrete');
+      }
+      L.solid(-10, -3, -300, 10, 40, -280, 'concrete');
+      L.exit(0, 42, -290);
+    },
+  },
+  {
+    id: 'l2', name: 'Zip Across', where: 'Outdoor',
+    intro: 'No tall towers here. Zip (E or right-click) to the signs on the far rooftops.',
+    build(L) {
+      L.solid(-10, -3, -10, 10, 30, 10, 'brick');
+      L.start(0, 31.2, 0);
+      [-52, -104, -156].forEach((z, i) => {
+        L.solid(-9, -3, z - 9, 9, 30, z + 9, 'brick');
+        // A billboard up on posts to zip to; you walk underneath it.
+        L.solid(-8.5, 30, z - 0.5, -7.5, 38, z + 0.5, 'post');
+        L.solid(7.5, 30, z - 0.5, 8.5, 38, z + 0.5, 'post');
+        L.solid(-9, 38, z - 0.6, 9, 45, z + 0.6, 'sign');
+        if (i === 1) L.checkpoint(0, 31.2, z + 5);
+      });
+      L.solid(-10, -3, -218, 10, 30, -198, 'brick');
+      L.exit(0, 32, -208);
+    },
+  },
+  {
+    id: 'l3', name: 'The Warehouse', where: 'Indoor',
+    intro: 'Swing from the roof beams. The floor is toxic, and checkpoints save your progress.',
+    build(L) {
+      L.room(-20, 20, 12, -272, 32);
+      for (let z = -8; z > -262; z -= 18) L.solid(-20, 25, z - 1, 20, 27, z + 1, 'steel');
+      L.hazard(-20, -2, -272, 20, 1.2, 12, 'toxic');
+      L.solid(-20, 0, 12, 20, 6, -14, 'floor');
+      L.start(0, 7.2, 0);
+      L.solid(-12, 0, -124, 12, 6, -146, 'floor');
+      L.checkpoint(0, 7.2, -135);
+      L.solid(-20, 0, -244, 20, 6, -272, 'floor');
+      L.exit(0, 8, -258);
+    },
+  },
+  {
+    id: 'l4', name: 'Security Doors', where: 'Indoor',
+    intro: 'The doors slide open and shut. Time your run through each one.',
+    build(L) {
+      L.room(-18, 18, 12, -262, 28);
+      L.solid(-18, 0, 12, 18, 0.5, -262, 'floor');
+      for (let z = -20; z > -255; z -= 20) L.solid(-18, 22, z - 1, 18, 24, z + 1, 'steel');
+      L.start(0, 1.7, 0);
+      [[-50, 4.2, 0.5, 0], [-110, 3.6, 0.45, 0.3], [-170, 3.2, 0.42, 0.6], [-225, 2.8, 0.4, 0.1]].forEach(([z, period, open, phase], i) => {
+        L.solid(-18, 0.5, z - 1, -7, 28, z + 1, 'wall');
+        L.solid(7, 0.5, z - 1, 18, 28, z + 1, 'wall');
+        L.solid(-7, 14, z - 1, 7, 28, z + 1, 'wall');
+        L.mover(-7, 0.5, z - 0.6, 7, 14, z + 0.6, 'door', (t) => [0, -13.6 * cycle(t, period, open, phase), 0]);
+        if (i === 1) L.checkpoint(0, 1.7, z - 18);
+      });
+      L.exit(0, 2.5, -248);
+    },
+  },
+  {
+    id: 'l5', name: 'Laser Grid', where: 'Outdoor',
+    intro: 'Red laser fences zap you. Slip through the gaps, or wait for the blinking ones to switch off.',
+    build(L) {
+      L.solid(-9, -3, -9, 9, 40, 9, 'concrete');
+      L.start(0, 41.2, 0);
+      // A canyon between two tall walls, with pillars every 36 m that the fences hang between.
+      L.solid(-27, -3, -345, -20, 80, 6, 'brick');
+      L.solid(20, -3, -345, 27, 80, 6, 'brick');
+      for (let i = 0; i < 8; i++) {
+        const z = -40 - i * 36;
+        L.solid(-20, -3, z - 3, -14, 80, z + 3, 'concrete');
+        L.solid(14, -3, z - 3, 20, 80, z + 3, 'concrete');
+      }
+      // Laser fences fill each gap between the pillars, top to bottom, so there's no going round them.
+      const ys = (from, step) => { const a = []; for (let y = from; y <= 80; y += step) a.push(y); return a; };
+      const fence = (z, heights, on) => heights.forEach((y) => L.hazard(-14, y - 0.2, z - 0.2, 14, y + 0.2, z + 0.2, 'laser', on));
+      fence(-76, ys(3, 5), blink(2.4, 0.5));        // the whole fence blinks: go when it's off
+      fence(-112, ys(6, 7));                         // always on: slip through a gap
+      [-11, -6.5, -2, 2.5, 7, 11.5].forEach((x, k) => // a curtain of upright beams, half on at a time
+        L.hazard(x - 0.2, 0, -148.2, x + 0.2, 82, -147.8, 'laser', blink(2, 0.5, k % 2 ? 0.5 : 0)));
+      L.solid(-6, -3, -172, 6, 34, -160, 'concrete');
+      L.checkpoint(0, 35.2, -166);
+      fence(-220, ys(3, 5), blink(3, 0.5, 0.3));
+      fence(-256, ys(9, 7), blink(2.2, 0.6));       // gaps in a blinking fence
+      L.solid(-10, -3, -340, 10, 40, -320, 'concrete');
+      L.exit(0, 42, -330);
+    },
+  },
+  {
+    id: 'l6', name: 'Piston Hall', where: 'Indoor',
+    intro: 'Crushers slam down from the roof and lifts carry you over the slime. Keep moving.',
+    build(L) {
+      L.room(-20, 20, 12, -282, 32);
+      for (let z = -8; z > -275; z -= 18) L.solid(-20, 26, z - 1, 20, 28, z + 1, 'steel');
+      L.solid(-20, 0, 12, 20, 0.5, -140, 'floor');
+      L.start(0, 1.7, 0);
+      // Crushers: slam down to the floor, rise, repeat. Their underside squashes you on the way down.
+      [-40, -64, -88, -112].forEach((z, i) => {
+        const up = (t) => cycle(t, 3, 0.45, i * 0.25), fn = (t) => [0, 13 * up(t), 0];
+        L.mover(-20, 1, z - 5, 20, 31, z + 5, 'piston', fn); // tall enough to reach the roof even when down
+        L.hazard(-20, 0.2, z - 5, 20, 1.4, z + 5, 'crush', (t) => up(t) < 0.98, fn);
+      });
+      L.checkpoint(0, 1.7, -130);
+      // Slime pit with lifts.
+      L.hazard(-20, -2, -230, 20, 1.2, -140, 'toxic');
+      L.mover(-14, 0, -162, -2, 3, -150, 'lift', (t) => [0, 10 + 9 * Math.sin(t * 1.3), 0]);
+      L.mover(2, 0, -192, 14, 3, -180, 'lift', (t) => [0, 10 + 9 * Math.sin(t * 1.3 + Math.PI), 0]);
+      L.mover(-8, 0, -222, 8, 3, -210, 'lift', (t) => [0, 10 + 9 * Math.sin(t * 1.3 + 1.6), 0]);
+      L.solid(-20, 0, -230, 20, 0.5, -282, 'floor');
+      // Shock floor that switches on and off.
+      L.hazard(-20, 0.5, -262, 20, 1.0, -238, 'shock', blink(3, 0.5));
+      L.exit(0, 2.5, -272);
+    },
+  },
+];
+
+// Levels 7-26: each one brings in a new gadget, then later ones mix them.
+LEVELS.push(
+  {
+    id: 'l7', name: 'Bounce Pads', where: 'Outdoor',
+    intro: 'Green pads fling you sky-high. Run onto one to bounce across to the next tower.',
+    build(L) {
+      tower(L, 0, 0, 8, 20); L.start(0, 21.2, 0);
+      L.pad(0, 20, -5);
+      tower(L, 0, -40, 8, 20); L.pad(0, 20, -45);
+      tower(L, 0, -80, 8, 20); L.checkpoint(0, 21.2, -78); L.pad(0, 20, -85, 34);
+      tower(L, 0, -120, 8, 30); L.pad(0, 30, -125, 34);
+      tower(L, 0, -160, 8, 40); L.exit(0, 41.2, -162);
+    },
+  },
+  {
+    id: 'l8', name: 'Drift', where: 'Outdoor',
+    intro: 'These platforms slide back and forth, and they carry you with them. Hop across when they line up.',
+    build(L) {
+      tower(L, 0, 0, 8, 20); L.start(0, 21.2, 0);
+      [-22, -42, -62].forEach((z, k) => {
+        L.mover(-5, 18, z - 5, 5, 20, z + 5, 'lift', (t) => [9 * Math.sin(t * 0.9 + k * 2), 0, 0]);
+        L.hint(0, 21, z);
+      });
+      tower(L, 0, -86, 7, 20); L.checkpoint(0, 21.2, -86);
+      [-108, -128, -148].forEach((z, k) => {
+        L.mover(-5, 18, z - 5, 5, 20, z + 5, 'lift', (t) => [8 * Math.sin(t * 1.1 + k * 2.4), 3 * Math.sin(t * 0.8 + k), 0]);
+        L.hint(0, 21, z);
+      });
+      tower(L, 0, -172, 8, 20); L.exit(0, 21.2, -172);
+      // Tall towers off to the sides, if you'd rather swing it.
+      tower(L, -30, -55, 5, 70); tower(L, 30, -95, 5, 70); tower(L, -30, -140, 5, 70);
+    },
+  },
+  {
+    id: 'l9', name: 'Sweepers', where: 'Indoor',
+    intro: 'Laser bars sweep up and down and side to side. Watch their rhythm and slip past.',
+    build(L) {
+      L.room(-20, 20, 12, -262, 30);
+      L.solid(-20, 0, 12, 20, 0.5, -262, 'floor');
+      for (let z = -20; z > -255; z -= 20) L.solid(-20, 24, z - 1, 20, 26, z + 1, 'steel');
+      L.start(0, 1.7, 0);
+      const bar = (z, speed, phase) => L.hazard(-20, 0.8, z - 0.25, 20, 1.2, z + 0.25, 'laser', null, (t) => [0, 14 + 14 * Math.sin(t * speed + phase), 0]);
+      const post = (z, speed, phase) => L.hazard(-0.25, 0.5, z - 0.25, 0.25, 30, z + 0.25, 'laser', null, (t) => [18 * Math.sin(t * speed + phase), 0, 0]);
+      bar(-50, 1.4, 0);
+      post(-90, 1.2, 0); post(-100, 1.2, Math.PI);
+      L.checkpoint(0, 1.7, -130);
+      bar(-160, 1.6, 0); bar(-172, 1.6, Math.PI);
+      post(-205, 1.5, 0); bar(-212, 1.3, 1);
+      L.exit(0, 1.7, -248);
+    },
+  },
+  {
+    id: 'l10', name: 'Updraft', where: 'Outdoor',
+    intro: 'Step into the wind columns and they lift you up. Drift out over the next rooftop.',
+    build(L) {
+      tower(L, 0, 0, 7, 10); L.start(0, 11.2, 0);
+      L.wind(-5, 0, -15, 5, 50, -7, 0, 60, 0);
+      tower(L, 0, -22, 7, 46); L.checkpoint(0, 47.2, -22);
+      L.hint(0, 40, -11);
+      L.wind(-5, 0, -37, 5, 82, -29, 0, 60, 0);
+      L.hint(0, 75, -33);
+      tower(L, 0, -44, 7, 78);
+      L.pad(0, 78, -48, 30);
+      tower(L, 0, -82, 8, 78); L.exit(0, 79.2, -82);
+    },
+  },
+  {
+    id: 'l11', name: 'Crumble Bridge', where: 'Outdoor',
+    intro: 'Brown tiles crumble a moment after you step on them. Keep moving.',
+    build(L) {
+      tower(L, 0, 0, 7, 20); L.start(0, 21.2, 0);
+      for (let z = -12; z >= -68; z -= 7) L.crumble(-3, 18.5, z - 3, 3, 20, z + 3);
+      tower(L, 0, -82, 7, 20); L.checkpoint(0, 21.2, -82);
+      for (let k = 0, z = -96; z >= -160; z -= 7, k++) { const x = k % 2 ? 2.5 : -2.5; L.crumble(x - 3, 18.5, z - 3, x + 3, 20, z + 3); }
+      tower(L, 0, -174, 8, 20); L.exit(0, 21.2, -174);
+    },
+  },
+  {
+    id: 'l12', name: 'The Switch', where: 'Indoor',
+    intro: 'A gate blocks the way. Bounce up to the red switch on the ledge to open it.',
+    build(L) {
+      L.room(-20, 20, 12, -202, 30);
+      L.solid(-20, 0, 12, 20, 0.5, -202, 'floor');
+      for (let z = -30; z > -195; z -= 20) L.solid(-20, 24, z - 1, 20, 26, z + 1, 'steel');
+      L.start(0, 1.7, 0);
+      L.solid(-20, 14, -66, -11, 16, -54, 'concrete');
+      L.pad(-8, 0.5, -60, 32); L.hint(-8, 0, -60);
+      L.button(-16, 16, -60, 'a');
+      L.solid(-20, 0.5, -101, -6, 30, -99, 'wall'); L.solid(6, 0.5, -101, 20, 30, -99, 'wall'); L.solid(-6, 14, -101, 6, 30, -99, 'wall');
+      L.gate(-6, 0.5, -100.6, 6, 14, -99.4, 'a');
+      L.checkpoint(0, 1.7, -112);
+      L.pad(0, 0.5, -121, 30);
+      L.hazard(-20, -2, -180, 20, 1.2, -125, 'toxic');
+      L.solid(-20, 0, -202, 20, 6, -180, 'floor');
+      L.exit(0, 7.2, -191);
+    },
+  },
+  {
+    id: 'l13', name: 'Boost Rings', where: 'Outdoor',
+    intro: 'Orange rings shoot you forward. Fly through them to cross the big gaps.',
+    build(L) {
+      tower(L, 0, 0, 9, 30); L.start(0, 31.2, 0);
+      L.boost(0, 32, -6, 0, -1, 45);
+      tower(L, 0, -62, 10, 26); L.checkpoint(0, 27.2, -60);
+      L.boost(0, 28, -68, 0, -1, 45);
+      tower(L, 0, -122, 10, 22);
+      L.boost(0, 24, -128, 0, -1, 40);
+      tower(L, 0, -178, 10, 22); L.exit(0, 23.2, -180);
+    },
+  },
+  {
+    id: 'l14', name: 'Elevator Shaft', where: 'Indoor',
+    intro: 'Head for the top. Ride the lift, then let the wind carry you up from ledge to ledge.',
+    bot: 'walk',
+    build(L) {
+      L.room(-16, 16, 10, -40, 110);
+      L.solid(-16, 0, 10, 16, 0.5, -40, 'floor');
+      L.start(0, 1.7, 0);
+      L.mover(-14, 0.5, -22, -4, 1.5, -12, 'lift', (t) => [0, 12.35 - 12.35 * Math.cos(t * 0.8), 0]);
+      L.hint(-9, 27, -17);
+      L.solid(-16, 24, -40, 16, 26, -22, 'concrete'); L.checkpoint(0, 27.2, -31);
+      L.wind(4, 20, -22, 14, 62, -12, 0, 60, 0); L.hint(9, 52, -17);
+      L.solid(-16, 56, 10, 16, 58, -10, 'concrete'); L.checkpoint(0, 59.2, 0);
+      L.wind(-14, 52, -22, -4, 94, -12, 0, 60, 0); L.hint(-9, 84, -17);
+      L.solid(-16, 86, -40, 16, 88, -22, 'concrete');
+      L.exit(0, 89.2, -31);
+    },
+  },
+  {
+    id: 'l15', name: 'Reactor', where: 'Indoor',
+    intro: 'White walls are slick: webs won\'t stick. Wait on the safe strips and cross each shock row while it\'s dark.',
+    bot: 'walk',
+    build(L) {
+      L.room(-20, 20, 12, -262, 14, true);
+      L.solid(-20, 0, 12, 20, 0.5, -262, 'floor');
+      L.start(0, 1.7, 0);
+      // Rows of shock floor with safe strips between: wait on a strip, run when the row ahead goes dark.
+      for (let j = 0; j < 8; j++) { const z = -24 - j * 12; L.hazard(-20, 0.5, z - 6, 20, 0.9, z, 'shock', blink(2.4, 0.5, j * 0.37)); }
+      L.checkpoint(0, 1.7, -126);
+      for (let j = 0; j < 9; j++) { const z = -136 - j * 12.5; L.hazard(-20, 0.5, z - 6, 20, 0.9, z, 'shock', blink(2, 0.55, j * 0.29)); }
+      L.exit(0, 1.7, -254);
+    },
+  },
+  {
+    id: 'l16', name: 'Rooftop Run', where: 'Outdoor',
+    intro: 'Rooftops, pads and a boost ring. Use whatever gets you there fastest.',
+    build(L) {
+      tower(L, 0, 0, 8, 30); L.start(0, 31.2, 0);
+      tower(L, -12, -40, 6, 62); tower(L, 12, -72, 6, 70);
+      tower(L, 0, -104, 9, 24); L.checkpoint(0, 25.2, -104);
+      L.pad(0, 24, -110, 34);
+      tower(L, 0, -146, 8, 34);
+      L.hazard(-8, 34, -136.2, 8, 46, -135.8, 'curtain', blink(2, 0.5));
+      L.boost(0, 36, -152, 0, -1, 45);
+      tower(L, 0, -206, 10, 30); L.exit(0, 31.2, -206);
+    },
+  },
+  {
+    id: 'l17', name: 'Rising Slime', where: 'Indoor',
+    intro: 'The slime is rising! Bounce up the ledges before it catches you.',
+    bot: 'walk',
+    build(L) {
+      L.room(-14, 14, 10, -30, 80);
+      L.solid(-14, 0, 10, 14, 0.5, -30, 'floor');
+      L.start(0, 1.7, 0);
+      L.hazard(-14, -40, -30, 14, -1, 10, 'toxic', null, (t, tt) => [0, Math.max(0, tt - 3) * 1.3, 0]);
+      L.pad(0, 0.5, -9.5, 32);
+      L.solid(-14, 13, -30, 14, 15, -20, 'concrete'); L.hint(0, 15, -25);
+      L.pad(0, 15, -22.8, 32, 2.6);
+      L.solid(-14, 27, 10, 14, 29, -2, 'concrete'); L.checkpoint(0, 30.2, 4);
+      L.pad(0, 29, 0.6, 32, 2.6);
+      L.solid(-14, 41, -30, 14, 43, -20, 'concrete'); L.hint(0, 43, -25);
+      L.wind(-6, 30, -20, 6, 74, -12, 0, 60, 0); L.hint(0, 64, -16);
+      L.solid(-14, 64, 10, 14, 66, -6, 'concrete');
+      L.exit(0, 67.2, 2);
+    },
+  },
+  {
+    id: 'l18', name: 'Pendulums', where: 'Indoor',
+    intro: 'Huge red blocks slide across the hall. Run through when the gap is on your side.',
+    bot: 'walk',
+    build(L) {
+      L.room(-20, 20, 12, -232, 14, true);
+      L.solid(-20, 0, 12, 20, 0.5, -232, 'floor');
+      L.start(0, 1.7, 0);
+      const block = (z, speed, phase) => L.hazard(-6, 0.5, z - 3, 6, 14, z + 3, 'block', null, (t) => [14 * Math.sin(t * speed + phase), 0, 0]);
+      block(-40, 1.5, 0); block(-65, 1.3, 2); block(-90, 1.7, 4);
+      L.checkpoint(0, 1.7, -112);
+      block(-135, 1.5, 0); block(-150, 1.5, Math.PI); block(-175, 2, 1); block(-195, 1.6, 3);
+      L.exit(0, 1.7, -220);
+    },
+  },
+  {
+    id: 'l19', name: 'Two Keys', where: 'Indoor',
+    intro: 'Two gates, two switches. The second switch is on an island in the slime.',
+    build(L) {
+      L.room(-20, 20, 12, -222, 30);
+      L.solid(-20, 0, 12, 20, 0.5, -222, 'floor');
+      for (let z = -30; z > -215; z -= 20) L.solid(-20, 24, z - 1, 20, 26, z + 1, 'steel');
+      L.start(0, 1.7, 0);
+      L.solid(11, 14, -46, 20, 16, -34, 'concrete');
+      L.pad(8, 0.5, -40, 32); L.hint(8, 0, -40);
+      L.button(16, 16, -40, 'a');
+      const wall = (z, id) => {
+        L.solid(-20, 0.5, z - 1, -6, 30, z + 1, 'wall'); L.solid(6, 0.5, z - 1, 20, 30, z + 1, 'wall'); L.solid(-6, 14, z - 1, 6, 30, z + 1, 'wall');
+        L.gate(-6, 0.5, z - 0.6, 6, 14, z + 0.6, id);
+      };
+      wall(-80, 'a');
+      L.checkpoint(0, 1.7, -92);
+      L.hazard(-20, -2, -150, 20, 1.2, -100, 'toxic');
+      L.solid(-18, 0, -132, -8, 4, -118, 'concrete');
+      L.button(-13, 4, -125, 'b');
+      L.solid(-20, 0, -156, 20, 4, -150, 'floor');
+      wall(-160, 'b');
+      L.exit(0, 1.7, -200);
+    },
+  },
+  {
+    id: 'l20', name: 'Sky Islands', where: 'Outdoor',
+    intro: 'Islands in the sky: a drifting platform, pads, a crumbling path and an updraft to the top.',
+    build(L) {
+      tower(L, 0, 0, 8, 40); L.start(0, 41.2, 0);
+      L.mover(-5, 37, -25, 5, 40, -15, 'lift', (t) => [8 * Math.sin(t), 0, 0]); L.hint(0, 41, -20);
+      slab(L, 0, 40, -40, 8); L.pad(0, 40, -45, 34);
+      slab(L, 0, 52, -80, 8); L.checkpoint(0, 53.2, -80);
+      for (let z = -95; z >= -123; z -= 7) L.crumble(-3, 50.5, z - 3, 3, 52, z + 3);
+      slab(L, 0, 52, -135, 8, 9);
+      L.wind(-5, 30, -152, 5, 92, -144, 0, 60, 0); L.hint(0, 85, -148);
+      slab(L, 0, 84, -160, 8); L.exit(0, 85.2, -161);
+    },
+  },
+  {
+    id: 'l21', name: 'Laser Maze', where: 'Indoor',
+    intro: 'Laser curtains block most of each row. Zig-zag through the gaps, and mind the sweeper.',
+    bot: 'walk',
+    build(L) {
+      L.room(-20, 20, 12, -202, 12, true);
+      L.solid(-20, 0, 12, 20, 0.5, -202, 'floor');
+      L.start(0, 1.7, 0);
+      [-30, -50, -70, -90].forEach((z, k) => {
+        if (k % 2) { L.hazard(-8, 0.5, z - 0.2, 20, 12, z + 0.2, 'curtain'); L.hint(-14, 0, z + 4); L.hint(-14, 0, z - 4); }
+        else { L.hazard(-20, 0.5, z - 0.2, 8, 12, z + 0.2, 'curtain'); L.hint(14, 0, z + 4); L.hint(14, 0, z - 4); }
+      });
+      L.checkpoint(0, 1.7, -105);
+      L.hazard(-0.25, 0.5, -120.25, 0.25, 12, -119.75, 'laser', null, (t) => [17 * Math.sin(t * 1.3), 0, 0]);
+      [-140, -160, -180].forEach((z, k) => {
+        const gx = [-12, 12, 0][k];
+        L.hazard(-20, 0.5, z - 0.2, gx - 4, 12, z + 0.2, 'curtain');
+        L.hazard(gx + 4, 0.5, z - 0.2, 20, 12, z + 0.2, 'curtain');
+        L.hint(gx, 0, z + 4); L.hint(gx, 0, z - 4);
+      });
+      L.exit(0, 1.7, -192);
+    },
+  },
+  {
+    id: 'l22', name: 'Crumble Climb', where: 'Outdoor',
+    intro: 'A staircase of crumbling blocks. Jump from step to step and don\'t stop.',
+    bot: 'walk',
+    build(L) {
+      tower(L, 0, 0, 6, 10); L.start(0, 11.2, 0);
+      // Steps are one running jump apart: jump from the far edge of each one.
+      for (let k = 0; k < 8; k++) { const top = 10 + 1.6 * (k + 1), z = -12 - 11 * k; L.crumble(-3.5, top - 1.5, z - 5, 3.5, top, z + 5); L.hint(0, top, z); }
+      tower(L, 0, -101, 6, 24.4); L.checkpoint(0, 25.6, -101);
+      for (let k = 0; k < 8; k++) {
+        const top = 24.4 + 1.6 * (k + 1), z = -119 - 11 * k, x = k % 2 ? 1.5 : -1.5;
+        L.crumble(x - 3.5, top - 1.5, z - 5, x + 3.5, top, z + 5); L.hint(x, top, z);
+      }
+      tower(L, 0, -208, 7, 38.8); L.exit(0, 40, -208);
+    },
+  },
+  {
+    id: 'l23', name: 'Gauntlet', where: 'Indoor',
+    intro: 'Doors, crushers, sweepers, lasers and a shock floor, all in one hall.',
+    build(L) {
+      L.room(-20, 20, 12, -262, 30);
+      L.solid(-20, 0, 12, 20, 0.5, -262, 'floor');
+      for (const z of [-20, -55, -110, -150, -190, -230]) L.solid(-20, 24, z - 1, 20, 26, z + 1, 'steel');
+      L.start(0, 1.7, 0);
+      const door = (z, period, open, phase) => {
+        L.solid(-20, 0.5, z - 1, -7, 30, z + 1, 'wall'); L.solid(7, 0.5, z - 1, 20, 30, z + 1, 'wall'); L.solid(-7, 14, z - 1, 7, 30, z + 1, 'wall');
+        L.mover(-7, 0.5, z - 0.6, 7, 14, z + 0.6, 'door', (t) => [0, -13.6 * cycle(t, period, open, phase), 0]);
+      };
+      door(-40, 3.6, 0.5, 0);
+      [-70, -90].forEach((z, i) => {
+        const up = (t) => cycle(t, 3, 0.45, i * 0.4), fn = (t) => [0, 13 * up(t), 0];
+        L.mover(-20, 1, z - 5, 20, 31, z + 5, 'piston', fn);
+        L.hazard(-20, 0.2, z - 5, 20, 1.4, z + 5, 'crush', (t) => up(t) < 0.98, fn);
+      });
+      L.hazard(-20, 0.8, -120.25, 20, 1.2, -119.75, 'laser', null, (t) => [0, 11 + 11 * Math.sin(t * 1.5), 0]);
+      L.checkpoint(0, 1.7, -138);
+      L.hazard(-20, 0.5, -170.2, 20, 30, -169.8, 'curtain', blink(2.4, 0.5));
+      L.hazard(-20, 0.5, -220, 20, 1.0, -195, 'shock', blink(3, 0.5, 0.25));
+      door(-238, 3, 0.45, 0.5);
+      L.exit(0, 1.7, -252);
+    },
+  },
+  {
+    id: 'l24', name: 'Crosswind', where: 'Outdoor',
+    intro: 'Gusts blow across the narrow bridge. Lean into the wind, or swing from the towers.',
+    build(L) {
+      tower(L, 0, 0, 7, 25); L.start(0, 26.2, 0);
+      L.solid(-2.5, 22, -7, 2.5, 25, -68, 'concrete');
+      L.wind(-30, 20, -24, 30, 45, -14, 28, 0, 0, 9, blink(3, 0.5));
+      L.wind(-30, 20, -44, 30, 45, -34, -28, 0, 0, 9, blink(3, 0.5, 0.5));
+      L.wind(-30, 20, -62, 30, 45, -52, 32, 0, 0, 10);
+      tower(L, 0, -75, 8, 25); L.checkpoint(0, 26.2, -75);
+      L.solid(-2.5, 22, -83, 2.5, 25, -150, 'concrete');
+      L.wind(-30, 20, -102, 30, 45, -90, -32, 0, 0, 10, blink(2.5, 0.6));
+      L.wind(-30, 20, -124, 30, 45, -112, 32, 0, 0, 10, blink(2.5, 0.6, 0.5));
+      L.wind(-30, 20, -146, 30, 45, -134, -36, 0, 0, 11);
+      for (const z of [-30, -70, -110, -150]) { tower(L, -24, z, 4, 60); tower(L, 24, z - 20, 4, 60); }
+      tower(L, 0, -160, 8, 25); L.exit(0, 26.2, -160);
+    },
+  },
+  {
+    id: 'l25', name: 'Tower Flood', where: 'Indoor',
+    intro: 'The slime rises faster now, and some of the steps crumble. Climb!',
+    bot: 'walk',
+    build(L) {
+      L.room(-14, 14, 10, -30, 100);
+      L.solid(-14, 0, 10, 14, 0.5, -30, 'floor');
+      L.start(0, 1.7, 0);
+      L.hazard(-14, -40, -30, 14, -1, 10, 'toxic', null, (t, tt) => [0, Math.max(0, tt - 3) * 1.6, 0]);
+      L.pad(0, 0.5, -9.5, 32);
+      L.solid(-14, 13, -30, 14, 15, -20, 'concrete'); L.hint(0, 15, -25);
+      L.pad(0, 15, -22.8, 32, 2.6);
+      L.solid(-14, 27, 10, 14, 29, -2, 'concrete'); L.checkpoint(0, 30.2, 4);
+      [[-6, 31.2], [-12, 33.4], [-18, 35.6]].forEach(([z, top]) => { L.crumble(-13, top - 1.5, z - 2.6, -7, top, z + 2.6); L.hint(-10, top, z); });
+      L.solid(-14, 35.8, -30, 14, 37.8, -22, 'concrete'); L.hint(0, 37.8, -26);
+      L.wind(0, 34, -22, 14, 86, -8, 0, 60, 0); L.hint(7, 76, -15);
+      L.solid(-14, 78, 10, 14, 80, -6, 'concrete');
+      L.exit(0, 81.2, 2);
+    },
+  },
+  {
+    id: 'l26', name: 'The Finale', where: 'Outdoor',
+    intro: 'Everything you\'ve learned, one last time. Lasers, pads, a boost, crumbling tiles, wind and a switch.',
+    build(L) {
+      tower(L, 0, 0, 8, 40); L.start(0, 41.2, 0);
+      L.solid(-27, -3, -120, -20, 80, -10, 'brick'); L.solid(20, -3, -120, 27, 80, -10, 'brick');
+      for (const z of [-40, -80]) {
+        L.solid(-20, -3, z - 3, -14, 80, z + 3, 'concrete'); L.solid(14, -3, z - 3, 20, 80, z + 3, 'concrete');
+        for (let y = 3; y <= 80; y += 6) L.hazard(-14, y - 0.2, z - 0.2, 14, y + 0.2, z + 0.2, 'laser', blink(2.6, 0.45, z / 80));
+      }
+      tower(L, 0, -110, 8, 30); L.checkpoint(0, 31.2, -110);
+      L.pad(0, 30, -115, 32);
+      L.mover(-5, 27, -150, 5, 30, -140, 'lift', (t) => [7 * Math.sin(t * 1.1), 0, 0]); L.hint(0, 31, -145);
+      tower(L, 0, -168, 8, 30); L.boost(0, 32, -174, 0, -1, 48);
+      tower(L, 0, -228, 9, 24); L.checkpoint(0, 25.2, -228);
+      for (let z = -244; z >= -272; z -= 7) L.crumble(-3, 22.5, z - 3, 3, 24, z + 3);
+      tower(L, 0, -285, 7, 24);
+      L.wind(-5, 10, -300, 5, 70, -292, 0, 60, 0); L.hint(0, 62, -296);
+      tower(L, 0, -322, 10, 60, 'concrete', 20);
+      L.button(6, 60, -308, 'end');
+      L.solid(-10, 60, -326, -3, 70, -324, 'wall'); L.solid(3, 60, -326, 10, 70, -324, 'wall'); L.solid(-3, 66, -326, 3, 70, -324, 'wall');
+      L.gate(-3, 60, -325.6, 3, 66, -324.4, 'end');
+      L.solid(-10, 60, -340, 10, 70, -338, 'wall'); L.solid(-10, 60, -338, -8, 70, -326, 'wall'); L.solid(8, 60, -338, 10, 70, -326, 'wall'); L.solid(-10, 70, -340, 10, 71, -324, 'wall');
+      L.exit(0, 61.2, -332, { radius: 5, height: 8 }); // inside the cage: the switch has to open it
+    },
+  },
+);
+
+const level = {
+  def: null, state: 'idle', time: 0, tryStart: 0, deaths: 0, cp: -1, flags: {},
+  boxes: [], movers: [], hazards: [], checkpoints: [], pads: [], boosts: [], winds: [], crumbles: [], switches: [], route: [],
+  exit: null, start: null, group: null,
+};
+const lvBox = new THREE.BoxGeometry(1, 1, 1);
+const lvPadGeo = new THREE.CylinderGeometry(2.2, 2.4, 0.35, 24);
+const lvRingGeo = new THREE.TorusGeometry(3, 0.3, 10, 36);
+
+function buildLevel(def) {
+  const O = LEVEL_ORIGIN, group = new THREE.Group();
+  const out = { boxes: [], movers: [], hazards: [], checkpoints: [], pads: [], boosts: [], winds: [], crumbles: [], switches: [], route: [], exit: null, start: null, group };
+  const v3 = (x, y, z) => new THREE.Vector3(x + O.x, y + O.y, z + O.z);
+  const mesh = (min, max, mat, shadow = true) => {
+    const m = new THREE.Mesh(lvBox, mat);
+    m.position.copy(min).add(max).multiplyScalar(0.5);
+    m.scale.subVectors(max, min);
+    m.castShadow = shadow; m.receiveShadow = true;
+    group.add(m);
+    return m;
+  };
+  const box = (x0, y0, z0, x1, y1, z1) => {
+    const min = v3(Math.min(x0, x1), Math.min(y0, y1), Math.min(z0, z1)), max = v3(Math.max(x0, x1), Math.max(y0, y1), Math.max(z0, z1));
+    return { min, max, q: 0 };
+  };
+  const L = {
+    solid(x0, y0, z0, x1, y1, z1, kind = 'concrete', shadow = true) {
+      const b = box(x0, y0, z0, x1, y1, z1);
+      b.noWeb = kind === 'tile';
+      out.boxes.push(b);
+      b.mesh = mesh(b.min, b.max, lvMat(kind), shadow);
+      return b;
+    },
+    deco(x0, y0, z0, x1, y1, z1, kind) { const b = box(x0, y0, z0, x1, y1, z1); mesh(b.min, b.max, lvMat(kind), false); },
+    /** A solid box offset by fn(t, tryTime) -> [dx, dy, dz]. */
+    mover(x0, y0, z0, x1, y1, z1, kind, fn) {
+      const b = L.solid(x0, y0, z0, x1, y1, z1, kind);
+      b.base = { min: b.min.clone(), max: b.max.clone() };
+      b.fn = fn;
+      b.mesh.receiveShadow = kind !== 'piston'; // big moving slabs streak when they shadow themselves
+      out.movers.push(b);
+      return b;
+    },
+    /** A volume that sends you back to the last checkpoint while on(t) (always, if null); fn moves it like a mover. */
+    hazard(x0, y0, z0, x1, y1, z1, kind, on = null, fn = null) {
+      const b = box(x0, y0, z0, x1, y1, z1), H = HAZARD_KINDS[kind];
+      b.kind = kind; b.on = on; b.fn = fn; b.active = true;
+      b.base = { min: b.min.clone(), max: b.max.clone() };
+      const mat = H.solidLook ? new THREE.MeshStandardMaterial({ color: H.color, roughness: 0.5, metalness: 0.4 })
+        : new THREE.MeshBasicMaterial({ color: H.color, transparent: true, opacity: H.opacity, depthWrite: false, blending: kind === 'toxic' ? THREE.NormalBlending : THREE.AdditiveBlending });
+      b.mesh = mesh(b.min, b.max, mat, !!H.solidLook);
+      b.mesh.visible = !H.hidden;
+      out.hazards.push(b);
+      return b;
+    },
+    /** An enclosed hall: floor-less walls and a roof (the level adds its own floors). slick: webs won't stick to it. */
+    room(x0, x1, z0, z1, h, slick = false) {
+      const k = slick ? 'tile' : 'wall';
+      L.solid(x0 - 2, -3, z0, x0, h + 2, z1, k, false);
+      L.solid(x1, -3, z0, x1 + 2, h + 2, z1, k, false);
+      L.solid(x0 - 2, -3, z0, x1 + 2, h + 2, z0 + 2, k, false);
+      L.solid(x0 - 2, -3, z1 - 2, x1 + 2, h + 2, z1, k, false);
+      L.solid(x0 - 2, h, z0, x1 + 2, h + 2, z1, slick ? 'tile' : 'concrete', false);
+      for (let z = z0 - 10; z > z1 + 6; z -= 24) L.deco(-3, h - 0.3, z - 3, 3, h, z + 3, 'light');
+    },
+    /** A bounce pad sitting on a surface at height y. */
+    pad(x, y, z, power = 30, radius = 2.2) {
+      const p = v3(x, y, z), m = new THREE.Mesh(lvPadGeo, lvMat('pad'));
+      m.position.copy(p).y += 0.18;
+      m.scale.set(radius / 2.2, 1, radius / 2.2);
+      group.add(m);
+      out.pads.push({ pos: p, power, radius, mesh: m, cd: 0, hit: -9 });
+    },
+    /** A boost ring: fly through it to be flung along (dx, dz). */
+    boost(x, y, z, dx, dz, power = 45, up = 7) {
+      const p = v3(x, y, z), dir = new THREE.Vector3(dx, 0, dz).normalize();
+      const m = new THREE.Mesh(lvRingGeo, new THREE.MeshBasicMaterial({ color: 0xffa53d }));
+      m.position.copy(p);
+      m.lookAt(tA.copy(p).add(dir));
+      group.add(m);
+      out.boosts.push({ pos: p, dir, power, up, mesh: m, cd: 0 });
+    },
+    /** Wind: inside the box you're pushed by (ax, ay, az) up to vmax along it. on(t) switches it, like hazards. */
+    wind(x0, y0, z0, x1, y1, z1, ax, ay, az, vmax = 18, on = null) {
+      const b = box(x0, y0, z0, x1, y1, z1);
+      b.acc = new THREE.Vector3(ax, ay, az); b.dir = b.acc.clone().normalize(); b.vmax = vmax; b.on = on; b.active = true;
+      b.mesh = mesh(b.min, b.max, new THREE.MeshBasicMaterial({ color: 0xbfefff, transparent: true, opacity: 0.13, depthWrite: false, blending: THREE.AdditiveBlending }), false);
+      // Streaks that drift along the wind so you can see which way it blows.
+      const axis = ['x', 'y', 'z'].reduce((a, c) => (Math.abs(b.acc[c]) > Math.abs(b.acc[a]) ? c : a), 'x');
+      const size = new THREE.Vector3(0.12, 0.12, 0.12); size[axis] = 2.6;
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false });
+      b.axis = axis; b.streaks = [];
+      const n = Math.min(40, Math.max(8, Math.round((b.max.x - b.min.x) * (b.max.y - b.min.y) * (b.max.z - b.min.z) / 250)));
+      for (let i = 0; i < n; i++) {
+        const s = new THREE.Mesh(lvBox, mat);
+        s.scale.copy(size);
+        s.position.set(b.min.x + Math.random() * (b.max.x - b.min.x), b.min.y + Math.random() * (b.max.y - b.min.y), b.min.z + Math.random() * (b.max.z - b.min.z));
+        group.add(s);
+        b.streaks.push({ mesh: s, phase: Math.random() });
+      }
+      out.winds.push(b);
+      return b;
+    },
+    /** A floor that shakes and drops away a moment after you stand on it. It's back after you're sent back. */
+    crumble(x0, y0, z0, x1, y1, z1) {
+      const b = L.mover(x0, y0, z0, x1, y1, z1, 'crumble', (t) => {
+        if (b.fallAt == null) return [0, 0, 0];
+        const d = t - b.fallAt;
+        if (d < 0.6) return [Math.sin(d * 90) * 0.12, 0, 0];
+        return [0, -14 * (d - 0.6) ** 2, 0];
+      });
+      b.fallAt = null;
+      out.crumbles.push(b);
+      return b;
+    },
+    /** A switch: touch the glowing block to open every gate with the same id. */
+    button(x, y, z, id) {
+      const p = v3(x, y + 1.2, z);
+      L.solid(x - 0.4, y, z - 0.4, x + 0.4, y + 0.6, z + 0.4, 'steel');
+      const m = new THREE.Mesh(lvBox, new THREE.MeshBasicMaterial({ color: 0xff3a4a }));
+      m.position.copy(p); m.scale.setScalar(1.1);
+      group.add(m);
+      const s = { pos: p, id, mesh: m, done: false };
+      out.switches.push(s);
+      out.route.push({ kind: 'switch', ref: s, pos: p });
+    },
+    /** A gate that slides down into the floor once its switch is touched. */
+    gate(x0, y0, z0, x1, y1, z1, id) {
+      const drop = Math.abs(y1 - y0) + 0.3;
+      L.mover(x0, y0, z0, x1, y1, z1, 'gate', (t) => {
+        const at = level.flags[id];
+        return [0, at == null ? 0 : -drop * smooth(0, 1, (t - at) / 1.2), 0];
+      });
+    },
+    /** A waypoint for the test bot only (nothing in the game uses it). */
+    hint(x, y, z) { out.route.push({ kind: 'hint', pos: v3(x, y, z) }); },
+    start(x, y, z) { out.start = v3(x, y, z); },
+    checkpoint(x, y, z) {
+      const p = v3(x, y, z);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.18, 8, 32), new THREE.MeshBasicMaterial({ color: 0x45d8ea, transparent: true, opacity: 0.8 }));
+      ring.rotation.x = Math.PI / 2; ring.position.copy(p).y -= 0.9;
+      // A beam marks the whole column that counts: fly through it at any height.
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(CP_RADIUS, CP_RADIUS, CP_HEIGHT, 16, 1, true).translate(0, CP_HEIGHT / 2, 0),
+        new THREE.MeshBasicMaterial({ color: 0x45d8ea, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      beam.position.copy(p).y -= 1;
+      group.add(ring, beam);
+      const c = { pos: p, ring, got: false, i: out.checkpoints.length };
+      out.checkpoints.push(c);
+      out.route.push({ kind: 'cp', ref: c, pos: p });
+    },
+    exit(x, y, z, { radius = EXIT_RADIUS, height = EXIT_HEIGHT } = {}) {
+      const p = v3(x, y, z);
+      const gate = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.35, 10, 40), new THREE.MeshBasicMaterial({ color: 0x7cf27a }));
+      gate.position.copy(p).y += 1.4;
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, height, 20, 1, true).translate(0, height / 2, 0),
+        new THREE.MeshBasicMaterial({ color: 0x7cf27a, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      beam.position.copy(p).y -= 1;
+      group.add(gate, beam);
+      out.exit = { pos: p, gate, radius, height };
+    },
+  };
+  def.build(L);
+  return out;
+}
+
+/** Where the marker points: the next switch or checkpoint still to reach, else the exit. */
+function levelTarget() {
+  for (const r of level.route) {
+    if (r.kind === 'switch' && !r.ref.done) return r.pos;
+    if (r.kind === 'cp' && r.ref.i > level.cp) return r.pos;
+  }
+  return level.exit?.pos;
+}
+
+/** Move doors, lifts and crushers to where they are at level time t; switch blinking hazards and wind. */
+function poseLevel(t) {
+  const tt = t - level.tryStart;
+  const place = (b, d) => {
+    b.min.set(b.base.min.x + d[0], b.base.min.y + d[1], b.base.min.z + d[2]);
+    b.max.set(b.base.max.x + d[0], b.base.max.y + d[1], b.base.max.z + d[2]);
+  };
+  for (const b of level.movers) place(b, b.fn(t, tt));
+  for (const h of level.hazards) {
+    if (h.fn) place(h, h.fn(t, tt));
+    h.active = h.on ? h.on(t) : true;
+  }
+  for (const w of level.winds) w.active = w.on ? w.on(t) : true;
+}
+
+function unloadLevel() {
+  if (level.group) {
+    scene.remove(level.group);
+    const shared = new Set([lvBox, lvPadGeo, lvRingGeo, ...Object.values(lvMats)]);
+    level.group.traverse((o) => { if (o.geometry && !shared.has(o.geometry)) o.geometry.dispose(); if (o.material && !shared.has(o.material)) o.material.dispose(); });
+  }
+  city.extra = [];
+  Object.assign(level, { def: null, state: 'idle', flags: {}, boxes: [], movers: [], hazards: [], checkpoints: [], pads: [], boosts: [], winds: [], crumbles: [], switches: [], route: [], exit: null, start: null, group: null });
+}
+
+function startLevel(def) {
+  quitRace();
+  unloadLevel();
+  Object.assign(level, buildLevel(def), { def, state: 'playing', time: 0, tryStart: 0, deaths: 0, cp: -1, flags: {} });
+  scene.add(level.group);
+  city.extra = level.boxes;
+  poseLevel(0);
+  combo.reset();
+  player.teleport(level.start, 0);
+  game.mode = 'play';
+  $('#hud').hidden = false;
+  character.root.visible = true;
+  $('#race').hidden = false;
+  $('#raceName').textContent = `Level ${LEVELS.indexOf(def) + 1} · ${def.name}`;
+  const best = save.levels?.[def.id];
+  $('#raceBest').textContent = best ? `Best ${fmtTime(best)}` : '';
+  toast(def.intro, 'cyan big');
+}
+
+function quitLevel() {
+  if (!level.def) return;
+  unloadLevel();
+  $('#race').hidden = true;
+}
+
+/** Back to the last checkpoint: crumbled floors come back and anything timed per attempt (rising slime) restarts. Switches stay on. */
+function levelRespawn() {
+  const cp = level.cp >= 0 ? level.checkpoints[level.cp].pos : level.start;
+  for (const b of level.crumbles) b.fallAt = null;
+  level.tryStart = level.time;
+  poseLevel(level.time);
+  player.teleport(cp, 0);
+}
+
+function levelDie(reason) {
+  level.deaths++;
+  combo.lose(reason);
+  flashFade();
+  audio.fail();
+  toast(`${reason}! Back to the ${level.cp >= 0 ? 'checkpoint' : 'start'}`, 'red');
+  levelRespawn();
+}
+
+/** Called at the start of every physics step: advance the level clock, move things, and carry you along on whatever you stand on. */
+function levelStep(dt) {
+  if (!level.def) return;
+  if (level.state === 'playing') level.time += dt;
+  const P = player, feet = P.pos.y - CFG.player.halfSeg - CFG.player.radius;
+  let ride = null;
+  if (P.state === State.GROUND) {
+    for (const b of level.movers) {
+      if (b.fallAt != null && level.time - b.fallAt > 0.6) continue; // don't ride a floor down into the sea
+      if (P.pos.x > b.min.x - 0.3 && P.pos.x < b.max.x + 0.3 && P.pos.z > b.min.z - 0.3 && P.pos.z < b.max.z + 0.3 && Math.abs(feet - b.max.y) < 0.4) { ride = b; break; }
+    }
+  }
+  const before = ride && tB.copy(ride.min);
+  poseLevel(level.time);
+  if (ride) P.pos.add(tC.subVectors(ride.min, before));
+}
+
+/** Called after the player has moved: hazards, pads, wind, switches, checkpoints, the exit. Returns true if the player was sent back. */
+function levelCheck() {
+  if (level.state !== 'playing') return false;
+  const P = player, v = P.vel, dt = CFG.step, R = CFG.player.radius * 0.8, H = CFG.player.halfSeg;
+  const touches = (b, pad = R) => P.pos.x > b.min.x - pad && P.pos.x < b.max.x + pad && P.pos.z > b.min.z - pad && P.pos.z < b.max.z + pad &&
+    P.pos.y + H + pad > b.min.y && P.pos.y - H - pad < b.max.y;
+  for (const h of level.hazards) {
+    if (h.active && touches(h)) { levelDie(HAZARD_KINDS[h.kind].label); return true; }
+  }
+  for (const b of level.movers) { // caught under a lift or door as it closes
+    if (P.pos.x > b.min.x + 0.1 && P.pos.x < b.max.x - 0.1 && P.pos.z > b.min.z + 0.1 && P.pos.z < b.max.z - 0.1 && P.pos.y > b.min.y + 0.1 && P.pos.y < b.max.y - 0.1) { levelDie('Squashed'); return true; }
+  }
+  if (P.pos.y < -1) { levelDie(level.def.where === 'Indoor' ? 'Squashed' : 'Splash'); return true; }
+  const feet = P.pos.y - H - CFG.player.radius;
+  for (const p of level.pads) {
+    p.cd -= dt;
+    if (p.cd > 0 || v.y > 1 || Math.hypot(P.pos.x - p.pos.x, P.pos.z - p.pos.z) > p.radius + 0.4 || feet < p.pos.y - 0.6 || feet > p.pos.y + 1.4) continue;
+    v.y = Math.max(v.y, p.power);
+    if (P.state === State.GROUND) P.state = State.AIR;
+    P.coyote = 0; p.cd = 0.4; p.hit = game.time;
+    audio.whoosh();
+  }
+  for (const b of level.boosts) {
+    b.cd -= dt;
+    if (b.cd > 0 || b.pos.distanceToSquared(P.pos) > 3.6 * 3.6) continue;
+    if (P.web) releaseWeb(false);
+    P.state = State.AIR;
+    v.x = b.dir.x * b.power; v.z = b.dir.z * b.power; v.y = Math.max(v.y, b.up);
+    b.cd = 0.8; b.hit = game.time;
+    audio.whoosh(); audio.thwip();
+  }
+  for (const w of level.winds) {
+    if (!w.active || !touches(w, 0)) continue;
+    const along = v.dot(w.dir);
+    if (along < w.vmax) {
+      v.addScaledVector(w.acc, dt);
+      const now = v.dot(w.dir);
+      if (now > w.vmax) v.addScaledVector(w.dir, w.vmax - now);
+    }
+    if (P.state === State.GROUND && v.y > 1) P.state = State.AIR;
+  }
+  if (P.state === State.GROUND) {
+    for (const b of level.crumbles) {
+      if (b.fallAt == null && P.pos.x > b.min.x - 0.3 && P.pos.x < b.max.x + 0.3 && P.pos.z > b.min.z - 0.3 && P.pos.z < b.max.z + 0.3 && Math.abs(feet - b.max.y) < 0.5) b.fallAt = level.time;
+    }
+  }
+  for (const s of level.switches) {
+    if (s.done || s.pos.distanceToSquared(P.pos) > 3.2 * 3.2) continue;
+    s.done = true; level.flags[s.id] = level.time;
+    s.mesh.material.color.setHex(0x7cf27a);
+    audio.checkpoint();
+    toast('Switch on: a gate is opening', 'cyan');
+  }
+  level.checkpoints.forEach((c, i) => {
+    if (i > level.cp && inColumn(c.pos, CP_RADIUS, CP_HEIGHT)) {
+      level.cp = i; c.got = true;
+      c.ring.material.color.setHex(0x7cf27a);
+      audio.checkpoint();
+      toast('Checkpoint', 'cyan');
+    }
+  });
+  if (level.exit && inColumn(level.exit.pos, level.exit.radius, level.exit.height)) finishLevel();
+  return false;
+}
+
+function finishLevel() {
+  const def = level.def, t = level.time, n = LEVELS.indexOf(def);
+  level.state = 'done';
+  audio.fanfare();
+  save.levels ||= {};
+  const prev = save.levels[def.id], record = !prev || t < prev;
+  if (record) save.levels[def.id] = t;
+  writeSave();
+  combo.bank();
+  particles.emit(level.exit.pos, { count: 40, speed: 10, color: 0x7cf27a, size: 0.6, life: 0.9 });
+  $('#lvTitle').textContent = `Level ${n + 1} complete`;
+  $('#lvName').textContent = def.name;
+  $('#lvTime').textContent = fmtTime(t);
+  $('#lvBest').innerHTML = record ? `<b>New best time</b>${prev ? ` (was ${fmtTime(prev)})` : ''}` : `Best <b>${fmtTime(prev)}</b>`;
+  $('#lvDeaths').textContent = level.deaths ? `Sent back ${level.deaths} time${level.deaths === 1 ? '' : 's'}` : 'Flawless: never sent back';
+  const next = LEVELS[n + 1];
+  $('[data-act=nextLevel]').hidden = !next;
+  if (next && !prev) setTimeout(() => toast(`Level ${n + 2} unlocked: ${next.name}`, 'gold'), 300);
+  setTimeout(() => { if (level.state === 'done') openMenu('levelDone'); }, 900);
+}
+
+function levelUnlocked(i) { return i === 0 || !!save.levels?.[LEVELS[i - 1].id]; }
+function renderLevels() {
+  $('#levelList').innerHTML = LEVELS.map((d, i) => {
+    const open = levelUnlocked(i), best = save.levels?.[d.id];
+    return `<button class="mbtn race-btn" data-level="${d.id}" ${open ? '' : 'aria-disabled="true"'}>
+      <span class="rn">${i + 1}. ${d.name}</span><span class="medal ${best ? 'done' : 'none'}" title="${best ? 'Complete' : 'Not complete'}"></span>
+      <span class="rd"><span>${d.where}</span><span>${open ? (best ? 'Best ' + fmtTime(best) : 'Not finished yet') : `Finish level ${i} to unlock`}</span></span>
+    </button>`;
+  }).join('');
+}
+
+function updateLevelHud() {
+  if (!level.def) return;
+  $('#raceTime').textContent = fmtTime(level.time);
+  const n = level.checkpoints.length;
+  $('#raceCp').textContent = n ? `Checkpoint ${level.cp + 1} / ${n}` : '';
+  // Gate spin and hazard looks.
+  if (level.exit) level.exit.gate.rotation.y = game.time * 1.5;
+  for (const h of level.hazards) {
+    h.mesh.position.copy(h.min).add(h.max).multiplyScalar(0.5);
+    if (HAZARD_KINDS[h.kind].hidden) continue;
+    h.mesh.visible = h.active || Math.floor(game.time * 8) % 4 === 0; // off: a faint flicker, so you can see where it'll be
+    h.mesh.material.opacity = h.active ? HAZARD_KINDS[h.kind].opacity : 0.15;
+  }
+  for (const b of level.movers) b.mesh.position.copy(b.min).add(b.max).multiplyScalar(0.5);
+  for (const p of level.pads) { const k = 1 + 0.25 * Math.max(0, 1 - (game.time - p.hit) * 4); p.mesh.scale.set(k * p.radius / 2.2, k, k * p.radius / 2.2); }
+  for (const b of level.boosts) b.mesh.rotateZ(0.03);
+  for (const w of level.winds) {
+    w.mesh.visible = w.active;
+    const lo = w.min[w.axis], len = w.max[w.axis] - lo, sgn = Math.sign(w.acc[w.axis]);
+    for (const s of w.streaks) {
+      s.mesh.visible = w.active;
+      const u = (((s.phase + game.time * 0.6 * sgn) % 1) + 1) % 1;
+      s.mesh.position[w.axis] = lo + u * len;
+    }
+  }
+}
 
 // ---------- menus ----------
 const menuEl = $('#menu');
@@ -2915,9 +3912,11 @@ function openMenu(name, push = true) {
   touchEl.hidden = true;
   if (name === 'title') renderTitle();
   if (name === 'races') renderRaces();
+  if (name === 'levels') renderLevels();
   if (name === 'settings') renderSettings();
   if (name === 'pause') {
     panels.pause.querySelectorAll('[data-race-only]').forEach((b) => { b.hidden = race.state === 'idle'; });
+    panels.pause.querySelectorAll('[data-level-only]').forEach((b) => { b.hidden = !level.def; });
     panels.pause.querySelectorAll('[data-online-only]').forEach((b) => { b.hidden = !net.online; });
     renderRoomBox();
   }
@@ -2946,6 +3945,7 @@ function onEscape() {
     if (ui.panel === 'title') return;
     if (ui.panel === 'pause') resume();
     else if (ui.panel === 'results') { quitRace(); resume(); }
+    else if (ui.panel === 'levelDone') { quitLevel(); resume(); }
     else back();
   } else if (game.mode === 'play') openMenu('pause');
 }
@@ -2959,6 +3959,7 @@ function goPlay() {
 function goTitle() {
   if (net.online) leaveRoom();
   quitRace();
+  quitLevel();
   combo.bank();
   game.mode = 'title';
   $('#hud').hidden = true;
@@ -2968,19 +3969,28 @@ function goTitle() {
   openMenu('title', false);
 }
 menuEl.addEventListener('click', (e) => {
-  const b = e.target.closest('[data-act], [data-race], [data-suit]');
+  const b = e.target.closest('[data-act], [data-race], [data-level], [data-suit]');
   if (!b) return;
   audio.init();
   audio.click();
   if (b.dataset.race) { const def = races.find((r) => r.id === b.dataset.race); startRace(def, true); $('#hud').hidden = false; character.root.visible = true; ui.stack.length = 0; resume(); return; }
+  if (b.dataset.level) {
+    const i = LEVELS.findIndex((d) => d.id === b.dataset.level);
+    if (!levelUnlocked(i)) { toast(`Finish level ${i} to unlock this one`); return; }
+    startLevel(LEVELS[i]); ui.stack.length = 0; resume(); return;
+  }
   switch (b.dataset.act) {
     case 'play': goPlay(); break;
+    case 'levels': openMenu('levels'); break;
+    case 'nextLevel': { const n = LEVELS[LEVELS.indexOf(level.def) + 1]; if (n) startLevel(n); ui.stack.length = 0; resume(); break; }
+    case 'retryLevel': case 'restartLevel': if (level.def) startLevel(level.def); ui.stack.length = 0; resume(); break;
+    case 'quitLevel': quitLevel(); player.reset(); ui.stack.length = 0; resume(); break;
     case 'resume': resume(); break;
     case 'races': openMenu('races'); break;
     case 'settings': openMenu('settings'); break;
     case 'controls': openMenu('controls'); break;
     case 'back': back(); break;
-    case 'respawn': quitRace(); player.reset(); resume(); break;
+    case 'respawn': quitRace(); quitLevel(); player.reset(); resume(); break;
     case 'title': goTitle(); break;
     case 'restartRace': if (race.def) startRace(race.def); ui.stack.length = 0; resume(); break;
     case 'quitRace': quitRace(); ui.stack.length = 0; resume(); break;
@@ -3002,6 +4012,7 @@ function medalCount() {
 function renderTitle() {
   const c = medalCount();
   $('#titleMedals').textContent = `${c.gold + c.silver + c.bronze} / ${races.length} medals`;
+  $('#titleLevels').textContent = `${LEVELS.filter((d) => save.levels?.[d.id]).length} / ${LEVELS.length} done`;
   $('#titleStats').innerHTML =
     `<span>Tokens <b>${tokens.count} / ${tokens.list.length}</b></span>` +
     `<span>Score <b>${save.score.toLocaleString()}</b></span>` +
@@ -3618,13 +4629,15 @@ applyQuality();
 applyTimeOfDay();
 player.reset();
 character.root.visible = false;
-window.game = { CFG, player, city, cam, State, races, tokens, startRace, save, game, race, combo, traffic, net, remotes };
+window.game = { CFG, player, city, cam, State, races, tokens, startRace, save, game, race, combo, traffic, net, remotes, level, LEVELS, startLevel };
 
 /** Per-frame game rules outside the physics step: races, race-start prompts, banking combos. */
 function tickGame(dt) {
   updateRace(dt);
   if (input.consume('reset')) {
-    if (race.def) startRace(race.def); else { combo.reset(); player.reset(); } // only for you, even online
+    if (race.def) startRace(race.def);
+    else if (level.def) { if (level.state === 'playing') levelRespawn(); } // back to the last checkpoint, clock still running
+    else { combo.reset(); player.reset(); } // only for you, even online
   }
   let near = null;
   if (race.state === 'idle') {
@@ -3724,7 +4737,7 @@ function frame(now) {
   particles.update(dt);
   speedLines.update(simDt, fast, game.mode === 'play');
   debug.update();
-  if (game.mode === 'play') { hud.update(dt, fast); updateMarker(); minimap.draw(); if (playing) governQuality(dt); }
+  if (game.mode === 'play') { hud.update(dt, fast); updateLevelHud(); updateMarker(); minimap.draw(); if (playing) governQuality(dt); }
   audio.update(game.mode === 'play' ? player.vel.length() : 0, player.pos.y, playing);
   skyU.time.value = game.time;
   // Antenna lights blink.
