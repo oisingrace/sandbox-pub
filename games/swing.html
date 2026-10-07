@@ -146,6 +146,26 @@
     .res-line b { color: var(--ink); font-variant-numeric: tabular-nums; }
     .pars { display: grid; gap: 4px; font-size: 13px; color: var(--dim); }
     .pars span { display: flex; gap: 8px; align-items: center; font-variant-numeric: tabular-nums; }
+    .field { display: grid; gap: 6px; font-size: 13px; color: var(--dim); }
+    .field input { appearance: none; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,0.07); color: var(--ink);
+      padding: 12px 14px; font: 600 16px var(--display); letter-spacing: 0.04em; user-select: text; -webkit-user-select: text; }
+    .field input:focus { outline: none; border-color: rgba(255,255,255,0.5); }
+    #netCode { text-transform: uppercase; letter-spacing: 0.3em; font: 700 20px ui-monospace, monospace; }
+    .net-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+    .net-or { text-align: center; color: var(--dim); font: 600 11px var(--display); letter-spacing: 0.16em; text-transform: uppercase; }
+    #netStatus { min-height: 1.5em; font-size: 14px; }
+    #netStatus.err { color: #ff8a8f; }
+    .room-box { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-radius: 10px;
+      background: rgba(255,255,255,0.07); font-size: 13px; color: var(--dim); }
+    .room-box b { font: 700 22px ui-monospace, monospace; letter-spacing: 0.25em; color: var(--cyan); user-select: text; -webkit-user-select: text; }
+    .room-box button { appearance: none; border: 0; border-radius: 8px; padding: 8px 12px; background: rgba(255,255,255,0.14); color: var(--ink);
+      font: 600 12px var(--display); letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; }
+    .room-box button:focus-visible { outline: 2px solid rgba(255,255,255,0.6); }
+    .standings { display: grid; gap: 4px; font-size: 14px; }
+    .standings h3 { margin: 4px 0 2px; font: 600 12px var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan); }
+    .standings span { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; color: var(--dim); font-variant-numeric: tabular-nums; }
+    .standings span.me { color: var(--ink); }
+    .standings b { color: var(--ink); }
     @media (max-width: 640px) {
       #mapWrap { width: 120px; height: 120px; }
       #combo { top: 150px; }
@@ -168,6 +188,13 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.5 beta", "date": "2026-10-07", "title": "Multiplayer",
+      "notes": [
+        "Play online with up to 7 friends: create a room from Play online and share its 5-letter code.",
+        "See everyone swinging in their own suits, with name tags and dots on your minimap.",
+        "Start a race in a room and it starts for everyone, with the room's finishing order on the results screen.",
+        "No accounts or game server: players connect straight to each other's browsers."
+      ] },
     { "version": "0.4 beta", "date": "2026-10-06", "title": "Easier swinging",
       "notes": [
         "Webs search a much wider area, so they catch a building far more often.",
@@ -204,6 +231,8 @@
       ] }
   ]
   </script>
+  <!-- PeerJS: browser-to-browser multiplayer (defines window.Peer). -->
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script type="importmap">
     { "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
@@ -218,6 +247,7 @@
     <div id="topleft" class="glass">
       <div class="tok"><i class="gem"></i><span id="tokCount">0</span><span class="of" id="tokTotal">/ 90</span></div>
       <div class="score-row"><span>Score</span><b id="score">0</b></div>
+      <div class="score-row" id="roomRow" hidden><span>Room</span><b id="roomInfo"></b></div>
     </div>
     <div id="mapWrap"><canvas id="minimap" width="336" height="336"></canvas></div>
     <div id="race" class="glass" hidden>
@@ -261,6 +291,7 @@
       <p class="tag">Swing through a city of glass and brick. Hunt down gold tokens, chase race times and chain the longest combo.</p>
       <div class="menu-btns">
         <button class="mbtn primary" data-act="play">Play <small>Free roam</small></button>
+        <button class="mbtn" data-act="online">Play online <small>With friends, by room code</small></button>
         <button class="mbtn" data-act="races">Races <small id="titleMedals"></small></button>
         <button class="mbtn" data-act="settings">Settings <small>Suits, controls, graphics</small></button>
         <button class="mbtn" data-act="controls">Controls</button>
@@ -271,6 +302,10 @@
 
     <section class="panel" data-panel="pause" hidden>
       <h2>Paused</h2>
+      <div class="room-box" id="pauseRoom" hidden>
+        <span>Room <b id="pauseCode"></b><br><span id="pausePlayers"></span></span>
+        <button type="button" data-act="copyCode">Copy code</button>
+      </div>
       <div class="menu-btns">
         <button class="mbtn primary" data-act="resume">Resume</button>
         <button class="mbtn" data-act="restartRace" data-race-only>Restart race</button>
@@ -279,8 +314,23 @@
         <button class="mbtn" data-act="settings">Settings</button>
         <button class="mbtn" data-act="controls">Controls</button>
         <button class="mbtn" data-act="respawn">Back to start roof</button>
+        <button class="mbtn" data-act="leave" data-online-only hidden>Leave room</button>
         <button class="mbtn" data-act="title">Main menu</button>
       </div>
+    </section>
+
+    <section class="panel" data-panel="online" hidden>
+      <h2>Play online</h2>
+      <p class="tag">Swing through the same city with up to 7 friends. One of you creates a room and shares its code; everyone else joins with it. Races started in a room start for everyone.</p>
+      <label class="field"><span>Your name</span><input id="netName" type="text" maxlength="16" autocomplete="off" spellcheck="false"></label>
+      <div class="menu-btns"><button class="mbtn primary" data-act="host">Create room <small>You'll get a code to share</small></button></div>
+      <div class="net-or">or</div>
+      <div class="net-row">
+        <label class="field"><span>Room code</span><input id="netCode" type="text" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCDE"></label>
+        <button class="mbtn" data-act="join" style="width:auto">Join</button>
+      </div>
+      <p class="tag" id="netStatus" role="status"></p>
+      <button class="mbtn" data-act="back">Back</button>
     </section>
 
     <section class="panel" data-panel="races" hidden>
@@ -341,6 +391,7 @@
       <div class="res-line" id="resMedal"></div>
       <div class="res-line" id="resBest"></div>
       <div class="pars" id="resPars"></div>
+      <div class="standings" id="resRoom" hidden></div>
       <div class="menu-btns">
         <button class="mbtn primary" data-act="retry">Race again</button>
         <button class="mbtn" data-act="continue">Free roam</button>
@@ -1549,7 +1600,7 @@ addEventListener('keydown', (e) => {
     // Arrow keys move between menu items; Enter/Space press the focused one natively.
     if (e.code === 'ArrowDown') { e.preventDefault(); menuNav(1); }
     else if (e.code === 'ArrowUp') { e.preventDefault(); menuNav(-1); }
-    else if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && document.activeElement?.type !== 'range') {
+    else if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && !['range', 'text'].includes(document.activeElement?.type)) {
       e.preventDefault(); menuAdjust(e.code === 'ArrowLeft' ? -1 : 1);
     }
     return;
@@ -2240,8 +2291,9 @@ class Character {
   }
   static bend(limbObj, angle, k) { limbObj.joint.rotation.x += (angle - limbObj.joint.rotation.x) * k; }
 
-  update(dt, renderPos) {
-    const P = player, v = P.vel;
+  /** P: whose pose to draw (the local player, or a remote player's snapshot). */
+  update(dt, renderPos, P = player) {
+    const v = P.vel;
     this.root.position.copy(renderPos);
     const hs = Math.hypot(v.x, v.z);
     const diving = P.state === State.AIR && P.diveT > 0;
@@ -2470,9 +2522,13 @@ const speedLines = (() => {
 // =====================================================================
 const race = {
   def: null, state: 'idle', idx: 0, time: 0, countdown: 0, lastBeep: 0, rings: [],
+  room: null, // online: who started this race with us -> finish time (null while racing)
   ringGeo: new THREE.TorusGeometry(5, 0.32, 10, 40),
 };
-function startRace(def) {
+/** share: also start it for everyone in an online room. */
+function startRace(def, share = false) {
+  if (share && net.online) net.sendEvent({ k: 'race', race: def.id });
+  race.room = new Map([[net.online ? net.id : 'me', null]]); // who's racing -> finish time
   quitRace(true);
   race.def = def; race.state = 'countdown'; race.idx = 0; race.time = 0; race.countdown = 3.2; race.lastBeep = 4;
   for (const [i, rg] of def.rings.entries()) {
@@ -2539,9 +2595,21 @@ function updateRace(dt) {
     $('#raceCp').textContent = `Ring ${Math.min(race.idx + 1, race.def.rings.length)} / ${race.def.rings.length}`;
   }
 }
+/** Online: everyone in the room who started this race, fastest first; still racing at the bottom. */
+function renderStandings() {
+  const box = $('#resRoom');
+  box.hidden = !net.online || !race.room || race.room.size < 2;
+  if (box.hidden) return;
+  const rows = [...race.room].sort((a, b) => (a[1] ?? 1e9) - (b[1] ?? 1e9));
+  const esc = (x) => String(x).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+  box.innerHTML = '<h3>Room</h3>' + rows.map(([id, t], i) =>
+    `<span class="${id === net.id ? 'me' : ''}"><b>${t == null ? '' : i + 1}</b>${esc(id === net.id ? 'You' : net.players.get(id)?.name || 'Player')}<b>${t == null ? 'racing…' : fmtTime(t)}</b></span>`).join('');
+}
+
 function finishRace() {
   const def = race.def, t = race.time;
   race.state = 'done';
+  if (net.online) { net.sendEvent({ k: 'finish', race: def.id, time: t }); race.room.set(net.id, t); }
   audio.fanfare();
   const prev = save.best[def.id];
   const record = !prev || t < prev;
@@ -2556,6 +2624,7 @@ function finishRace() {
     : `<span class="medal ${medal}"></span> <b>${medal[0].toUpperCase() + medal.slice(1)} medal</b>`;
   $('#resBest').innerHTML = record ? `<b>New best time</b>${prev ? ` (was ${fmtTime(prev)})` : ''}` : `Best <b>${fmtTime(prev)}</b>`;
   $('#resPars').innerHTML = ['gold', 'silver', 'bronze'].map((m) => `<span><i class="medal ${m}"></i>${m[0].toUpperCase() + m.slice(1)} ${fmtTime(def.par[m])}</span>`).join('');
+  renderStandings();
   setTimeout(() => { if (race.state === 'done') openMenu('results'); }, 900);
 }
 
@@ -2801,6 +2870,7 @@ const minimap = (() => {
         const cur = race.def.rings[Math.min(race.idx, race.def.rings.length - 1)];
         dot(cur.pos.x, cur.pos.z, 6, '#45d8ea');
       }
+      for (const r of remotes.list()) if (r.visible) dot(r.pos.x, r.pos.z, 5, r.mapColor);
       // Player arrow, turned by the player's heading relative to the camera, and a north letter.
       ctx.setTransform(1, 0, 0, 1, R, R);
       const rel = wrapAngle(Math.atan2(-player.heading.x, -player.heading.z) - cam.yaw);
@@ -2846,7 +2916,15 @@ function openMenu(name, push = true) {
   if (name === 'title') renderTitle();
   if (name === 'races') renderRaces();
   if (name === 'settings') renderSettings();
-  if (name === 'pause') panels.pause.querySelectorAll('[data-race-only]').forEach((b) => { b.hidden = race.state === 'idle'; });
+  if (name === 'pause') {
+    panels.pause.querySelectorAll('[data-race-only]').forEach((b) => { b.hidden = race.state === 'idle'; });
+    panels.pause.querySelectorAll('[data-online-only]').forEach((b) => { b.hidden = !net.online; });
+    renderRoomBox();
+  }
+  if (name === 'online') {
+    $('#netName').value = save.name || '';
+    $('#netStatus').textContent = ''; $('#netStatus').className = 'tag';
+  }
   requestAnimationFrame(() => focusables()[0]?.focus({ preventScroll: true }));
 }
 function resume() {
@@ -2879,6 +2957,7 @@ function goPlay() {
   resume();
 }
 function goTitle() {
+  if (net.online) leaveRoom();
   quitRace();
   combo.bank();
   game.mode = 'title';
@@ -2893,7 +2972,7 @@ menuEl.addEventListener('click', (e) => {
   if (!b) return;
   audio.init();
   audio.click();
-  if (b.dataset.race) { const def = races.find((r) => r.id === b.dataset.race); startRace(def); $('#hud').hidden = false; character.root.visible = true; ui.stack.length = 0; resume(); return; }
+  if (b.dataset.race) { const def = races.find((r) => r.id === b.dataset.race); startRace(def, true); $('#hud').hidden = false; character.root.visible = true; ui.stack.length = 0; resume(); return; }
   switch (b.dataset.act) {
     case 'play': goPlay(); break;
     case 'resume': resume(); break;
@@ -2905,8 +2984,13 @@ menuEl.addEventListener('click', (e) => {
     case 'title': goTitle(); break;
     case 'restartRace': if (race.def) startRace(race.def); ui.stack.length = 0; resume(); break;
     case 'quitRace': quitRace(); ui.stack.length = 0; resume(); break;
-    case 'retry': { const d = race.def; if (d) startRace(d); ui.stack.length = 0; resume(); break; }
+    case 'retry': { const d = race.def; if (d) startRace(d, true); ui.stack.length = 0; resume(); break; }
     case 'continue': quitRace(); ui.stack.length = 0; resume(); break;
+    case 'online': openMenu('online'); break;
+    case 'host': hostRoom(); break;
+    case 'join': joinRoom(); break;
+    case 'leave': leaveRoom(); toast('You left the room'); resume(); break;
+    case 'copyCode': navigator.clipboard?.writeText(net.code).then(() => toast('Room code copied'), () => {}); break;
   }
 });
 
@@ -3015,6 +3099,7 @@ function applyTimeOfDay() {
   city.billboardMat.color.setScalar(T.billboard);
   city.beaconMat.color.setHex(0xff2a2a).multiplyScalar(T.beacon);
   character.setNight(T.night);
+  remotes.setNight(T.night);
   traffic.headMat.color.setHex(0xfff4dd).multiplyScalar(T.night > 0.2 ? 2.5 : 1);
   traffic.tailMat.color.setHex(0xff3030).multiplyScalar(T.night > 0.2 ? 2 : 1);
 }
@@ -3079,19 +3164,467 @@ function updateShadowCamera(center) {
 }
 
 // =====================================================================
+// Online play: peer-to-peer over WebRTC (PeerJS), the same way Smash Lot
+// does it. There's no game server: whoever creates a room is the host,
+// everyone else connects straight to the host's browser, and the host
+// passes messages on. PeerJS's free public broker only introduces
+// browsers to each other when someone joins.
+//
+// Each client has two connections to the host: a reliable one for things
+// that must arrive (joins, leaves, race starts and finishes) and a fast,
+// unordered one for the ~20 position updates a second. Once per tick the
+// host sends each client one bundle with everyone else's newest updates.
+//
+//   hello   { name }                 client -> host
+//   welcome { id, players }          host -> client
+//   full    {}                       host -> client: room is full
+//   joined  { id, name }             host -> everyone
+//   left    { id }                   host -> everyone
+//   event   { id, e }                one-off events (race start / finish)
+//   state   { s }                    fast, client -> host: our swinger
+//   tick    { q, l: [[id, s]...] }   fast, host -> client: everyone else
+// =====================================================================
+const NET_PREFIX = 'swing-';
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O
+const MAX_PLAYERS = 8;
+
+/** PeerJS options. `?peerhost=host:port` points at a self-hosted broker (for testing). */
+function peerOptions() {
+  const custom = new URLSearchParams(location.search).get('peerhost');
+  if (!custom) return { debug: 0 };
+  const [host, port] = custom.split(':');
+  return { host, port: Number(port) || 9000, path: '/', secure: false, debug: 0, config: { iceServers: [] } };
+}
+
+function friendlyNetError(err) {
+  const messages = {
+    'peer-unavailable': 'No room with that code. Check it and try again.',
+    network: 'Could not reach the multiplayer service. Check your connection.',
+    'server-error': 'The multiplayer service is having trouble. Try again in a moment.',
+    'socket-error': 'Could not reach the multiplayer service. Check your connection.',
+    'browser-incompatible': 'This browser does not support online play.',
+  };
+  return new Error(messages[err?.type] || err?.message || 'Something went wrong with online play.');
+}
+
+const net = {
+  peer: null, isHost: false, code: null, id: null,
+  conns: new Map(),   // host: peerId -> reliable connection; client: 'host' -> connection
+  fast: new Map(),    // same keys: the unordered connections
+  latest: new Map(),  // host: id -> states received since the last bundle
+  players: new Map(), // id -> { name }
+  tickSeq: 0,
+  handlers: {},
+  get online() { return !!this.peer && !!this.id; },
+  on(ev, fn) { (this.handlers[ev] ||= []).push(fn); },
+  emit(ev, ...a) { for (const fn of this.handlers[ev] || []) fn(...a); },
+
+  /** Create a room. Resolves with its code. */
+  host(name) {
+    if (!window.Peer) return Promise.reject(new Error('The multiplayer library did not load. Check your connection and reload.'));
+    return new Promise((resolve, reject) => {
+      const attempt = (tries) => {
+        let code = '';
+        for (let i = 0; i < 5; i++) code += CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0];
+        const peer = new window.Peer(NET_PREFIX + code, peerOptions());
+        peer.on('open', () => {
+          Object.assign(this, { peer, isHost: true, code, id: 'host' });
+          this.players.set('host', { name });
+          peer.on('connection', (conn) => (conn.metadata?.fast ? this.acceptFast(conn) : this.acceptClient(conn)));
+          resolve(code);
+        });
+        peer.on('error', (err) => {
+          if (err.type === 'unavailable-id' && tries < 5) { peer.destroy(); attempt(tries + 1); }
+          else if (this.peer !== peer) { peer.destroy(); reject(friendlyNetError(err)); }
+          else this.emit('error', friendlyNetError(err));
+        });
+        peer.on('disconnected', () => { if (!peer.destroyed) peer.reconnect?.(); });
+      };
+      attempt(0);
+    });
+  },
+
+  /** Host: a new player's reliable connection. */
+  acceptClient(conn) {
+    conn.on('data', (msg) => {
+      if (!msg || typeof msg !== 'object') return;
+      if (msg.t === 'hello') {
+        if (this.players.size >= MAX_PLAYERS) { conn.send({ t: 'full' }); setTimeout(() => conn.close(), 500); return; }
+        const id = conn.peer, name = cleanName(msg.name);
+        this.conns.set(id, conn);
+        conn.send({ t: 'welcome', id, players: Object.fromEntries(this.players) });
+        this.players.set(id, { name });
+        this.relay({ t: 'joined', id, name }, id);
+        this.emit('joined', id, name);
+      } else if (msg.t === 'event' && this.conns.has(conn.peer)) {
+        msg.id = conn.peer; // trust the connection, not the message
+        this.relay(msg, conn.peer);
+        this.emit('event', msg.id, msg.e);
+      } else if (msg.t === 'state') this.fromClient(conn.peer, msg.s);
+    });
+    const drop = () => {
+      if (!this.conns.has(conn.peer)) return;
+      this.conns.delete(conn.peer);
+      this.fast.get(conn.peer)?.close();
+      this.fast.delete(conn.peer);
+      this.latest.delete(conn.peer);
+      this.players.delete(conn.peer);
+      this.relay({ t: 'left', id: conn.peer });
+      this.emit('left', conn.peer);
+    };
+    conn.on('close', drop);
+    conn.on('error', drop);
+  },
+
+  /** Host: a client's fast (unordered) connection. */
+  acceptFast(conn) {
+    this.fast.set(conn.peer, conn);
+    conn.on('data', (msg) => { if (msg?.t === 'state') this.fromClient(conn.peer, msg.s); });
+    conn.on('close', () => { if (this.fast.get(conn.peer) === conn) this.fast.delete(conn.peer); });
+  },
+
+  fromClient(id, s) {
+    if (!this.conns.has(id) || !s) return;
+    const list = this.latest.get(id) || [];
+    if (list.length < 4) list.push(s);
+    this.latest.set(id, list);
+    this.emit('state', id, s);
+  },
+
+  /** Join a room by code. Resolves once the host has welcomed us. */
+  join(code, name) {
+    if (!window.Peer) return Promise.reject(new Error('The multiplayer library did not load. Check your connection and reload.'));
+    code = code.trim().toUpperCase();
+    return new Promise((resolve, reject) => {
+      const peer = new window.Peer(undefined, peerOptions());
+      let settled = false;
+      const fail = (err) => { if (settled) return; settled = true; clearTimeout(timer); peer.destroy(); reject(err); };
+      const timer = setTimeout(() => fail(new Error('Could not reach that room. Check the code and try again.')), 15000);
+      peer.on('error', (err) => { if (!settled) fail(friendlyNetError(err)); else this.emit('error', friendlyNetError(err)); });
+      peer.on('open', () => {
+        const conn = peer.connect(NET_PREFIX + code, { reliable: true, serialization: 'json' });
+        conn.on('open', () => conn.send({ t: 'hello', name }));
+        conn.on('data', (msg) => {
+          if (!msg || typeof msg !== 'object') return;
+          if (msg.t === 'full') { fail(new Error(`That room is full (${MAX_PLAYERS} players).`)); return; }
+          if (msg.t === 'welcome' && !settled) {
+            settled = true;
+            clearTimeout(timer);
+            Object.assign(this, { peer, isHost: false, code, id: msg.id });
+            this.conns.set('host', conn);
+            this.players = new Map(Object.entries(msg.players || {}));
+            this.players.set(msg.id, { name });
+            const fast = peer.connect(NET_PREFIX + code, { reliable: false, serialization: 'json', metadata: { fast: 1 } });
+            fast.on('data', (m) => this.dispatch(m));
+            this.fast.set('host', fast);
+            resolve(code);
+            for (const [id, p] of Object.entries(msg.players || {})) this.emit('joined', id, cleanName(p.name));
+            return;
+          }
+          if (msg.t === 'joined') { this.players.set(msg.id, { name: msg.name }); this.emit('joined', msg.id, cleanName(msg.name)); }
+          else if (msg.t === 'left') { this.players.delete(msg.id); this.emit('left', msg.id); }
+          else this.dispatch(msg);
+        });
+        conn.on('close', () => { if (settled && this.peer === peer) { this.emit('hostLeft'); this.leave(); } });
+      });
+    });
+  },
+
+  dispatch(msg) {
+    if (!msg || typeof msg !== 'object') return;
+    if (msg.t === 'tick' && Array.isArray(msg.l)) for (const [id, s] of msg.l) this.emit('state', id, s);
+    else if (msg.t === 'event') this.emit('event', msg.id, msg.e);
+  },
+
+  relay(msg, except) { for (const [id, c] of this.conns) if (id !== except && c.open) c.send(msg); },
+  sendTo(id, msg) { const c = this.conns.get(id); if (c?.open) c.send(msg); },
+  sendFast(id, msg) { const c = this.fast.get(id); if (c?.open) c.send(msg); else this.sendTo(id, msg); },
+
+  /** Our state: clients send it to the host; the host bundles everyone's and sends each client the others'. */
+  sendState(s) {
+    if (!this.isHost) { this.sendFast('host', { t: 'state', s }); return; }
+    this.latest.set('host', [s]);
+    const q = ++this.tickSeq, all = [];
+    for (const [id, list] of this.latest) for (const x of list) all.push([id, x]);
+    this.latest.clear();
+    for (const id of this.conns.keys()) {
+      const l = all.filter(([from]) => from !== id);
+      if (l.length) this.sendFast(id, { t: 'tick', q, l });
+    }
+  },
+
+  sendEvent(e) {
+    const msg = { t: 'event', id: this.id, e };
+    if (this.isHost) this.relay(msg); else this.sendTo('host', msg);
+  },
+
+  leave() {
+    for (const c of [...this.conns.values(), ...this.fast.values()]) c.close();
+    this.conns.clear(); this.fast.clear(); this.latest.clear(); this.players.clear();
+    this.peer?.destroy();
+    Object.assign(this, { peer: null, id: null, code: null, isHost: false, tickSeq: 0 });
+  },
+};
+
+function cleanName(n) { return String(n ?? '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 16) || 'Player'; }
+
+// ---------- other players ----------
+// Each remote swinger is drawn from network snapshots, a little in the
+// past, interpolating between the two snapshots around that moment.
+// Snapshots carry the sender's clock, so jitter in delivery doesn't
+// become stutter on screen.
+const remotes = (() => {
+  const map = new Map();
+  const DELAY = 0.12; // seconds behind the newest snapshot
+  const STATES = { g: State.GROUND, a: State.AIR, s: State.SWING };
+  let night = 0;
+
+  function makeTag(name) {
+    const c = document.createElement('canvas'), g = c.getContext('2d');
+    c.width = 256; c.height = 64;
+    g.font = '600 30px "Chakra Petch", system-ui, sans-serif';
+    const w = Math.min(248, g.measureText(name).width + 28);
+    g.fillStyle = 'rgba(10,13,20,0.7)';
+    g.beginPath(); g.roundRect((256 - w) / 2, 10, w, 44, 12); g.fill();
+    g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(name, 128, 33, 230);
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false, sizeAttenuation: false, transparent: true }));
+    sp.scale.set(0.3, 0.075, 1);
+    sp.renderOrder = 10;
+    scene.add(sp);
+    return sp;
+  }
+
+  function add(id, name) {
+    if (map.has(id) || id === net.id) return;
+    const ch = new Character();
+    ch.root.visible = false;
+    const line = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1, 6, 1, true).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0xf6f8fb }));
+    line.visible = false; line.frustumCulled = false;
+    scene.add(line);
+    const r = {
+      id, name, ch, line, tag: makeTag(name), snaps: [], off: null, suit: -1, visible: false, mapColor: '#ffffff',
+      pos: new THREE.Vector3(), anchor: new THREE.Vector3(), hand: new THREE.Vector3(),
+      // The pose Character.update reads, filled in from snapshots.
+      pose: { vel: new THREE.Vector3(), heading: new THREE.Vector3(0, 0, -1), state: State.AIR, diveT: 0, trickT: 0, heroT: 0, zipT: 0, web: null },
+    };
+    r.tag.visible = false;
+    map.set(id, r);
+  }
+
+  function remove(id) {
+    const r = map.get(id);
+    if (!r) return;
+    scene.remove(r.ch.root, r.line, r.tag);
+    r.ch.root.traverse((o) => o.geometry?.dispose());
+    r.tag.material.map.dispose(); r.tag.material.dispose();
+    r.line.geometry.dispose();
+    map.delete(id);
+  }
+
+  /** s: { t, p:[x,y,z], v:[x,y,z], h, st, w?:[x,y,z,hand], d, k, r, z, u, x } — see ownState(). */
+  function snapshot(id, s) {
+    const r = map.get(id);
+    if (!r || !s || !Array.isArray(s.p) || typeof s.t !== 'number') return;
+    const now = performance.now() / 1000, off = now - s.t;
+    // Track the clock offset (plus the quickest delivery seen), easing it up if the link slows down.
+    r.off = r.off == null || off < r.off ? off : r.off + (off - r.off) * 0.02;
+    const at = s.t + r.off;
+    if (r.snaps.length && at <= r.snaps[r.snaps.length - 1].at) return; // stale or duplicate
+    r.snaps.push({ at, s });
+    if (r.snaps.length > 30) r.snaps.shift();
+  }
+
+  const lerpArr = (out, a, b, k) => out.set(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k);
+
+  function update(dt) {
+    const t = performance.now() / 1000 - DELAY;
+    for (const r of map.values()) {
+      const n = r.snaps.length;
+      if (!n) continue;
+      let i = n - 1;
+      while (i > 0 && r.snaps[i - 1].at > t) i--;
+      const b = r.snaps[i], a = i > 0 ? r.snaps[i - 1] : b;
+      const s = b.s;
+      if (t >= b.at || a === b) {
+        // Past the newest snapshot: carry on along its velocity for a moment.
+        const ex = clamp(t - b.at, 0, 0.25);
+        r.pos.set(s.p[0] + s.v[0] * ex, s.p[1] + s.v[1] * ex, s.p[2] + s.v[2] * ex);
+      } else {
+        lerpArr(r.pos, a.s.p, s.p, (t - a.at) / (b.at - a.at));
+      }
+      // Snapshots older than the one before the render time are no longer needed.
+      if (i > 1) r.snaps.splice(0, i - 1);
+
+      const P = r.pose;
+      P.vel.set(s.v[0], s.v[1], s.v[2]);
+      P.heading.set(-Math.sin(s.h || 0), 0, -Math.cos(s.h || 0));
+      P.state = STATES[s.st] || State.AIR;
+      P.diveT = s.d ? 1 : 0; P.trickT = Number(s.k) || 0; P.heroT = s.r ? 1 : 0; P.zipT = s.z ? 1 : 0;
+      if (Array.isArray(s.w)) { r.anchor.set(s.w[0], s.w[1], s.w[2]); P.web = P.state === State.SWING ? { anchor: r.anchor, hand: s.w[3] ? 'R' : 'L' } : null; }
+      else P.web = null;
+      const suit = SUITS[s.u] ? s.u : 0;
+      if (suit !== r.suit) { r.suit = suit; r.ch.applySuit(SUITS[suit].id); r.ch.setNight(night); r.mapColor = '#' + SUITS[suit].main.toString(16).padStart(6, '0'); }
+
+      r.visible = !s.x && game.mode === 'play';
+      r.ch.root.visible = r.tag.visible = r.visible;
+      if (!r.visible) { r.line.visible = false; continue; }
+      r.ch.update(dt, r.pos, P);
+      r.ch.root.updateMatrixWorld(true);
+      r.tag.position.copy(r.pos).y += 1.7;
+      // Web line from the hand to the anchor (swinging) or the zip point.
+      if (Array.isArray(s.w)) {
+        r.ch.handWorld(P.web ? P.web.hand : 'R', r.hand);
+        const d = tA.subVectors(r.anchor, r.hand), len = d.length();
+        r.line.visible = len > 0.05;
+        if (r.line.visible) { r.line.position.copy(r.hand); r.line.quaternion.setFromUnitVectors(UP, d.divideScalar(len)); r.line.scale.set(1, len, 1); }
+      } else r.line.visible = false;
+    }
+  }
+
+  return {
+    add, remove, snapshot, update,
+    list: () => map.values(),
+    get size() { return map.size; },
+    clear() { for (const id of [...map.keys()]) remove(id); },
+    setNight(n) { night = n; for (const r of map.values()) r.ch.setNight(n); },
+  };
+})();
+
+/** Our swinger as a compact snapshot for the other players. */
+function ownState() {
+  const P = player, r3 = (x) => Math.round(x * 1000) / 1000, r2 = (x) => Math.round(x * 100) / 100;
+  const s = {
+    t: r3(performance.now() / 1000),
+    p: [r2(P.pos.x), r2(P.pos.y), r2(P.pos.z)],
+    v: [r2(P.vel.x), r2(P.vel.y), r2(P.vel.z)],
+    h: r2(Math.atan2(-P.heading.x, -P.heading.z)),
+    st: P.state === State.SWING ? 's' : P.state === State.GROUND ? 'g' : 'a',
+    u: Math.max(0, SUITS.findIndex((x) => x.id === save.suit)),
+  };
+  if (P.web) s.w = [r2(P.web.anchor.x), r2(P.web.anchor.y), r2(P.web.anchor.z), P.web.hand === 'R' ? 1 : 0];
+  else if (P.zipT > 0) s.w = [r2(P.zipPoint.x), r2(P.zipPoint.y), r2(P.zipPoint.z), 1];
+  if (P.diveT > 0) s.d = 1;
+  if (P.trickT > 0) s.k = r2(P.trickT);
+  if (P.heroT > 0) s.r = 1;
+  if (P.zipT > 0) s.z = 1;
+  if (game.mode !== 'play') s.x = 1;
+  return s;
+}
+
+let lastNetSend = 0;
+/** About 20 times a second while online, send our state (the host also bundles everyone's). */
+function netTick(now) {
+  if (!net.online || now - lastNetSend < 50) return;
+  lastNetSend = now;
+  net.sendState(ownState());
+}
+
+function playerName(id) { return net.players.get(id)?.name || 'Someone'; }
+function renderRoomBox() {
+  const box = $('#pauseRoom');
+  box.hidden = !net.online;
+  if (!net.online) return;
+  $('#pauseCode').textContent = net.code;
+  const n = net.players.size;
+  $('#pausePlayers').textContent = `${net.isHost ? 'You are hosting' : 'You joined'} · ${n} player${n === 1 ? '' : 's'}`;
+}
+function updateRoomRow() {
+  $('#roomRow').hidden = !net.online;
+  if (net.online) $('#roomInfo').textContent = `${net.code} · ${net.players.size}`;
+}
+
+net.on('joined', (id, name) => { remotes.add(id, name); updateRoomRow(); if (game.mode === 'play') toast(`${name} joined`, 'cyan'); });
+net.on('left', (id) => {
+  const name = remotes.list && [...remotes.list()].find((r) => r.id === id)?.name;
+  remotes.remove(id); updateRoomRow();
+  if (race.room?.has(id) && race.room.get(id) == null) race.room.delete(id);
+  if (race.state === 'done') renderStandings();
+  toast(`${name || 'A player'} left`);
+});
+net.on('hostLeft', () => { remotes.clear(); updateRoomRow(); toast('The host closed the room', 'red'); if (ui.panel === 'pause') renderRoomBox(); });
+net.on('state', (id, s) => remotes.snapshot(id, s));
+net.on('error', (err) => toast(err.message, 'red'));
+net.on('event', (id, e) => {
+  if (!e || typeof e !== 'object') return;
+  const def = races.find((r) => r.id === e.race);
+  if (!def) return;
+  if (e.k === 'race' && game.mode === 'play') {
+    startRace(def);
+    race.room.set(id, null);
+    if (menuOpen()) { ui.stack.length = 0; resume(); }
+    toast(`${playerName(id)} started ${def.name}`, 'cyan');
+  } else if (e.k === 'finish' && typeof e.time === 'number') {
+    if (race.def?.id === def.id && race.room) {
+      race.room.set(id, e.time);
+      if (race.state === 'done') renderStandings();
+    }
+    toast(`${playerName(id)} finished ${def.name} in ${fmtTime(e.time)}`, 'cyan');
+  }
+});
+
+function setNetStatus(text, err = false) { const el = $('#netStatus'); el.textContent = text; el.className = 'tag' + (err ? ' err' : ''); }
+function readName() {
+  const name = cleanName($('#netName').value || `Swinger ${100 + Math.floor(Math.random() * 900)}`);
+  save.name = name; writeSave();
+  return name;
+}
+let netBusy = false;
+async function hostRoom() {
+  if (netBusy) return;
+  netBusy = true;
+  setNetStatus('Creating a room…');
+  try {
+    const code = await net.host(readName());
+    enterRoom();
+    toast(`Room ${code} is open. Share the code with friends.`, 'cyan big');
+  } catch (err) { setNetStatus(err.message, true); }
+  netBusy = false;
+}
+async function joinRoom() {
+  if (netBusy) return;
+  const code = $('#netCode').value.trim().toUpperCase();
+  if (!/^[A-Z]{5}$/.test(code)) { setNetStatus('Room codes are 5 letters.', true); return; }
+  netBusy = true;
+  setNetStatus(`Joining ${code}…`);
+  try {
+    await net.join(code, readName());
+    enterRoom();
+    const n = net.players.size - 1;
+    toast(`Joined room ${code} with ${n} other player${n === 1 ? '' : 's'}`, 'cyan big');
+  } catch (err) { setNetStatus(err.message, true); }
+  netBusy = false;
+}
+function enterRoom() {
+  updateRoomRow();
+  quitRace();
+  player.reset();
+  goPlay();
+}
+function leaveRoom() {
+  net.leave();
+  remotes.clear();
+  updateRoomRow();
+}
+$('#netCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinRoom(); });
+$('#netName').addEventListener('keydown', (e) => { if (e.key === 'Enter') hostRoom(); });
+addEventListener('pagehide', () => { if (net.online) net.leave(); });
+
+// =====================================================================
 // Main loop: fixed-step physics, interpolated rendering.
 // =====================================================================
 applyQuality();
 applyTimeOfDay();
 player.reset();
 character.root.visible = false;
-window.game = { CFG, player, city, cam, State, races, tokens, startRace, save, game, race, combo, traffic };
+window.game = { CFG, player, city, cam, State, races, tokens, startRace, save, game, race, combo, traffic, net, remotes };
 
 /** Per-frame game rules outside the physics step: races, race-start prompts, banking combos. */
 function tickGame(dt) {
   updateRace(dt);
   if (input.consume('reset')) {
-    if (race.def) startRace(race.def); else { combo.reset(); player.reset(); }
+    if (race.def) startRace(race.def); else { combo.reset(); player.reset(); } // only for you, even online
   }
   let near = null;
   if (race.state === 'idle') {
@@ -3103,7 +3636,7 @@ function tickGame(dt) {
   const L = LABELS[input.device] || LABELS.kbm;
   const promptHtml = near ? `Press ${L.interact} to start <b>${near.name}</b>` : '';
   if (hud.last.prompt !== promptHtml) { hud.last.prompt = promptHtml; hud.prompt.innerHTML = promptHtml; hud.prompt.hidden = !promptHtml; $('#tStart').hidden = !near; }
-  if (input.consume('interact') && near) startRace(near);
+  if (input.consume('interact') && near) startRace(near, true);
   // Bank the combo after standing on the ground for a moment.
   if (player.state === State.GROUND && combo.active) { combo.groundT += dt; if (combo.groundT > CFG.style.bankDelay) combo.bank(); }
   else combo.groundT = 0;
@@ -3182,6 +3715,8 @@ function frame(now) {
     character.root.updateMatrixWorld(true);
     webLine.update(simDt);
   }
+  remotes.update(dt);
+  netTick(now);
   const fast = updateCamera(dt, renderPos);
   traffic.update(dt);
   tokens.update(game.time);
