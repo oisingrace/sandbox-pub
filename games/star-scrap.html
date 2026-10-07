@@ -160,7 +160,7 @@
       <button id="b-solo">Play offline with bots</button>
       <button id="b-hangar">🛠 Hangar: upgrades and paint</button>
       <div id="m-msg"></div>
-      <div class="help">WASD move · mouse aim · click or Space to shoot · Shift boost · H hangar<br />Ram ships to hurt them. Kills drop ammo, coin and ◆ materials. Fly into a 🌀 wormhole to race.</div>
+      <div class="help">WASD move · mouse aim · click or Space to shoot · Shift boost · H hangar<br />Ram ships to hurt them. Kills drop ammo, coin and ◆ materials. Red-cross packs heal you. Fly into a 🌀 wormhole to race.</div>
       <a class="more-link" href="https://oisingrace.github.io/sandbox-pub/" target="_top">More of my projects →</a>
     </div>
   </div>
@@ -233,6 +233,15 @@
   <script type="application/json" id="patch-notes">
   [
     {
+      "version": "1.1",
+      "date": "2026-10-07",
+      "title": "Health packs",
+      "notes": [
+        "Health packs (white circles with a red cross) float around the map. Fly through one to heal 35 health. You can't pick one up at full health, so it stays for someone who needs it.",
+        "Destroyed ships sometimes drop a health pack too, and computer pilots go looking for them when they're hurt."
+      ]
+    },
+    {
       "version": "1.0",
       "date": "2026-10-06",
       "title": "First release",
@@ -280,7 +289,7 @@ const SHIP_ACCEL = 1150, SHIP_MAX = 370, BOOST_MAX = 650;
 const LOBBY_SIZE = 12; // computer pilots fill the lobby up to this many ships
 const MAX_HUMANS = 8;
 const RACE_LAPS = 2, RACE_MIN = 5, RACE_MAX = 8;
-const COINS_TARGET = 150, AMMO_TARGET = 50;
+const COINS_TARGET = 150, AMMO_TARGET = 50, HEALTH_TARGET = 24, HEALTH_PACK = 35;
 const TICK = 1 / 15;
 
 const UPGRADES = [
@@ -722,6 +731,7 @@ class World {
     this.tickSeq = 0;
     for (let i = 0; i < COINS_TARGET; i++) this.spawnPickup('coin');
     for (let i = 0; i < AMMO_TARGET; i++) this.spawnPickup('ammo');
+    for (let i = 0; i < HEALTH_TARGET; i++) this.spawnPickup('health');
     this.placeWormholes();
     this.fillBots();
   }
@@ -868,6 +878,7 @@ class World {
     const crystals = 2 + ((Math.random() * 2) | 0);
     for (let i = 0; i < crystals; i++) this.spawnPickup('mat', v.x + rnd(-60, 60), v.y + rnd(-60, 60), Math.ceil(mats / crystals));
     for (let i = 0; i < 4; i++) this.spawnPickup('coin', v.x + rnd(-70, 70), v.y + rnd(-70, 70), 2);
+    if (Math.random() < 0.5) this.spawnPickup('health', v.x + rnd(-50, 50), v.y + rnd(-50, 50));
     v.ammo = 0;
     if (killer && killer !== v) { killer.kills++; killer.score += 100; }
     v.score = 0;
@@ -887,7 +898,7 @@ class World {
     }
     const d = Math.hypot(x, y);
     if (d > ARENA_R - 60) { x *= (ARENA_R - 60) / d; y *= (ARENA_R - 60) / d; }
-    const v = value || (type === 'coin' ? (Math.random() < 0.15 ? 3 : 1) : type === 'ammo' ? 6 : 2);
+    const v = value || (type === 'coin' ? (Math.random() < 0.15 ? 3 : 1) : type === 'ammo' ? 6 : type === 'health' ? HEALTH_PACK : 2);
     const p = { id: this.nextPickup++, type, x: Math.round(x), y: Math.round(y), v };
     this.pickups.set(p.id, p);
     this.pkAdd.push([p.id, type, p.x, p.y, v]);
@@ -901,6 +912,11 @@ class World {
       s.score += p.v * 10;
       if (s.bot) this.botMats(s, p.v);
       else (s.loot ||= { coin: 0, mats: 0, ammo: 0 }).mats += p.v;
+    }
+    else if (p.type === 'health') {
+      const healed = Math.min(p.v, s.stats.maxHp - s.hp);
+      s.hp += healed;
+      if (!s.bot) (s.loot ||= { coin: 0, mats: 0, ammo: 0 }).hp = Math.round(((s.loot.hp || 0) + healed));
     }
     if (!s.bot && p.type === 'ammo') (s.loot ||= { coin: 0, mats: 0, ammo: 0 }).ammo += p.v;
   }
@@ -1116,7 +1132,9 @@ class World {
     // Look for pickups, ammo first when low.
     let best = null, bd = 1100;
     for (const p of this.pickups.values()) {
-      const d = Math.hypot(p.x - b.x, p.y - b.y) * (p.type === 'ammo' && b.ammo < 20 ? 0.4 : p.type === 'mat' ? 0.5 : 1);
+      if (p.type === 'health' && b.hp >= b.stats.maxHp) continue;
+      const hurt = b.hp / b.stats.maxHp < 0.6;
+      const d = Math.hypot(p.x - b.x, p.y - b.y) * (p.type === 'ammo' && b.ammo < 20 ? 0.4 : p.type === 'health' ? (hurt ? 0.3 : 1.5) : p.type === 'mat' ? 0.5 : 1);
       if (d < bd) { bd = d; best = p; }
     }
     if (best) { ai.mode = 'loot'; ai.goal = best; ai.target = null; return; }
@@ -1168,8 +1186,9 @@ class World {
     this.maintT -= dt;
     if (this.maintT <= 0) {
       this.maintT = 1;
-      let coins = 0, ammo = 0;
-      for (const p of this.pickups.values()) p.type === 'coin' ? coins++ : p.type === 'ammo' && ammo++;
+      let coins = 0, ammo = 0, health = 0;
+      for (const p of this.pickups.values()) p.type === 'coin' ? coins++ : p.type === 'ammo' ? ammo++ : p.type === 'health' && health++;
+      for (let i = health; i < HEALTH_TARGET && i < health + 2; i++) this.spawnPickup('health');
       for (let i = coins; i < COINS_TARGET && i < coins + 6; i++) this.spawnPickup('coin');
       for (let i = ammo; i < AMMO_TARGET && i < ammo + 3; i++) this.spawnPickup('ammo');
     }
@@ -1242,6 +1261,7 @@ class World {
       for (const p of this.pickups.values()) {
         if ((p.x - s.x) ** 2 + (p.y - s.y) ** 2 < rr) {
           if (p.type === 'ammo' && s.ammo >= MAX_AMMO) continue;
+          if (p.type === 'health' && s.hp >= s.stats.maxHp) continue; // leave it for someone who needs it
           this.collect(s, p);
         }
       }
@@ -1465,6 +1485,7 @@ const sfx = (() => {
     boom(v = 1) { ok('boom', 60) && noise(0.7, 0.45 * v, 500); },
     coin() { if (ok('coin', 70)) { tone(988, 988, 0.05, 'square', 0.03); setTimeout(() => tone(1319, 1319, 0.09, 'square', 0.03), 55); } },
     ammo() { ok('ammo', 70) && tone(330, 660, 0.09, 'triangle', 0.06); },
+    heal() { if (ok('heal', 120)) { tone(523, 784, 0.12, 'sine', 0.07); setTimeout(() => tone(784, 1046, 0.16, 'sine', 0.06), 90); } },
     mat() { ok('mat', 80) && tone(700, 1400, 0.2, 'sine', 0.07); },
     beep(hi) { tone(hi ? 880 : 440, hi ? 880 : 440, hi ? 0.35 : 0.15, 'sine', 0.1); },
     whoosh() { noise(0.6, 0.2, 1500); tone(200, 900, 0.5, 'sine', 0.06); },
@@ -1621,7 +1642,7 @@ class View {
         for (const [id, type, x, y, v] of e.a) this.pickups.set(id, { type, x, y, v, seed: Math.random() * 10 });
         for (const id of e.r) {
           const p = this.pickups.get(id);
-          if (p) { this.sparks(p.x, p.y, 6, p.type === 'coin' ? '#f5c542' : p.type === 'mat' ? '#7dffb2' : '#8dff4f'); this.pickups.delete(id); }
+          if (p) { this.sparks(p.x, p.y, 6, p.type === 'coin' ? '#f5c542' : p.type === 'mat' ? '#7dffb2' : p.type === 'health' ? '#ff6b81' : '#8dff4f'); this.pickups.delete(id); }
         }
         break;
       case 'loot': {
@@ -1632,8 +1653,9 @@ class View {
         if (e.coin) parts.push(['+' + e.coin + ' 🪙', '#f5c542']);
         if (e.mats) parts.push(['+' + e.mats + ' ◆', '#7dffb2']);
         if (e.ammo) parts.push(['+' + e.ammo + ' ammo', '#8dff4f']);
+        if (e.hp) parts.push(['+' + e.hp + ' health', '#ff6b81']);
         parts.forEach(([text, color], i) => this.floaters.push({ x: this.me.x + rnd(-10, 10), y: this.me.y - this.me.r - 14 - i * 18, text, color, life: 1.3, follow: true, dy: -i * 18 }));
-        if (e.mats) sfx.mat(); else if (e.coin) sfx.coin(); else if (e.ammo) sfx.ammo();
+        if (e.mats) sfx.mat(); else if (e.coin) sfx.coin(); else if (e.hp) sfx.heal(); else if (e.ammo) sfx.ammo();
         ui.wallet();
         break;
       }
@@ -2011,6 +2033,27 @@ class View {
         ctx.beginPath();
         ctx.ellipse(p.x, p.y + bob, r * w * 0.75 + 0.5, r * 0.75, 0, 0, TAU);
         ctx.fill();
+      } else if (p.type === 'health') {
+        // Health pack: a glowing red cross.
+        ctx.save();
+        ctx.translate(p.x, p.y + bob);
+        const pulse = 1 + 0.08 * Math.sin(t * 4 + p.seed);
+        ctx.scale(pulse, pulse);
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 26);
+        g.addColorStop(0, 'rgba(255,107,129,0.45)');
+        g.addColorStop(1, 'rgba(255,107,129,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, 26, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(0, 0, 12, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = '#ff3b5c';
+        ctx.fillRect(-3.5, -8.5, 7, 17);
+        ctx.fillRect(-8.5, -3.5, 17, 7);
+        ctx.restore();
       } else if (p.type === 'ammo') {
         const big = p.v > 6;
         ctx.save();
@@ -2301,7 +2344,7 @@ const ui = {
     $('results').classList.add('hidden');
     $('feed').innerHTML = '';
     this.wallet();
-    this.toast('Grab 🪙 coin and ammo. Destroy ships for ◆ materials. Fly into a 🌀 wormhole to race!', 7);
+    this.toast('Grab 🪙 coin, ammo and ➕ health. Destroy ships for ◆ materials. Fly into a 🌀 wormhole to race!', 7);
   },
   toast(html, secs = 3) {
     const el = $('toast');
