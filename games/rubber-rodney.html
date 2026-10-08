@@ -49,6 +49,15 @@
   .util svg { width: 17px; height: 17px; flex: none; }
   .util:hover { border-color: rgba(255,250,244,.4); }
   .util.on { background: var(--text); color: var(--ground); }
+  .util[hidden], #liquidPop[hidden] { display: none; }
+  .util .swatch { width: 15px; height: 15px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1.5px rgba(255,250,244,.55); }
+  #liquidPop { position: absolute; right: calc(100% + 8px); display: grid; grid-template-columns: repeat(3, 28px); gap: 8px; padding: 10px; }
+  #liquidPop .sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); }
+  #liquidPop .sw.on { border-color: var(--text); }
+  #liquidPop input { width: 28px; height: 28px; border: 0; padding: 4px; background: conic-gradient(#e0412f, #f2b630, #3fbf5a, #2fd1c4, #2f8fe0, #a04fe0, #ff6fb0, #e0412f); cursor: pointer; border-radius: 50%; }
+  #liquidPop input::-webkit-color-swatch-wrapper { padding: 0; }
+  #liquidPop input::-webkit-color-swatch { border: 2px solid #1a1817; border-radius: 50%; }
+  #liquidPop input::-moz-color-swatch { border: 2px solid #1a1817; border-radius: 50%; }
   .util:focus-visible, .tool:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 
   #hint { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); max-width: min(440px, calc(100% - 360px)); text-align: center; font-size: 14px; line-height: 1.35; padding: 8px 14px; transition: opacity .5s; pointer-events: none; text-wrap: balance; }
@@ -92,6 +101,13 @@
 <body>
 <script type="application/json" id="patch-notes">
 [
+  { "version": "1.3", "date": "2026-10-08", "title": "Balloon Boy",
+    "notes": [
+      "New character: Balloon Boy, a see-through rubber man filled with coloured liquid. Switch between him and Rodney with the Balloon Boy button or B.",
+      "Pick his liquid colour from the Liquid button, including any colour you like. C steps through the presets.",
+      "He is softer and heavier than Rodney, so he sags and sloshes. Burst a part and it splashes and leaves a puddle on the floor.",
+      "Every toy, Reverse and Reset work on him too."
+    ] },
   { "version": "1.2", "date": "2026-10-06", "title": "Reset and Reverse",
     "notes": [
       "Reform is now Reset: it puts Rodney back in the middle, standing and in shape, clears every toy and effect, and turns gravity and slow-mo back to normal. Money and unlocked toys stay.",
@@ -132,6 +148,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 9a8 8 0 1 0 1 6"/><path d="M20 3v6h-6"/></svg><span>Reset</span></button>
       <button class="util" id="uReverse" type="button" aria-label="Reverse the tools (V, or hold Shift)" title="Reverse the tools (V, or hold Shift / right-click)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4M3 8h13M17 12l4 4-4 4M21 16H8"/></svg><span>Reverse</span></button>
+      <button class="util" id="uChar" type="button" aria-label="Switch to Balloon Boy (B)" title="Switch between Rodney and Balloon Boy (B)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="9" rx="6" ry="7"/><path d="M12 16l-1.2 1.6h2.4zM9 7.5v.01M15 7.5v.01M9.5 11c1.4 1.2 3.6 1.2 5 0"/></svg><span>Balloon Boy</span></button>
+      <button class="util" id="uLiquid" type="button" hidden aria-label="Liquid colour (C)" title="Liquid colour (C)" aria-expanded="false">
+        <i class="swatch" id="liquidSwatch"></i><span>Liquid</span></button>
+      <div class="glass" id="liquidPop" hidden></div>
       <button class="util" id="uGrav" type="button" aria-label="Change gravity (G)" title="Change gravity (G)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v17M6 14l6 6 6-6"/></svg><span id="gravLabel">Gravity: on</span></button>
       <button class="util" id="uSlow" type="button" aria-label="Slow motion (S)" title="Slow motion (S)">
@@ -183,7 +204,7 @@ document.getElementById('tools').addEventListener('wheel', e => {
 
 // ---------------- save ----------------
 const SAVE_KEY = 'rubber-rodney-v1';
-let save = { bucks: 60, unlocked: ['hand', 'mallet', 'taffy'], free: false, muted: false };
+let save = { bucks: 60, unlocked: ['hand', 'mallet', 'taffy'], free: false, muted: false, char: 'rodney', liquid: 0x2f8fe0 };
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (s) save = Object.assign(save, s); } catch (e) {}
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 
@@ -253,6 +274,8 @@ let W = 800, H = 600, DPR = 1, floorY = 540;
 // ---------------- physics world (screen pixels, y down) ----------------
 const SUBS = 2, ITERS = 6, G = 0.55;
 let h = 0.5, slowmo = false, gravMode = 0;
+let isBB = false; // Balloon Boy: a softer, heavier body full of liquid
+const LIQUIDS = [0x2f8fe0, 0xe0412f, 0x3fbf5a, 0xf2b630, 0xa04fe0, 0xff6fb0, 0x2fd1c4, 0xf07a2a, 0xf4f1ea]; // Balloon Boy's liquid colours
 const pts = [], cons = [], parts = [];
 let props = [], rockets = [], pulls = [];
 let fella = null;
@@ -330,6 +353,7 @@ function effRest(c) {
 function effK(c) {
   const pt = c.part;
   if (pt && pt.type === 'blob' && pt.popped) { if (c.kind === 'spoke') return 0.02; if (c.kind === 'bend') return 0.01; }
+  if (isBB && pt && pt.type === 'blob') { if (c.kind === 'spoke') return c.k * 0.45; if (c.kind === 'bend') return c.k * 0.5; }
   return c.k;
 }
 function solve(c) {
@@ -351,7 +375,7 @@ function gravity() { return gravMode === 0 ? G : gravMode === 1 ? 0 : -G; }
 function applyPressure(b) {
   if (b.popped) return;
   const A = polyArea(b.ring), T = b.target * b.inflate * b.inflate;
-  const dP = clamp((T - A) / T, -0.5, 1.5) * 1.6 * h * h;
+  const dP = clamp((T - A) / T, -0.5, 1.5) * (isBB ? 1.3 : 1.6) * h * h;
   const n = b.ring.length;
   for (let i = 0; i < n; i++) {
     const p = b.ring[i], q = b.ring[(i + 1) % n];
@@ -544,6 +568,8 @@ function substep() {
     const vx = (p.x - p.px) * damp, vy = (p.y - p.py) * damp;
     p.px = p.x; p.py = p.y; p.x += vx; p.y += vy + g * hh2;
   }
+  // the liquid's weight pulls the skin of his head and body down, so they sag and slosh
+  if (isBB) for (const b of [fella.head, fella.torso]) if (!b.popped) for (const p of b.ring) if (p.im) p.y += g * hh2 * 0.3;
   for (const o of props) {
     if (o.held || o.static) continue;
     const vx = (o.x - o.px) * 0.999, vy = (o.y - o.py) * 0.999;
@@ -935,6 +961,14 @@ function popPart(pt) {
   pt.popped = true; pumping = null;
   const pp = partPoints(pt), c = pt.type === 'blob' ? pt.center : pt.pts[1];
   for (const p of pp) if (p.im) { const dx = p.x - c.x, dy = p.y - c.y, d = Math.hypot(dx, dy) || 1; addVel(p, dx / d * 10 + rnd(-3, 3), dy / d * 10 - 4); }
+  if (isBB) {
+    // a burst water balloon: a splash of liquid and a puddle
+    for (let i = 0; i < 46; i++) { const a = rnd(0, TAU), s = rnd(2, 11); drop(c.x + rnd(-8, 8), c.y + rnd(-8, 8), rnd(-10, 20), Math.cos(a) * s, Math.sin(a) * s - 4, rnd(-5, 5)); }
+    addPuddle(c.x, pt.type === 'blob' ? 110 : 60);
+    sfx.pop(); sfx.splat(); shake(10); earn(25, c.x, c.y);
+    if (pt.type === 'limb') updateLimbRadii();
+    return;
+  }
   const col = pt.color === 'shirt' ? COL.shirt : pt.color === 'pants' ? COL.pants : COL.skin;
   for (let i = 0; i < 24; i++) { const a = rnd(0, TAU), s = rnd(3, 10); shard(c.x, c.y, 10, Math.cos(a) * s, Math.sin(a) * s - 3, rnd(-6, 6), col); }
   for (let i = 0; i < 8; i++) smoke(c.x, c.y, 0, rnd(-2, 2), rnd(-2, 1), 20, 40, 0xd8d0c8);
@@ -1158,7 +1192,7 @@ function spawnBouncy(x, y) {
 // toys cleared, normal gravity and speed. Money, unlocks, sound, free play and Reverse stay.
 function doReform() {
   endGrab(); endSkin(); dropAim(); pumping = null; smoothing = false;
-  props = []; rockets = []; holes = []; balloons = []; pulls = []; bolts = [];
+  props = []; rockets = []; holes = []; balloons = []; pulls = []; bolts = []; clearLiquid();
   wreck = null; glove = null; mallet = null; zapT = 0; soot = 0;
   for (const p of pts) {
     p.x = p.px = W / 2 + p.hx; p.y = p.py = floorY + p.hy;
@@ -1341,6 +1375,29 @@ function toggleReverse() {
   hint(toolHint(TOOLS.find(t => t.id === tool)));
 }
 document.getElementById('uReverse').addEventListener('click', toggleReverse);
+function toggleChar() {
+  audio(); save.char = save.char === 'balloon' ? 'rodney' : 'balloon'; persist();
+  applyChar(); doReform(); sfx.squeak();
+  if (save.char === 'balloon') hint('Balloon Boy is full of liquid. Burst him for a splash. Pick his colour with Liquid.');
+  else hint(toolHint(TOOLS.find(t => t.id === tool)));
+}
+document.getElementById('uChar').addEventListener('click', toggleChar);
+const liquidPop = document.getElementById('liquidPop'), uLiquid = document.getElementById('uLiquid');
+LIQUIDS.forEach(c => {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'sw'; b.dataset.c = c;
+  b.style.background = '#' + c.toString(16).padStart(6, '0'); b.setAttribute('aria-label', 'Liquid colour ' + b.style.background);
+  b.addEventListener('click', () => { setLiquid(c); sfx.squeak(); });
+  liquidPop.appendChild(b);
+});
+const liquidPick = document.createElement('input'); liquidPick.type = 'color'; liquidPick.title = 'Any colour'; liquidPick.setAttribute('aria-label', 'Pick any liquid colour');
+liquidPick.addEventListener('input', () => setLiquid(parseInt(liquidPick.value.slice(1), 16)));
+liquidPop.appendChild(liquidPick);
+function showLiquidPop(on) {
+  liquidPop.hidden = !on; uLiquid.setAttribute('aria-expanded', on); uLiquid.classList.toggle('on', on);
+  if (on) liquidPop.style.top = uLiquid.offsetTop + 'px';
+}
+uLiquid.addEventListener('click', () => { audio(); showLiquidPop(liquidPop.hidden); });
+window.addEventListener('pointerdown', e => { if (!liquidPop.hidden && !liquidPop.contains(e.target) && !uLiquid.contains(e.target)) showLiquidPop(false); });
 const GRAV = ['Gravity: on', 'Zero-G', 'Upside down'];
 function cycleGravity() {
   audio(); gravMode = (gravMode + 1) % 3;
@@ -1384,6 +1441,8 @@ window.addEventListener('keydown', e => {
   else if (k === 's') toggleSlow();
   else if (k === 'm') toggleSound();
   else if (k === 'v') toggleReverse();
+  else if (k === 'b') toggleChar();
+  else if (k === 'c' && isBB) { const i = LIQUIDS.indexOf(save.liquid); setLiquid(LIQUIDS[(i + 1) % LIQUIDS.length]); sfx.squeak(); }
 });
 window.addEventListener('keyup', e => { if (e.key === 'Shift') shiftDown = false; });
 window.addEventListener('blur', () => { shiftDown = false; });
@@ -1720,6 +1779,77 @@ const shoes = [0, 1].map(() => {
   scene.add(gp); return gp;
 });
 
+// ---------- Balloon Boy: see-through rubber full of coloured liquid ----------
+const liquidC = new THREE.Color(), _white = new THREE.Color(0xffffff), _empty = new THREE.Color(0xd9d5cf);
+const liquidMat = () => new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.06, transmission: 0.85, thickness: 90, ior: 1.33, clearcoat: 1, clearcoatRoughness: 0.03, attenuationColor: new THREE.Color(0xffffff), attenuationDistance: 110, specularIntensity: 1 });
+const bMats = { head: liquidMat(), torso: liquidMat(), armL: liquidMat(), armR: liquidMat(), legL: liquidMat(), legR: liquidMat(), plain: liquidMat() };
+// the tied-off knot on top of his head
+const knot = new THREE.Group();
+(() => {
+  const k = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1, 20), bMats.plain); k.position.y = 0.4; k.rotation.z = Math.PI;
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.2, 10, 24), bMats.plain); lip.rotation.x = Math.PI / 2; lip.position.y = 0.95;
+  knot.add(k, lip); knot.visible = false; scene.add(knot);
+})();
+const dropMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, clearcoat: 1, transmission: 0.35, thickness: 6, ior: 1.33 });
+const dropGeo = new THREE.SphereGeometry(1, 12, 8);
+const dropPool = [];
+for (let i = 0; i < 64; i++) { const m = new THREE.Mesh(dropGeo, dropMat); m.visible = false; scene.add(m); dropPool.push({ m, life: 0 }); }
+function drop(x, y, z, vx, vy, vz) {
+  let p = dropPool.find(q => q.life <= 0); if (!p) p = dropPool[(Math.random() * dropPool.length) | 0];
+  Object.assign(p, { x, y, z, vx, vy, vz, life: 120, s: rnd(2.5, 6) }); p.m.visible = true;
+}
+const puddleGeo = new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2);
+const puddles = [0, 1, 2, 3, 4, 5].map(() => {
+  const m = new THREE.Mesh(puddleGeo, new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.04, clearcoat: 1, transparent: true, opacity: 0, depthWrite: false }));
+  m.visible = false; m.receiveShadow = true; scene.add(m); return { m, x: 0, r: 0, target: 0, life: 0, sx: 1 };
+});
+function addPuddle(x, size) {
+  let p = puddles.find(q => q.life > 0 && Math.abs(q.x - x) < q.target * 0.8);
+  if (p) { p.target = Math.min(240, p.target + size * 0.5); p.life = 1500; return; }
+  p = puddles.find(q => q.life <= 0) || puddles.reduce((a, b) => a.life < b.life ? a : b);
+  Object.assign(p, { x, r: 4, target: size, life: 1500, sx: rnd(1.4, 1.9), z: rnd(-30, 30) });
+  p.m.material.color.copy(liquidC);
+}
+function clearLiquid() { for (const p of dropPool) p.life = 0; for (const p of puddles) p.life = 0; }
+function setLiquid(c) {
+  save.liquid = c; persist(); liquidC.setHex(c);
+  dropMat.color.copy(liquidC);
+  document.getElementById('liquidSwatch').style.background = '#' + c.toString(16).padStart(6, '0');
+  liquidPick.value = '#' + c.toString(16).padStart(6, '0');
+  for (const b of liquidPop.querySelectorAll('.sw')) b.classList.toggle('on', +b.dataset.c === c);
+}
+// tint a part's rubber by its liquid: lighter as it stretches thin, clear and empty once burst
+function liquidTint(pt, mat) {
+  if (pt && pt.popped) { mat.color.copy(_empty); mat.attenuationColor.copy(_white); mat.attenuationDistance = 1e4; mat.transmission = 0.8; }
+  else {
+    const lim = pt && pt.type === 'blob' ? 2.5 : 3.2, f = pt ? clamp((pt.inflate - 1) / (lim - 1), 0, 1) : 0;
+    mat.color.copy(liquidC).lerp(_white, f * 0.4); mat.attenuationColor.copy(mat.color);
+    mat.attenuationDistance = 110 * (1 + f * 2); mat.transmission = 0.85;
+    if (pt && pumping === pt && f > 0.7 && frameNo % 12 < 6) mat.color.multiplyScalar(1.25);
+  }
+  if (soot > 0) mat.color.lerp(_soot, soot * 0.6);
+}
+function applyChar() {
+  isBB = save.char === 'balloon';
+  const F = fella, bb = isBB;
+  F.head.mesh.mesh.material = bb ? bMats.head : skinMat;
+  F.torso.mesh.mesh.material = bb ? bMats.torso : clothMat;
+  F.armL.mesh.mesh.material = bb ? bMats.armL : limbSkinMat; F.armR.mesh.mesh.material = bb ? bMats.armR : limbSkinMat;
+  F.legL.mesh.mesh.material = bb ? bMats.legL : legMat; F.legR.mesh.mesh.material = bb ? bMats.legR : legMat;
+  for (const m of [F.head.mesh.mesh, F.torso.mesh.mesh]) m.receiveShadow = !bb && m === F.torso.mesh.mesh;
+  const plain = bb ? bMats.plain : plainSkin;
+  for (const gp of hands) for (const o of gp.children) o.material = plain;
+  for (const e of ears) e.material = plain;
+  neck.material = plain;
+  for (const e of eyes) { e.upper.material = plain; e.lower.material = plain; }
+  for (const gp of shoes) { gp.children[0].material = bb ? bMats.plain : shoeMat; gp.children[1].visible = !bb; }
+  knot.visible = bb;
+  const u = document.getElementById('uChar'); u.classList.toggle('on', bb);
+  u.setAttribute('aria-label', bb ? 'Switch back to Rodney (B)' : 'Switch to Balloon Boy (B)');
+  uLiquid.hidden = !bb; if (!bb) showLiquidPop(false);
+  setLiquid(save.liquid);
+}
+
 function surfWorld(b, fx, fy) {
   const s = Math.min(0.97, Math.hypot(fx, fy)), th = Math.atan2(fy, fx);
   const p = surfaceAt(b, th, s, true);
@@ -1778,6 +1908,11 @@ function updateFace() {
     ears[i].scale.set(R * 0.11, R * 0.24, R * 0.16 * Math.max(0.3, st.depth));
     ears[i].rotation.z = Math.atan2(up.y, up.x) - Math.PI / 2;
   });
+  if (knot.visible) {
+    const kp = surfaceAt(b, Math.PI * 1.5, 1, false);
+    knot.position.set(wx(kp[0]) - up.x * 2, wy(kp[1]) - up.y * 2, 0);
+    knot.quaternion.setFromUnitVectors(_v2.set(0, 1, 0), up); knot.scale.setScalar(R * 0.16 * (b.popped ? 0.7 : 1));
+  }
   mouthOpen = lerp(mouthOpen, tm, 0.3); mouthWide = lerp(mouthWide, tw, 0.2);
   const mp = surfWorld(b, 0, 0.44), mn = surfNormal(b, 0, 0.44);
   mouth.position.copy(mp).addScaledVector(mn, -R * 0.035);
@@ -2024,6 +2159,11 @@ function stepParticles(fs) {
     p.x += p.vx * fs; p.y += p.vy * fs; p.z += p.vz * fs; p.vy += G * fs; p.life -= fs;
     if (p.y > floorY - 2) { p.y = floorY - 2; p.vy *= -0.3; p.vx *= 0.7; p.vz *= 0.7; }
   }
+  for (const p of dropPool) if (p.life > 0) {
+    p.x += p.vx * fs; p.y += p.vy * fs; p.z += p.vz * fs; p.vy += G * 0.8 * fs; p.life -= fs;
+    if (p.y > floorY - 1) { p.life = 0; if (Math.random() < 0.15) addPuddle(p.x, 18); }
+  }
+  for (const p of puddles) if (p.life > 0) { p.life -= fs; p.r = lerp(p.r, p.target, 0.06); }
   boomLight.intensity *= Math.pow(0.82, fs);
   flashT *= Math.pow(0.8, fs);
 }
@@ -2043,6 +2183,17 @@ function renderParticles() {
   for (const p of shardPool) {
     if (p.life <= 0) { p.m.visible = false; continue; }
     p.m.position.set(wx(p.x), wy(p.y), p.z); p.m.rotation.x += p.rs; p.m.rotation.y += p.rs * 0.7;
+  }
+  for (const p of dropPool) {
+    if (p.life <= 0) { p.m.visible = false; continue; }
+    const sp = Math.hypot(p.vx, p.vy);
+    p.m.position.set(wx(p.x), wy(p.y), p.z); p.m.scale.set(p.s, p.s * (1 + Math.min(1.2, sp * 0.06)), p.s);
+    p.m.rotation.z = Math.atan2(p.vx, p.vy);
+  }
+  for (const p of puddles) {
+    p.m.visible = p.life > 0; if (!p.m.visible) continue;
+    p.m.position.set(wx(p.x), 0.6, p.z); p.m.scale.set(p.r * p.sx, 1, p.r * 0.7);
+    p.m.material.opacity = 0.75 * Math.min(1, p.life / 300);
   }
   flashSprite.material.opacity = flashT;
 }
@@ -2113,10 +2264,15 @@ function syncScene() {
   updateBlobMesh(fella.head); updateBlobMesh(fella.torso);
   for (const L of fella.limbs) updateLimbMesh(L);
   updateFace(); updateExtremities();
-  inflateTint(fella.head, skinMat); inflateTint(fella.torso, clothMat);
-  inflateTint(fella.armL.inflate > fella.armR.inflate ? fella.armL : fella.armR, limbSkinMat);
-  inflateTint(fella.legL.inflate > fella.legR.inflate ? fella.legL : fella.legR, legMat);
-  plainSkin.color.set(COL.skin).lerp(_soot, soot * 0.75);
+  if (isBB) {
+    for (const k of ['head', 'torso', 'armL', 'armR', 'legL', 'legR']) liquidTint(fella[k], bMats[k]);
+    liquidTint(null, bMats.plain);
+  } else {
+    inflateTint(fella.head, skinMat); inflateTint(fella.torso, clothMat);
+    inflateTint(fella.armL.inflate > fella.armR.inflate ? fella.armL : fella.armR, limbSkinMat);
+    inflateTint(fella.legL.inflate > fella.legR.inflate ? fella.legL : fella.legR, legMat);
+    plainSkin.color.set(COL.skin).lerp(_soot, soot * 0.75);
+  }
   for (const o of props) {
     if (!o.mesh) makePropMesh(o);
     o.mesh.position.set(wx(o.x), wy(o.y), 0);
@@ -2262,6 +2418,7 @@ function init() {
   buildTools(); selectTool('hand', true); hint("Grab Rodney's face and pull. Pick other toys from the tray below.");
   document.getElementById('uFree').classList.toggle('on', save.free);
   if (save.muted) { document.getElementById('uSound').classList.add('on'); document.getElementById('soundLabel').textContent = 'Muted'; document.getElementById('waves').style.display = 'none'; }
+  applyChar();
   updateMalformed();
   new ResizeObserver(() => resize()).observe(wrap);
   document.getElementById('loading').remove();
