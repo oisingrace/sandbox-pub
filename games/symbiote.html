@@ -1,0 +1,3705 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Symbiote (beta)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" />
+  <style>
+    :root {
+      --bg: rgba(10, 16, 12, 0.72);
+      --fg: #eef6ea;
+      --dim: #9fb0a0;
+      --slime: #7cff4f;
+      --warn: #ffc93c;
+      --bad: #ff4d5e;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #8fb7a0; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg); user-select: none; -webkit-user-select: none; touch-action: none; }
+    #app canvas { display: block; }
+    .hidden { display: none !important; }
+    .panel { position: fixed; background: var(--bg); backdrop-filter: blur(6px); border-radius: 12px; }
+
+    #objectives { top: 14px; left: 14px; padding: 10px 12px; width: min(330px, calc(100vw - 200px)); font-size: 12px; line-height: 1.35; }
+    #objectives h3 { margin: 0 0 6px; font: 15px "Russo One", system-ui, sans-serif; color: var(--slime); }
+    #objList { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+    #objList li { display: grid; grid-template-columns: 16px 1fr; gap: 6px; align-items: start; }
+    #objList i { width: 14px; height: 14px; margin-top: 1px; border: 1.5px solid var(--dim); border-radius: 3px; font-style: normal; font-size: 11px; line-height: 11px; text-align: center; color: #0b1a06; }
+    #objList li.done i { background: var(--slime); border-color: var(--slime); }
+    #objList li.done span { color: var(--dim); text-decoration: line-through; }
+    #objList em { font-style: normal; font-weight: 700; color: var(--warn); margin-right: 5px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    #alarm { top: 14px; right: 14px; padding: 9px 12px; width: 170px; font-size: 12px; }
+    #alarm .label { display: flex; justify-content: space-between; font-weight: 700; }
+    #alarm .bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.15); margin-top: 5px; overflow: hidden; }
+    #alarm .bar i { display: block; height: 100%; width: 0; background: var(--warn); transition: width 0.1s; }
+    #alarm.alert { background: rgba(120, 12, 24, 0.8); animation: pulse 0.6s infinite alternate; }
+    #alarm.alert .bar i { background: var(--bad); }
+    #alarm .note { color: var(--dim); font-size: 11px; margin-top: 4px; }
+    @keyframes pulse { from { box-shadow: 0 0 0 rgba(255,77,94,0); } to { box-shadow: 0 0 22px rgba(255,77,94,0.8); } }
+
+    #hostcard { left: 50%; transform: translateX(-50%); bottom: 14px; padding: 10px 14px; width: min(340px, calc(100vw - 28px)); font-size: 12px; }
+    #hostcard .row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+    #hostcard .row span { width: 50px; color: var(--dim); }
+    #hostcard .bar { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.15); overflow: hidden; }
+    #hostcard .bar i { display: block; height: 100%; width: 100%; }
+    #hostLabel { font-family: "Russo One", sans-serif; font-size: 15px; }
+    #hostItems { color: var(--dim); font-size: 12px; margin-top: 2px; }
+    #hostcard.exposed { background: rgba(110, 14, 22, 0.82); animation: pulse 0.4s infinite alternate; }
+    #hostcard.exposed #hostItems { color: #ffd0d4; font-weight: 700; }
+    #spotted { color: var(--bad); font-weight: 700; font-size: 11px; margin-top: 6px; }
+
+    #crosshair { position: fixed; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px; border: 2px solid rgba(255,255,255,0.85); border-radius: 50%; pointer-events: none; box-shadow: 0 0 4px rgba(0,0,0,0.6); }
+    #crosshair::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: #fff; }
+    #crosshair.person { border-color: var(--slime); transform: scale(1.25); }
+
+    #toast { position: fixed; left: 50%; top: 24%; transform: translateX(-50%); font-family: "Russo One", sans-serif; font-size: 22px; text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,0.8); pointer-events: none; transition: opacity 0.4s; opacity: 0; width: 90vw; }
+    #toast small { display: block; font-family: system-ui, sans-serif; font-size: 14px; margin-top: 4px; }
+
+    .screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(14, 34, 18, 0.82), rgba(4, 10, 6, 0.95)); z-index: 20; padding: 16px; overflow-y: auto; }
+    .card { width: min(620px, 100%); margin: auto; }
+    /* The menu sits over a live view of the level from the sky. */
+    #menu.screen { background: linear-gradient(90deg, rgba(4,10,6,0.94) 0%, rgba(4,10,6,0.82) 34%, rgba(4,10,6,0.25) 58%, rgba(4,10,6,0) 72%); justify-content: flex-start; padding: 28px clamp(16px, 5vw, 64px); }
+    #menu .card { width: min(500px, 100%); margin: auto 0; }
+    #menu .tag { display: inline-block; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--slime); opacity: 0.8; margin-top: 2px; }
+    #menu .controls { font-size: 12px; margin-top: 8px; }
+    #menu details.ctl summary { cursor: pointer; color: var(--dim); font-size: 13px; font-weight: 600; }
+    #menu details.ctl summary:hover { color: var(--fg); }
+    body:not(.touch) #menu .controls .t { display: none; }
+    body.touch #menu .controls > :not(.t) { display: none; }
+    #menu .btns { margin: 14px 0; }
+    #menu .btn.primary { font-size: 20px; padding: 14px 34px; }
+    @media (max-width: 760px) {
+      #menu.screen { background: linear-gradient(180deg, rgba(4,10,6,0.15) 0%, rgba(4,10,6,0.75) 32%, rgba(4,10,6,0.94) 60%); align-items: flex-end; }
+      #menu .card { margin: 34vh 0 0; }
+      #menu .card p { font-size: 14px; }
+      #menu .mission ul { font-size: 12px; }
+    }
+    .card h1 { font-family: "Russo One", sans-serif; font-size: clamp(40px, 9vw, 64px); margin: 0; color: var(--slime); text-shadow: 0 0 24px rgba(124,255,79,0.45); letter-spacing: 0.04em; }
+    .card h2 { font-family: "Russo One", sans-serif; font-size: 28px; margin: 0 0 6px; }
+    .card p { color: var(--dim); line-height: 1.5; margin: 8px 0 16px; }
+    .mission { border: 1px solid rgba(124,255,79,0.25); background: rgba(124,255,79,0.07); border-radius: 12px; padding: 14px; }
+    .mission b { font-family: "Russo One", sans-serif; font-size: 18px; }
+    .mission ul { margin: 8px 0 0; padding-left: 18px; color: var(--dim); font-size: 13px; line-height: 1.6; }
+    .mission ul em { font-style: normal; color: var(--warn); font-weight: 700; }
+    .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    .btn { border: 0; border-radius: 10px; padding: 11px 18px; font: 600 15px system-ui, sans-serif; cursor: pointer; background: rgba(255,255,255,0.12); color: var(--fg); }
+    .btn.primary { background: var(--slime); color: #0b1a06; }
+    .controls { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; color: var(--dim); margin-top: 18px; }
+    .controls b { color: var(--fg); font-weight: 600; }
+    kbd { display: inline-block; min-width: 20px; padding: 0 5px; border-radius: 4px; background: rgba(255,255,255,0.14); font: 600 11px/18px ui-monospace, monospace; text-align: center; color: var(--fg); }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+    .stats div { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 10px; text-align: center; font-size: 12px; color: var(--dim); }
+    .stats b { display: block; font-size: 20px; color: var(--fg); font-family: "Russo One", sans-serif; }
+
+    #pausebtn { position: fixed; top: 14px; right: 196px; width: 36px; height: 36px; border-radius: 10px; border: 0; background: var(--bg); color: var(--fg); font-size: 16px; cursor: pointer; }
+
+    /* Touch controls */
+    #touch { position: fixed; inset: 0; pointer-events: none; }
+    #stick { position: fixed; left: 22px; bottom: 24px; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25); background: rgba(0,0,0,0.12); }
+    #stick i { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px; border-radius: 50%; background: rgba(255,255,255,0.35); }
+    .tbtn { position: fixed; border-radius: 50%; pointer-events: auto; font: 700 11px system-ui; letter-spacing: 0.06em; }
+    #launchbtn { right: 22px; bottom: 30px; width: 92px; height: 92px; border: 2px solid rgba(124,255,79,0.8); background: rgba(124,255,79,0.25); color: var(--slime); }
+    #itembtn { right: 128px; bottom: 40px; width: 66px; height: 66px; border: 2px solid rgba(255,201,60,0.7); background: rgba(0,0,0,0.3); color: var(--warn); }
+    @media (max-width: 640px) {
+      #objectives { width: auto; max-width: calc(100vw - 162px); font-size: 11px; }
+      #objList span { font-size: 0; }
+      #objList em { font-size: 10px; }
+      #alarm .note { display: none; }
+      #alarm { width: 120px; }
+      #pausebtn { right: 14px; top: 84px; }
+    }
+    body.touch #hostcard { bottom: auto; left: auto; right: 14px; transform: none; width: 120px; top: 130px; padding: 8px 10px; font-size: 11px; }
+    body.touch #hostcard .row span { display: none; }
+    body.touch #hostLabel { font-size: 12px; }
+    body.touch #hostItems, body.touch #spotted { font-size: 10px; }
+    body.touch #toast { top: 40%; font-size: 18px; }
+  </style>
+  <script type="application/json" id="patch-notes">
+  [
+    { "version": "0.6", "date": "2026-10-09", "title": "Sky view",
+      "notes": [
+        "New main menu: behind it, the camera circles slowly over Hollow Hill from the sky while the town and compound go about their day, like Smash Lot and Swing.",
+        "The menu card sits on the left with the level showing beside it. On phones it sits lower so the level shows above it.",
+        "Controls are folded away under a Controls button, and phones only show the touch controls."
+      ] },
+    { "version": "0.5", "date": "2026-10-09", "title": "Smoother still",
+      "notes": [
+        "People far away no longer stutter. They used to jump between spots because they only update every few frames. Now their movement is spread across those frames.",
+        "Everyone turns smoothly instead of in steps on high refresh-rate screens.",
+        "The camera eases back out after a wall pushes it in, instead of snapping.",
+        "Shadows no longer shimmer and crawl as you move.",
+        "The slime speeds up and slows down when crawling instead of starting and stopping instantly.",
+        "Faster drawing: small details on people (eyes, hands, ties, cap brims) are skipped far away and don't cast shadows. About a fifth fewer draw calls.",
+        "The level intro no longer says a miss means you die."
+      ] },
+    { "version": "0.4", "date": "2026-10-09", "title": "Puddle",
+      "notes": [
+        "The slime crawls almost three times faster outside a body.",
+        "Drying out is slow now (about 25 seconds). People are the danger instead.",
+        "Anyone who spots the slime close by chases it and stamps on it. Three stamps and you're done. While their foot is in the air you can't get into them, so dodge the stamp, then go in.",
+        "Guards and bodyguards shoot a slime on sight, even before a lockdown.",
+        "Sneak up on people who haven't seen you. They're the easy ones to take.",
+        "People no longer spot the body you jumped out of the instant it drops, so the person you jumped at doesn't run off mid-air."
+      ] },
+    { "version": "0.3", "date": "2026-10-09", "title": "Smoother",
+      "notes": [
+        "Arrow keys look around. WASD moves.",
+        "Smoother movement: your host speeds up and slows down instead of snapping, turns to face where it's walking, and runs faster with Shift.",
+        "Smoother motion on high refresh-rate screens: people, the slime and the camera no longer stutter between physics steps.",
+        "Faster: lighter shadows, fewer vision-cone checks, and people far from you update less often."
+      ] },
+    { "version": "0.2", "date": "2026-10-08", "title": "Hollow Hill",
+      "notes": [
+        "You are a slime symbiote. Aim with the crosshair and launch yourself out of your host. Hit someone and you take them over.",
+        "Miss, and you can only crawl while you dry out.",
+        "The host you leave dies. Bodies get found.",
+        "Every human is the same. What matters is what they're holding: a pistol, a sledgehammer, explosive charges, or a keycard.",
+        "One hand-made level, Hollow Hill, with every mission type: stealth, espionage, assassination, destruction and extraction.",
+        "Third-person camera. Low-poly town and compound built with Smash Lot's destruction physics.",
+        "Works with mouse and keyboard or touch."
+      ] }
+  ]
+  </script>
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js"
+    } }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="hud" class="hidden">
+    <div id="objectives" class="panel">
+      <h3>Hollow Hill</h3>
+      <ul id="objList"></ul>
+    </div>
+    <div id="alarm" class="panel">
+      <div class="label"><span id="alarmLabel">CALM</span><span id="alarmPct">0%</span></div>
+      <div class="bar"><i id="alarmBar"></i></div>
+      <div class="note" id="alarmNote"></div>
+    </div>
+    <button id="pausebtn" title="Pause (P)">❚❚</button>
+    <div id="crosshair"></div>
+    <div id="hostcard" class="panel">
+      <div id="hostLabel">Civilian</div>
+      <div id="hostItems"></div>
+      <div class="row" id="hpRow"><span>Health</span><div class="bar"><i id="hpBar" style="background:#ff7b7b"></i></div></div>
+      <div class="row hidden" id="slimeRow"><span>Slime</span><div class="bar"><i id="slimeBar" style="background:var(--slime)"></i></div></div>
+      <div id="spotted" class="hidden">SPOTTED: jump into someone out of sight to lose them</div>
+    </div>
+    <div id="toast"></div>
+  </div>
+
+  <div id="touch" class="hidden">
+    <div id="stick"><i></i></div>
+    <button id="itembtn" class="tbtn">ITEM</button>
+    <button id="launchbtn" class="tbtn">LAUNCH</button>
+  </div>
+
+  <div id="menu" class="screen hidden">
+    <div class="card">
+      <h1>SYMBIOTE</h1>
+      <span class="tag">A host-hopping stealth game</span>
+      <p>You are a slime that lives inside people. Launch yourself out of one body and into the next. Hit someone and they're yours. Miss, and you're a puddle on the floor, and everyone wants to stamp on you. The body you leave behind dies too.</p>
+      <div class="mission">
+        <b>Hollow Hill</b>
+        <ul>
+          <li><em>Stealth</em> Get inside the compound without setting off a lockdown.</li>
+          <li><em>Espionage</em> Download the files in the server room.</li>
+          <li><em>Assassination</em> Take out the Director.</li>
+          <li><em>Destruction</em> Bring down the relay tower.</li>
+          <li><em>Extraction</em> Escape down the storm drain.</li>
+        </ul>
+      </div>
+      <div class="btns"><button class="btn primary" id="playBtn">Play</button></div>
+      <details class="ctl"><summary>Controls</summary>
+      <div class="controls">
+        <b>Look</b><span>Arrow keys <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>, or the mouse (click to capture it)</span>
+        <b>Move</b><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>, <kbd>Shift</kbd> to run</span>
+        <b>Launch</b><span>Hold left mouse to see the arc, let go to jump. Aim at a person.</span>
+        <b>Use item</b><span>Right mouse or <kbd>F</kbd>: pistol, sledgehammer or charges. Keycards work by themselves.</span>
+        <b>Other</b><span><kbd>R</kbd> restart, <kbd>P</kbd> or <kbd>Esc</kbd> pause</span>
+        <b class="t">Touch</b><span class="t">Left stick moves, drag the right side to look, hold LAUNCH to aim and let go to jump. ITEM uses what your host is holding.</span>
+      </div>
+      </details>
+    </div>
+  </div>
+
+  <div id="pause" class="screen hidden">
+    <div class="card">
+      <h2>Paused</h2>
+      <div class="btns">
+        <button class="btn primary" id="resumeBtn">Resume</button>
+        <button class="btn" id="restartBtn">Restart</button>
+        <button class="btn" id="menuBtn">Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="end" class="screen hidden">
+    <div class="card">
+      <h2 id="endTitle"></h2>
+      <p id="endText"></p>
+      <div class="stats" id="endStats"></div>
+      <div class="btns">
+        <button class="btn primary" id="retryBtn">Play again</button>
+        <button class="btn" id="endMenuBtn">Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading" class="screen"><div class="card"><h2>Growing slime…</h2></div></div>
+
+  <script type="module">
+import * as THREE from 'three';
+import RAPIER from '@dimforge/rapier3d-compat';
+
+// ===== destruction.js =====
+// Copied from Smash Lot (src/destruction.js) with the flamethrower removed
+// and the driven car made optional.
+//
+// Rigid-body world for everything the car can smash. Each object kind is
+// drawn with one InstancedMesh, so hundreds of pieces stay cheap. Objects
+// with a `fracture` rule shatter into a grid of smaller kinds when a
+// contact force exceeds their `breakForce`.
+
+async function initRapier() {
+  await RAPIER.init();
+}
+
+const FRACTURES_PER_STEP = 10;
+const BURNS_PER_STEP = 24;
+// Collision groups: (membership << 16) | filter. Driven cars and parked
+// vehicles skip each other in Rapier (a kinematic car would shove a bus
+// like it weighed nothing); carCollision.js resolves those pairs with
+// proper masses instead. Both still hit everything else.
+const GROUP_CAR = (0x0002 << 16) | (0xffff & ~0x0004);
+const GROUP_VEHICLE = (0x0004 << 16) | (0xffff & ~0x0002);
+// Bullet rays: hit everything except the cars (they're checked separately).
+const GROUP_BULLET = (0x0008 << 16) | (0xffff & ~0x0002 & ~0x0004);
+let _ray = null;
+const BLAST_RADIUS = 9;
+const BLAST_SPEED = 16; // m/s of push at the centre
+const MAX_DEBRIS_SPEED = 32;
+// Rapier treats the kinematic car as infinitely heavy; scaling the reaction
+// makes hits feel weighty without making the car bounce off bricks.
+const REACTION_SCALE = 1.6;
+// Momentum the car loses per kg of material it shatters (N·s per kg),
+// standing in for mortar and joints that a loose stack doesn't have.
+const BREAK_DRAG = 7;
+const WORLD_STEP = 1 / 60;
+const STEP = WORLD_STEP;
+// breakForce values are tuned as force over a 1/120 s step; convert to impulse.
+const breakImpulse = (kind) => (kind.breakForce || Infinity) / 120;
+
+// --- Geometry helpers --------------------------------------------------
+
+function colored(geo, hex) {
+  geo = geo.index ? geo.toNonIndexed() : geo;
+  const c = new THREE.Color(hex);
+  const n = geo.attributes.position.count;
+  const arr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+  geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+  geo.deleteAttribute('uv');
+  return geo;
+}
+
+function merge(geos) {
+  let total = 0;
+  for (const g of geos) total += g.attributes.position.count;
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'color']) {
+    const arr = new Float32Array(total * 3);
+    let o = 0;
+    for (const g of geos) { arr.set(g.attributes[name].array, o); o += g.attributes[name].array.length; }
+    out.setAttribute(name, new THREE.BufferAttribute(arr, 3));
+  }
+  return out;
+}
+
+function barrierProfile(w, h, d, topW) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 0) pos.setX(i, pos.getX(i) * (topW / w));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function coneGeo() {
+  const parts = [];
+  const add = (g, hex) => parts.push(colored(g, hex));
+  const base = new THREE.BoxGeometry(0.5, 0.05, 0.5); base.translate(0, -0.275, 0); add(base, 0xff5a1f);
+  const lower = new THREE.CylinderGeometry(0.13, 0.2, 0.25, 14); lower.translate(0, -0.125, 0); add(lower, 0xff5a1f);
+  const band = new THREE.CylinderGeometry(0.09, 0.13, 0.17, 14); band.translate(0, 0.085, 0); add(band, 0xf5f5f5);
+  const tip = new THREE.CylinderGeometry(0.02, 0.09, 0.2, 14); tip.translate(0, 0.27, 0); add(tip, 0xff5a1f);
+  return merge(parts);
+}
+
+function poleGeo() {
+  const pole = colored(new THREE.CylinderGeometry(0.1, 0.14, 7, 10), 0x9a9da3);
+  const arm = new THREE.BoxGeometry(1.0, 0.1, 0.12); arm.translate(0.45, 3.35, 0);
+  const lamp = new THREE.BoxGeometry(0.5, 0.14, 0.3); lamp.translate(0.85, 3.28, 0);
+  return merge([pole, colored(arm, 0x8a8d93), colored(lamp, 0xfff2c4)]);
+}
+
+function treeGeo() {
+  const trunk = colored(new THREE.CylinderGeometry(0.16, 0.24, 3, 8), 0x6b4a2f);
+  const f1 = new THREE.ConeGeometry(1.6, 2.6, 8); f1.translate(0, 2.0, 0);
+  const f2 = new THREE.ConeGeometry(1.15, 2.0, 8); f2.translate(0, 3.0, 0);
+  return merge([trunk, colored(f1, 0x3f7a3a), colored(f2, 0x4f8f45)]);
+}
+
+function fuelGeo() {
+  const body = colored(new THREE.CylinderGeometry(0.3, 0.3, 0.9, 18), 0xc81e1e);
+  const band = new THREE.CylinderGeometry(0.305, 0.305, 0.18, 18); band.translate(0, 0.05, 0);
+  const rings = [-0.3, 0.38].map((y) => { const g = new THREE.CylinderGeometry(0.31, 0.31, 0.04, 18); g.translate(0, y, 0); return colored(g, 0x2a1a1a); });
+  return merge([body, colored(band, 0xf2c230), ...rings]);
+}
+
+function pinGeo() {
+  const profile = [[0.001, -1.2], [0.26, -1.2], [0.36, -0.85], [0.38, -0.55], [0.3, -0.1], [0.17, 0.3],
+    [0.16, 0.45], [0.22, 0.75], [0.24, 0.95], [0.18, 1.12], [0.001, 1.2]].map(([r, y]) => new THREE.Vector2(r, y));
+  const body = colored(new THREE.LatheGeometry(profile, 16), 0xf6f3ec);
+  const stripes = [0.33, 0.47].map((y) => { const g = new THREE.CylinderGeometry(0.172, 0.168, 0.06, 16); g.translate(0, y, 0); return colored(g, 0xc8242b); });
+  return merge([body, ...stripes]);
+}
+
+function fenceGeo() {
+  const parts = [];
+  for (let i = 0; i < 6; i++) {
+    const picket = new THREE.BoxGeometry(0.14, 1.0, 0.04);
+    picket.translate(-0.83 + i * 0.333, 0, 0);
+    parts.push(colored(picket, 0xf1ece2));
+  }
+  for (const y of [-0.25, 0.25]) {
+    const rail = new THREE.BoxGeometry(2.0, 0.09, 0.04);
+    rail.translate(0, y, -0.035);
+    parts.push(colored(rail, 0xd8d0c2));
+  }
+  return merge(parts);
+}
+
+function canopyGeo() {
+  const roof = colored(new THREE.BoxGeometry(12, 0.5, 8), 0xf4f4f2);
+  const fascia = new THREE.BoxGeometry(12.04, 0.22, 8.04); fascia.translate(0, 0.08, 0);
+  return merge([roof, colored(fascia, 0xd7263d)]);
+}
+
+function pumpGeo() {
+  const body = colored(new THREE.BoxGeometry(0.8, 1.8, 0.5), 0x2f9e5b);
+  const face = new THREE.BoxGeometry(0.6, 0.5, 0.52); face.translate(0, 0.45, 0);
+  const top = new THREE.BoxGeometry(0.84, 0.16, 0.54); top.translate(0, 0.86, 0);
+  return merge([body, colored(face, 0x1b1d22), colored(top, 0xf4f4f2)]);
+}
+
+// --- Object kinds ------------------------------------------------------
+// size = full extents of the collider box (or [radius, height] for cylinders).
+
+const BRICK_COLORS = [0xa34a32, 0xb2553a, 0x93412c, 0xa85b42, 0x8e3e2b];
+const CONCRETE = [0xb8b5ad, 0xaeaba3, 0xc2bfb7];
+const WOOD = [0xb58a52, 0xa77d48, 0xc0965c];
+const FACADE = [0xd9cbb3, 0xcfc0a6, 0xe0d3bd];
+
+const KINDS = {
+  brick: { size: [0.6, 0.3, 0.3], mass: 12, colors: BRICK_COLORS, material: 'brick', breakForce: 14000, fracture: { into: 'brickHalf', grid: [2, 1, 1] }, cap: 800 },
+  brickHalf: { size: [0.3, 0.3, 0.3], mass: 6, colors: BRICK_COLORS, material: 'brick', cap: 900 },
+
+  crate: { size: [1, 1, 1], mass: 40, colors: WOOD, material: 'wood', breakForce: 26000, fracture: { into: 'crateChunk', grid: [2, 2, 2] }, cap: 160 },
+  crateChunk: { size: [0.5, 0.5, 0.5], mass: 5, colors: WOOD, material: 'wood', cap: 700 },
+
+  block: { size: [1, 1, 1], mass: 220, colors: CONCRETE, material: 'concrete', breakForce: 150000, fracture: { into: 'blockChunk', grid: [2, 2, 2] }, cap: 950 },
+  lintel: { size: [4, 1, 1], mass: 880, colors: CONCRETE, material: 'concrete', breakForce: 300000, fracture: { into: 'block', grid: [4, 1, 1] }, cap: 14 },
+  blockChunk: { size: [0.5, 0.5, 0.5], mass: 27, colors: CONCRETE, material: 'concrete', cap: 1200 },
+
+  plank: { size: [4.4, 0.2, 1], mass: 60, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankHalf', grid: [2, 1, 1] }, cap: 80 },
+  plankHalf: { size: [2.2, 0.2, 1], mass: 30, colors: WOOD, material: 'wood', breakForce: 30000, fracture: { into: 'plankBit', grid: [2, 1, 1] }, cap: 160 },
+  plankBit: { size: [1.1, 0.2, 1], mass: 15, colors: WOOD, material: 'wood', cap: 320 },
+
+  slab: { size: [0.3, 2.2, 1.2], mass: 90, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', breakForce: 70000, fracture: { into: 'slabHalf', grid: [1, 2, 1] }, cap: 80 },
+  slabHalf: { size: [0.3, 1.1, 1.2], mass: 45, colors: [0xe8e4da, 0xd9534f, 0x3d7dd8, 0xf2c230], material: 'concrete', cap: 160 },
+
+  barrier: { size: [0.6, 0.9, 3], mass: 700, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', breakForce: 420000, fracture: { into: 'barrierChunk', grid: [1, 1, 3] }, geo: () => barrierProfile(0.6, 0.9, 3, 0.26), cap: 420 },
+  barrierChunk: { size: [0.6, 0.9, 1], mass: 233, colors: [0xe9e6df, 0xd9d5cc], material: 'concrete', geo: () => barrierProfile(0.6, 0.9, 1, 0.26), cap: 400 },
+
+  barrel: { shape: 'cyl', size: [0.32, 0.95], mass: 22, colors: [0xc8342b, 0x2f6fb3, 0xe0a526, 0x4c8c3a], material: 'metal', restitution: 0.25, cap: 150 },
+  cone: { shape: 'cyl', size: [0.2, 0.6], mass: 3, colors: [0xffffff], material: 'plastic', geo: coneGeo, restitution: 0.3, cap: 300 },
+
+  pole: { shape: 'cyl', size: [0.13, 7], mass: 150, colors: [0xffffff], material: 'metal', breakForce: 90000, fracture: { into: 'poleHalf', grid: [1, 2, 1] }, geo: poleGeo, cap: 200 },
+  poleHalf: { shape: 'cyl', size: [0.13, 3.5], mass: 75, colors: [0x9a9da3], material: 'metal', cap: 300 },
+
+  // Office building pieces.
+  panel: { size: [2, 1.2, 0.4], mass: 500, colors: FACADE, material: 'concrete', breakForce: 250000, fracture: { into: 'panelChunk', grid: [2, 2, 1] }, cap: 1000 },
+  panelChunk: { size: [1, 0.6, 0.4], mass: 125, colors: FACADE, material: 'concrete', cap: 700 },
+  pillar: { size: [0.5, 1.5, 0.4], mass: 180, colors: FACADE, material: 'concrete', breakForce: 90000, fracture: { into: 'pillarChunk', grid: [1, 2, 1] }, cap: 720 },
+  pillarChunk: { size: [0.5, 0.75, 0.4], mass: 90, colors: FACADE, material: 'concrete', cap: 400 },
+  floorSlab: { size: [2, 0.3, 6.8], mass: 900, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', breakForce: 400000, fracture: { into: 'floorChunk', grid: [2, 1, 2] }, cap: 280 },
+  floorChunk: { size: [1, 0.3, 3.4], mass: 225, colors: [0xa9a59c, 0x9f9b92], material: 'concrete', cap: 360 },
+  glass: { size: [0.75, 1.44, 0.06], mass: 6, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, breakForce: 1500, fracture: { into: 'shard', grid: [2, 2, 1] }, cap: 1250 },
+  shard: { size: [0.375, 0.72, 0.06], mass: 1.5, colors: [0x9fd4ee, 0x8fc9e6], material: 'glass', glass: true, noCcd: true, lifetime: 6, cap: 700 },
+
+  // Explosive fuel drums: a hard hit (or the Ember) sets them off.
+  fuel: { shape: 'cyl', size: [0.3, 0.9], mass: 35, colors: [0xffffff], material: 'metal', geo: fuelGeo, explosive: true, breakForce: 9000, cap: 160 },
+
+  // Giant bowling pins.
+  pin: { shape: 'cyl', size: [0.36, 2.4], mass: 40, colors: [0xffffff], material: 'plastic', geo: pinGeo, restitution: 0.35, cap: 12 },
+
+  // Shipping containers split into sections.
+  container: { matte: true, size: [6.1, 2.6, 2.44], mass: 2500, colors: [0xe0583f, 0x4a90dc, 0x48b873, 0xf29a3e, 0x9370cc], material: 'metal', breakForce: 900000, fracture: { into: 'containerSection', grid: [3, 1, 1] }, cap: 60 },
+  containerSection: { matte: true, size: [2.0333, 2.6, 2.44], mass: 833, colors: [0xe0583f, 0x4a90dc, 0x48b873, 0xf29a3e, 0x9370cc], material: 'metal', cap: 160 },
+
+  // Water tower: four legs, a platform and a tank.
+  steelLeg: { size: [0.3, 7, 0.3], mass: 140, colors: [0x7d848c], material: 'metal', breakForce: 80000, fracture: { into: 'legHalf', grid: [1, 2, 1] }, cap: 8 },
+  legHalf: { size: [0.3, 3.5, 0.3], mass: 70, colors: [0x7d848c], material: 'metal', cap: 16 },
+  platform: { matte: true, size: [3.6, 0.3, 3.6], mass: 600, colors: [0x6c737b], material: 'metal', breakForce: 260000, fracture: { into: 'platformChunk', grid: [2, 1, 2] }, cap: 2 },
+  platformChunk: { matte: true, size: [1.8, 0.3, 1.8], mass: 150, colors: [0x6c737b], material: 'metal', cap: 8 },
+  tank: { matte: true, shape: 'cyl', size: [1.6, 2.6], mass: 1400, colors: [0x7fb0cf], material: 'metal', breakForce: 650000, fracture: { into: 'tankChunk', grid: [2, 2, 2] }, cap: 2 },
+  tankChunk: { matte: true, size: [1.6, 1.3, 1.6], mass: 175, colors: [0x7fb0cf], material: 'metal', cap: 16 },
+
+  // Picket fence panels.
+  fence: { size: [2, 1, 0.08], mass: 14, colors: [0xffffff], material: 'wood', geo: fenceGeo, breakForce: 2600, fracture: { into: 'fenceBit', grid: [4, 1, 1] }, cap: 100 },
+  fenceBit: { size: [0.5, 1, 0.08], mass: 3.5, colors: [0xf1ece2], material: 'wood', cap: 300 },
+
+  // Gas station.
+  canopy: { matte: true, size: [12, 0.5, 8], mass: 3000, colors: [0xffffff], material: 'metal', geo: canopyGeo, breakForce: 900000, fracture: { into: 'canopyChunk', grid: [3, 1, 2] }, cap: 2 },
+  canopyChunk: { matte: true, size: [4, 0.5, 4], mass: 500, colors: [0xf4f4f2], material: 'metal', cap: 12 },
+  column: { size: [0.5, 4.5, 0.5], mass: 400, colors: [0xe6e2d8], material: 'concrete', breakForce: 140000, fracture: { into: 'columnChunk', grid: [1, 3, 1] }, cap: 40 },
+  columnChunk: { size: [0.5, 1.5, 0.5], mass: 133, colors: [0xe6e2d8], material: 'concrete', cap: 120 },
+  pump: { matte: true, size: [0.8, 1.8, 0.5], mass: 150, colors: [0xffffff], material: 'metal', geo: pumpGeo, breakForce: 50000, fracture: { into: 'pumpChunk', grid: [1, 2, 1] }, cap: 8 },
+  pumpChunk: { matte: true, size: [0.8, 0.9, 0.5], mass: 75, colors: [0x2f9e5b], material: 'metal', cap: 16 },
+
+  tree: { shape: 'tree', size: [0.22, 3], mass: 320, colors: [0xffffff], material: 'wood', geo: treeGeo, cap: 100 },
+};
+
+// --- Instanced rendering pool -------------------------------------------
+
+class Pool {
+  constructor(scene, kind) {
+    this.kind = kind;
+    let geo;
+    if (kind.geo) geo = kind.geo();
+    else if (kind.shape === 'cyl') geo = new THREE.CylinderGeometry(kind.size[0], kind.size[0], kind.size[1], 16);
+    else geo = new THREE.BoxGeometry(...kind.size);
+    const mat = kind.glass
+      ? new THREE.MeshStandardMaterial({ roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.45, depthWrite: false })
+      : new THREE.MeshStandardMaterial({
+        // Painted metal (containers, tanks) reads better matte without reflections.
+        roughness: kind.material === 'metal' && !kind.matte ? 0.45 : 0.85,
+        metalness: kind.material === 'metal' && !kind.matte ? 0.35 : 0,
+        vertexColors: !!geo.attributes.color,
+      });
+    this.mesh = new THREE.InstancedMesh(geo, mat, kind.cap);
+    this.mesh.count = 0;
+    this.mesh.castShadow = !kind.glass;
+    this.mesh.receiveShadow = true;
+    this.mesh.frustumCulled = false;
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.setColorAt(0, new THREE.Color()); // allocate instanceColor
+    this.entities = [];
+    scene.add(this.mesh);
+  }
+
+  get full() {
+    return this.entities.length >= this.kind.cap;
+  }
+
+  add(entity, color) {
+    entity.slot = this.entities.length;
+    this.entities.push(entity);
+    this.mesh.setColorAt(entity.slot, color);
+    this.mesh.instanceColor.needsUpdate = true;
+    this.mesh.count = this.entities.length;
+  }
+
+  remove(entity) {
+    const last = this.entities.pop();
+    if (last !== entity) {
+      this.entities[entity.slot] = last;
+      last.slot = entity.slot;
+      this.mesh.setColorAt(last.slot, last.color);
+      this.mesh.instanceColor.needsUpdate = true;
+      last.dirty = true;
+    }
+    this.mesh.count = this.entities.length;
+  }
+
+  clear() {
+    this.entities.length = 0;
+    this.mesh.count = 0;
+  }
+}
+
+// --- The destructible world -------------------------------------------
+
+const _m = new THREE.Matrix4();
+const _p = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+const _s = new THREE.Vector3(1, 1, 1);
+const _v = new THREE.Vector3();
+const _sv = new THREE.Vector3();
+const _euler = new THREE.Euler();
+const _carQ = new THREE.Quaternion();
+
+/** Bounds of a vehicle's hitbox in its own frame. */
+function hitboxBounds(def) {
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  for (const h of def.hitbox) {
+    for (let i = 0; i < 3; i++) {
+      lo[i] = Math.min(lo[i], h.at[i] - h.half[i]);
+      hi[i] = Math.max(hi[i], h.at[i] + h.half[i]);
+    }
+  }
+  return { lo, hi };
+}
+
+/** Stand-in for the body of a frozen object (see Destruction.stream). */
+function frozenBody(f) {
+  const zero = { x: 0, y: 0, z: 0 };
+  return {
+    handle: -1,
+    translation: () => ({ x: f.x, y: f.y, z: f.z }),
+    rotation: () => f.q,
+    linvel: () => zero,
+    angvel: () => zero,
+    isSleeping: () => true,
+    isDynamic: () => true,
+    sleep() {},
+    wakeUp() {},
+  };
+}
+
+/** The car's full orientation: heading, plus pitch and roll on ramps and in the air. */
+function carRotation(car) {
+  _euler.set(-(car.pitch || 0), car.heading, car.roll || 0, 'YXZ');
+  _carQ.setFromEuler(_euler);
+  return { x: _carQ.x, y: _carQ.y, z: _carQ.z, w: _carQ.w };
+}
+
+class Destruction {
+  constructor(scene, groundHalfSize) {
+    this.scene = scene;
+    this.groundHalfSize = groundHalfSize;
+    this.recycleRange = 200;
+    this.options = { debrisLimit: 600, breakage: 'detailed', debrisLifetime: 60, physicsQuality: 4 };
+    this.pools = {};
+    for (const [name, kind] of Object.entries(KINDS)) {
+      kind.name = name;
+      this.pools[name] = new Pool(scene, kind);
+    }
+    this.listeners = { impact: [], fracture: [], burn: [], explode: [] };
+    this.createWorld();
+  }
+
+  /** Apply the player's destruction settings (see settings.js). */
+  configure(opts) {
+    Object.assign(this.options, opts);
+    if (this.world) this.world.numSolverIterations = this.options.physicsQuality;
+    this.enforceBudget();
+  }
+
+  on(event, fn) {
+    this.listeners[event].push(fn);
+  }
+
+  emit(event, ...args) {
+    for (const fn of this.listeners[event]) fn(...args);
+  }
+
+  createWorld() {
+    if (this.world) this.world.free();
+    this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+    this.world.timestep = STEP;
+    this.world.numSolverIterations = this.options.physicsQuality;
+    this.eventQueue = new RAPIER.EventQueue(true);
+    this.byCollider = new Map();
+    this.fragments = [];
+    this.breakQueue = [];
+    this.pendingBlasts = [];
+    this.blastJ = { x: 0, z: 0 };
+    this.bodyCount = 0;
+    this.debrisCount = 0;
+    this.frozenCount = 0;
+    this.time = 0;
+    this.sites = [];
+    this.siteNow = null;
+    this.loose = new Set();
+    for (const pool of Object.values(this.pools)) pool.clear();
+    // Step without rebuilding the scene-query structure every time (see queries()).
+    const w = this.world;
+    w.step = (events, hooks) => {
+      w.physicsPipeline.step(w.gravity, w.integrationParameters, w.islands, w.broadPhase, w.narrowPhase,
+        w.bodies, w.colliders, w.impulseJoints, w.multibodyJoints, w.ccdSolver, events, hooks);
+      this.queryDirty = true;
+    };
+    this.queryDirty = true;
+
+    const ground = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.5, 0));
+    this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(this.groundHalfSize, 0.5, this.groundHalfSize).setFriction(0.8),
+      ground,
+    );
+    this.statics?.addColliders(this.world); // the map's ramps and walls
+    this.carBody = null;
+    // Remote players' cars survive a rebuild: recreate their bodies.
+    for (const r of this.remoteCars?.values() || []) this.buildRemoteBody(r);
+  }
+
+  /** Kinematic stand-in for the vehicle being driven (it pushes; we read reactions). */
+  createCar(def) {
+    if (this.carBody) this.world.removeRigidBody(this.carBody);
+    this.lastCarPose = null;
+    this.carBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
+    this.burner = !!def.burns;
+    // Bounds of the hitbox in the car frame, for the burn query.
+    const lo = [Infinity, Infinity, Infinity];
+    const hi = [-Infinity, -Infinity, -Infinity];
+    for (const h of def.hitbox) {
+      for (let i = 0; i < 3; i++) {
+        lo[i] = Math.min(lo[i], h.at[i] - h.half[i]);
+        hi[i] = Math.max(hi[i], h.at[i] + h.half[i]);
+      }
+    }
+    this.carBounds = { lo, hi };
+    this.carColliders = def.hitbox.map((h) => this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4).setCollisionGroups(GROUP_CAR),
+      this.carBody,
+    ));
+  }
+
+  /**
+   * A parked vehicle: a dynamic body that rests on four wheel spheres, so
+   * it can be shoved, spun and flipped like everything else.
+   */
+  spawnVehicle(def, pose, vel = null) {
+    const { spec } = def;
+    const h = pose.heading;
+    const desc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(pose.x, pose.y ?? 0, pose.z)
+      .setRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) })
+      .setLinearDamping(0.15)
+      .setAngularDamping(0.4)
+      .setSleeping(!vel);
+    if (vel) {
+      desc.setLinvel(vel.x, 0, vel.z);
+      desc.setAngvel({ x: 0, y: vel.yaw, z: 0 });
+    }
+    const body = this.world.createRigidBody(desc);
+    const volume = (b) => b.half[0] * b.half[1] * b.half[2];
+    const totalVol = def.hitbox.reduce((sum, b) => sum + volume(b), 0);
+    const events = RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS;
+    const colliders = def.hitbox.map((b) => this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(...b.half).setTranslation(...b.at)
+        .setMass(spec.mass * 0.96 * volume(b) / totalVol)
+        .setFriction(0.5).setRestitution(0.1)
+        .setActiveEvents(events).setContactForceEventThreshold(spec.mass * 2.5 / STEP)
+        .setCollisionGroups(GROUP_VEHICLE),
+      body,
+    ));
+    const r = spec.wheelRadius;
+    const ht = spec.trackWidth / 2;
+    for (const [x, z] of [[ht, spec.cgToFront], [-ht, spec.cgToFront], [ht, -spec.cgToRear], [-ht, -spec.cgToRear]]) {
+      colliders.push(this.world.createCollider(
+        RAPIER.ColliderDesc.ball(r).setTranslation(x, r, z).setMass(spec.mass * 0.01).setFriction(0.9)
+          .setCollisionGroups(GROUP_VEHICLE),
+        body,
+      ));
+    }
+    const entity = { kind: { name: 'vehicle', mass: spec.mass, material: 'metal' }, body, colliders, alive: true, vehicle: def };
+    for (const c of colliders) this.byCollider.set(c.handle, entity);
+    return entity;
+  }
+
+  removeVehicle(entity) {
+    if (!entity.alive) return;
+    entity.alive = false;
+    for (const c of entity.colliders) this.byCollider.delete(c.handle);
+    this.world.removeRigidBody(entity.body);
+  }
+
+  /**
+   * Another player's car (multiplayer): a kinematic body driven by their
+   * network updates. It pushes, smashes and (for the Ember) burns things in
+   * our world just like our own car, so their destruction shows up here too.
+   */
+  addRemoteCar(key, def, proxy) {
+    this.removeRemoteCar(key);
+    const r = { def, proxy, burner: !!def.burns, bounds: hitboxBounds(def) };
+    (this.remoteCars ||= new Map()).set(key, r);
+    this.buildRemoteBody(r);
+    return r;
+  }
+
+  buildRemoteBody(r) {
+    const p = r.proxy;
+    r.last = null;
+    r.body = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased()
+      .setTranslation(p.x, p.y || 0, p.z).setRotation(carRotation(p)));
+    r.colliders = r.def.hitbox.map((h) => this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(...h.half).setTranslation(...h.at).setFriction(0.4).setCollisionGroups(GROUP_CAR), r.body));
+  }
+
+  removeRemoteCar(key) {
+    const r = this.remoteCars?.get(key);
+    if (!r) return;
+    if (r.body && this.world.getRigidBody(r.body.handle)) this.world.removeRigidBody(r.body);
+    this.remoteCars.delete(key);
+  }
+
+  /** Move a remote or computer-driven car's body straight to its car (no sweep through what's between). */
+  teleportRemoteCar(key) {
+    const r = this.remoteCars?.get(key);
+    if (!r?.body) return;
+    const p = r.proxy;
+    r.body.setTranslation({ x: p.x, y: p.y || 0, z: p.z }, true);
+    r.body.setRotation(carRotation(p), true);
+    r.last = { x: p.x, y: p.y || 0, z: p.z, h: p.heading, p: p.pitch || 0, r: p.roll || 0 };
+  }
+
+  teleportCar(car) {
+    const h = car.heading;
+    this.lastCarPose = { x: car.x, z: car.z, h, y: car.y || 0, p: car.pitch || 0 };
+    this.carBody.setTranslation({ x: car.x, y: car.y || 0, z: car.z }, true);
+    this.carBody.setRotation(carRotation(car), true);
+  }
+
+  /**
+   * Spawn one object.
+   * @param {string} kindName
+   * @param {{x,y,z}} pos  centre of the collider
+   * @param {number|THREE.Quaternion} rot  yaw in radians, or a quaternion
+   */
+  spawn(kindName, pos, rot = 0, opts = {}) {
+    const kind = KINDS[kindName];
+    const pool = this.pools[kindName];
+    if (pool.full) return null;
+    const q = typeof rot === 'number' ? _q.setFromAxisAngle(_v.set(0, 1, 0), rot) : rot;
+    // While the map is being built, structures far from where play starts
+    // are created already frozen (no physics body at all): much quicker.
+    // The decision is per site (made at its first piece), never half a building.
+    const site = opts.fragment ? null : this.siteNow;
+    let prefrozen = false;
+    if (this.prefreeze && !opts.fragment) {
+      if (site) {
+        site.prefrozen ??= this.farFromAll(pos, this.prefreeze);
+        prefrozen = site.prefrozen;
+      } else {
+        prefrozen = this.farFromAll(pos, this.prefreeze);
+      }
+    }
+    let body, colliders, frozen = null;
+    if (prefrozen) {
+      frozen = { x: pos.x, y: pos.y, z: pos.z, q: { x: q.x, y: q.y, z: q.z, w: q.w } };
+      body = frozenBody(frozen);
+      colliders = [];
+      this.frozenCount++;
+    } else {
+      ({ body, colliders } = this.makeBody(kind, pos, q, opts));
+    }
+
+    const color = opts.color ?? new THREE.Color(kind.colors[(Math.random() * kind.colors.length) | 0]);
+    const entity = { kind, body, colliders, color, dirty: true, born: this.time, alive: true, fragment: !!opts.fragment, frozen };
+    pool.add(entity, color);
+    for (const c of colliders) this.byCollider.set(c.handle, entity);
+    this.bodyCount++;
+    if (entity.fragment) this.debrisCount++;
+    if (opts.fragment) this.fragments.push(entity);
+    // Whole structures (a building, a wall) form a site that freezes and
+    // thaws together; see stream().
+    entity.site = site;
+    if (entity.site) entity.site.members.add(entity);
+    else this.loose.add(entity); // loose things and debris freeze one by one
+    return entity;
+  }
+
+  /** The Rapier body and colliders for one object of `kind`. */
+  makeBody(kind, pos, q, opts = {}) {
+    const desc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(pos.x, pos.y, pos.z)
+      .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
+      .setLinearDamping(opts.fragment ? 0.25 : 0.05)
+      .setAngularDamping(opts.fragment ? 0.8 : 0.15)
+      .setSleeping(!!opts.sleep);
+    if (opts.vel) desc.setLinvel(opts.vel.x, opts.vel.y, opts.vel.z);
+    if (opts.angvel) desc.setAngvel(opts.angvel);
+    if (kind.mass < 15 && !kind.noCcd) desc.setCcdEnabled(true);
+    const body = this.world.createRigidBody(desc);
+    this.queryDirty = true;
+
+    const colliders = [];
+    const events = RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS;
+    const threshold = Math.min(breakImpulse(kind), kind.mass * 2.5) / STEP;
+    const finish = (cd, mass) => {
+      cd.setMass(mass)
+        .setFriction(kind.friction ?? 0.7)
+        .setRestitution(kind.restitution ?? 0.08)
+        .setActiveEvents(events)
+        .setContactForceEventThreshold(threshold);
+      colliders.push(this.world.createCollider(cd, body));
+    };
+    if (kind.shape === 'cyl') {
+      finish(RAPIER.ColliderDesc.cylinder(kind.size[1] / 2, kind.size[0]), kind.mass);
+    } else if (kind.shape === 'tree') {
+      finish(RAPIER.ColliderDesc.cylinder(1.5, kind.size[0]), kind.mass * 0.75);
+      finish(RAPIER.ColliderDesc.ball(1.25).setTranslation(0, 2.3, 0), kind.mass * 0.25);
+    } else {
+      finish(RAPIER.ColliderDesc.cuboid(kind.size[0] / 2, kind.size[1] / 2, kind.size[2] / 2), kind.mass);
+    }
+    return { body, colliders };
+  }
+
+  // --- Streaming: far-away structures leave the physics world ------------
+  //
+  // Rapier's step costs time for every body, asleep or not, so a big map
+  // full of buildings would slow every frame. Structures that are asleep
+  // and far from every car are "frozen": their bodies are removed from the
+  // physics world, but they stay drawn exactly where they are. They thaw
+  // (bodies recreated, still asleep) before any car gets near. A structure
+  // spawned between beginSite() and endSite() freezes and thaws as one, so
+  // a building is never half there.
+
+  beginSite() {
+    this.siteNow = { members: new Set(), frozen: false, x: 0, z: 0, r: 0 };
+    this.sites.push(this.siteNow);
+  }
+
+  endSite() {
+    const site = this.siteNow;
+    this.siteNow = null;
+    if (!site?.prefrozen) return;
+    // Created frozen: work out where it is for the thaw check.
+    let sx = 0, sz = 0, n = 0, r = 0;
+    for (const e of site.members) { sx += e.frozen.x; sz += e.frozen.z; n++; }
+    site.x = sx / n;
+    site.z = sz / n;
+    for (const e of site.members) r = Math.max(r, Math.hypot(e.frozen.x - site.x, e.frozen.z - site.z));
+    site.r = r;
+    site.frozen = true;
+  }
+
+  /** Is `pos` comfortably beyond the freeze distance from every point? */
+  farFromAll(pos, points, margin = 115) {
+    return points.every((p) => Math.hypot(p.x - pos.x, p.z - pos.z) > margin);
+  }
+
+  /**
+   * Freeze and thaw around `points` (cars: {x, z}). Call every frame;
+   * it does its work a few times a second.
+   */
+  stream(points, dt, { freezeAt = 100, thawAt = 82, budget = 110, all = false } = {}) {
+    // Small, frequent passes so thawing a district never lands in one frame.
+    this.streamTimer = (this.streamTimer || 0) - dt;
+    if ((this.streamTimer > 0 && !all) || !points.length) return;
+    this.streamTimer = 0.1;
+    // Thawing is checked every pass (cheap: frozen sites remember where
+    // they are); freezing needs a look at every live body, so only every
+    // fifth pass.
+    this.streamPass = ((this.streamPass || 0) + 1) % 5;
+    const scanLive = this.streamPass === 0 || all;
+    if (all) budget = Infinity;
+    let frozeBodies = 0;
+    const near = (x, z, r) => {
+      let best = Infinity;
+      for (const p of points) best = Math.min(best, Math.hypot(p.x - x, p.z - z));
+      return best - r;
+    };
+    const thaws = [];
+    const units = [...this.sites.filter((s) => s.members.size), ...[...this.loose].map((e) => ({ members: [e], single: e }))];
+    for (const u of units) {
+      const frozen = u.single ? !!u.single.frozen : u.frozen;
+      if (frozen) {
+        const c = u.single ? u.single.frozen : u;
+        const d = near(c.x, c.z, u.single ? 0 : u.r);
+        if (d < thawAt) thaws.push({ u, d });
+        continue;
+      }
+      if (!scanLive || frozeBodies >= budget * 3) continue; // freezing is cheaper than thawing
+      // Live: freeze only if everything in it is asleep and far away.
+      let sx = 0, sz = 0, n = 0, asleep = true;
+      for (const e of u.members) {
+        if (!e.alive) continue;
+        if (!e.body.isSleeping()) { asleep = false; break; }
+        const t = e.body.translation();
+        sx += t.x; sz += t.z; n++;
+      }
+      if (!asleep || !n) continue;
+      const cx = sx / n, cz = sz / n;
+      let r = 0;
+      if (!u.single) for (const e of u.members) if (e.alive) { const t = e.body.translation(); r = Math.max(r, Math.hypot(t.x - cx, t.z - cz)); }
+      if (near(cx, cz, r) > freezeAt) {
+        if (u.single) { this.freeze(u.single); frozeBodies++; }
+        else { u.x = cx; u.z = cz; u.r = r; u.frozen = true; for (const e of u.members) if (e.alive) { this.freeze(e); frozeBodies++; } }
+      }
+    }
+    // Nearest first, a limited number of bodies per pass (it's not free).
+    thaws.sort((a, b) => a.d - b.d);
+    let made = 0;
+    for (const { u } of thaws) {
+      if (made >= budget) break;
+      if (u.single) { this.thaw(u.single); made++; continue; }
+      u.frozen = false;
+      for (const e of u.members) if (e.alive && e.frozen) { this.thaw(e); made++; }
+    }
+  }
+
+  /** Freeze everything far from `points` at once (right after building the map). */
+  streamNow(points) {
+    this.stream(points, 0, { all: true });
+  }
+
+  freeze(e) {
+    const t = e.body.translation(), r = e.body.rotation();
+    e.frozen = { x: t.x, y: t.y, z: t.z, q: { x: r.x, y: r.y, z: r.z, w: r.w } };
+    for (const c of e.colliders) this.byCollider.delete(c.handle);
+    this.world.removeRigidBody(e.body);
+    e.body = frozenBody(e.frozen);
+    e.colliders = [];
+    this.frozenCount = (this.frozenCount || 0) + 1;
+  }
+
+  thaw(e) {
+    const f = e.frozen;
+    const { body, colliders } = this.makeBody(e.kind, f, f.q, { sleep: true, fragment: e.fragment });
+    e.body = body;
+    e.colliders = colliders;
+    e.frozen = null;
+    for (const c of colliders) this.byCollider.set(c.handle, e);
+    this.frozenCount--;
+  }
+
+  /** Thaw everything (e.g. before football's tidy-up, or for a full rebuild). */
+  thawAll() {
+    for (const s of this.sites) s.frozen = false;
+    for (const pool of Object.values(this.pools)) for (const e of pool.entities) if (e.frozen) this.thaw(e);
+  }
+
+  /**
+   * Scene queries need the query structure brought up to date; world.step()
+   * no longer does it every step (it costs time for every body), so
+   * anything that queries calls this first.
+   */
+  queries() {
+    if (!this.queryDirty) return;
+    this.world.queryPipeline.update(this.world.colliders);
+    this.queryDirty = false;
+  }
+
+  /** Register a body made elsewhere (the football) so it takes part in contacts and blasts. */
+  register(entity) {
+    for (const c of entity.colliders) this.byCollider.set(c.handle, entity);
+  }
+
+  unregister(entity) {
+    for (const c of entity.colliders) this.byCollider.delete(c.handle);
+  }
+
+  /** Remove every spawned object matching `test(entity, position)`. */
+  despawnWhere(test) {
+    for (const pool of Object.values(this.pools)) {
+      for (const e of [...pool.entities]) {
+        if (e.alive && test(e, e.body.translation())) this.despawn(e);
+      }
+    }
+  }
+
+  despawn(entity) {
+    if (!entity.alive) return;
+    entity.alive = false;
+    this.queryDirty = true;
+    for (const c of entity.colliders) this.byCollider.delete(c.handle);
+    if (entity.frozen) this.frozenCount--;
+    else this.world.removeRigidBody(entity.body);
+    entity.site?.members.delete(entity);
+    this.loose.delete(entity);
+    this.pools[entity.kind.name].remove(entity);
+    this.bodyCount--;
+    if (entity.fragment) this.debrisCount--;
+  }
+
+  fracture(entity) {
+    const { kind } = entity;
+    const into = KINDS[kind.fracture.into];
+    const [nx, ny, nz] = kind.fracture.grid;
+    const t = entity.body.translation();
+    const r = entity.body.rotation();
+    const lv = entity.body.linvel();
+    const av = entity.body.angvel();
+    const color = entity.color;
+    this.despawn(entity);
+
+    const q = _q.set(r.x, r.y, r.z, r.w).clone();
+    const centre = new THREE.Vector3(t.x, t.y, t.z);
+    const angular = new THREE.Vector3(av.x, av.y, av.z);
+    const size = kind.shape === 'cyl' ? [kind.size[0] * 2, kind.size[1], kind.size[0] * 2] : kind.size;
+    const step = [size[0] / nx, size[1] / ny, size[2] / nz];
+    // Pieces burst outward a little; harder hits come in faster already.
+    const burst = 1.2 + Math.random() * 1.5;
+    for (let ix = 0; ix < nx; ix++) {
+      for (let iy = 0; iy < ny; iy++) {
+        for (let iz = 0; iz < nz; iz++) {
+          const local = new THREE.Vector3(
+            (ix + 0.5) * step[0] - size[0] / 2,
+            (iy + 0.5) * step[1] - size[1] / 2,
+            (iz + 0.5) * step[2] - size[2] / 2,
+          );
+          const world = local.clone().applyQuaternion(q);
+          const pos = world.clone().add(centre);
+          const spin = new THREE.Vector3().crossVectors(angular, world);
+          const dir = world.lengthSq() > 1e-6 ? world.clone().normalize() : new THREE.Vector3(0, 1, 0);
+          const vel = {
+            x: lv.x + spin.x + dir.x * burst + (Math.random() - 0.5),
+            y: lv.y + spin.y + Math.abs(dir.y) * burst + Math.random() * 1.5,
+            z: lv.z + spin.z + dir.z * burst + (Math.random() - 0.5),
+          };
+          const av2 = { x: av.x + (Math.random() - 0.5) * 8, y: av.y + (Math.random() - 0.5) * 8, z: av.z + (Math.random() - 0.5) * 8 };
+          this.spawn(into.name, pos, q, { vel, angvel: av2, color, fragment: true });
+        }
+      }
+    }
+    // Smashing through something costs the car momentum.
+    if (this.car && Math.hypot(centre.x - this.car.x, centre.z - this.car.z) < 4) {
+      this.breakDrag += kind.mass * BREAK_DRAG;
+    }
+    this.emit('fracture', centre, kind);
+  }
+
+  /**
+   * Advance one fixed step. The car's kinematic body is moved to the car's
+   * pose, the world is stepped, and the contact impulses on the car are
+   * returned so the caller can feed them back into the car's own physics.
+   */
+  step(car) {
+    this.time += STEP;
+    this.car = car;
+    this.breakDrag = 0;
+    this.blastJ ||= { x: 0, z: 0 };
+    // Chain reactions: detonate drums whose fuse ran out.
+    if (this.pendingBlasts.length) {
+      const due = this.pendingBlasts.filter((b) => b.at <= this.time);
+      this.pendingBlasts = this.pendingBlasts.filter((b) => b.at > this.time);
+      for (const b of due) if (b.entity.alive) this.explode(b.entity);
+    }
+    // Only move the kinematic body when the car actually moved: Rapier
+    // treats every kinematic update as motion and wakes whatever touches it.
+    if (car && this.carBody) {
+    const h = car.heading;
+    const last = this.lastCarPose;
+    const y = car.y || 0;
+    const moved = !last || Math.abs(car.x - last.x) > 1e-4 || Math.abs(car.z - last.z) > 1e-4
+      || Math.abs(h - last.h) > 1e-5 || Math.abs(y - last.y) > 1e-4 || Math.abs((car.pitch || 0) - last.p) > 1e-5;
+    if (moved) {
+      this.carBody.setNextKinematicTranslation({ x: car.x, y, z: car.z });
+      this.carBody.setNextKinematicRotation(carRotation(car));
+      this.lastCarPose = { x: car.x, z: car.z, h, y, p: car.pitch || 0 };
+    }
+    }
+
+    if (car && this.burner) this.burnAround(car);
+    for (const r of this.remoteCars?.values() || []) {
+      // Like our own car: only move the body when the car moved, so parked
+      // players don't keep waking up everything they're touching.
+      const p = r.proxy;
+      const y = p.y || 0;
+      const l = r.last;
+      if (!l || Math.abs(p.x - l.x) > 1e-4 || Math.abs(p.z - l.z) > 1e-4 || Math.abs(y - l.y) > 1e-4
+        || Math.abs(p.heading - l.h) > 1e-5 || Math.abs((p.pitch || 0) - l.p) > 1e-5 || Math.abs((p.roll || 0) - l.r) > 1e-5) {
+        r.body.setNextKinematicTranslation({ x: p.x, y, z: p.z });
+        r.body.setNextKinematicRotation(carRotation(p));
+        r.last = { x: p.x, y, z: p.z, h: p.heading, p: p.pitch || 0, r: p.roll || 0 };
+        if (r.burner && Math.abs(p.vLong) > 0.2) this.burnAround(p, r.bounds);
+      }
+    }
+    this.world.step(this.eventQueue);
+
+    // Reaction on the car (read before fractures remove any colliders).
+    let { jx, jz, torque, total } = car && this.carColliders ? this.reaction(this.carColliders, car) : { jx: 0, jz: 0, torque: 0, total: 0 };
+    // Computer-driven cars (Versus bots) feel what they hit too.
+    for (const r of this.remoteCars?.values() || []) if (r.react) r.reaction = this.reaction(r.colliders, r.proxy);
+
+    // Breakage and impact sounds.
+    const toBreak = new Set(this.breakQueue);
+    const toExplode = new Set();
+    const settling = this.time < 0.6;
+    this.eventQueue.drainContactForceEvents((ev) => {
+      const force = ev.totalForceMagnitude();
+      const a = this.byCollider.get(ev.collider1());
+      const b = this.byCollider.get(ev.collider2());
+      for (const e of [a, b]) {
+        if (!e || !e.alive) continue;
+        if (!settling && force * STEP > breakImpulse(e.kind)) {
+          if (e.kind.explosive) toExplode.add(e);
+          else if (this.canBreak(e)) toBreak.add(e);
+        }
+        const dv = (force * STEP) / e.kind.mass;
+        if (dv > 2.5) {
+          const t = e.body.translation();
+          this.emit('impact', e.kind.material, Math.min(1, dv / 14), t);
+        }
+      }
+    });
+    for (const e of toExplode) if (e.alive) this.explode(e);
+    for (const e of this.blastBreaks || []) if (e.alive && this.canBreak(e)) toBreak.add(e);
+    this.blastBreaks = [];
+
+    // Spread big collapses over several steps to avoid frame spikes.
+    this.breakQueue = [];
+    let budget = FRACTURES_PER_STEP;
+    for (const e of toBreak) {
+      if (!e.alive) continue;
+      if (budget-- > 0) this.fracture(e);
+      else this.breakQueue.push(e);
+    }
+    this.enforceBudget();
+
+    if (!car) { this.blastJ = { x: 0, z: 0 }; return { jx, jz, torque, total }; }
+    const speed = Math.hypot(car.velX, car.velZ);
+    if (this.breakDrag > 0 && speed > 0.5) {
+      jx -= (car.velX / speed) * this.breakDrag;
+      jz -= (car.velZ / speed) * this.breakDrag;
+      total += this.breakDrag;
+    }
+    if (this.blastJ.x || this.blastJ.z) {
+      jx += this.blastJ.x;
+      jz += this.blastJ.z;
+      total += Math.hypot(this.blastJ.x, this.blastJ.z);
+      this.blastJ = { x: 0, z: 0 };
+    }
+    return { jx, jz, torque, total };
+  }
+
+  /** Contact impulses on a kinematic car's colliders this step, as a push and a twist. */
+  reaction(colliders, car) {
+    let jx = 0, jz = 0, torque = 0, total = 0;
+    for (const col of colliders) {
+      this.world.contactPairsWith(col, (other) => {
+        const entity = this.byCollider.get(other.handle);
+        if (!entity) return;
+        this.world.contactPair(col, other, (manifold, flipped) => {
+          let imp = 0;
+          for (let i = 0; i < manifold.numContacts(); i++) imp += manifold.contactImpulse(i);
+          if (imp <= 0) return;
+          const n = manifold.normal();
+          const s = flipped ? 1 : -1; // impulse on the car points away from the other body
+          const ix = n.x * imp * s;
+          const iz = n.z * imp * s;
+          const t = entity.body.translation();
+          const rx = t.x - car.x;
+          const rz = t.z - car.z;
+          jx += ix;
+          jz += iz;
+          torque += rz * ix - rx * iz;
+          total += imp;
+        });
+      });
+    }
+    const k = REACTION_SCALE;
+    return { jx: jx * k, jz: jz * k, torque: torque * k, total };
+  }
+
+  /**
+   * A bullet: the first thing (not a car) along a ray. Returns
+   * { dist, entity } (entity null for walls, ramps and the ground) or null.
+   */
+  shoot(origin, dir, maxDist) {
+    this.queries();
+    _ray ||= new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
+    _ray.origin = { x: origin.x, y: origin.y, z: origin.z };
+    _ray.dir = { x: dir.x, y: dir.y, z: dir.z };
+    const hit = this.world.castRay(_ray, maxDist, true, undefined, GROUP_BULLET);
+    if (!hit) return null;
+    return { dist: hit.timeOfImpact, entity: this.byCollider.get(hit.collider.handle) || null };
+  }
+
+  /**
+   * Gunfire hitting an object: a shove, and enough damage (heavier things
+   * take more) breaks it or sets it off.
+   */
+  damageEntity(e, amount, point, dir) {
+    if (!e?.alive || e.vehicle || e.ball || e.frozen) return;
+    const body = e.body;
+    const push = Math.min(e.kind.mass * 1.5, 40 + amount * 6);
+    body.applyImpulseAtPoint({ x: dir.x * push, y: dir.y * push + push * 0.15, z: dir.z * push }, point, true);
+    e.shot = (e.shot || 0) + amount;
+    if (e.shot < 2 + e.kind.mass * 0.15) return;
+    if (e.kind.explosive) {
+      if (!this.pendingBlasts.some((b) => b.entity === e)) this.pendingBlasts.push({ entity: e, at: this.time + 0.05 });
+    }
+    else if (this.canBreak(e)) this.breakQueue.push(e);
+  }
+
+  /**
+   * Fuel drum explosion: pushes everything within BLAST_RADIUS outward and
+   * up, shatters breakable things close by, lights the fuse on nearby
+   * drums (chain reactions) and shoves the car.
+   */
+  explode(entity) {
+    const t = entity.body.translation();
+    const centre = new THREE.Vector3(t.x, t.y, t.z);
+    this.despawn(entity);
+    this.blast(t);
+    const car = this.car;
+    this.emit('explode', centre, car ? Math.hypot(car.x - t.x, car.z - t.z) : 99);
+  }
+
+  /** Push, shatter and set off everything around a point (no sound or flash). */
+  blast(t, R = BLAST_RADIUS) {
+    const seen = new Set();
+    this.queries();
+    this.world.collidersWithAabbIntersectingAabb(t, { x: R, y: R, z: R }, (c) => {
+      const body = c.parent();
+      if (!body || seen.has(body.handle)) return true;
+      seen.add(body.handle);
+      if (!body.isDynamic()) return true;
+      const p = body.translation();
+      const dx = p.x - t.x, dy = p.y - t.y + 1.2, dz = p.z - t.z;
+      const d = Math.hypot(dx, dy, dz);
+      if (d > R) return true;
+      const falloff = 1 - d / R;
+      const e = this.byCollider.get(c.handle);
+      if (e?.kind.explosive) {
+        if (!this.pendingBlasts.some((b) => b.entity === e)) {
+          this.pendingBlasts.push({ entity: e, at: this.time + 0.12 + Math.random() * 0.2 });
+        }
+        return true;
+      }
+      // Velocity change rather than raw impulse, so light and heavy things
+      // both fly believably (heavy ones less).
+      const dv = BLAST_SPEED * falloff * (e ? Math.min(1, 300 / e.kind.mass + 0.15) : 0.4);
+      const m = body.mass();
+      const inv = 1 / (d || 1);
+      body.applyImpulse({ x: dx * inv * dv * m, y: (dy * inv + 0.6) * dv * m, z: dz * inv * dv * m }, true);
+      body.applyTorqueImpulse({ x: (Math.random() - 0.5) * m * dv, y: (Math.random() - 0.5) * m * dv, z: (Math.random() - 0.5) * m * dv }, true);
+      if (e && falloff > 0.45) (this.blastBreaks ||= []).push(e);
+      return true;
+    });
+    // The car isn't a dynamic body; push it through the reaction channel.
+    const car = this.car;
+    if (car && car.spec) {
+      const dx = car.x - t.x, dz = car.z - t.z;
+      const d = Math.hypot(dx, dz);
+      if (d < R) {
+        const dv = BLAST_SPEED * 0.35 * (1 - d / R) * Math.min(1, 1600 / car.spec.mass);
+        this.blastJ.x += (dx / (d || 1)) * dv * car.spec.mass;
+        this.blastJ.z += (dz / (d || 1)) * dv * car.spec.mass;
+      }
+    }
+  }
+
+  /**
+   * The burner car: everything inside a box around it (stretched ahead by
+   * the distance it covers this step) burns away before the solver can
+   * push it, so the car slices through instead of bulldozing.
+   */
+  burnAround(car, bounds = this.carBounds) {
+    const { lo, hi } = bounds;
+    const ahead = Math.abs(car.vLong) * STEP * 2 + 0.3;
+    const dir = car.vLong >= 0 ? 1 : -1;
+    const half = { x: (hi[0] - lo[0]) / 2 + 0.25, y: (hi[1] - lo[1]) / 2 + 0.2, z: (hi[2] - lo[2]) / 2 + 0.25 + ahead / 2 };
+    const localZ = (hi[2] + lo[2]) / 2 + (dir * ahead) / 2;
+    const sinH = Math.sin(car.heading);
+    const cosH = Math.cos(car.heading);
+    const centre = { x: car.x + sinH * localZ, y: (car.y || 0) + (hi[1] + lo[1]) / 2, z: car.z + cosH * localZ };
+    const rot = carRotation(car);
+    const found = new Set();
+    this.queries();
+    this.world.intersectionsWithShape(centre, rot, new RAPIER.Cuboid(half.x, half.y, half.z), (collider) => {
+      const e = this.byCollider.get(collider.handle);
+      if (e && e.alive && !e.vehicle && !e.kind.noBurn) found.add(e);
+      return found.size < BURNS_PER_STEP;
+    });
+    for (const e of found) this.burn(e, car);
+  }
+
+  burn(entity, car) {
+    if (entity.kind.explosive) {
+      this.explode(entity);
+      return;
+    }
+    const t = entity.body.translation();
+    const r = entity.body.rotation();
+    const info = {
+      kind: entity.kind,
+      color: entity.color,
+      pos: new THREE.Vector3(t.x, t.y, t.z),
+      quat: new THREE.Quaternion(r.x, r.y, r.z, r.w),
+      from: new THREE.Vector3(car.x, t.y, car.z),
+    };
+    const size = entity.kind.shape === 'cyl' || entity.kind.shape === 'tree'
+      ? Math.max(entity.kind.size[0] * 2, entity.kind.size[1]) : Math.max(...entity.kind.size);
+    this.despawn(entity);
+    // Wake whatever was resting on it so it falls.
+    const r2 = size / 2 + 0.4;
+    this.queries();
+    this.world.collidersWithAabbIntersectingAabb(t, { x: r2, y: r2, z: r2 }, (c) => {
+      c.parent()?.wakeUp();
+      return true;
+    });
+    this.emit('burn', info);
+  }
+
+  /** Breakage setting: "simple" lets intact objects break once but not their pieces. */
+  canBreak(e) {
+    const mode = this.options.breakage;
+    if (!e.kind.fracture || mode === 'off') return false;
+    return mode === 'detailed' || !e.fragment;
+  }
+
+  /** Remove the oldest debris pieces when there are more than the limit. */
+  enforceBudget() {
+    const max = this.options.debrisLimit;
+    if (this.debrisCount <= max) return;
+    this.fragments = this.fragments.filter((e) => e.alive);
+    // Prefer debris that is already asleep, so removing it disturbs nothing.
+    for (let i = 0; i < this.fragments.length && this.debrisCount > max; i++) {
+      const e = this.fragments[i];
+      if (e.body.isSleeping()) this.despawn(e);
+    }
+    while (this.debrisCount > max && this.fragments.length) {
+      const e = this.fragments.shift();
+      if (e.alive) this.despawn(e);
+    }
+  }
+
+  lifetimeOf(e) {
+    if (e.kind.lifetime) return e.kind.lifetime;
+    return e.fragment ? this.options.debrisLifetime : 0;
+  }
+
+  /** Copy body transforms into the instance buffers. */
+  sync() {
+    for (const pool of Object.values(this.pools)) {
+      let changed = false;
+      for (const e of pool.entities) {
+        const life = this.lifetimeOf(e);
+        const left = life ? life - (this.time - e.born) : Infinity;
+        if (e.frozen) {
+          if (e.dirty) {
+            // Created frozen: place it once.
+            e.dirty = false;
+            _p.set(e.frozen.x, e.frozen.y, e.frozen.z);
+            _q.set(e.frozen.q.x, e.frozen.q.y, e.frozen.q.z, e.frozen.q.w);
+            _m.compose(_p, _q, _sv.set(1, 1, 1));
+            pool.mesh.setMatrixAt(e.slot, _m);
+            changed = true;
+          }
+          if (left <= 0) this.despawn(e);
+          continue; // not in the physics world: nothing moves
+        }
+        if (!e.dirty && left >= 1 && e.body.isSleeping()) continue;
+        e.dirty = false;
+        const t = e.body.translation();
+        const r = e.body.rotation();
+        _p.set(t.x, t.y, t.z);
+        _q.set(r.x, r.y, r.z, r.w);
+        // Debris past its lifetime shrinks away over its last second.
+        const k = left < 1 ? Math.max(0.01, left) : 1;
+        _m.compose(_p, _q, _sv.set(k, k, k));
+        if (left < 1) e.dirty = true; // keep animating even if it fell asleep
+        pool.mesh.setMatrixAt(e.slot, _m);
+        changed = true;
+        // Debris that leaves the arena (or outlives its kind's lifetime) is recycled.
+        if (left <= 0 || t.y < -20 || Math.abs(t.x) > this.recycleRange || Math.abs(t.z) > this.recycleRange) {
+          this.despawn(e);
+          continue;
+        }
+        // Pieces squeezed between the car and a pile can be launched
+        // absurdly fast; cap them so nothing rockets off the map.
+        const v = e.body.linvel();
+        const sp = Math.hypot(v.x, v.y, v.z);
+        if (sp > MAX_DEBRIS_SPEED) {
+          const k = MAX_DEBRIS_SPEED / sp;
+          e.body.setLinvel({ x: v.x * k, y: v.y * k, z: v.z * k }, true);
+        }
+        // Rapier only sleeps a whole pile at once; put individual pieces
+        // to sleep once they've been nearly still for a moment.
+        const w = e.body.angvel();
+        if (sp < 0.12 && Math.hypot(w.x, w.y, w.z) < 0.25) {
+          if (e.stillSince === undefined) e.stillSince = this.time;
+          else if (this.time - e.stillSince > 0.7) { e.body.sleep(); e.stillSince = undefined; }
+        } else {
+          e.stillSince = undefined;
+        }
+      }
+      if (changed) pool.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+}
+
+// ===== levels.js =====
+// Hand-made missions. Each level's build(B) places the map with the
+// builder from main.js (B.person, B.gate, B.zone, ...) and the
+// destructible structures below, which spawn into Smash Lot's
+// destruction world (see destruction.js).
+//
+// Map frame: the camera looks north (towards -z), so -z is "up" on screen.
+
+const GAP = 0.002;
+const SLEEP = { sleep: true };
+
+function lcg(seed) {
+  let s = seed >>> 0;
+  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+}
+
+/** One structure that freezes, thaws and is counted as a unit. */
+function site(d, fn) {
+  d.beginSite();
+  const before = d.siteNow;
+  fn();
+  d.endSite();
+  return before;
+}
+
+/** A straight wall of 1 m concrete blocks from (x0,z0) to (x1,z1), `h` high. */
+function blockWall(d, x0, z0, x1, z1, h) {
+  return site(d, () => {
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    const n = Math.max(1, Math.round(len));
+    const yaw = Math.atan2(x1 - x0, z1 - z0) + Math.PI / 2;
+    for (let y = 0; y < h; y++) {
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / n;
+        d.spawn('block', { x: x0 + (x1 - x0) * t, y: 0.5 + y * (1 + GAP), z: z0 + (z1 - z0) * t }, yaw, SLEEP);
+      }
+    }
+  });
+}
+
+/** Running-bond brick wall, `len` metres along `yaw`, centred at (x, z). */
+function brickWall(d, x, z, yaw, len, rows) {
+  return site(d, () => {
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    const place = (u, y, kind) => d.spawn(kind, { x: x + u * c, y, z: z - u * s }, yaw, SLEEP);
+    for (let r = 0; r < rows; r++) {
+      const y = 0.15 + r * (0.3 + GAP);
+      let u = -len / 2;
+      if (r % 2) { place(u + 0.15, y, 'brickHalf'); u += 0.3; }
+      while (u + 0.6 <= len / 2 + 1e-6) { place(u + 0.3, y, 'brick'); u += 0.6; }
+      if (u < len / 2 - 1e-6) place(u + 0.15, y, 'brickHalf');
+    }
+  });
+}
+
+/** Block shed, door (2 m wide, 2 high) in the middle of the south (+z) wall. */
+function shed(d, x, z, w, depth, h, roof = true) {
+  return site(d, () => {
+    const mid = Math.floor(w / 2);
+    for (let y = 0; y < h; y++) {
+      for (let i = 0; i < w; i++) {
+        for (let j = 0; j < depth; j++) {
+          const edge = i === 0 || j === 0 || i === w - 1 || j === depth - 1;
+          if (!edge) continue;
+          const front = j === depth - 1;
+          if (front && y < 2 && (i === mid || i === mid - 1)) continue;
+          if (front && y === 2 && i >= mid - 2 && i <= mid + 1) {
+            if (i === mid - 2) d.spawn('lintel', { x: x + (mid - 0.5) - (w - 1) / 2, y: 0.5 + y * (1 + GAP), z: z + (depth - 1) / 2 }, 0, SLEEP);
+            continue;
+          }
+          d.spawn('block', { x: x + i - (w - 1) / 2, y: 0.5 + y * (1 + GAP), z: z + j - (depth - 1) / 2 }, 0, SLEEP);
+        }
+      }
+    }
+    if (roof) for (let i = 0; i < w; i++) d.spawn('plank', { x: x + i - (w - 1) / 2, y: h + 0.1 + GAP, z }, Math.PI / 2, SLEEP);
+  });
+}
+
+function tower(d, x, z, size, h) {
+  return site(d, () => {
+    for (let y = 0; y < h; y++)
+      for (let i = 0; i < size; i++)
+        for (let j = 0; j < size; j++)
+          d.spawn('block', { x: x + i - (size - 1) / 2, y: 0.5 + y * (1 + GAP), z: z + j - (size - 1) / 2 }, 0, SLEEP);
+  });
+}
+
+function cratePyramid(d, x, z, base) {
+  return site(d, () => {
+    for (let level = 0; level < base; level++) {
+      const n = base - level;
+      for (let i = 0; i < n; i++)
+        for (let j = 0; j < n; j++)
+          d.spawn('crate', { x: x + i - (n - 1) / 2, y: 0.5 + level * (1 + GAP), z: z + j - (n - 1) / 2 }, 0, SLEEP);
+    }
+  });
+}
+
+/** Three-storey office block, 10 m x 6.8 m (from Smash Lot). */
+function office(d, cx, cz, floors) {
+  return site(d, () => {
+    const halfW = 5, halfD = 3.4;
+    let layer = 0;
+    const lift = () => layer * GAP;
+    for (let f = 0; f < floors; f++) {
+      const y0 = f * 3;
+      layer++;
+      for (const side of [-1, 1]) {
+        for (let i = 0; i < 5; i++) d.spawn('panel', { x: cx - halfW + 1 + 2 * i, y: y0 + 0.6 + lift(), z: cz + side * (halfD - 0.2) }, 0, SLEEP);
+        for (let j = 0; j < 3; j++) d.spawn('panel', { x: cx + side * (halfW - 0.2), y: y0 + 0.6 + lift(), z: cz - 3 + 1 + 2 * j }, Math.PI / 2, SLEEP);
+      }
+      layer++;
+      for (const side of [-1, 1]) {
+        const z = cz + side * (halfD - 0.2);
+        for (let i = 0; i < 5; i++) {
+          const x0 = cx - halfW + 2 * i;
+          d.spawn('pillar', { x: x0 + 1, y: y0 + 1.95 + lift(), z }, 0, SLEEP);
+          for (const off of [0.375, 1.625]) d.spawn('glass', { x: x0 + off, y: y0 + 1.92 + lift(), z }, 0, SLEEP);
+        }
+        const x = cx + side * (halfW - 0.2);
+        for (let j = 0; j < 3; j++) {
+          const z0 = cz - 3 + 2 * j;
+          d.spawn('pillar', { x, y: y0 + 1.95 + lift(), z: z0 + 1 }, Math.PI / 2, SLEEP);
+          for (const off of [0.375, 1.625]) d.spawn('glass', { x, y: y0 + 1.92 + lift(), z: z0 + off }, Math.PI / 2, SLEEP);
+        }
+      }
+      layer++;
+      for (let i = 0; i < 5; i++) d.spawn('floorSlab', { x: cx - halfW + 1 + 2 * i, y: y0 + 2.85 + lift(), z: cz }, 0, SLEEP);
+    }
+  });
+}
+
+/** Picket fence from (x0,z0) to (x1,z1), in 2 m panels. */
+function fenceLine(d, x0, z0, x1, z1) {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  const n = Math.max(1, Math.round(len / 2));
+  const yaw = Math.atan2(x1 - x0, z1 - z0) + Math.PI / 2;
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n;
+    d.spawn('fence', { x: x0 + (x1 - x0) * t, y: 0.5 + GAP, z: z0 + (z1 - z0) * t }, yaw, SLEEP);
+  }
+}
+
+function scatterKind(d, kind, y, cx, cz, half, n, minDist, seed) {
+  const rng = lcg(seed);
+  const pts = [];
+  for (let tries = 0; pts.length < n && tries < n * 60; tries++) {
+    const p = { x: cx + (rng() * 2 - 1) * half, z: cz + (rng() * 2 - 1) * half };
+    if (pts.every((q) => Math.hypot(p.x - q.x, p.z - q.z) >= minDist)) pts.push(p);
+  }
+  for (const p of pts) d.spawn(kind, { x: p.x, y: y + GAP, z: p.z }, rng() * Math.PI, SLEEP);
+}
+
+function grove(d, cx, cz, half, n, seed) {
+  scatterKind(d, 'tree', 1.5, cx, cz, half, n, 3.4, seed);
+}
+
+// --- The level ------------------------------------------------------------
+//
+// One hand-made map, Hollow Hill: a town in the south, a walled compound
+// in the north. North is -z. Roles: civilian, office (keycard), builder
+// (sledgehammer), demo (explosive charges), guard (pistol + keycard),
+// director (the assassination target), bodyguard (pistol).
+
+const LEVELS = [
+  {
+    id: 'hollow-hill',
+    title: 'Hollow Hill',
+    blurb: 'Sneak into the compound, steal the files, take out the Director, bring down the relay tower, and get out through the drain.',
+    half: 60,
+    build(B) {
+      const d = B.d;
+      // --- Town (south) ---
+      B.ground(-60, 18, 60, 28, 'road');
+      B.ground(-60, 16, 60, 18, 'kerb');
+      B.ground(-60, 28, 60, 30, 'kerb');
+      B.ground(-60, 32, -26, 60, 'grass');
+      B.ground(-20, 34, 20, 58, 'plaza');
+      B.ground(26, 32, 60, 60, 'dirt');
+      B.ground(-60, 4, 60, 16, 'concrete');
+
+      B.start('civilian', 0, 52, Math.PI);
+      for (let i = 0; i < 7; i++) B.person('civilian', -16 + i * 5, 38 + (i % 3) * 6, { wander: [-19, 35, 19, 57] });
+      B.staticBox(-6, 1.1, 44, 3, 2.2, 1.6, 0xd94e3b); // food stand
+      B.staticBox(8, 0.5, 40, 4, 1, 1, 0x8a6a4a);      // bench
+      // Park.
+      grove(d, -42, 46, 12, 9, 3);
+      for (let i = 0; i < 4; i++) B.person('civilian', -50 + i * 6, 38 + i * 4, { wander: [-56, 34, -28, 58] });
+      // Street life.
+      B.person('civilian', -50, 17, { route: [[-50, 17], [50, 17]] });
+      B.person('civilian', 50, 29, { route: [[50, 29], [-50, 29]] });
+      B.person('office', -14, 31, { wander: [-18, 30, -8, 33] }); // waiting at the bus stop
+      B.staticBox(-13, 1.3, 32.6, 5, 2.6, 0.2, 0x5d7a8c);
+      B.person('office', 30, 29, { route: [[30, 29], [4, 12], [-30, 12], [-30, 29]], wait: 2 });
+      B.person('guard', -40, 10, { route: [[-40, 10], [40, 10]], wait: 3 });
+
+      // Construction yard: sledgehammers and a demolition worker.
+      fenceLine(d, 26, 32, 42, 32);
+      fenceLine(d, 48, 32, 58, 32);
+      cratePyramid(d, 52, 52, 3);
+      cratePyramid(d, 34, 54, 2);
+      shed(d, 50, 40, 6, 4, 3);
+      brickWall(d, 36, 44, 0, 8, 4);
+      scatterKind(d, 'barrel', 0.475, 32, 38, 2.4, 8, 0.8, 7);
+      B.person('builder', 36, 40, { wander: [28, 34, 58, 58] });
+      B.person('builder', 44, 52, { wander: [28, 34, 58, 58] });
+      B.person('demo', 50, 36.5, { wander: [44, 34, 56, 38] });
+
+      // --- The wall and checkpoint ---
+      blockWall(d, -60, 3, -1.6, 3, 3);
+      blockWall(d, 1.6, 3, 60, 3, 3);
+      B.gate(0, 3, 0, 3.2, 'keycard');
+      B.staticBox(4.2, 1.3, 5.6, 2, 2.6, 2, 0x6b7c8f); // booth
+      B.person('guard', 3, 8, { post: true, yaw: 0 });
+      B.person('guard', -3, 0, { post: true, yaw: 0 });
+      B.stealthLine(3);
+
+      // --- The compound (north) ---
+      B.ground(-60, -60, 60, 2, 'grass');
+      B.ground(-4, -50, 4, 2, 'concrete');
+      B.ground(-50, -30, 4, -22, 'concrete');
+      B.ground(4, -14, 40, -8, 'concrete');
+
+      // Offices, and the server room behind them.
+      office(d, -24, -12, 2);
+      shed(d, -38, -40, 6, 5, 3, false);
+      B.gate(-38, -38, 0, 2.1, 'keycard');
+      B.terminal(-38, -40.4);
+      B.person('office', -20, -20, { wander: [-34, -28, -12, -18] });
+      B.person('guard', -38, -33, { post: true, yaw: 0 });
+      B.person('guard', -46, -22, { route: [[-46, -22], [-10, -22], [-10, -50], [-46, -50]], wait: 2 });
+
+      // The Director walks between the offices and the garden, with two bodyguards.
+      const dir = B.person('director', -18, -4, { route: [[-18, -4], [0, -24], [16, -12], [0, -24]], wait: 4 });
+      B.person('bodyguard', -19, -3, { follow: dir, offset: [-1.3, -1.2] });
+      B.person('bodyguard', -17, -3, { follow: dir, offset: [1.3, -1.2] });
+      grove(d, 2, -28, 6, 5, 21);
+      B.staticBox(0, 0.4, -20, 2, 0.8, 2, 0x8a8f96); // fountain base
+      cratePyramid(d, 12, -2, 2);
+      brickWall(d, 14, -24, Math.PI / 2, 10, 6);
+
+      // The relay tower.
+      fenceLine(d, 20, -26, 28, -26);
+      fenceLine(d, 32, -26, 50, -26);
+      fenceLine(d, 20, -52, 20, -26);
+      fenceLine(d, 50, -52, 50, -26);
+      const target = tower(d, 36, -40, 3, 10);
+      B.target(target, 'relay tower');
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2 + 0.5;
+        d.spawn('fuel', { x: 36 + Math.cos(a) * 5, y: 0.45 + GAP, z: -40 + Math.sin(a) * 5 }, 0, SLEEP);
+      }
+      scatterKind(d, 'barrel', 0.475, 44, -30, 2, 6, 0.8, 11);
+      B.person('guard', 26, -30, { route: [[26, -30], [46, -30], [46, -50], [26, -50]], wait: 2 });
+      B.person('builder', 30, -48, { wander: [22, -50, 48, -44] });
+      B.person('guard', 30, -4, { route: [[50, -4], [10, -4]], wait: 3 });
+
+      // The way out: a storm drain in the north-west corner.
+      B.extract(-52, -52, 2.6, 'storm drain');
+      B.person('guard', -46, -44, { post: true, yaw: 2.4 });
+    },
+  },
+];
+
+// ===== main.js =====
+// Symbiote: a slime that lives in people. Launch it out of one host into
+// the next across a destructible compound (Smash Lot's destruction
+// world). Miss, and it has to crawl, and people will stamp on it or shoot it.
+
+await initRapier();
+
+const TICK = WORLD_STEP;
+const GRAV = 9.81;
+const $ = (id) => document.getElementById(id);
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const angDiff = (a, b) => { let x = (b - a) % TAU; if (x > Math.PI) x -= TAU; if (x < -Math.PI) x += TAU; return x; };
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = (arr) => arr[(Math.random() * arr.length) | 0];
+
+// --- People -----------------------------------------------------------------
+// Every human has the same body; what changes is what they're holding.
+
+const HUMAN = { speed: 4.3, hp: 100, range: 13, fov: 2.0, mass: 85 };
+const ITEMS = {
+  pistol: { label: 'Pistol', use: 'shoot' },
+  hammer: { label: 'Sledgehammer', use: 'smash' },
+  charges: { label: 'Charges', use: 'throw' },
+  keycard: { label: 'Keycard' },
+};
+const ROLES = {
+  civilian: { label: 'Civilian', items: [], shirts: [0x4f86c6, 0xd9534f, 0xf2c230, 0x8e6bbf, 0x55a868, 0xf08a5d, 0xe7e1d4], pants: [0x2d3a52, 0x4a3b2e, 0x3a3a3a, 0x6b6f78] },
+  office: { label: 'Office worker', items: ['keycard'], shirts: [0xdfe7f0, 0xbcd3ea, 0xf3efe6], pants: [0x2e3440, 0x3d3d46] },
+  builder: { label: 'Builder', items: ['hammer'], shirts: [0xff8a1e], pants: [0x3b4a63], hat: 'hard' },
+  demo: { label: 'Demolition worker', items: ['charges'], shirts: [0xff8a1e], pants: [0x3b4a63], hat: 'hard', pack: true },
+  guard: { label: 'Guard', items: ['pistol', 'keycard'], shirts: [0x23324f], pants: [0x1a1f2b], hat: 'cap', armed: true },
+  bodyguard: { label: 'Bodyguard', items: ['pistol'], shirts: [0x16171a], pants: [0x16171a], shades: true, armed: true },
+  director: { label: 'The Director', items: ['keycard'], shirts: [0xf4f4f2], pants: [0x50555e], tie: true, vip: true },
+};
+const SKINS = [0xf1c7a3, 0xd9a47c, 0xa8714d, 0x7a4b2e, 0xf6d6bd, 0xc68863];
+
+const SLIME_R = 0.28;
+const LAUNCH_RANGE = 18;    // m
+const SLIME_DRAIN = 4;      // health per second out of a host: about 25 seconds, so people are the real danger
+const CRAWL_SPEED = 4.6;    // m/s, faster than anyone can walk, a little slower than a sprint
+const STOMP_DMG = 34;       // three stamps and the slime is paste
+const STOMP_WINDUP = 0.35;  // foot in the air: they can't be entered until it comes down
+
+// --- Renderer -------------------------------------------------------------
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+$('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fc8d8);
+scene.fog = new THREE.Fog(0x9fc8d8, 60, 140);
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 180);
+scene.add(new THREE.HemisphereLight(0xdff2ff, 0x5b6b4a, 1.15));
+const sun = new THREE.DirectionalLight(0xfff1dc, 2.1);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -28, right: 28, top: 28, bottom: -28, near: 1, far: 120 });
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.03;
+scene.add(sun, sun.target);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const d = new Destruction(scene, 160);
+d.configure({ debrisLimit: 500, debrisLifetime: 40 });
+
+// --- Materials and meshes ---------------------------------------------------
+
+const matCache = new Map();
+function mat(hex, opts = {}) {
+  const key = hex + JSON.stringify(opts);
+  if (!matCache.has(key)) matCache.set(key, new THREE.MeshStandardMaterial({ color: hex, roughness: 0.8, flatShading: true, ...opts }));
+  return matCache.get(key);
+}
+const BOX = new THREE.BoxGeometry(1, 1, 1);
+function box(w, h, dd, m, x = 0, y = 0, z = 0) {
+  const mesh = new THREE.Mesh(BOX, m);
+  mesh.scale.set(w, h, dd);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+const GOO_MAT = new THREE.MeshStandardMaterial({ color: 0x7cff4f, emissive: 0x3cbf1a, emissiveIntensity: 0.6, roughness: 0.25, metalness: 0.1, flatShading: true });
+const GOO_GEO = new THREE.IcosahedronGeometry(1, 1);
+
+function buildPerson(role) {
+  const g = new THREE.Group();
+  const details = [];
+  const det = (m) => (details.push(m), m);
+  const shirt = new THREE.MeshStandardMaterial({ color: pick(role.shirts), roughness: 0.85, flatShading: true });
+  const skin = new THREE.MeshStandardMaterial({ color: pick(SKINS), roughness: 0.7, flatShading: true });
+  const pants = mat(pick(role.pants));
+  const body = new THREE.Group();
+  g.add(body);
+  const legs = [];
+  for (const side of [-1, 1]) {
+    const hip = new THREE.Group();
+    hip.position.set(side * 0.13, 0.82, 0);
+    hip.add(box(0.18, 0.82, 0.2, pants, 0, -0.41, 0));
+    body.add(hip);
+    legs.push(hip);
+  }
+  const torso = box(0.52, 0.66, 0.3, shirt, 0, 1.15, 0);
+  body.add(torso);
+  if (role.hat === 'hard') torso.add(box(1.02, 0.12, 1.04, mat(0xe8f04a), 0, 0.15, 0));
+  if (role.tie) { body.add(det(box(0.08, 0.4, 0.02, mat(0xc0262d), 0, 1.22, 0.16))); body.add(box(0.54, 0.4, 0.32, mat(0x50555e), 0, 1.02, 0)); }
+  if (role.pack) body.add(box(0.4, 0.45, 0.2, mat(0x6b5a3a), 0, 1.15, -0.25), det(box(0.16, 0.12, 0.1, mat(0xd8322a), 0.09, 1.05, -0.37)));
+  const arms = [];
+  for (const side of [-1, 1]) {
+    const sh = new THREE.Group();
+    sh.position.set(side * 0.34, 1.44, 0);
+    sh.add(box(0.14, 0.62, 0.16, shirt, 0, -0.29, 0));
+    sh.add(det(box(0.13, 0.12, 0.14, skin, 0, -0.64, 0)));
+    body.add(sh);
+    arms.push(sh);
+  }
+  const head = new THREE.Group();
+  head.position.set(0, 1.66, 0);
+  head.add(box(0.32, 0.34, 0.32, skin));
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1b1b1b, emissive: 0x000000 });
+  for (const side of [-1, 1]) { head.add(det(box(0.06, 0.06, 0.02, eyeMat, side * 0.08, 0.03, 0.165))); }
+  if (role.shades) head.add(det(box(0.3, 0.07, 0.03, mat(0x050505), 0, 0.04, 0.17)));
+  if (role.hat === 'cap') {
+    head.add(box(0.36, 0.1, 0.36, mat(0x1a243b), 0, 0.2, 0));
+    head.add(det(box(0.3, 0.04, 0.16, mat(0x1a243b), 0, 0.16, 0.22)));
+  } else if (role.hat === 'hard') {
+    head.add(box(0.38, 0.14, 0.38, mat(0xf6d21f), 0, 0.22, 0));
+    head.add(det(box(0.44, 0.03, 0.44, mat(0xf6d21f), 0, 0.15, 0)));
+  } else if (role.vip) {
+    head.add(box(0.34, 0.08, 0.34, mat(0xb9b9b9), 0, 0.2, -0.01));
+  } else if (Math.random() < 0.7) {
+    head.add(box(0.34, 0.1, 0.34, mat(pick([0x2a1d14, 0x5b3a22, 0xd8b56a, 0x111111, 0x8a8a8a])), 0, 0.2, -0.01));
+  }
+  body.add(head);
+  // What they hold.
+  const items = role.items;
+  if (items.includes('pistol')) arms[1].add(box(0.08, 0.12, 0.34, mat(0x111316), 0, -0.66, 0.14));
+  if (items.includes('hammer')) {
+    const ham = new THREE.Group();
+    ham.add(box(0.06, 1.0, 0.06, mat(0x8a6a3e), 0, 0.15, 0), box(0.3, 0.16, 0.16, mat(0x55585e), 0, 0.62, 0));
+    ham.position.set(0, -0.66, 0.05);
+    ham.rotation.x = 0.35;
+    arms[1].add(ham);
+  }
+  if (items.includes('charges')) arms[1].add(box(0.14, 0.1, 0.2, mat(0xd8322a), 0, -0.68, 0.06));
+  if (items.includes('keycard')) torso.add(box(0.22, 0.28, 0.1, mat(0xffffff, { emissive: 0x3a8fd8, emissiveIntensity: 0.4 }), 0.25, -0.1, 0.55));
+  // The slime riding this host: a blob on the back of the neck, hidden until it's in.
+  const goo = new THREE.Mesh(GOO_GEO, GOO_MAT);
+  goo.scale.setScalar(0.2);
+  goo.position.set(0, 1.5, -0.2);
+  goo.visible = false;
+  body.add(goo);
+  // Small bits that only matter up close: hidden far away, and they cast no shadows.
+  for (const o of details) o.castShadow = false;
+  return { group: g, body, legs, arms, head, torso, shirt, skin, eyeMat, goo, details, near: true };
+}
+
+// --- Audio ----------------------------------------------------------------
+
+let ac = null;
+let master = null;
+function audio() {
+  if (!ac) {
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain();
+      master.gain.value = 0.5;
+      master.connect(ac.destination);
+    } catch { return null; }
+  }
+  if (ac.state === 'suspended') ac.resume();
+  return ac;
+}
+let noiseBuf = null;
+function noise(dur, { freq = 1000, q = 0.7, type = 'lowpass', vol = 0.4, decay = dur } = {}) {
+  const a = audio(); if (!a) return;
+  if (!noiseBuf) {
+    noiseBuf = a.createBuffer(1, a.sampleRate, a.sampleRate);
+    const ch = noiseBuf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+  }
+  const src = a.createBufferSource();
+  src.buffer = noiseBuf;
+  const f = a.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+  const gn = a.createGain();
+  const t = a.currentTime;
+  gn.gain.setValueAtTime(vol, t);
+  gn.gain.exponentialRampToValueAtTime(0.001, t + decay);
+  src.connect(f).connect(gn).connect(master);
+  src.start(t, Math.random() * 0.5, dur + 0.05);
+}
+function tone(f0, f1, dur, { type = 'sine', vol = 0.25 } = {}) {
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(); o.type = type;
+  const gn = a.createGain();
+  const t = a.currentTime;
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+  gn.gain.setValueAtTime(vol, t);
+  gn.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(gn).connect(master);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+const sfx = {
+  launch: () => { tone(180, 520, 0.22, { type: 'triangle', vol: 0.25 }); noise(0.15, { freq: 900, vol: 0.2 }); },
+  infect: () => { tone(420, 90, 0.3, { type: 'sawtooth', vol: 0.12 }); noise(0.25, { freq: 500, vol: 0.3 }); },
+  splat: () => noise(0.18, { freq: 700, vol: 0.25 }),
+  shot: () => { noise(0.12, { freq: 2600, type: 'bandpass', q: 0.6, vol: 0.7 }); tone(160, 60, 0.1, { type: 'square', vol: 0.1 }); },
+  smash: () => { noise(0.4, { freq: 300, vol: 0.8 }); tone(90, 40, 0.3, { vol: 0.4 }); },
+  boom: () => { noise(1.2, { freq: 400, vol: 1.0, decay: 1.2 }); tone(70, 25, 0.8, { vol: 0.5 }); },
+  thud: (s) => noise(0.1, { freq: 400 + s * 600, vol: 0.12 + s * 0.3 }),
+  glass: () => noise(0.25, { freq: 5200, type: 'highpass', vol: 0.18 }),
+  scream: () => tone(rand(700, 1000), rand(500, 700), 0.45, { type: 'sawtooth', vol: 0.05 }),
+  found: () => { tone(660, 660, 0.12, { type: 'square', vol: 0.08 }); setTimeout(() => tone(880, 880, 0.18, { type: 'square', vol: 0.08 }), 130); },
+  beep: () => tone(1200, 1200, 0.05, { type: 'square', vol: 0.05 }),
+  win: () => { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone(f, f, 0.2, { type: 'triangle', vol: 0.2 }), i * 110)); },
+  lose: () => { tone(300, 80, 0.9, { type: 'sawtooth', vol: 0.15 }); },
+  gate: () => tone(500, 900, 0.15, { type: 'square', vol: 0.06 }),
+  objective: () => { [660, 990].forEach((f, i) => setTimeout(() => tone(f, f, 0.16, { type: 'triangle', vol: 0.18 }), i * 120)); },
+};
+let siren = null;
+function setSiren(on) {
+  if (!on && !siren) return; // don't wake audio just to keep it quiet
+  const a = audio(); if (!a) return;
+  if (on && !siren) {
+    const o = a.createOscillator(); o.type = 'sawtooth';
+    const lfo = a.createOscillator(); lfo.frequency.value = 1.6;
+    const lg = a.createGain(); lg.gain.value = 180;
+    lfo.connect(lg).connect(o.frequency);
+    o.frequency.value = 620;
+    const gn = a.createGain(); gn.gain.value = 0.035;
+    o.connect(gn).connect(master);
+    o.start(); lfo.start();
+    siren = { o, lfo };
+  } else if (!on && siren) {
+    siren.o.stop(); siren.lfo.stop(); siren = null;
+  }
+}
+
+// --- Effects ----------------------------------------------------------------
+
+const PART_CAP = 700;
+const partMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff }), PART_CAP);
+partMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+partMesh.setColorAt(0, new THREE.Color());
+partMesh.frustumCulled = false;
+partMesh.count = 0;
+scene.add(partMesh);
+const parts = [];
+const _pm = new THREE.Matrix4();
+const _pq = new THREE.Quaternion();
+const _ps = new THREE.Vector3();
+const _pc = new THREE.Color();
+function burst(pos, n, color, { speed = 4, up = 3, size = 0.12, life = 0.8, grav = 1 } = {}) {
+  for (let i = 0; i < n && parts.length < PART_CAP; i++) {
+    const a = Math.random() * TAU;
+    const s = Math.random() * speed;
+    parts.push({
+      x: pos.x, y: pos.y, z: pos.z,
+      vx: Math.cos(a) * s, vy: Math.random() * up, vz: Math.sin(a) * s,
+      life: life * rand(0.6, 1.2), max: life, size: size * rand(0.6, 1.4), color: new THREE.Color(color), grav,
+    });
+  }
+}
+function updateParts(dt) {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.life -= dt;
+    if (p.life <= 0) { parts[i] = parts[parts.length - 1]; parts.pop(); continue; }
+    p.vy -= GRAV * p.grav * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    if (p.y < 0.03) { p.y = 0.03; p.vy *= -0.3; p.vx *= 0.7; p.vz *= 0.7; }
+  }
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    const k = p.size * Math.min(1, p.life / p.max * 2);
+    _pm.compose(_ps.set(p.x, p.y, p.z), _pq, new THREE.Vector3(k, k, k));
+    partMesh.setMatrixAt(i, _pm);
+    partMesh.setColorAt(i, p.color);
+  }
+  partMesh.count = parts.length;
+  partMesh.instanceMatrix.needsUpdate = true;
+  if (partMesh.instanceColor) partMesh.instanceColor.needsUpdate = true;
+}
+
+// Green puddles where the slime lands, fading out.
+const SPLAT_GEO = new THREE.CircleGeometry(1, 18).rotateX(-Math.PI / 2);
+const splats = [];
+function splat(x, z, r = 0.6) {
+  const m = new THREE.Mesh(SPLAT_GEO, new THREE.MeshBasicMaterial({ color: 0x5fd33a, transparent: true, opacity: 0.75, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  m.position.set(x, 0.03, z);
+  m.scale.setScalar(r * rand(0.8, 1.2));
+  scene.add(m);
+  splats.push({ m, t: 8 });
+  if (splats.length > 40) { const s = splats.shift(); scene.remove(s.m); }
+}
+function updateSplats(dt) {
+  for (let i = splats.length - 1; i >= 0; i--) {
+    const s = splats[i];
+    s.t -= dt;
+    s.m.material.opacity = Math.min(0.75, s.t / 3);
+    if (s.t <= 0) { scene.remove(s.m); s.m.material.dispose(); splats.splice(i, 1); }
+  }
+}
+
+const tracers = [];
+function tracer(a, b, color = 0xffe08a) {
+  const geo = new THREE.BufferGeometry().setFromPoints([a.clone(), b.clone()]);
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1 }));
+  scene.add(line);
+  tracers.push({ line, t: 0.09 });
+}
+function updateTracers(dt) {
+  for (let i = tracers.length - 1; i >= 0; i--) {
+    const t = tracers[i];
+    t.t -= dt;
+    t.line.material.opacity = Math.max(0, t.t / 0.09);
+    if (t.t <= 0) { scene.remove(t.line); t.line.geometry.dispose(); t.line.material.dispose(); tracers.splice(i, 1); }
+  }
+}
+
+const flash = new THREE.PointLight(0xffa040, 0, 30, 1.6);
+scene.add(flash);
+let flashT = 0;
+let shake = 0;
+
+// Icons over heads: ? (suspicious) and ! (alarmed).
+function iconMaterial(ch, color) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.font = 'bold 54px system-ui, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = 8; g.strokeStyle = 'rgba(0,0,0,0.6)';
+  g.strokeText(ch, 32, 34);
+  g.fillStyle = color; g.fillText(ch, 32, 34);
+  return new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true });
+}
+const ICONS = { '?': iconMaterial('?', '#ffc93c'), '!': iconMaterial('!', '#ff4d5e'), target: iconMaterial('◎', '#ff4d5e') };
+
+
+// --- Input ------------------------------------------------------------------
+
+const keys = new Set();
+const input = { aiming: false, stick: { x: 0, y: 0 } };
+const view = { yaw: Math.PI, pitch: 0.25 };
+let isTouch = false;
+if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch'); // menu shows touch controls
+let locked = false;
+let mouseHeld = false;
+const canvas = renderer.domElement;
+
+addEventListener('keydown', (e) => {
+  if (e.key.startsWith('Arrow') || e.key === ' ') e.preventDefault();
+  if (e.repeat) return;
+  const k = e.key.toLowerCase();
+  keys.add(k);
+  if (!game.running) return;
+  if (k === 'escape' || k === 'p') { if (!locked || k === 'p') togglePause(); return; }
+  if (game.paused) return;
+  if (k === 'r') restart();
+  if (k === 'f' || k === 'e') useItem();
+  if (k === ' ') input.aiming = true;
+});
+addEventListener('keyup', (e) => {
+  const k = e.key.toLowerCase();
+  keys.delete(k);
+  if (k === ' ' && input.aiming) { input.aiming = false; if (game.running && !game.paused) launch(); }
+});
+addEventListener('blur', () => keys.clear());
+document.addEventListener('pointerlockchange', () => {
+  locked = document.pointerLockElement === canvas;
+  if (!locked && game.running && !game.paused && !game.over && !isTouch) togglePause();
+});
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  audio();
+  if (!game.running || game.paused) return;
+  mouseHeld = true;
+  if (!locked) {
+    try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch { /* no pointer lock here: drag to look */ }
+  }
+  if (e.button === 0) input.aiming = true;
+  if (e.button === 2) useItem();
+});
+addEventListener('pointerup', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  mouseHeld = false;
+  if (e.button === 0 && input.aiming) { input.aiming = false; if (game.running && !game.paused) launch(); }
+});
+addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'mouse' || !game.running || game.paused) return;
+  if (!locked && !mouseHeld) return;
+  view.yaw -= e.movementX * 0.0026;
+  view.pitch = clamp(view.pitch + e.movementY * 0.0022, -0.45, 1.15);
+});
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// Touch: a move stick on the left, drag anywhere on the right to look,
+// a LAUNCH button (hold to aim, let go to jump) and an ITEM button.
+function setupTouch() {
+  const stick = $('stick');
+  const knob = (dx, dy) => { stick.firstElementChild.style.transform = `translate(${dx}px, ${dy}px)`; };
+  let stickId = null, stickC = null, lookId = null, lookP = null;
+  addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return;
+    if (!isTouch) { isTouch = true; document.body.classList.add('touch'); if (game.running) $('touch').classList.remove('hidden'); }
+    audio();
+    if (!game.running || game.paused) return;
+    if (e.target.closest('button')) return;
+    if (e.clientX < innerWidth / 2 && stickId === null) {
+      stickId = e.pointerId;
+      const r = stick.getBoundingClientRect();
+      stickC = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      if (Math.hypot(e.clientX - stickC.x, e.clientY - stickC.y) > 90) stickC = { x: e.clientX, y: e.clientY };
+    } else if (e.clientX >= innerWidth / 2 && lookId === null) {
+      lookId = e.pointerId;
+      lookP = { x: e.clientX, y: e.clientY };
+    }
+  });
+  addEventListener('pointermove', (e) => {
+    if (e.pointerId === stickId) {
+      let dx = e.clientX - stickC.x, dy = e.clientY - stickC.y;
+      const l = Math.hypot(dx, dy), m = 50;
+      if (l > m) { dx *= m / l; dy *= m / l; }
+      input.stick.x = dx / m; input.stick.y = dy / m;
+      knob(dx, dy);
+    } else if (e.pointerId === lookId) {
+      view.yaw -= (e.clientX - lookP.x) * 0.006;
+      view.pitch = clamp(view.pitch + (e.clientY - lookP.y) * 0.005, -0.45, 1.15);
+      lookP = { x: e.clientX, y: e.clientY };
+    }
+  });
+  const end = (e) => {
+    if (e.pointerId === stickId) { stickId = null; input.stick.x = input.stick.y = 0; knob(0, 0); }
+    if (e.pointerId === lookId) lookId = null;
+  };
+  addEventListener('pointerup', end);
+  addEventListener('pointercancel', end);
+  const lb = $('launchbtn');
+  lb.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (game.running && !game.paused) input.aiming = true; });
+  const release = () => { if (input.aiming) { input.aiming = false; if (game.running && !game.paused) launch(); } };
+  lb.addEventListener('pointerup', release);
+  lb.addEventListener('pointercancel', () => { input.aiming = false; });
+  $('itembtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); useItem(); });
+}
+setupTouch();
+
+// --- Game state ---------------------------------------------------------------
+
+const game = {
+  running: false, paused: false, over: false,
+  levelIndex: 0, level: null, time: 0,
+  alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0,
+  lastKnown: new THREE.Vector3(), hostsUsed: 0, bodiesFound: 0,
+};
+const player = {
+  host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0,
+  aimPerson: null, aimPoint: new THREE.Vector3(),
+};
+let people = [];
+let bodies = [];
+let gates = [];
+let zones = [];
+let grenades = [];
+let terminal = null;
+let objectives = [];
+let relay = null;
+let director = null;
+let stealthZ = 0;
+let levelGroup = null;
+let ctrl = null;
+const personByHandle = new Map();
+const seeThrough = new Set();
+
+// --- Level building -------------------------------------------------------------
+
+const GROUND_COLORS = { road: 0x3d4148, kerb: 0xb9b6ad, grass: 0x6fa857, concrete: 0xa9a79f, dirt: 0x9c7f58, plaza: 0xc9b99a };
+
+function fixedBox(x, y, z, sx, sy, sz, yaw = 0) {
+  const body = d.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z)
+    .setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }));
+  const col = d.world.createCollider(RAPIER.ColliderDesc.cuboid(sx / 2, sy / 2, sz / 2).setFriction(0.8), body);
+  return { body, col };
+}
+
+function zoneRing(r, color) {
+  return new THREE.Mesh(new THREE.RingGeometry(r - 0.18, r, 40).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, depthWrite: false }));
+}
+
+function makeBuilder() {
+  let groundLayer = 0;
+  return {
+    d,
+    ground(x0, z0, x1, z1, kind) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2),
+        new THREE.MeshStandardMaterial({ color: GROUND_COLORS[kind], roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1 - groundLayer, polygonOffsetUnits: -1 - groundLayer }));
+      m.position.set((x0 + x1) / 2, 0.005 + groundLayer * 0.002, (z0 + z1) / 2);
+      m.receiveShadow = true;
+      groundLayer++;
+      levelGroup.add(m);
+      if (kind === 'road') {
+        for (let x = x0 + 2; x < x1 - 2; x += 6) {
+          const dash = new THREE.Mesh(new THREE.PlaneGeometry(3, 0.25).rotateX(-Math.PI / 2), mat(0xf2efe6));
+          dash.position.set(x + 1.5, 0.006 + groundLayer * 0.002, (z0 + z1) / 2);
+          levelGroup.add(dash);
+        }
+      }
+    },
+    person(role, x, z, opts = {}) { return spawnPerson(role, x, z, opts); },
+    start(role, x, z, yaw) {
+      const p = spawnPerson(role, x, z, { post: true, yaw });
+      if (game.menu) return; // behind the menu nobody's taken over yet
+      enterHost(p, true);
+      view.yaw = yaw;
+      view.pitch = 0.25;
+    },
+    gate(x, z, yaw, w, need) {
+      const g = new THREE.Group();
+      g.position.set(x, 0, z);
+      g.rotation.y = yaw;
+      const postM = mat(0x5a5f66);
+      g.add(box(0.3, 2.8, 0.3, postM, -w / 2 - 0.15, 1.4, 0), box(0.3, 2.8, 0.3, postM, w / 2 + 0.15, 1.4, 0));
+      const c = document.createElement('canvas'); c.width = 128; c.height = 16;
+      const cg = c.getContext('2d');
+      for (let i = 0; i < 16; i++) { cg.fillStyle = i % 2 ? '#111' : '#f2c230'; cg.fillRect(i * 8, 0, 8, 16); }
+      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+      const panel = new THREE.Group();
+      for (let i = 0; i < 4; i++) panel.add(box(w, 0.14, 0.12, new THREE.MeshStandardMaterial({ map: tex }), 0, 0.35 + i * 0.6, 0));
+      g.add(panel);
+      // Card reader.
+      g.add(box(0.2, 0.3, 0.12, mat(0x222428), w / 2 + 0.15, 1.3, 0.2));
+      const light = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3344 }));
+      light.position.set(w / 2 + 0.15, 2.95, 0);
+      g.add(light);
+      levelGroup.add(g);
+      const fb = fixedBox(x, 1.2, z, w, 2.4, 0.25, yaw);
+      seeThrough.add(fb.col.handle);
+      gates.push({ x, z, w, need, open: false, panel, light, fb, lift: 0 });
+    },
+    terminal(x, z) {
+      const g = new THREE.Group();
+      g.position.set(x, 0, z);
+      g.add(box(1.2, 0.9, 0.6, mat(0x4a4f57), 0, 0.45, 0));
+      const screen = box(0.9, 0.6, 0.06, new THREE.MeshStandardMaterial({ color: 0x0a2a14, emissive: 0x2cff7a, emissiveIntensity: 0.8 }), 0, 1.25, 0.1);
+      screen.rotation.x = 0.25;
+      g.add(screen);
+      levelGroup.add(g);
+      fixedBox(x, 0.45, z, 1.2, 0.9, 0.6);
+      const ring = zoneRing(1.6, 0x2cff7a);
+      ring.position.set(x, 0.04, z + 1);
+      levelGroup.add(ring);
+      terminal = { x, z: z + 1, progress: 0, screen, ring };
+    },
+    extract(x, z, r, label) {
+      const ring = zoneRing(r, 0x7cff4f);
+      ring.position.set(x, 0.04, z);
+      const grate = new THREE.Mesh(new THREE.CircleGeometry(r - 0.3, 20).rotateX(-Math.PI / 2), mat(0x2b2f33));
+      grate.position.set(x, 0.03, z);
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 14, 24, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0x7cff4f, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }));
+      beam.position.set(x, 7, z);
+      beam.visible = false;
+      levelGroup.add(ring, grate, beam);
+      zones.push({ x, z, r, label, ring, beam });
+    },
+    staticBox(x, y, z, sx, sy, sz, color) {
+      levelGroup.add(box(sx, sy, sz, mat(color), x, y, z));
+      fixedBox(x, y, z, sx, sy, sz);
+    },
+    target(siteObj, name) {
+      const list = [...siteObj.members].map((e) => { const t = e.body.translation(); return { e, x: t.x, y: t.y, z: t.z }; });
+      relay = { name, list, integrity: 1, checkT: 0 };
+    },
+    stealthLine(z) { stealthZ = z; },
+  };
+}
+
+function buildPerimeter(half) {
+  const wallM = mat(0x8f8c84);
+  for (const [x, z, sx, sz] of [[0, -half - 0.5, half * 2 + 2, 1], [0, half + 0.5, half * 2 + 2, 1], [-half - 0.5, 0, 1, half * 2 + 2], [half + 0.5, 0, 1, half * 2 + 2]]) {
+    levelGroup.add(box(sx, 3, sz, wallM, x, 1.5, z));
+    fixedBox(x, 6, z, sx, 12, sz);
+  }
+  const base = new THREE.Mesh(new THREE.PlaneGeometry(500, 500).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x93a184, roughness: 1 }));
+  base.receiveShadow = true;
+  levelGroup.add(base);
+  // Low-poly hills beyond the walls.
+  const hillM = mat(0x7e9a6a);
+  for (let i = 0; i < 26; i++) {
+    const a = (i / 26) * TAU;
+    const r = half + rand(18, 40);
+    const h = new THREE.Mesh(new THREE.ConeGeometry(rand(10, 20), rand(8, 22), 6), hillM);
+    h.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    levelGroup.add(h);
+  }
+}
+
+const OBJECTIVES = [
+  { id: 'stealth', type: 'Stealth', text: 'Get inside the compound without setting off a lockdown.' },
+  { id: 'files', type: 'Espionage', text: 'Download the files in the server room. Needs a keycard.' },
+  { id: 'director', type: 'Assassination', text: 'Take out the Director.' },
+  { id: 'relay', type: 'Destruction', text: 'Bring down the relay tower.' },
+  { id: 'extract', type: 'Extraction', text: 'Escape down the storm drain.' },
+];
+
+function loadLevel(i, menu = false) {
+  game.levelIndex = i;
+  game.menu = menu;
+  setMenuLook(menu);
+  const L = LEVELS[i];
+  game.level = L;
+  if (levelGroup) scene.remove(levelGroup);
+  levelGroup = new THREE.Group();
+  scene.add(levelGroup);
+  for (const s of splats) scene.remove(s.m);
+  splats.length = 0;
+  parts.length = 0;
+  for (const g of grenades) scene.remove(g.mesh);
+  grenades = [];
+  setSiren(false);
+
+  d.createWorld();
+  ctrl = d.world.createCharacterController(0.05);
+  ctrl.enableAutostep(0.45, 0.2, true);
+  ctrl.enableSnapToGround(0.4);
+  ctrl.setApplyImpulsesToDynamicBodies(true);
+  ctrl.setSlideEnabled(true);
+  ctrl.setMaxSlopeClimbAngle(0.8);
+
+  people = []; bodies = []; gates = []; zones = []; terminal = null; relay = null; director = null;
+  personByHandle.clear();
+  seeThrough.clear();
+  Object.assign(game, { time: 0, alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0, over: false, hostsUsed: 0, bodiesFound: 0, paused: false });
+  Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, aimPerson: null });
+  slimeMesh.visible = false;
+  objectives = OBJECTIVES.map((o) => ({ ...o, done: false }));
+
+  buildPerimeter(L.half);
+  L.build(makeBuilder());
+  director = people.find((p) => p.roleId === 'director');
+  d.queryDirty = true;
+  if (menu) { game.running = false; return; }
+  game.running = true;
+  showScreen(null);
+  $('hud').classList.remove('hidden');
+  if (isTouch) $('touch').classList.remove('hidden');
+  toast(L.title, isTouch ? 'Hold LAUNCH to aim, let go to jump into someone. Miss, and you have to crawl.' : 'Hold left mouse to aim, let go to jump into someone. Miss, and you have to crawl.', 5);
+}
+
+// --- People ------------------------------------------------------------------
+
+let personSeq = 0;
+function spawnPerson(roleId, x, z, opts) {
+  const role = ROLES[roleId];
+  const mesh = buildPerson(role);
+  levelGroup.add(mesh.group);
+  const p = {
+    id: personSeq++, roleId, role, mesh, opts, armed: !!role.armed,
+    pos: new THREE.Vector3(x, 0, z), prev: new THREE.Vector3(x, 0, z), yaw: opts.yaw ?? Math.random() * TAU, lookYaw: null,
+    hp: HUMAN.hp, state: 'routine', goal: null, speed: 0, wait: rand(0, 2), ri: 0,
+    walk: 0, moved: 0, stuckT: 0, timer: 0, sus: 0, aware: false, seeing: false,
+    shootT: 0, stompT: 0, stompCD: 0, icon: null, iconT: 0, aimT: 0, swingT: 0, downT: 0,
+    halfH: 0.45, r: 0.3, post: opts.post ? { x, z, yaw: opts.yaw ?? 0 } : null,
+  };
+  p.cy = p.halfH + p.r + 0.06;
+  p.rb = d.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, p.cy, z));
+  p.col = d.world.createCollider(RAPIER.ColliderDesc.capsule(p.halfH, p.r).setFriction(0.3), p.rb);
+  personByHandle.set(p.col.handle, p);
+  if (p.armed) {
+    const n = 16;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(new Array((n + 1) * 3).fill(0), 3));
+    const idx = [];
+    for (let i = 1; i < n; i++) idx.push(0, i, i + 1);
+    geo.setIndex(idx);
+    p.cone = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffe36b, transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide }));
+    p.cone.renderOrder = 2;
+    p.cone.frustumCulled = false;
+    levelGroup.add(p.cone);
+  }
+  if (role.vip) {
+    p.marker = new THREE.Sprite(ICONS.target);
+    p.marker.scale.set(0.8, 0.8, 1);
+    p.marker.position.set(0, 2.6, 0);
+    mesh.group.add(p.marker);
+  }
+  syncPersonMesh(p, 0);
+  people.push(p);
+  return p;
+}
+
+const hasItem = (p, item) => !!p && p.role.items.includes(item);
+
+function moveChar(p, vx, vz, dt) {
+  ctrl.setCharacterMass(HUMAN.mass);
+  const slimeH = player.slime?.col.handle;
+  ctrl.computeColliderMovement(p.col, { x: vx * dt, y: -4 * dt, z: vz * dt }, undefined, undefined,
+    (c) => c.handle !== slimeH);
+  const m = ctrl.computedMovement();
+  const ox = p.pos.x, oz = p.pos.z;
+  p.pos.x += m.x; p.pos.z += m.z;
+  p.pos.y = Math.max(0, p.pos.y + m.y);
+  const half = game.level.half - 0.6;
+  p.pos.x = clamp(p.pos.x, -half, half);
+  p.pos.z = clamp(p.pos.z, -half, half);
+  p.rb.setNextKinematicTranslation({ x: p.pos.x, y: p.pos.y + p.cy, z: p.pos.z });
+  p.speed = Math.hypot(p.pos.x - ox, p.pos.z - oz) / dt;
+}
+
+function removePersonPhysics(p) {
+  if (!p.rb) return;
+  personByHandle.delete(p.col.handle);
+  d.world.removeRigidBody(p.rb);
+  d.queryDirty = true;
+  p.rb = null; p.col = null;
+}
+
+/** A person dies: a host the slime left, or someone shot, smashed or blown up. Their body can be found. */
+function kill(p, why) {
+  if (p.state === 'down') return;
+  p.state = 'down';
+  p.prev.copy(p.pos);
+  p.downT = 0;
+  p.goal = null;
+  removePersonPhysics(p);
+  if (p.cone) p.cone.visible = false;
+  if (p.marker) p.marker.visible = false;
+  setIcon(p, null);
+  p.mesh.goo.visible = false;
+  p.mesh.eyeMat.emissive.setHex(0);
+  if (why === 'drained') {
+    p.mesh.shirt.color.lerp(new THREE.Color(0x777777), 0.35);
+    p.mesh.skin.color.lerp(new THREE.Color(0x9fbf8f), 0.6);
+    splat(p.pos.x, p.pos.z, 0.8);
+  }
+  bodies.push({ p, found: false, pos: p.pos.clone(), at: game.time });
+  if (p === director) completeObjective('director');
+  // Bodyguards without anyone to guard start hunting.
+  if (p === director) for (const q of people) if (q.opts.follow === p && q.state !== 'down' && q.state !== 'host') { q.opts.follow = null; q.state = 'investigate'; q.goal = clampGoal(p.pos.clone()); q.timer = 4; }
+}
+
+function setIcon(p, ch, t = 1.5) {
+  if (!ch) {
+    if (p.icon) { p.mesh.group.remove(p.icon); p.icon = null; }
+    return;
+  }
+  if (!p.icon) {
+    p.icon = new THREE.Sprite(ICONS[ch]);
+    p.icon.scale.set(0.6, 0.6, 1);
+    p.icon.position.set(0, 2.3, 0);
+    p.icon.renderOrder = 10;
+    p.mesh.group.add(p.icon);
+  }
+  p.icon.material = ICONS[ch];
+  p.iconT = t;
+}
+
+let alpha = 1; // how far between the last two physics steps this frame is
+function syncPersonMesh(p, dt) {
+  const m = p.mesh;
+  // People far away move every few physics steps: spread their motion across them.
+  const a = p.stride > 1 ? Math.min(1, (tickN - p.stepTick + alpha) / p.stride) : alpha;
+  m.group.position.lerpVectors(p.prev, p.pos, a);
+  m.group.rotation.y = p.prevYaw === undefined ? p.yaw : p.prevYaw + angDiff(p.prevYaw, p.yaw) * a;
+  const near = Math.abs(p.pos.x - camera.position.x) + Math.abs(p.pos.z - camera.position.z) < 42;
+  if (near !== m.near) { m.near = near; for (const o of m.details) o.visible = near; }
+  if (p.state === 'down') {
+    p.downT += dt;
+    const k = Math.min(1, p.downT / 0.45);
+    m.body.rotation.x = (Math.PI / 2) * k * k;
+    m.body.position.y = 0.16 * k;
+    m.legs[0].rotation.x = m.legs[1].rotation.x = 0;
+    m.arms[0].rotation.x = m.arms[1].rotation.x = -0.4 * k;
+    return;
+  }
+  const sp = Math.min(1, p.speed / 4);
+  p.walk += dt * (3 + p.speed * 2.2);
+  const sw = Math.sin(p.walk) * 0.75 * Math.min(1, p.speed / 1.2);
+  m.legs[0].rotation.x = sw;
+  m.legs[1].rotation.x = -sw;
+  m.arms[0].rotation.x = -sw * 0.8;
+  m.arms[1].rotation.x = sw * 0.8;
+  m.body.position.y = Math.abs(Math.sin(p.walk)) * 0.05 * sp;
+  m.body.rotation.x = 0;
+  if (p.aimT > 0) { p.aimT -= dt; m.arms[1].rotation.x = -Math.PI / 2; }
+  if (p.swingT > 0) {
+    p.swingT -= dt;
+    const k = p.swingT / 0.35;
+    m.arms[1].rotation.x = -Math.PI * 0.95 * Math.sin(k * Math.PI);
+  }
+  if (p.stompT > 0) {
+    const k = 1 - p.stompT / STOMP_WINDUP;
+    m.legs[0].rotation.x = -1.3 * Math.sin(Math.min(1, k * 1.5) * Math.PI * 0.5) * (k > 0.85 ? (1 - k) / 0.15 : 1);
+    m.arms[0].rotation.x = m.arms[1].rotation.x = -0.6;
+  }
+  if (p.state === 'cower') { m.body.position.y = -0.25; m.arms[0].rotation.x = m.arms[1].rotation.x = -2.6; }
+  if (p.state === 'host') {
+    m.goo.visible = true;
+    const t = game.time * 6 + p.id;
+    m.goo.scale.set(0.2 + Math.sin(t) * 0.02, 0.2 + Math.cos(t * 1.3) * 0.02, 0.2);
+    m.eyeMat.emissive.setHex(0x7cff4f);
+    m.eyeMat.emissiveIntensity = 1.5;
+    m.shirt.emissive.setHex(0x2a7a12);
+    m.shirt.emissiveIntensity = 0.15 + 0.1 * Math.sin(game.time * 4);
+  } else {
+    m.shirt.emissiveIntensity = 0;
+  }
+  if (p.cone) {
+    p.cone.position.set(p.pos.x, 0.02, p.pos.z);
+    p.cone.rotation.y = p.yaw;
+    const hot = game.alert || p.state === 'investigate' || p.state === 'combat' || p.state === 'stomp' || p.sus > 0.2;
+    p.cone.material.color.setHex(hot ? 0xff4d5e : 0xffe36b);
+    p.cone.material.opacity = hot ? 0.2 : 0.12;
+    p.cone.visible = p.state !== 'host';
+  }
+  if (p.icon) {
+    p.iconT -= dt;
+    if (p.iconT <= 0) setIcon(p, null);
+  }
+}
+
+function randomIn(rect) {
+  return new THREE.Vector3(rand(rect[0], rect[2]), 0, rand(rect[1], rect[3]));
+}
+function clampGoal(v) {
+  const h = game.level.half - 2;
+  v.x = clamp(v.x, -h, h); v.z = clamp(v.z, -h, h);
+  return v;
+}
+
+/** Movement for someone the slime isn't in, from what they're doing. */
+function npcStep(p, dt) {
+  let speed = 1.5;
+  switch (p.state) {
+    case 'routine': {
+      speed = 1.5;
+      const lead = p.opts.follow;
+      if (lead && lead.state !== 'down') {
+        const c = Math.cos(lead.yaw), s = Math.sin(lead.yaw);
+        const [ox, oz] = p.opts.offset;
+        const tx = lead.pos.x + ox * c + oz * s, tz = lead.pos.z - ox * s + oz * c;
+        if (Math.hypot(tx - p.pos.x, tz - p.pos.z) > 0.7) p.goal = new THREE.Vector3(tx, 0, tz);
+        else { p.goal = null; p.lookYaw = lead.yaw + Math.sin(game.time * 0.5 + p.id) * 0.9; }
+        speed = Math.max(1.5, lead.speed * 1.2);
+        break;
+      }
+      if (p.wait > 0) { p.wait -= dt; p.goal = null; }
+      else if (!p.goal) {
+        if (p.opts.route) { const r = p.opts.route[p.ri % p.opts.route.length]; p.goal = new THREE.Vector3(r[0], 0, r[1]); }
+        else if (p.opts.wander) p.goal = randomIn(p.opts.wander);
+        else if (p.post && Math.hypot(p.pos.x - p.post.x, p.pos.z - p.post.z) > 0.6) p.goal = new THREE.Vector3(p.post.x, 0, p.post.z);
+      }
+      if (p.post && !p.goal) p.lookYaw = p.post.yaw + Math.sin(game.time * 0.35 + p.id) * 0.75;
+      break;
+    }
+    case 'flee': speed = 4.6; p.timer -= dt; if (p.timer <= 0 || !p.goal) { p.state = 'cower'; p.timer = 5; p.goal = null; } break;
+    case 'cower': p.timer -= dt; p.goal = null; if (p.timer <= 0) p.state = 'routine'; break;
+    case 'investigate':
+      speed = 2.8;
+      if (!p.goal) {
+        p.timer -= dt;
+        p.lookYaw = p.yaw + dt * 2.2;
+        if (p.timer <= 0) { p.state = 'routine'; p.wait = 0.5; }
+      }
+      break;
+    case 'search':
+      speed = 3.4;
+      if (!p.goal) {
+        p.timer -= dt;
+        p.lookYaw = p.yaw + dt * 2.5;
+        if (p.timer <= 0) { p.goal = clampGoal(game.lastKnown.clone().add(new THREE.Vector3(rand(-8, 8), 0, rand(-8, 8)))); p.timer = 1.5; }
+      }
+      break;
+    case 'combat':
+      p.goal = null;
+      p.shootT -= dt;
+      break;
+    case 'stomp': {
+      // Chase the slime and stamp on it.
+      speed = 3.4;
+      p.timer -= dt;
+      p.stompCD -= dt;
+      const s = player.slime;
+      if (!s || p.timer <= 0) { p.state = 'cower'; p.timer = 3; p.goal = null; p.stompT = 0; break; }
+      const t = s.now;
+      const dist = Math.hypot(t.x - p.pos.x, t.z - p.pos.z);
+      p.goal = dist > 1.0 && p.stompT <= 0 ? new THREE.Vector3(t.x, 0, t.z) : null;
+      if (!p.goal) p.lookYaw = Math.atan2(t.x - p.pos.x, t.z - p.pos.z);
+      if (p.stompT > 0) {
+        p.stompT -= dt;
+        if (p.stompT <= 0) stompLand(p);
+      } else if (dist < 1.5 && p.stompCD <= 0 && s.landed) p.stompT = STOMP_WINDUP; // can't stamp on it mid-air
+      break;
+    }
+  }
+  let vx = 0, vz = 0;
+  if (p.goal) {
+    const dx = p.goal.x - p.pos.x, dz = p.goal.z - p.pos.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 0.5) {
+      p.goal = null;
+      if (p.state === 'routine') {
+        if (p.opts.route) { p.ri++; p.wait = p.opts.wait ?? 0.3; }
+        else if (p.opts.wander) p.wait = rand(1, 4);
+      } else if (p.state === 'investigate') p.timer = 3;
+      else if (p.state === 'search') p.timer = 1.5;
+      else if (p.state === 'flee') { p.state = 'cower'; p.timer = 5; }
+    } else {
+      vx = (dx / dist) * speed; vz = (dz / dist) * speed;
+      p.lookYaw = null;
+    }
+  }
+  moveChar(p, vx, vz, dt);
+  if (p.goal) {
+    p.stuckT += dt;
+    p.moved += p.speed * dt;
+    if (p.stuckT > 1.5) {
+      if (p.moved < 0.5) {
+        p.goal = null;
+        if (p.state === 'routine' && p.opts.route) p.ri++;
+        if (p.state === 'routine') p.wait = 0.5;
+      }
+      p.stuckT = 0; p.moved = 0;
+    }
+  }
+  const want = p.lookYaw ?? (vx || vz ? Math.atan2(vx, vz) : p.yaw);
+  p.yaw += clamp(angDiff(p.yaw, want), -6 * dt, 6 * dt);
+}
+
+// --- Perception --------------------------------------------------------------------
+
+const _sightRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
+function blocksSight(c) {
+  if (personByHandle.has(c.handle) || seeThrough.has(c.handle)) return false;
+  if (player.slime && c.handle === player.slime.col.handle) return false;
+  const e = d.byCollider.get(c.handle);
+  if (e && (e.kind.glass || e.kind.name === 'fence' || e.kind.name === 'fenceBit' || e.kind.name === 'cone' || (e.fragment && e.kind.mass < 40))) return false;
+  return true;
+}
+function castSight(a, dir, maxDist) {
+  d.queries();
+  _sightRay.origin = { x: a.x, y: a.y, z: a.z };
+  _sightRay.dir = { x: dir.x, y: dir.y, z: dir.z };
+  return d.world.castRay(_sightRay, maxDist, true, undefined, undefined, undefined, undefined, blocksSight);
+}
+function clearLine(a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+  const dist = Math.hypot(dx, dy, dz);
+  if (dist < 0.01) return true;
+  return !castSight(a, { x: dx / dist, y: dy / dist, z: dz / dist }, dist - 0.2);
+}
+const _eye = new THREE.Vector3();
+function canSee(p, pt) {
+  const dx = pt.x - p.pos.x, dz = pt.z - p.pos.z;
+  const dist = Math.hypot(dx, dz);
+  const range = HUMAN.range * (p.state === 'cower' ? 0.5 : 1) * (game.alert && p.armed ? 1.3 : 1);
+  if (dist > range) return false;
+  if (dist > 1.8 && Math.abs(angDiff(p.yaw, Math.atan2(dx, dz))) > HUMAN.fov / 2) return false;
+  _eye.set(p.pos.x, p.pos.y + 1.62, p.pos.z);
+  return clearLine(_eye, pt);
+}
+
+/** Cut an armed person's drawn vision cone short where walls block it. */
+function updateCone(p) {
+  const pos = p.cone.geometry.attributes.position;
+  const n = pos.count - 1;
+  const fov = HUMAN.fov, range = HUMAN.range * (game.alert ? 1.3 : 1);
+  const o = { x: p.pos.x, y: p.pos.y + 1.0, z: p.pos.z };
+  pos.setXYZ(0, 0, 0.02, 0);
+  for (let i = 0; i < n; i++) {
+    const a = -fov / 2 + (fov * i) / (n - 1);
+    const wa = p.yaw + a;
+    const hit = castSight(o, { x: Math.sin(wa), y: 0, z: Math.cos(wa) }, range);
+    const r = hit ? hit.timeOfImpact : range;
+    pos.setXYZ(i + 1, Math.sin(a) * r, 0.02, Math.cos(a) * r);
+  }
+  pos.needsUpdate = true;
+}
+
+function addAlarm(n, why) {
+  if (game.over || n <= 0) return;
+  game.alarm = Math.min(100, game.alarm + n);
+  game.lastAlarmAt = game.time;
+  game.peakAlarm = Math.max(game.peakAlarm, game.alarm);
+  if (game.alarm >= 100 && !game.alert) {
+    if (!objectives[0].done) { lose('Stealth failed', `${why || 'You were seen.'} The compound locked down before you got inside.`); return; }
+    game.alert = true;
+    game.alertT = 25;
+    toast('LOCKDOWN', 'Guards are hunting you. Jump into someone out of sight to lose them.', 3);
+    setSiren(true);
+    for (const q of people) if (q.armed && q.state !== 'down' && q.state !== 'host') { q.opts.follow = null; q.state = 'search'; q.goal = clampGoal(game.lastKnown.clone()); }
+  }
+}
+
+function targetPoint() {
+  if (player.host) return new THREE.Vector3(player.host.pos.x, player.host.pos.y + 1.2, player.host.pos.z);
+  if (player.slime) { const t = player.slime.body.translation(); return new THREE.Vector3(t.x, t.y, t.z); }
+  return null;
+}
+
+// Seconds of steady looking before someone is sure of what they saw.
+const NOTICE_ARMED = 0.45, NOTICE = 0.8;
+
+/** A foot comes down. */
+function stompLand(p) {
+  p.stompCD = 0.55;
+  const fwd = new THREE.Vector3(Math.sin(p.yaw), 0, Math.cos(p.yaw));
+  const foot = p.pos.clone().addScaledVector(fwd, 0.55);
+  burst(new THREE.Vector3(foot.x, 0.1, foot.z), 5, 0x9a8f80, { speed: 1.5, up: 1, size: 0.06, life: 0.3 });
+  const s = player.slime;
+  if (!s) return;
+  const t = s.body.translation();
+  if (Math.hypot(t.x - foot.x, t.z - foot.z) > 0.95 || t.y > 0.9) return;
+  player.health -= STOMP_DMG;
+  shake = Math.max(shake, 0.35);
+  splat(t.x, t.z, 0.5);
+  sfx.splat();
+  burst(new THREE.Vector3(t.x, 0.2, t.z), 12, 0x7cff4f, { speed: 3, up: 1.5, size: 0.08 });
+  // Squirts out from under the foot.
+  s.body.setLinvel({ x: fwd.x * 3, y: 2.5, z: fwd.z * 3 }, true);
+}
+
+/**
+ * p can see the slime (or a host it already knows is wrong). Suspicion
+ * builds over a moment, so a quick jump past someone can get away with it;
+ * once they're sure, they raise the alarm and react.
+ */
+function seeThreat(p, pos, kind) {
+  const slime = kind === 'slime';
+  if (!slime && !p.armed) return; // only guards recognise a marked host
+  if (game.alert && p.armed) {
+    player.seenAt = game.time;
+    game.lastKnown.copy(pos);
+    if (p.state !== 'combat') { p.state = 'combat'; p.shootT = 0.5; }
+    p.lookYaw = Math.atan2(pos.x - p.pos.x, pos.z - p.pos.z);
+    setIcon(p, '!', 1);
+    return;
+  }
+  let rate = 0.1 / (p.armed ? NOTICE_ARMED : NOTICE);
+  if (slime && player.slime) {
+    const v = player.slime.body.linvel();
+    if (Math.hypot(v.x, v.y, v.z) > 6) rate *= 0.5; // a green blur is easy to doubt
+  }
+  p.sus = Math.min(1.2, p.sus + rate);
+  p.seeing = true;
+  if (p.sus < 1) {
+    setIcon(p, '?', 0.4);
+    if (p.armed || !slime) p.lookYaw = Math.atan2(pos.x - p.pos.x, pos.z - p.pos.z);
+    return;
+  }
+  player.seenAt = game.time;
+  game.lastKnown.copy(pos);
+  const why = slime ? 'Someone saw the slime.' : 'A guard recognised you.';
+  if (!p.aware) {
+    p.aware = true;
+    addAlarm(slime ? (p.armed ? 24 : 14) : 12, why);
+  } else {
+    addAlarm(p.armed ? 1.6 : 0.5, why);
+  }
+  setIcon(p, '!');
+  if (p.armed && slime) {
+    // Armed people open fire on a slime, lockdown or not.
+    p.opts.follow = null;
+    if (p.state !== 'combat') { p.state = 'combat'; p.shootT = 0.45; }
+    p.lookYaw = Math.atan2(pos.x - p.pos.x, pos.z - p.pos.z);
+  } else if (p.armed) {
+    p.opts.follow = null;
+    p.state = 'investigate';
+    p.goal = clampGoal(pos.clone());
+    p.timer = 3;
+  } else if (slime && (p.state === 'stomp' || p.pos.distanceTo(pos) < 6)) {
+    // Close enough to do something about it: stamp on it.
+    if (p.state !== 'stomp') { p.state = 'stomp'; p.stompCD = 0.15; p.goal = null; if (Math.random() < 0.5) sfx.scream(); }
+    p.timer = 4;
+  } else if (p.state !== 'flee' && p.state !== 'cower') {
+    flee(p, pos);
+  }
+}
+
+function flee(p, from) {
+  p.state = 'flee';
+  p.timer = 3;
+  const dx = p.pos.x - from.x, dz = p.pos.z - from.z;
+  const l = Math.hypot(dx, dz) || 1;
+  p.goal = clampGoal(new THREE.Vector3(p.pos.x + (dx / l) * 10, 0, p.pos.z + (dz / l) * 10));
+  if (Math.random() < 0.6) sfx.scream();
+}
+
+function think(p) {
+  if (p.state === 'down' || p.state === 'host') return;
+  if (p.cone && (p.coneT = (p.coneT || 0) + 1) % 2 === 0 && p.pos.distanceTo(camPivot) < 55) updateCone(p);
+  p.seeing = false;
+  const tp = targetPoint();
+  if (tp) {
+    const exposed = !player.host;
+    if ((exposed || player.marked) && canSee(p, tp)) seeThreat(p, tp, exposed ? 'slime' : 'host');
+    else if (p.state === 'combat') {
+      if (game.alert) p.state = 'search';
+      else { p.state = 'investigate'; p.timer = 3; }
+      p.goal = clampGoal(game.lastKnown.clone());
+    }
+  }
+  if (!p.seeing && p.sus) {
+    p.sus = Math.max(0, p.sus - 0.1 / 3);
+    if (p.sus < 0.3) p.aware = false;
+  }
+  for (const b of bodies) {
+    if (b.found || game.time - b.at < 1.2) continue; // still falling: nobody's sure what they saw yet
+    if (canSee(p, new THREE.Vector3(b.pos.x, 0.35, b.pos.z))) {
+      b.found = true;
+      game.bodiesFound++;
+      game.lastKnown.copy(b.pos);
+      addAlarm(p.armed ? 22 : 12, 'Someone found a body.');
+      toast('A body was found', '', 1.6);
+      sfx.found();
+      setIcon(p, '!');
+      if (p.armed && !game.alert) { p.opts.follow = null; p.state = 'investigate'; p.goal = clampGoal(b.pos.clone().add(new THREE.Vector3(0, 0, 1))); p.timer = 3; }
+      else if (!p.armed) flee(p, b.pos);
+    }
+  }
+}
+
+/** The host did something loud. Anyone who sees it knows which body you're in; guards nearby come to look. */
+function loudAct(pos, radius, alarm) {
+  const tp = targetPoint();
+  let seen = false;
+  for (const q of people) {
+    if (q.state === 'down' || q.state === 'host') continue;
+    const dist = q.pos.distanceTo(pos);
+    if (tp && canSee(q, tp)) {
+      seen = true;
+      setIcon(q, '!');
+      if (q.armed && game.alert) { q.state = 'combat'; q.shootT = 0.5; }
+      else if (!q.armed && q.state !== 'flee') flee(q, pos);
+    } else if (q.armed && dist < radius && !game.alert && q.state === 'routine' && !q.opts.follow) {
+      q.state = 'investigate'; q.goal = clampGoal(pos.clone()); q.timer = 3; setIcon(q, '?');
+    }
+  }
+  if (seen) {
+    player.marked = true;
+    player.seenAt = game.time;
+    game.lastKnown.copy(pos);
+    addAlarm(alarm, 'Someone saw what you did.');
+  } else {
+    addAlarm(alarm * 0.25, 'Too much noise.');
+  }
+}
+
+// --- The slime ------------------------------------------------------------------
+
+const slimeMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(SLIME_R, 1), GOO_MAT);
+slimeMesh.castShadow = true;
+slimeMesh.visible = false;
+scene.add(slimeMesh);
+const slimeLight = new THREE.PointLight(0x7cff4f, 0, 6, 2);
+scene.add(slimeLight);
+
+function spawnSlime(pos, vel) {
+  const body = d.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(pos.x, pos.y, pos.z)
+    .setLinvel(vel.x, vel.y, vel.z).setCcdEnabled(true).setAngularDamping(3));
+  const col = d.world.createCollider(RAPIER.ColliderDesc.ball(SLIME_R).setMass(5).setRestitution(0.05).setFriction(1.5), body);
+  d.queryDirty = true;
+  player.slime = { body, col, born: game.time, lastVy: vel.y, landed: false, prev: new THREE.Vector3(pos.x, pos.y, pos.z), now: new THREE.Vector3(pos.x, pos.y, pos.z) };
+  slimeMesh.visible = true;
+}
+function removeSlime() {
+  if (!player.slime) return;
+  d.world.removeRigidBody(player.slime.body);
+  d.queryDirty = true;
+  player.slime = null;
+  slimeMesh.visible = false;
+}
+
+function enterHost(p, quiet = false) {
+  const t = player.slime?.body.translation();
+  removeSlime();
+  // Seen going in: they know which body you're in now.
+  player.marked = !quiet && game.time - player.seenAt < 0.6;
+  player.host = p;
+  player.health = 100;
+  player.charges = hasItem(p, 'charges') ? 3 : 0;
+  p.state = 'host';
+  p.goal = null;
+  p.opts.follow = null;
+  setIcon(p, null);
+  game.hostsUsed++;
+  if (!quiet) {
+    sfx.infect();
+    burst(new THREE.Vector3(p.pos.x, 1.4, p.pos.z), 22, 0x7cff4f, { speed: 3, up: 3, size: 0.1 });
+    if (t) splat(t.x, t.z, 0.4);
+    const items = p.role.items.map((i) => ITEMS[i].label).join(' + ');
+    toast(p.role.label, items ? `Holding: ${items}` : 'Empty-handed', 1.8);
+  }
+}
+
+/** Jump out. The host you leave dies. */
+function leaveHost(vel) {
+  const h = player.host;
+  if (!h) return;
+  const fwd = new THREE.Vector3(Math.sin(h.yaw), 0, Math.cos(h.yaw));
+  const pos = new THREE.Vector3(h.pos.x, h.pos.y + 2.0, h.pos.z).addScaledVector(fwd, 0.25);
+  player.host = null;
+  kill(h, 'drained');
+  spawnSlime(pos, vel);
+  burst(pos, 14, 0x7cff4f, { speed: 2, up: 2, size: 0.09 });
+}
+
+/** Velocity that flings the slime from S to land at T (34°, or steeper if T is higher). */
+function launchVel(S, T, maxRange) {
+  let dx = T.x - S.x, dz = T.z - S.z;
+  let D = Math.hypot(dx, dz);
+  let ty = T.y;
+  if (D > maxRange) { dx *= maxRange / D; dz *= maxRange / D; D = maxRange; ty = Math.min(ty, 0.3); }
+  if (D < 0.8) { dx = Math.sin(view.yaw) * 0.8; dz = Math.cos(view.yaw) * 0.8; D = 0.8; }
+  const dy = ty - S.y;
+  let th = 0.6;
+  let denom = 2 * Math.cos(th) ** 2 * (D * Math.tan(th) - dy);
+  if (denom < 0.6) { th = 1.0; denom = 2 * Math.cos(th) ** 2 * (D * Math.tan(th) - dy); }
+  const v = Math.min(28, Math.sqrt(GRAV * D * D / Math.max(0.3, denom)));
+  return new THREE.Vector3(Math.cos(th) * v * dx / D, Math.sin(th) * v, Math.cos(th) * v * dz / D);
+}
+
+function launchOrigin() {
+  const h = player.host;
+  return h ? new THREE.Vector3(h.pos.x, h.pos.y + 2.0, h.pos.z) : null;
+}
+
+function launch() {
+  if (!player.host || game.over) return;
+  const S = launchOrigin();
+  const T = player.aimPoint;
+  const aimed = player.aimPerson;
+  leaveHost(launchVel(S, T, LAUNCH_RANGE));
+  player.slime.target = aimed;
+  sfx.launch();
+}
+
+// --- Items ---------------------------------------------------------------------
+
+function rayFrom(origin, dir, maxDist, exclude) {
+  d.queries();
+  _sightRay.origin = { x: origin.x, y: origin.y, z: origin.z };
+  _sightRay.dir = { x: dir.x, y: dir.y, z: dir.z };
+  const hit = d.world.castRay(_sightRay, maxDist, true, undefined, undefined, exclude || undefined, undefined, (c) => !seeThrough.has(c.handle));
+  if (!hit) return null;
+  const h = hit.collider.handle;
+  return {
+    dist: hit.timeOfImpact,
+    person: personByHandle.get(h) || null,
+    slime: !!(player.slime && h === player.slime.col.handle),
+    entity: d.byCollider.get(h) || null,
+  };
+}
+
+function fireGun(shooter, aim, spread, dmgPerson) {
+  const fwd = new THREE.Vector3(Math.sin(shooter.yaw), 0, Math.cos(shooter.yaw));
+  const origin = new THREE.Vector3(shooter.pos.x, shooter.pos.y + 1.35, shooter.pos.z).addScaledVector(fwd, 0.5);
+  const dir = aim.clone().sub(origin).normalize();
+  dir.x += rand(-spread, spread); dir.y += rand(-spread, spread) * 0.5; dir.z += rand(-spread, spread);
+  dir.normalize();
+  const hit = rayFrom(origin, dir, 70, shooter.col);
+  const end = origin.clone().addScaledVector(dir, hit ? hit.dist : 70);
+  tracer(origin, end);
+  burst(origin, 3, 0xffe08a, { speed: 1, up: 1, size: 0.07, life: 0.15, grav: 0 });
+  sfx.shot();
+  shooter.aimT = 0.4;
+  if (!hit) return;
+  if (hit.person) {
+    burst(end, 6, 0xb33a3a, { speed: 2, up: 2, size: 0.07, life: 0.4 });
+    damagePerson(hit.person, dmgPerson, shooter.pos);
+  } else if (hit.slime) {
+    player.health -= 25;
+    burst(end, 10, 0x7cff4f, { speed: 3, up: 2, size: 0.08 });
+  } else if (hit.entity) {
+    d.damageEntity(hit.entity, 6, end, dir);
+    burst(end, 4, 0xd8d0c2, { speed: 2, up: 2, size: 0.06, life: 0.4 });
+  } else {
+    burst(end, 4, 0xbbbbbb, { speed: 2, up: 2, size: 0.06, life: 0.4 });
+  }
+}
+
+function damagePerson(p, dmg, from) {
+  if (p.state === 'down') return;
+  p.hp -= dmg;
+  if (p === player.host) {
+    shake = Math.max(shake, 0.25);
+    if (p.hp <= 0) {
+      toast('Your host is dying', 'Get out, fast.', 1.4);
+      leaveHost(new THREE.Vector3(rand(-2, 2), 4.5, rand(-2, 2)));
+    }
+    return;
+  }
+  if (p.hp <= 0) kill(p, 'hurt');
+  else if (!p.armed && p.state !== 'flee') flee(p, from);
+}
+
+function explodeAt(pos, R = 7) {
+  d.blast({ x: pos.x, y: pos.y, z: pos.z }, R + 1);
+  boomFx(pos);
+  for (const q of people) {
+    if (q.state === 'down') continue;
+    const dist = Math.hypot(q.pos.x - pos.x, q.pos.z - pos.z);
+    if (dist < R) damagePerson(q, 190 * (1 - dist / R), pos);
+  }
+  if (player.slime) {
+    const t = player.slime.body.translation();
+    const dist = Math.hypot(t.x - pos.x, t.z - pos.z);
+    if (dist < R) player.health -= 60 * (1 - dist / R);
+  }
+}
+
+function boomFx(pos) {
+  sfx.boom();
+  flash.position.set(pos.x, pos.y + 1.5, pos.z);
+  flash.intensity = 60;
+  flashT = 0.2;
+  const cd = camera.position.distanceTo(pos);
+  shake = Math.max(shake, clamp(1 - cd / 40, 0.1, 0.7));
+  burst(pos, 40, 0xff9a3c, { speed: 9, up: 8, size: 0.18, life: 0.7 });
+  burst(pos, 20, 0x555555, { speed: 4, up: 6, size: 0.3, life: 1.4, grav: 0.2 });
+}
+
+const CHARGE_GEO = new THREE.BoxGeometry(0.22, 0.14, 0.3);
+function throwCharge(h, T) {
+  const S = new THREE.Vector3(h.pos.x, h.pos.y + 1.6, h.pos.z);
+  const v = launchVel(S, T, 22);
+  const mesh = new THREE.Mesh(CHARGE_GEO, mat(0xd8322a, { emissive: 0x550000 }));
+  mesh.castShadow = true;
+  scene.add(mesh);
+  grenades.push({ pos: S, vel: v, fuse: 2.4, mesh });
+}
+function updateGrenades(dt) {
+  for (let i = grenades.length - 1; i >= 0; i--) {
+    const g = grenades[i];
+    g.fuse -= dt;
+    g.vel.y -= GRAV * dt;
+    const next = g.pos.clone().addScaledVector(g.vel, dt);
+    const len = g.vel.length() * dt;
+    if (len > 1e-4) {
+      const hit = rayFrom(g.pos, g.vel.clone().normalize(), len + 0.12, player.host?.col);
+      if (hit) { g.vel.multiplyScalar(-0.25); g.vel.y = Math.abs(g.vel.y); next.copy(g.pos); }
+    }
+    g.pos.copy(next);
+    if (g.pos.y < 0.07) { g.pos.y = 0.07; g.vel.y *= -0.3; g.vel.x *= 0.6; g.vel.z *= 0.6; }
+    g.mesh.position.copy(g.pos);
+    g.mesh.rotation.y += dt * 4;
+    g.mesh.material.emissiveIntensity = Math.sin(game.time * 20) > 0 ? 1 : 0.2;
+    if (g.fuse <= 0) {
+      scene.remove(g.mesh);
+      grenades.splice(i, 1);
+      explodeAt(g.pos, 7);
+      if (!game.over) loudAct(g.pos.clone(), 50, 18);
+    }
+  }
+}
+
+function useItem() {
+  const h = player.host;
+  if (!h || game.over || player.itemCD > 0) return;
+  const T = player.aimPoint;
+  h.yaw = view.yaw;
+  if (hasItem(h, 'pistol')) {
+    fireGun(h, T, 0.008, 55);
+    player.itemCD = 0.28;
+    loudAct(h.pos.clone(), 30, 30);
+  } else if (hasItem(h, 'hammer')) {
+    const fwd = new THREE.Vector3(Math.sin(h.yaw), 0, Math.cos(h.yaw));
+    const at = h.pos.clone().addScaledVector(fwd, 1.4).setY(1.0);
+    h.swingT = 0.35;
+    d.blast({ x: at.x, y: at.y, z: at.z }, 3.2);
+    for (const q of people) {
+      if (q === h || q.state === 'down') continue;
+      if (Math.hypot(q.pos.x - at.x, q.pos.z - at.z) < 1.8) damagePerson(q, 140, at);
+    }
+    burst(at, 18, 0xcfc8b8, { speed: 5, up: 4, size: 0.14, life: 0.9 });
+    sfx.smash();
+    shake = Math.max(shake, 0.3);
+    player.itemCD = 0.85;
+    loudAct(h.pos.clone(), 30, 30);
+  } else if (hasItem(h, 'charges')) {
+    if (player.charges <= 0) { toast('Out of charges', '', 1); player.itemCD = 0.5; return; }
+    player.charges--;
+    h.swingT = 0.35;
+    throwCharge(h, T);
+    player.itemCD = 0.6;
+  } else {
+    toast(h.role.label, hasItem(h, 'keycard') ? 'The keycard opens doors and the terminal on its own.' : 'Nothing in their hands.', 1.4);
+    player.itemCD = 0.5;
+  }
+}
+
+d.on('explode', (pos) => {
+  boomFx(pos);
+  for (const q of people) {
+    if (q.state === 'down') continue;
+    const dist = Math.hypot(q.pos.x - pos.x, q.pos.z - pos.z);
+    if (dist < 7) damagePerson(q, 170 * (1 - dist / 7), pos);
+  }
+  if (player.slime) {
+    const t = player.slime.body.translation();
+    const dist = Math.hypot(t.x - pos.x, t.z - pos.z);
+    if (dist < 7) player.health -= 60 * (1 - dist / 7);
+  }
+  if (!game.over) loudAct(pos.clone(), 45, 14);
+});
+let lastThud = 0;
+d.on('impact', (material, strength) => {
+  if (game.time - lastThud < 0.05) return;
+  lastThud = game.time;
+  if (material === 'glass') sfx.glass(); else sfx.thud(strength);
+});
+d.on('fracture', (pos, kind) => {
+  if (kind.glass) sfx.glass();
+  burst(pos, 4, 0xcfc8b8, { speed: 2, up: 2, size: 0.12, life: 0.7 });
+});
+
+// --- Camera and aim -----------------------------------------------------------------
+
+const camPivot = new THREE.Vector3();
+const camFwd = new THREE.Vector3();
+const _camDir = new THREE.Vector3();
+
+const _camRight = new THREE.Vector3(), _camWant = new THREE.Vector3();
+let camDist = 4.6;
+// The sun's own axes: shadows are snapped along U and V.
+const SUN_DIR = new THREE.Vector3(-25, -50, -18).normalize();
+const SUN_U = new THREE.Vector3().crossVectors(SUN_DIR, new THREE.Vector3(0, 1, 0)).normalize();
+const SUN_V = new THREE.Vector3().crossVectors(SUN_U, SUN_DIR).normalize();
+function updateCamera(dt) {
+  // Arrow keys look around.
+  const lx = (keys.has('arrowleft') ? 1 : 0) - (keys.has('arrowright') ? 1 : 0);
+  const ly = (keys.has('arrowdown') ? 1 : 0) - (keys.has('arrowup') ? 1 : 0);
+  view.yaw += lx * 2.6 * dt;
+  view.pitch = clamp(view.pitch + ly * 1.6 * dt, -0.45, 1.15);
+  const f = player.host ? player.host.mesh.group.position : player.slime ? slimeMesh.position : camPivot;
+  const height = player.host ? 1.75 : 0.8;
+  const k = Math.min(1, dt * 25);
+  camPivot.x += (f.x - camPivot.x) * k;
+  camPivot.y += (f.y + height - camPivot.y) * k;
+  camPivot.z += (f.z - camPivot.z) * k;
+  const cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+  camFwd.set(Math.sin(view.yaw) * cp, -sp, Math.cos(view.yaw) * cp);
+  const right = _camRight.set(-Math.cos(view.yaw), 0, Math.sin(view.yaw));
+  const dist = player.host ? 4.6 : 3.2;
+  const shoulder = player.host ? 0.75 : 0;
+  const want = _camWant.copy(camPivot).addScaledVector(right, shoulder);
+  // Don't let walls get between the camera and the slime.
+  _camDir.copy(camFwd).negate();
+  const hit = castSight(want, _camDir, dist + 0.3);
+  const dd = hit ? Math.max(0.6, hit.timeOfImpact - 0.3) : dist;
+  // Pull in at once when a wall gets in the way, ease back out after.
+  camDist = dd < camDist ? dd : camDist + (dd - camDist) * Math.min(1, dt * 5);
+  camera.position.copy(want).addScaledVector(_camDir, camDist);
+  camera.position.y = Math.max(0.3, camera.position.y);
+  shake = Math.max(0, shake - dt * 1.5);
+  camera.position.x += (Math.random() - 0.5) * shake * 0.5;
+  camera.position.y += (Math.random() - 0.5) * shake * 0.5;
+  camera.lookAt(_camWant.copy(camera.position).add(camFwd));
+  // Move the shadow map in whole texels so shadows don't shimmer as you walk.
+  const texel = (sun.shadow.camera.right - sun.shadow.camera.left) / sun.shadow.mapSize.x;
+  const u = Math.round((camPivot.x * SUN_U.x + camPivot.z * SUN_U.z) / texel) * texel;
+  const v = Math.round((camPivot.x * SUN_V.x + camPivot.y * SUN_V.y + camPivot.z * SUN_V.z) / texel) * texel;
+  const w = camPivot.x * SUN_DIR.x + camPivot.y * SUN_DIR.y + camPivot.z * SUN_DIR.z;
+  _camWant.set(0, 0, 0).addScaledVector(SUN_U, u).addScaledVector(SUN_V, v).addScaledVector(SUN_DIR, w);
+  sun.target.position.copy(_camWant);
+  sun.position.copy(_camWant).addScaledVector(SUN_DIR, -60);
+}
+
+/** What's under the crosshair: a person (snapped to their chest) or the first thing the ray hits. */
+function updateAim() {
+  const o = camera.position;
+  const dir = camFwd;
+  let best = null, bestT = 60;
+  for (const q of people) {
+    if (q.state === 'down' || q === player.host) continue;
+    const cx = q.pos.x - o.x, cy = q.pos.y + 1.0 - o.y, cz = q.pos.z - o.z;
+    const t = cx * dir.x + cy * dir.y + cz * dir.z;
+    if (t < 1 || t > bestT) continue;
+    const px = cx - dir.x * t, py = cy - dir.y * t, pz = cz - dir.z * t;
+    if (Math.hypot(px, pz) < 0.55 && Math.abs(py) < 1.05) { best = q; bestT = t; }
+  }
+  d.queries();
+  _sightRay.origin = { x: o.x, y: o.y, z: o.z };
+  _sightRay.dir = { x: dir.x, y: dir.y, z: dir.z };
+  const exclude = player.host?.col;
+  const slimeH = player.slime?.col.handle;
+  const hit = d.world.castRay(_sightRay, 80, true, undefined, undefined, exclude, undefined,
+    (c) => !seeThrough.has(c.handle) && c.handle !== slimeH && !personByHandle.has(c.handle));
+  const worldT = hit ? hit.timeOfImpact : 80;
+  if (best && bestT < worldT + 0.5) {
+    player.aimPerson = best;
+    player.aimPoint.set(best.pos.x, best.pos.y + 1.15, best.pos.z);
+  } else {
+    player.aimPerson = null;
+    player.aimPoint.copy(o).addScaledVector(dir, worldT);
+    if (!hit) player.aimPoint.y = 0;
+  }
+  const canJump = !!player.host;
+  const ch = $('crosshair');
+  ch.classList.toggle('person', !!player.aimPerson);
+  ch.classList.toggle('hidden', !canJump);
+}
+
+const hoverRing = zoneRing(0.75, 0x7cff4f);
+hoverRing.visible = false;
+scene.add(hoverRing);
+const ARC_N = 70;
+const ARC_DOTS = 44;
+const arcDots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.07, 6, 4), new THREE.MeshBasicMaterial({ color: 0x9dff7a, depthTest: false, transparent: true }), ARC_DOTS);
+arcDots.renderOrder = 5;
+arcDots.frustumCulled = false;
+arcDots.visible = false;
+scene.add(arcDots);
+const arcPts = Array.from({ length: ARC_N }, () => new THREE.Vector3());
+const landRing = zoneRing(0.5, 0x7cff4f);
+landRing.visible = false;
+scene.add(landRing);
+
+function updateArc() {
+  hoverRing.visible = !!player.aimPerson && !game.over && !!player.host;
+  if (player.aimPerson) hoverRing.position.set(player.aimPerson.pos.x, 0.05, player.aimPerson.pos.z);
+  arcDots.visible = landRing.visible = false;
+  if (!input.aiming || game.over || !player.host) return;
+  const S = launchOrigin();
+  const T = player.aimPoint;
+  const v = launchVel(S, T, LAUNCH_RANGE);
+  let n = 0, len = 0;
+  for (let i = 0; i < ARC_N; i++) {
+    const t = i * 0.04;
+    const y = S.y + v.y * t - 0.5 * GRAV * t * t;
+    arcPts[i].set(S.x + v.x * t, Math.max(0.05, y), S.z + v.z * t);
+    if (i) len += arcPts[i].distanceTo(arcPts[i - 1]);
+    n = i + 1;
+    if (y < 0.05 || (t > 0.2 && v.y - GRAV * t < 0 && y < T.y)) break;
+  }
+  const step = 0.45, phase = (game.time * 2) % step;
+  let seg = 1, segStart = 0, k = 0;
+  for (let dist = phase; dist < len && k < ARC_DOTS; dist += step) {
+    while (seg < n - 1 && segStart + arcPts[seg].distanceTo(arcPts[seg - 1]) < dist) { segStart += arcPts[seg].distanceTo(arcPts[seg - 1]); seg++; }
+    const sl = arcPts[seg].distanceTo(arcPts[seg - 1]) || 1;
+    _ps.copy(arcPts[seg - 1]).lerp(arcPts[seg], clamp((dist - segStart) / sl, 0, 1));
+    _pm.compose(_ps, _pq, new THREE.Vector3(1, 1, 1));
+    arcDots.setMatrixAt(k++, _pm);
+  }
+  arcDots.count = k;
+  arcDots.instanceMatrix.needsUpdate = true;
+  arcDots.visible = true;
+  landRing.visible = true;
+  landRing.position.set(arcPts[n - 1].x, 0.05, arcPts[n - 1].z);
+}
+
+// --- Main tick -----------------------------------------------------------------------------
+
+let thinkAcc = 0;
+let tickN = 0;
+
+function moveInput() {
+  let f = 0, s = 0;
+  if (keys.has('w')) f += 1;
+  if (keys.has('s')) f -= 1;
+  if (keys.has('a')) s -= 1;
+  if (keys.has('d')) s += 1;
+  f -= input.stick.y; s += input.stick.x;
+  const l = Math.hypot(f, s);
+  if (l > 1) { f /= l; s /= l; }
+  const sy = Math.sin(view.yaw), cy = Math.cos(view.yaw);
+  // forward (sin, cos), right (-cos, sin)
+  return { x: f * sy - s * cy, z: f * cy + s * sy };
+}
+
+function tick(dt) {
+  game.time += dt;
+  player.itemCD = Math.max(0, player.itemCD - dt);
+  d.queries();
+  const mv = moveInput();
+
+  const h = player.host;
+  if (h) {
+    h.prev.copy(h.pos);
+    h.prevYaw = h.yaw; h.stride = 1;
+    const run = keys.has('shift') ? 1.5 : 1;
+    const tx = mv.x * HUMAN.speed * run, tz = mv.z * HUMAN.speed * run;
+    const a = Math.min(1, dt * (tx || tz ? 12 : 16));
+    h.vx = (h.vx || 0) + (tx - (h.vx || 0)) * a;
+    h.vz = (h.vz || 0) + (tz - (h.vz || 0)) * a;
+    moveChar(h, h.vx, h.vz, dt);
+    // Face the crosshair while aiming or using an item, otherwise the way you're walking.
+    const want = input.aiming || player.itemCD > 0 ? view.yaw : (Math.hypot(h.vx, h.vz) > 0.3 ? Math.atan2(h.vx, h.vz) : null);
+    if (want !== null) h.yaw += clamp(angDiff(h.yaw, want), -12 * dt, 12 * dt);
+  }
+
+  tickN++;
+  for (const p of people) {
+    if (p === player.host || p.state === 'down') continue;
+    // Far away, nobody can tell: move them a third as often.
+    const far = Math.abs(p.pos.x - camPivot.x) + Math.abs(p.pos.z - camPivot.z) > 45;
+    if (far && (tickN + p.id) % 3) continue;
+    p.prev.copy(p.pos);
+    p.prevYaw = p.yaw;
+    p.stride = far ? 3 : 1;
+    p.stepTick = tickN;
+    npcStep(p, far ? dt * 3 : dt);
+  }
+
+  const tp = targetPoint();
+  for (const p of people) {
+    if (p.state !== 'combat' || !tp) continue;
+    p.lookYaw = Math.atan2(tp.x - p.pos.x, tp.z - p.pos.z);
+    if (p.shootT <= 0 && Math.abs(angDiff(p.yaw, p.lookYaw)) < 0.3) {
+      const dist = p.pos.distanceTo(tp);
+      fireGun(p, tp, 0.025 + dist * 0.0035, 14);
+      p.shootT = rand(0.6, 0.95);
+    }
+  }
+
+  d.step(null);
+  updateGrenades(dt);
+
+  // The slime out in the open: crawling, and dying.
+  if (player.slime) {
+    player.slime.prev.copy(player.slime.now);
+    player.slime.now.copy(player.slime.body.translation());
+    const sb = player.slime.body;
+    const t = sb.translation();
+    const v = sb.linvel();
+    player.health -= SLIME_DRAIN * dt;
+    player.slime.dried = player.health <= SLIME_DRAIN * dt * 2;
+    // On the ground, or resting on top of something.
+    player.slime.restT = Math.abs(v.y) < 0.3 ? (player.slime.restT || 0) + dt : 0;
+    const grounded = (t.y < SLIME_R + 0.2 && v.y < 1) || player.slime.restT > 0.2;
+    if (grounded && game.time - player.slime.born > 0.3) {
+      const ka = Math.min(1, dt * (mv.x || mv.z ? 14 : 18));
+      sb.setLinvel({ x: v.x + (mv.x * CRAWL_SPEED - v.x) * ka, y: Math.min(v.y, 0.5), z: v.z + (mv.z * CRAWL_SPEED - v.z) * ka }, true);
+      if (!player.slime.landed) { player.slime.landed = true; toast('Missed!', 'Crawl into someone who hasn\'t seen you.', 1.6); }
+    }
+    // A little help reaching someone who walked a step since you jumped.
+    const tg = player.slime.target;
+    if (tg && tg.state !== 'down' && !player.slime.landed) {
+      const dx = tg.pos.x - t.x, dz = tg.pos.z - t.z, dist = Math.hypot(dx, dz);
+      if (dist < 3.5 && dist > 0.05) {
+        const sp = Math.max(4, Math.hypot(v.x, v.z));
+        sb.setLinvel({ x: v.x + (dx / dist * sp - v.x) * 0.15, y: v.y, z: v.z + (dz / dist * sp - v.z) * 0.15 }, true);
+      }
+    }
+    if (player.slime.lastVy < -3 && v.y > -1 && t.y < 1.2) { splat(t.x, t.z); sfx.splat(); }
+    player.slime.lastVy = v.y;
+    if (game.time - player.slime.born > 0.12) {
+      for (const p of people) {
+        if (p.state === 'down' || p.state === 'host' || (p.stompT > 0 && player.slime.landed)) continue;
+        if (Math.hypot(p.pos.x - t.x, p.pos.z - t.z) < 0.34 + 0.4 && t.y > p.pos.y - 0.2 && t.y < p.pos.y + 2.1) {
+          enterHost(p);
+          break;
+        }
+      }
+    }
+    if (player.slime && t.y < -5) lose('Lost', 'The slime fell out of the world.');
+  }
+  if (player.health <= 0 && !game.over) lose('The slime died', player.slime && player.slime.dried ? 'It dried out in the open.' : 'Out in the open, people got to it first.');
+
+  // Gates open for anyone holding a keycard.
+  for (const g of gates) {
+    if (g.open) { g.lift = Math.min(1, g.lift + dt * 1.5); g.panel.position.y = -g.lift * 2.6; continue; }
+    const near = h && Math.hypot(h.pos.x - g.x, h.pos.z - g.z) < 3;
+    const ok = hasItem(h, g.need);
+    if (near && ok) {
+      g.open = true;
+      d.world.removeRigidBody(g.fb.body);
+      d.queryDirty = true;
+      g.light.material.color.setHex(0x44ff66);
+      sfx.gate();
+    } else if (near && !g.warned) {
+      g.warned = true;
+      toast('Locked', 'You need a host with a keycard.', 1.5);
+    }
+  }
+
+  thinkAcc += dt;
+  if (thinkAcc >= 0.1) {
+    thinkAcc -= 0.1;
+    for (const p of people) think(p);
+  }
+
+  if (game.alert) {
+    if (game.time - player.seenAt > 2) game.alertT -= dt;
+    if (game.alertT <= 0) {
+      game.alert = false;
+      game.alarm = 55;
+      player.marked = false;
+      setSiren(false);
+      toast('They lost you', 'Lockdown over.', 2);
+      for (const q of people) if (q.armed && (q.state === 'combat' || q.state === 'search')) { q.state = 'routine'; q.goal = null; }
+    }
+  } else if (game.time - game.lastAlarmAt > 3) {
+    game.alarm = Math.max(0, game.alarm - 2.5 * dt);
+  }
+
+  updateObjectives(dt);
+}
+
+function completeObjective(id) {
+  const o = objectives.find((x) => x.id === id);
+  if (!o || o.done || game.over) return;
+  o.done = true;
+  sfx.objective();
+  toast(`${o.type} done`, o.id === 'extract' ? '' : remainingText(), 2.4);
+  if (objectives.slice(1, 4).every((x) => x.done)) for (const z of zones) z.beam.visible = true;
+}
+function remainingText() {
+  const left = objectives.filter((x) => !x.done && x.id !== 'extract');
+  return left.length ? `${left.length} to go` : 'Now get out through the storm drain.';
+}
+
+function updateObjectives(dt) {
+  if (game.over) return;
+  const at = player.host?.pos ?? (player.slime ? player.slime.body.translation() : null);
+  if (at && !objectives[0].done && at.z < stealthZ - 1.5) completeObjective('stealth');
+  if (relay && !objectives[3].done) {
+    relay.checkT -= dt;
+    if (relay.checkT <= 0) {
+      relay.checkT = 0.25;
+      let ok = 0;
+      for (const it of relay.list) {
+        if (!it.e.alive) continue;
+        const t = it.e.body.translation();
+        if (Math.hypot(t.x - it.x, t.y - it.y, t.z - it.z) < 1.2) ok++;
+      }
+      relay.integrity = ok / relay.list.length;
+      if (relay.integrity <= 0.4) completeObjective('relay');
+    }
+  }
+  if (terminal && !objectives[1].done) {
+    const hh = player.host;
+    if (hh && hasItem(hh, 'keycard') && Math.hypot(hh.pos.x - terminal.x, hh.pos.z - terminal.z) < 1.7) {
+      const before = Math.floor(terminal.progress * 10);
+      terminal.progress = Math.min(1, terminal.progress + dt / 5);
+      if (Math.floor(terminal.progress * 10) !== before) sfx.beep();
+      if (terminal.progress >= 1) { terminal.ring.visible = false; completeObjective('files'); }
+    }
+  }
+  if (objectives.slice(0, 4).every((x) => x.done) && at) {
+    for (const z of zones) if (Math.hypot(at.x - z.x, at.z - z.z) < z.r) { completeObjective('extract'); win(); }
+  }
+}
+
+function objectiveDetail(o) {
+  if (o.done) return '';
+  if (o.id === 'files' && terminal.progress > 0) return ` Downloading ${Math.round(terminal.progress * 100)}%.`;
+  if (o.id === 'relay' && relay) return ` Standing: ${Math.round(relay.integrity * 100)}% (needs 40%).`;
+  if (o.id === 'extract' && !objectives.slice(0, 4).every((x) => x.done)) return ' Finish the rest first.';
+  return '';
+}
+
+// --- Win / lose --------------------------------------------------------------------------------
+
+function loadProgress() {
+  try { return JSON.parse(localStorage.getItem('symbiote-progress-v2')) || {}; } catch { return {}; }
+}
+function saveProgress(p) {
+  try { localStorage.setItem('symbiote-progress-v2', JSON.stringify(p)); } catch { /* private mode */ }
+}
+const fmtTime = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+
+function endScreen() {
+  if (document.pointerLockElement) document.exitPointerLock();
+  showScreen('end');
+}
+
+function win() {
+  if (game.over) return;
+  game.over = true;
+  setSiren(false);
+  sfx.win();
+  const L = game.level;
+  const prog = loadProgress();
+  const prev = prog[L.id];
+  const best = !prev || game.time < prev.time;
+  if (best) prog[L.id] = { time: game.time, alarm: Math.round(game.peakAlarm) };
+  saveProgress(prog);
+  setTimeout(() => {
+    $('endTitle').textContent = 'Mission complete';
+    $('endText').textContent = `${L.title}${best && prev ? ' · new best time!' : ''}`;
+    $('endStats').innerHTML = `<div><b>${fmtTime(game.time)}</b>time</div><div><b>${game.hostsUsed}</b>hosts used</div><div><b>${Math.round(game.peakAlarm)}%</b>peak alarm</div>`;
+    endScreen();
+  }, 900);
+}
+
+function lose(title, text) {
+  if (game.over) return;
+  game.over = true;
+  setSiren(false);
+  sfx.lose();
+  if (player.slime) { const t = player.slime.body.translation(); splat(t.x, t.z, 0.9); slimeMesh.visible = false; }
+  setTimeout(() => {
+    $('endTitle').textContent = title;
+    $('endText').textContent = text;
+    const done = objectives.filter((o) => o.done).length;
+    $('endStats').innerHTML = `<div><b>${fmtTime(game.time)}</b>time</div><div><b>${done}/5</b>objectives</div><div><b>${game.hostsUsed}</b>hosts used</div>`;
+    endScreen();
+  }, 900);
+}
+
+// --- HUD and screens ----------------------------------------------------------------------------
+
+let toastTimer = 0;
+function toast(title, sub = '', t = 2) {
+  $('toast').innerHTML = `${title}${sub ? `<small>${sub}</small>` : ''}`;
+  $('toast').style.opacity = 1;
+  toastTimer = t;
+}
+
+let hudT = 0;
+function updateHud(dt) {
+  toastTimer -= dt;
+  if (toastTimer <= 0) $('toast').style.opacity = 0;
+  hudT -= dt;
+  if (hudT > 0) return;
+  hudT = 0.1;
+  $('objList').innerHTML = objectives.map((o) => `<li class="${o.done ? 'done' : ''}"><i>${o.done ? '✓' : ''}</i><span><em>${o.type}</em>${o.text}${objectiveDetail(o)}</span></li>`).join('');
+  const a = Math.round(game.alarm);
+  $('alarmPct').textContent = `${a}%`;
+  $('alarmBar').style.width = `${game.alarm}%`;
+  $('alarmLabel').textContent = game.alert ? 'LOCKDOWN' : a > 60 ? 'ALERTED' : a > 15 ? 'SUSPICIOUS' : 'CALM';
+  $('alarm').classList.toggle('alert', game.alert);
+  $('alarmNote').textContent = game.alert ? `Hunting you · ${Math.ceil(game.alertT)}s` : !objectives[0].done ? 'Stealth: a lockdown now fails the mission' : '';
+  const h = player.host;
+  $('hostcard').classList.toggle('exposed', !h);
+  $('hostLabel').textContent = h ? h.role.label : 'Out in the open';
+  const items = h ? h.role.items.map((i) => ITEMS[i].label + (i === 'charges' ? ` ×${player.charges}` : '')).join(' + ') : '';
+  $('hostItems').textContent = h ? (items ? `Holding: ${items}` : 'Empty-handed') : 'Stay out of sight. They\'ll stamp on you.';
+  $('hpRow').classList.toggle('hidden', !h);
+  $('slimeRow').classList.toggle('hidden', !!h);
+  if (h) $('hpBar').style.width = `${clamp(h.hp / HUMAN.hp, 0, 1) * 100}%`;
+  $('slimeBar').style.width = `${clamp(player.health, 0, 100)}%`;
+  $('spotted').classList.toggle('hidden', !(h && player.marked));
+  const use = h && h.role.items.map((i) => ITEMS[i].use).find(Boolean);
+  $('itembtn').textContent = use ? use.toUpperCase() : 'ITEM';
+  $('itembtn').style.opacity = use ? 1 : 0.4;
+  $('launchbtn').style.opacity = h ? 1 : 0.4;
+}
+
+function showScreen(id) {
+  for (const s of ['menu', 'pause', 'end', 'loading']) $(s).classList.toggle('hidden', s !== id);
+}
+
+function buildMenu() {
+  const prog = loadProgress();
+  const L = LEVELS[0];
+  const best = prog[L.id];
+  $('playBtn').textContent = best ? `Play again (best ${fmtTime(best.time)})` : 'Play';
+}
+
+function toMenu() {
+  game.running = false;
+  setSiren(false);
+  $('hud').classList.add('hidden');
+  $('touch').classList.add('hidden');
+  if (document.pointerLockElement) document.exitPointerLock();
+  loadLevel(0, true);
+  buildMenu();
+  showScreen('menu');
+}
+
+// Behind the menu: the level from the sky, slowly turning, with everyone going about their day.
+let menuOrbit = 0.6;
+function setMenuLook(on) {
+  Object.assign(sun.shadow.camera, on ? { left: -70, right: 70, top: 70, bottom: -70 } : { left: -28, right: 28, top: 28, bottom: -28 });
+  sun.shadow.camera.updateProjectionMatrix();
+  scene.fog.near = on ? 120 : 60;
+  scene.fog.far = on ? 260 : 140;
+  camera.far = on ? 300 : 180;
+  camera.updateProjectionMatrix();
+}
+function menuTick(dt) {
+  game.time += dt;
+  for (const p of people) {
+    if (p.state === 'down') continue;
+    p.prev.copy(p.pos);
+    p.prevYaw = p.yaw;
+    p.stride = 1;
+    npcStep(p, dt);
+  }
+  d.step(null);
+}
+function updateMenuCamera(dt) {
+  menuOrbit += dt * 0.045;
+  const wide = innerWidth > 760;
+  const R = wide ? 82 : 100, H = wide ? 46 : 115;
+  // Shift the view so the level sits right of the menu card on wide screens.
+  const cx = 0, cz = -6;
+  camera.position.set(cx + Math.sin(menuOrbit) * R, H, cz + Math.cos(menuOrbit) * R);
+  _camWant.set(cx, 0, cz);
+  camera.lookAt(_camWant);
+  if (wide) camera.rotateY(0.22);
+  else camera.rotateX(-0.42); // phones: tip up so the level sits above the menu card
+  camPivot.set(cx, 0, cz);
+  sun.target.position.set(cx, 0, cz);
+  sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, -80);
+}
+function restart() { loadLevel(game.levelIndex); }
+function togglePause() {
+  if (game.over) return;
+  game.paused = !game.paused;
+  showScreen(game.paused ? 'pause' : null);
+  if (game.paused) { setSiren(false); input.aiming = false; if (document.pointerLockElement) document.exitPointerLock(); }
+  else if (game.alert) setSiren(true);
+}
+$('playBtn').onclick = () => { audio(); loadLevel(0); };
+$('pausebtn').onclick = () => togglePause();
+$('resumeBtn').onclick = () => togglePause();
+$('restartBtn').onclick = () => restart();
+$('menuBtn').onclick = () => toMenu();
+$('retryBtn').onclick = () => restart();
+$('endMenuBtn').onclick = () => toMenu();
+
+// --- Loop ---------------------------------------------------------------------------------------
+
+let acc = 0;
+let last = performance.now();
+const _slimeDraw = new THREE.Vector3();
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  if (game.running && !game.paused) {
+    acc += dt;
+    let steps = 0;
+    while (acc >= TICK && steps < 4) { tick(TICK); acc -= TICK; steps++; }
+    if (steps === 4) acc = 0;
+    alpha = acc / TICK;
+    d.sync();
+    for (const p of people) syncPersonMesh(p, dt);
+    if (player.slime) {
+      const t = _slimeDraw.lerpVectors(player.slime.prev, player.slime.now, alpha);
+      const v = player.slime.body.linvel();
+      slimeMesh.position.copy(t);
+      const sp = Math.min(1, Math.hypot(v.x, v.y, v.z) / 14);
+      const wob = Math.sin(game.time * 14) * 0.1;
+      const dying = 0.6 + 0.4 * clamp(player.health / 100, 0, 1);
+      slimeMesh.scale.set((1 + wob - sp * 0.2) * dying, (1 - wob + sp * 0.35) * dying * (player.slime.landed ? 0.6 : 1), (1 + wob - sp * 0.2) * dying);
+      slimeLight.position.set(t.x, t.y + 0.5, t.z);
+      slimeLight.intensity = 2;
+      if (Math.random() < 0.3) burst(new THREE.Vector3(t.x, t.y, t.z), 1, 0x7cff4f, { speed: 0.4, up: 0.5, size: 0.06, life: 0.5 });
+    } else slimeLight.intensity = 0;
+    updateCamera(dt);
+    updateAim();
+    updateArc();
+    updateHud(dt);
+    if (terminal) {
+      terminal.ring.rotation.y += dt;
+      terminal.screen.material.emissiveIntensity = 0.6 + Math.sin(game.time * 6) * 0.3 * (terminal.progress > 0 ? 1 : 0.3);
+    }
+    for (const z of zones) z.beam.material.opacity = 0.1 + Math.sin(game.time * 3) * 0.04;
+    if (flashT > 0) { flashT -= dt; flash.intensity = Math.max(0, flashT / 0.2) * 60; }
+  } else if (game.menu) {
+    acc += dt;
+    let steps = 0;
+    while (acc >= TICK && steps < 4) { menuTick(TICK); acc -= TICK; steps++; }
+    if (steps === 4) acc = 0;
+    alpha = acc / TICK;
+    d.sync();
+    for (const p of people) syncPersonMesh(p, dt);
+    updateMenuCamera(dt);
+    for (const z of zones) z.beam.material.opacity = 0.1 + Math.sin(game.time * 3) * 0.04;
+  }
+  updateParts(dt);
+  updateSplats(dt);
+  updateTracers(dt);
+  renderer.render(scene, camera);
+}
+
+loadLevel(0, true);
+buildMenu();
+showScreen('menu');
+requestAnimationFrame(frame);
+
+// Test hooks for headless checks.
+window.__symbiote = {
+  game, player, view, input, people: () => people, objectives: () => objectives, loadLevel, launch, useItem, d,
+  aimNow: () => { alpha = 1; for (const p of people) syncPersonMesh(p, 0); if (player.slime) slimeMesh.position.copy(player.slime.body.translation()); updateCamera(1); updateAim(); return { person: player.aimPerson?.roleId ?? null, p: player.aimPoint.toArray().map((v) => +v.toFixed(1)) }; },
+  sim: (sec) => { for (let i = 0; i < sec / TICK; i++) tick(TICK); d.sync(); },
+  possess: (p) => { removeSlime(); const h = player.host; if (h) kill(h, 'drained'); player.host = null; enterHost(p, true); },
+  teleport: (x, z) => { const h = player.host; h.pos.set(x, 0, z); h.prev.set(x, 0, z); h.rb.setTranslation({ x, y: h.cy, z }, true); d.queryDirty = true; },
+  drop: (x, z) => { const h = player.host; if (h) { player.host = null; kill(h, 'drained'); } spawnSlime(new THREE.Vector3(x, 0.5, z), new THREE.Vector3()); player.slime.landed = true; },
+  renderInfo: () => { let meshes = 0, people_ = 0; scene.traverse((o) => { if (o.isMesh && o.visible) meshes++; }); return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, meshes, people: people.length }; },
+  drawAt: (a) => { alpha = a; for (const p of people) syncPersonMesh(p, 0); },
+  tickOnce: () => tick(TICK),
+  lookAt: (x, y, z) => { const o = camera.position; view.yaw = Math.atan2(x - o.x, z - o.z); view.pitch = Math.atan2(-(y - o.y), Math.hypot(x - o.x, z - o.z)); },
+};
+</script>
+</body>
+</html>
