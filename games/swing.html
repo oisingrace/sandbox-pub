@@ -142,6 +142,23 @@
     .suit.on i { border-color: #fff; } .suit.on { color: var(--ink); }
     .suit.locked { cursor: not-allowed; } .suit.locked i { opacity: 0.3; }
     .suit:focus-visible i { outline: 2px solid rgba(255,255,255,0.6); outline-offset: 2px; }
+    [data-panel="shop"] { width: min(560px, 100%); }
+    .wallet { display: flex; align-items: center; gap: 8px; font: 600 15px var(--display); letter-spacing: 0.04em; color: var(--dim); }
+    .wallet b { color: #ffc23d; font-size: 22px; }
+    .wallet .gem { width: 14px; height: 14px; background: #ffc23d; transform: rotate(45deg); display: inline-block; border-radius: 2px; }
+    .shop-tabs { justify-self: start; }
+    .shop-tabs button { padding: 9px 16px; font-size: 13px; }
+    .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+    .item { appearance: none; border: 2px solid transparent; border-radius: 10px; background: rgba(255,255,255,0.07); color: var(--ink); padding: 10px; display: grid; gap: 6px; justify-items: start; text-align: left; cursor: pointer; font: 500 12px var(--body); }
+    .item:hover, .item:focus-visible { background: rgba(255,255,255,0.14); outline: none; }
+    .item:focus-visible { box-shadow: 0 0 0 2px rgba(255,255,255,0.5); }
+    .item.on { border-color: #fff; }
+    .item i { width: 100%; height: 40px; border-radius: 7px; display: block; }
+    .item .nm { font: 600 14px var(--display); letter-spacing: 0.06em; text-transform: uppercase; }
+    .item .pr { color: var(--dim); font: 600 12px var(--display); letter-spacing: 0.04em; }
+    .item .pr.buy { color: #ffc23d; }
+    .item .ds { color: var(--dim); }
+    .item[aria-disabled="true"] { opacity: 0.5; }
     .ctrl { display: grid; gap: 14px; }
     .ctrl section { display: grid; gap: 6px; }
     .ctrl h3 { margin: 0 0 2px; font: 600 12px var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan); }
@@ -194,6 +211,15 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.7 beta", "date": "2026-10-09", "title": "Shop",
+      "notes": [
+        "New Shop in the main and pause menus. Spend tokens on suits, web colours and a token finder.",
+        "Tokens are easier to grab: they're bigger, you pick them up from further away, and nearby ones fly to you.",
+        "Finishing a level for the first time pays 5 tokens.",
+        "Beat all 26 levels to unlock the Champion suit.",
+        "Two new suits to buy, Toxic and Ember, plus six web colours.",
+        "Suits you'd already unlocked stay yours, and the tokens you'd collected are all there to spend."
+      ] },
     { "version": "0.6.1 beta", "date": "2026-10-09", "title": "Easier Elevator Shaft",
       "notes": [
         "Level 14 is rebuilt: instead of riding wind between ledges, step onto a rising pillar, ride it up and step off. Three rides take you to the top.",
@@ -314,7 +340,8 @@
         <button class="mbtn" data-act="online">Play online <small>With friends, by room code</small></button>
         <button class="mbtn" data-act="levels">Levels <small id="titleLevels"></small></button>
         <button class="mbtn" data-act="races">Races <small id="titleMedals"></small></button>
-        <button class="mbtn" data-act="settings">Settings <small>Suits, controls, graphics</small></button>
+        <button class="mbtn" data-act="shop">Shop <small id="titleWallet"></small></button>
+        <button class="mbtn" data-act="settings">Settings <small>Controls, graphics</small></button>
         <button class="mbtn" data-act="controls">Controls</button>
         <a class="mbtn" href="https://oisingrace.github.io/sandbox-pub/#" target="_top">More projects <small>→</small></a>
       </div>
@@ -335,6 +362,7 @@
         <button class="mbtn" data-act="quitLevel" data-level-only>Quit level</button>
         <button class="mbtn" data-act="levels">Levels</button>
         <button class="mbtn" data-act="races">Races</button>
+        <button class="mbtn" data-act="shop">Shop</button>
         <button class="mbtn" data-act="settings">Settings</button>
         <button class="mbtn" data-act="controls">Controls</button>
         <button class="mbtn" data-act="respawn">Back to start roof</button>
@@ -382,6 +410,17 @@
       <h2>Races</h2>
       <p class="tag">Fly through every ring in order. Beat the par times for medals. Cyan beams in the city mark each start.</p>
       <div class="menu-btns" id="raceList"></div>
+      <button class="mbtn" data-act="back">Back</button>
+    </section>
+
+    <section class="panel" data-panel="shop" hidden>
+      <h2>Shop</h2>
+      <div class="wallet"><i class="gem"></i><b id="shopWallet">0</b> tokens to spend</div>
+      <p class="tag">Find tokens around the city and earn 5 for each level you finish for the first time.</p>
+      <div class="seg shop-tabs" role="tablist">
+        <button type="button" data-tab="suits" class="on">Suits</button><button type="button" data-tab="webs">Webs</button><button type="button" data-tab="gear">Gear</button>
+      </div>
+      <div class="shop-grid" id="shopList"></div>
       <button class="mbtn" data-act="back">Back</button>
     </section>
 
@@ -515,11 +554,29 @@ const SUITS = [
   { id: 'ivory',   name: 'Ivory',   need: 45, main: 0xe8e6e0, sec: 0xc9a23a, eye: 0x1a1a1a, glow: 0 },
   { id: 'neon',    name: 'Neon',    need: 70, main: 0xe0218a, sec: 0x15151a, eye: 0xb8ff3d, glow: 1 },
   { id: 'gilded',  name: 'Gilded',  need: 90, main: 0xd9a92e, sec: 0x2a2a30, eye: 0xffffff, glow: 0 },
+  // Added with the shop (new suits go on the end: online play sends suits by index).
+  { id: 'toxic',   name: 'Toxic',   need: 0,  main: 0x6fd13a, sec: 0x14181a, eye: 0xd8ff5a, glow: 1 },
+  { id: 'ember',   name: 'Ember',   need: 0,  main: 0xe2541f, sec: 0x2b1410, eye: 0xffc23d, glow: 1 },
+  { id: 'champion', name: 'Champion', need: 0, main: 0xf3f4f6, sec: 0xd9a92e, eye: 0x45d8ea, glow: 1, levels: true },
 ];
+const SUIT_PRICE = { classic: 0, noir: 5, stealth: 10, ivory: 15, toxic: 20, neon: 25, ember: 30, gilded: 40 };
+const WEBS = [
+  { id: 'white', name: 'White', color: 0xf6f8fb, price: 0 },
+  { id: 'gold',  name: 'Gold',  color: 0xffc23d, price: 5 },
+  { id: 'cyan',  name: 'Cyan',  color: 0x45d8ea, price: 5 },
+  { id: 'pink',  name: 'Pink',  color: 0xff4fa3, price: 5 },
+  { id: 'lime',  name: 'Lime',  color: 0xb8ff3d, price: 5 },
+  { id: 'red',   name: 'Red',   color: 0xe23a3a, price: 8 },
+  { id: 'black', name: 'Black', color: 0x16171c, price: 10 },
+];
+const GEAR = [
+  { id: 'finder', name: 'Token finder', price: 8, desc: 'In free roam, the marker points to the nearest token you haven\'t collected.' },
+];
+const LEVEL_REWARD = 5;
 
 const SAVE_KEY = 'swing-save-v1';
 const save = {
-  tokens: [], best: {}, bestCombo: 0, score: 0, suit: 'classic', learned: {},
+  tokens: [], best: {}, bestCombo: 0, score: 0, suit: 'classic', learned: {}, web: 'white', bonus: 0, spent: 0, owned: null,
   settings: { sensitivity: 1, invertY: false, fov: 72, quality: '', qualityAuto: true, timeOfDay: 'day', volume: 0.8, hints: true },
 };
 try {
@@ -530,6 +587,11 @@ try {
   }
 } catch { /* storage blocked: play without saving */ }
 function writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch { /* ignore */ } }
+// Older saves unlocked suits by token count: keep those suits, and start everyone's wallet with every token they've found.
+if (!save.owned) save.owned = { suits: SUITS.filter((x) => x.need > 0 && x.need <= save.tokens.length).map((x) => x.id), webs: [], gear: [] };
+const owns = (kind, id) => (kind === 'suits' && (SUIT_PRICE[id] === 0 || (id === 'champion' && allLevelsDone()))) || (kind === 'webs' && id === 'white') || save.owned[kind].includes(id);
+const wallet = () => save.tokens.length + save.bonus - save.spent;
+function allLevelsDone() { return typeof LEVELS !== 'undefined' && LEVELS.every((d) => save.levels?.[d.id]); }
 const coarsePointer = matchMedia('(pointer: coarse)').matches;
 if (!save.settings.quality) save.settings.quality = coarsePointer ? 'low' : 'medium';
 
@@ -1329,12 +1391,12 @@ const tokens = (() => {
   for (const t of list) t.got = save.tokens.includes(t.id);
 
   const mesh = new THREE.InstancedMesh(
-    new THREE.OctahedronGeometry(0.85),
+    new THREE.OctahedronGeometry(1.15),
     new THREE.MeshStandardMaterial({ color: 0xffc23d, emissive: 0xffa000, emissiveIntensity: 0.9, metalness: 0.4, roughness: 0.3 }),
     list.length
   );
   const halo = new THREE.InstancedMesh(
-    new THREE.PlaneGeometry(4.2, 4.2),
+    new THREE.PlaneGeometry(6.5, 6.5),
     new THREE.MeshBasicMaterial({ map: city.glowTex, color: 0xffb02e, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }),
     list.length
   );
@@ -2163,7 +2225,10 @@ function step(dt) {
 
   // ---------- tokens ----------
   for (const t of tokens.list) {
-    if (!t.got && t.pos.distanceToSquared(P.pos) < 6.2) collectToken(t);
+    if (t.got) continue;
+    const d2 = t.pos.distanceToSquared(P.pos);
+    if (d2 < 30) collectToken(t); // within about 5.5 m
+    else if (d2 < 400) t.pos.lerp(P.pos, Math.min(1, dt * (22 / Math.sqrt(d2)))); // nearby tokens fly to you
   }
 
   // ---------- levels: hazards, checkpoints, the exit ----------
@@ -2248,9 +2313,7 @@ function collectToken(t) {
   combo.add('Token', 250);
   player.events.push({ type: 'token', point: t.pos.clone() });
   const n = tokens.count;
-  toast(`Token ${n} / ${tokens.list.length}`, 'gold');
-  const unlocked = SUITS.find((s) => s.need === n && s.need > 0);
-  if (unlocked) setTimeout(() => toast(`Suit unlocked: ${unlocked.name}. Equip it in Settings.`, 'gold big'), 700);
+  toast(`Token ${n} / ${tokens.list.length} · ${wallet()} to spend`, 'gold');
 }
 
 function onSplash() {
@@ -2467,14 +2530,16 @@ character.applySuit(save.suit);
 const webLine = (() => {
   const geo = new THREE.CylinderGeometry(0.04, 0.04, 1, 6, 1, true);
   geo.translate(0, 0.5, 0);
-  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xf6f8fb }));
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: (WEBS.find((w) => w.id === save.web) || WEBS[0]).color }));
   mesh.visible = false;
   mesh.frustumCulled = false;
   scene.add(mesh);
+  const setColor = (hex) => mesh.material.color.setHex(hex);
   const SHOOT_TIME = 0.06, RETRACT_TIME = 0.14;
   const anchor = new THREE.Vector3(), from = new THREE.Vector3(), to = new THREE.Vector3(), dir = new THREE.Vector3();
   let hand = 'R', shootT = 0, retractT = -1, active = false;
   return {
+    setColor,
     update(dt) {
       const P = player;
       const target = P.web ? P.web.anchor : P.zipT > 0 ? P.zipPoint : null;
@@ -2865,6 +2930,10 @@ function updateMarker() {
   let target = null;
   if (race.state === 'running' || race.state === 'countdown') target = race.def.rings[Math.min(race.idx, race.def.rings.length - 1)].pos;
   else if (level.state === 'playing') target = levelTarget();
+  else if (!level.def && save.owned.gear.includes('finder')) {
+    let best = Infinity;
+    for (const t of tokens.list) { if (!t.got) { const d = t.pos.distanceToSquared(player.pos); if (d < best) { best = d; target = t.pos; } } }
+  }
   if (!target || game.mode !== 'play') { markerEl.hidden = true; return; }
   markerEl.hidden = false;
   const v = tC.copy(target).project(camera);
@@ -3849,6 +3918,12 @@ function finishLevel() {
   $('#lvDeaths').textContent = level.deaths ? `Sent back ${level.deaths} time${level.deaths === 1 ? '' : 's'}` : 'Flawless: never sent back';
   const next = LEVELS[n + 1];
   $('[data-act=nextLevel]').hidden = !next;
+  if (!prev) {
+    save.bonus += LEVEL_REWARD; writeSave();
+    toast(`First clear: +${LEVEL_REWARD} tokens`, 'gold big');
+    $('#lvDeaths').textContent += ` · +${LEVEL_REWARD} tokens`;
+    if (allLevelsDone()) setTimeout(() => toast('Every level beaten! Champion suit unlocked in the Shop', 'gold big'), 1200);
+  }
   if (next && !prev) setTimeout(() => toast(`Level ${n + 2} unlocked: ${next.name}`, 'gold'), 300);
   setTimeout(() => { if (level.state === 'done') openMenu('levelDone'); }, 900);
 }
@@ -3922,6 +3997,7 @@ function openMenu(name, push = true) {
   if (name === 'races') renderRaces();
   if (name === 'levels') renderLevels();
   if (name === 'settings') renderSettings();
+  if (name === 'shop') renderShop();
   if (name === 'pause') {
     panels.pause.querySelectorAll('[data-race-only]').forEach((b) => { b.hidden = race.state === 'idle'; });
     panels.pause.querySelectorAll('[data-level-only]').forEach((b) => { b.hidden = !level.def; });
@@ -3996,6 +4072,7 @@ menuEl.addEventListener('click', (e) => {
     case 'resume': resume(); break;
     case 'races': openMenu('races'); break;
     case 'settings': openMenu('settings'); break;
+    case 'shop': openMenu('shop'); break;
     case 'controls': openMenu('controls'); break;
     case 'back': back(); break;
     case 'respawn': quitRace(); quitLevel(); player.reset(); resume(); break;
@@ -4020,6 +4097,7 @@ function medalCount() {
 function renderTitle() {
   const c = medalCount();
   $('#titleMedals').textContent = `${c.gold + c.silver + c.bronze} / ${races.length} medals`;
+  $('#titleWallet').textContent = `${wallet()} tokens to spend`;
   $('#titleLevels').textContent = `${LEVELS.filter((d) => save.levels?.[d.id]).length} / ${LEVELS.length} done`;
   $('#titleStats').innerHTML =
     `<span>Tokens <b>${tokens.count} / ${tokens.list.length}</b></span>` +
@@ -4037,7 +4115,7 @@ function renderRaces() {
   }).join('');
 }
 function renderSettings() {
-  const S = save.settings, got = tokens.count;
+  const S = save.settings;
   const seg = (key, opts) => `<span class="seg">${opts.map(([v, l]) => `<button type="button" data-set="${key}" data-val="${v}" class="${S[key] === v ? 'on' : ''}">${l}</button>`).join('')}</span>`;
   $('#settingsList').innerHTML = `
     <label class="setting"><span>Look sensitivity</span><span><input id="setSens" type="range" min="0.3" max="2.5" step="0.05" value="${S.sensitivity}"> <output id="outSens">${S.sensitivity.toFixed(2)}</output></span></label>
@@ -4046,14 +4124,7 @@ function renderSettings() {
     <div class="setting"><span>Graphics</span>${seg('quality', [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']])}</div>
     <div class="setting"><span>Time of day</span>${seg('timeOfDay', [['day', 'Day'], ['sunset', 'Sunset'], ['night', 'Night']])}</div>
     <label class="setting"><span>Volume</span><span><input id="setVol" type="range" min="0" max="1" step="0.05" value="${S.volume}"> <output id="outVol">${Math.round(S.volume * 100)}%</output></span></label>
-    <label class="setting"><span>Show hints</span><input id="setHints" type="checkbox" ${S.hints ? 'checked' : ''}></label>
-    <div class="setting" style="grid-template-columns:1fr"><span>Suit · ${got} / ${tokens.list.length} tokens</span>
-      <div class="suits">${SUITS.map((s) => {
-        const locked = got < s.need;
-        const bg = `linear-gradient(135deg, #${s.main.toString(16).padStart(6, '0')} 55%, #${s.sec.toString(16).padStart(6, '0')} 55%)`;
-        return `<button type="button" class="suit ${save.suit === s.id ? 'on' : ''} ${locked ? 'locked' : ''}" data-suit="${s.id}" ${locked ? 'aria-disabled="true"' : ''} title="${locked ? `Collect ${s.need} tokens` : s.name}"><i style="background:${bg}"></i>${locked ? s.need + ' ◆' : s.name}</button>`;
-      }).join('')}</div>
-    </div>`;
+    <label class="setting"><span>Show hints</span><input id="setHints" type="checkbox" ${S.hints ? 'checked' : ''}></label>`;
   const bind = (id, fn) => $(id).addEventListener('input', fn);
   bind('#setSens', (e) => { S.sensitivity = Number(e.target.value); $('#outSens').textContent = S.sensitivity.toFixed(2); writeSave(); });
   bind('#setFov', (e) => { S.fov = Number(e.target.value); $('#outFov').textContent = S.fov + '°'; writeSave(); });
@@ -4071,16 +4142,65 @@ $('#settingsList').addEventListener('click', (e) => {
     b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
     return;
   }
-  const s = e.target.closest('[data-suit]');
-  if (s) {
-    e.stopPropagation();
-    const suit = SUITS.find((x) => x.id === s.dataset.suit);
-    if (tokens.count < suit.need) { toast(`Collect ${suit.need} tokens to unlock ${suit.name}`, 'red'); return; }
-    save.suit = suit.id; writeSave();
-    character.applySuit(suit.id);
+});
+
+// ---------- shop ----------
+let shopTab = 'suits';
+const hex = (n) => '#' + n.toString(16).padStart(6, '0');
+function shopItems() {
+  if (shopTab === 'suits') return SUITS.map((x) => ({
+    id: x.id, name: x.name, price: x.levels ? null : SUIT_PRICE[x.id], lock: x.levels ? 'Beat all levels' : '',
+    swatch: `linear-gradient(135deg, ${hex(x.main)} 55%, ${hex(x.sec)} 55%)`, on: save.suit === x.id,
+  }));
+  if (shopTab === 'webs') return WEBS.map((w) => ({ id: w.id, name: w.name, price: w.price, swatch: hex(w.color), on: save.web === w.id }));
+  return GEAR.map((g) => ({ id: g.id, name: g.name, price: g.price, desc: g.desc, gear: true }));
+}
+function renderShop() {
+  $('#shopWallet').textContent = wallet();
+  panels.shop.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === shopTab));
+  $('#shopList').innerHTML = shopItems().map((it) => {
+    const own = owns(shopTab, it.id);
+    let pr;
+    if (it.gear) pr = own ? 'Owned' : `${it.price} ◆`;
+    else if (own) pr = it.on ? 'Wearing' : 'Equip';
+    else pr = it.lock || `${it.price} ◆`;
+    const off = !own && (it.lock || it.price > wallet());
+    return `<button type="button" class="item ${it.on ? 'on' : ''}" data-item="${it.id}" ${off ? 'aria-disabled="true"' : ''}>
+      ${it.swatch ? `<i style="background:${it.swatch}"></i>` : ''}<span class="nm">${it.name}</span>
+      ${it.desc ? `<span class="ds">${it.desc}</span>` : ''}<span class="pr ${own ? '' : 'buy'}">${pr}</span></button>`;
+  }).join('');
+}
+function equip(kind, id) {
+  if (kind === 'suits') {
+    save.suit = id;
+    character.applySuit(id);
     character.setNight((TOD[save.settings.timeOfDay] || TOD.day).night);
-    s.parentElement.querySelectorAll('.suit').forEach((x) => x.classList.toggle('on', x === s));
+  } else if (kind === 'webs') {
+    save.web = id;
+    webLine.setColor(WEBS.find((w) => w.id === id).color);
   }
+  writeSave();
+}
+panels.shop.addEventListener('click', (e) => {
+  const tab = e.target.closest('[data-tab]');
+  if (tab) { e.stopPropagation(); shopTab = tab.dataset.tab; audio.click(); renderShop(); focusables()[0]?.focus({ preventScroll: true }); return; }
+  const b = e.target.closest('[data-item]');
+  if (!b) return;
+  e.stopPropagation();
+  audio.init(); audio.click();
+  const it = shopItems().find((x) => x.id === b.dataset.item);
+  if (!owns(shopTab, it.id)) {
+    if (it.lock) { toast(`Finish all ${LEVELS.length} levels to unlock ${it.name}`, 'red'); return; }
+    if (it.price > wallet()) { toast(`${it.name} costs ${it.price} tokens. You have ${wallet()}.`, 'red'); return; }
+    save.spent += it.price;
+    save.owned[shopTab].push(it.id);
+    toast(`Bought ${it.name}`, 'gold');
+  }
+  if (!it.gear) equip(shopTab, it.id);
+  writeSave();
+  const id = it.id;
+  renderShop();
+  $(`#shopList [data-item="${id}"]`)?.focus({ preventScroll: true });
 });
 
 // =====================================================================
