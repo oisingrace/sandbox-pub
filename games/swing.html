@@ -194,6 +194,11 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.6.1 beta", "date": "2026-10-09", "title": "Easier Elevator Shaft",
+      "notes": [
+        "Level 14 is rebuilt: instead of riding wind between ledges, step onto a rising pillar, ride it up and step off. Three rides take you to the top.",
+        "Two checkpoints on the way up, so a slip only costs one ride."
+      ] },
     { "version": "0.6 beta", "date": "2026-10-08", "title": "Levels",
       "notes": [
         "26 numbered levels, indoor and outdoor, each bringing in something new. Reach the green gate at the end to finish.",
@@ -3250,20 +3255,23 @@ LEVELS.push(
   },
   {
     id: 'l14', name: 'Elevator Shaft', where: 'Indoor',
-    intro: 'Head for the top. Ride the lift, then let the wind carry you up from ledge to ledge.',
+    intro: 'Step onto a pillar while it\'s down and ride it up, then step off onto the next ledge. Three rides to the top.',
     bot: 'walk',
     build(L) {
-      L.room(-16, 16, 10, -40, 110);
-      L.solid(-16, 0, 10, 16, 0.5, -40, 'floor');
-      L.start(0, 1.7, 0);
-      L.mover(-14, 0.5, -22, -4, 1.5, -12, 'lift', (t) => [0, 12.35 - 12.35 * Math.cos(t * 0.8), 0]);
-      L.hint(-9, 27, -17);
-      L.solid(-16, 24, -40, 16, 26, -22, 'concrete'); L.checkpoint(0, 27.2, -31);
-      L.wind(4, 20, -22, 14, 62, -12, 0, 60, 0); L.hint(9, 52, -17);
-      L.solid(-16, 56, 10, 16, 58, -10, 'concrete'); L.checkpoint(0, 59.2, 0);
-      L.wind(-14, 52, -22, -4, 94, -12, 0, 60, 0); L.hint(-9, 84, -17);
-      L.solid(-16, 86, -40, 16, 88, -22, 'concrete');
-      L.exit(0, 89.2, -31);
+      // The shaft is a 2 x 3 grid of cells: pillars rise in some, ledges stand in others.
+      // Pillars are tall columns, so there's never a gap underneath to get stuck in.
+      L.room(-16, 16, 10, -40, 100);
+      L.solid(0, 0, 10, 16, 0.5, -7, 'floor');
+      const pillar = (x0, z0, x1, z1, base, rise, phase) =>
+        L.mover(x0, base - 60, z0, x1, base, z1, 'lift', (t) => [0, rise * cycle(t, 10, 0.35, phase), 0]);
+      pillar(-16, 10, 0, -7, 0.5, 26, 0);
+      L.start(-8, 1.7, 1.5);
+      L.solid(-16, -3, -7, 0, 26, -23, 'concrete'); L.checkpoint(-8, 27.2, -15);
+      pillar(0, -7, 16, -23, 26, 26, 0.33);
+      L.solid(0, -3, -23, 16, 52, -40, 'concrete'); L.checkpoint(8, 53.2, -31);
+      pillar(-16, -23, 0, -40, 52, 26, 0.66);
+      L.solid(-16, 76, -7, 0, 78, -23, 'concrete');
+      L.exit(-8, 79.2, -15);
     },
   },
   {
