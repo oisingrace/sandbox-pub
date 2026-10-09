@@ -57,6 +57,10 @@
     #consumeHint kbd, #hostItems .dim { color: var(--dim); font-size: 11px; }
     #hostItems b { color: var(--slime); }
     #swapbtn { right: 128px; bottom: 116px; width: 56px; height: 40px; border: 2px solid rgba(255,255,255,0.4); background: rgba(0,0,0,0.3); color: #fff; font-size: 11px; }
+    #consumeHint .pbar { height: 5px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; margin: 2px 0 4px; }
+    #consumeHint .pbar i { display: block; height: 100%; background: var(--slime); }
+    #consumeHint .warn { color: #ffb347; font-weight: 600; }
+    #bodybtn { right: 26px; bottom: 136px; width: 70px; height: 50px; border: 2px solid rgba(124,255,79,0.8); background: rgba(40,90,20,0.5); color: var(--slime); }
     #eatbtn { right: 26px; bottom: 136px; width: 70px; height: 50px; border: 2px solid rgba(124,255,79,0.8); background: rgba(40,90,20,0.5); color: var(--slime); }
     #spotted { color: var(--bad); font-weight: 700; font-size: 11px; margin-top: 6px; }
 
@@ -148,6 +152,15 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.9", "date": "2026-10-09", "title": "Forms",
+      "notes": [
+        "Runs faster: each person is now drawn in a handful of pieces instead of a dozen, far away people don't cast shadows, the hills and road lines are drawn in one go, and people further off think less often. About 30% fewer draw calls and half the game logic time.",
+        "Phones start at a lower resolution, and drop it further by themselves if the game runs slow.",
+        "Consuming is harder: hold C (or EAT) for 4 seconds where nobody, and no camera, can see you. Being watched pauses it, letting go slowly undoes it, and the noise brings guards over to look.",
+        "Slime forms unlock powers. Form II: hop as a slime, aiming just like jumping from a host. Form III: keep still and you become a puddle nobody spots unless they're right on top of you, and you stop drying out.",
+        "Form IV: hold B (or BODY) as a slime, unseen, to grow your own body. It's a host made of slime that carries what you absorbed, but it costs two forms and looks wrong to guards up close."
+      ]
+    },
     { "version": "0.8", "date": "2026-10-09", "title": "Saltmarsh Docks",
       "notes": [
         "New level: Saltmarsh Docks. A fishing village with a fish market, cottages and a pub, a customs fence, and docks behind it with a warehouse, a maze of shipping containers, two gantry cranes, a cargo ship, a water tower and a pier. It is set at sunset.",
@@ -255,6 +268,7 @@
     <button id="itembtn" class="tbtn">ITEM</button>
     <button id="swapbtn" class="tbtn hidden">SWAP</button>
     <button id="eatbtn" class="tbtn hidden">EAT</button>
+    <button id="bodybtn" class="tbtn hidden">BODY</button>
     <button id="launchbtn" class="tbtn">LAUNCH</button>
   </div>
 
@@ -272,9 +286,10 @@
         <b>Launch</b><span>Hold left mouse to see the arc, let go to jump. Aim at a person.</span>
         <b>Use item</b><span>Right mouse or <kbd>F</kbd>: pistol, sledgehammer or charges. Keycards work by themselves.</span>
         <b>Swap item</b><span><kbd>Q</kbd> when your host holds more than one</span>
-        <b>Consume</b><span><kbd>C</kbd> on levels that allow it: eat your host to grow. Loud, and you drop out instead of jumping.</span>
+        <b>Consume</b><span>Hold <kbd>C</kbd> where nobody can see you, on levels that allow it: eat your host and your slime grows a form.</span>
+        <b>Forms</b><span>II: hop as a slime. III: keep still to become a puddle. IV: hold <kbd>B</kbd> as a slime to grow your own body (drops two forms).</span>
         <b>Other</b><span><kbd>R</kbd> restart, <kbd>P</kbd> or <kbd>Esc</kbd> pause</span>
-        <b class="t">Touch</b><span class="t">Left stick moves, drag the right side to look, hold LAUNCH to aim and let go to jump. ITEM uses what your host is holding, SWAP changes item, EAT consumes your host where the level allows it.</span>
+        <b class="t">Touch</b><span class="t">Left stick moves, drag the right side to look, hold LAUNCH to aim and let go to jump. ITEM uses what your host is holding, SWAP changes item, hold EAT to consume your host where the level allows it, hold BODY to grow a body.</span>
       </div>
       </details>
     </div>
@@ -2175,6 +2190,7 @@ const ROLES = {
   fisher: { label: 'Fisher', items: [], shirts: [0x3d6fa8, 0x7a2f2f, 0x4c8c3a, 0xe7e1d4], pants: [0x2d3a52, 0x3a3a3a, 0x4a3b2e] },
   docker: { label: 'Dock worker', items: ['flares', 'pass'], shirts: [0xf2c230, 0xffb02e], pants: [0x2d3a52], hat: 'hard' },
   customs: { label: 'Customs officer', items: ['pistol', 'keycard'], shirts: [0x3a5a48], pants: [0x1f2a24], hat: 'cap', armed: true },
+  shell: { label: 'Slime body', items: [], shirts: [0x4f9a35], pants: [0x2f5e22], skins: [0x9fdc7a], shell: true },
   harbourmaster: { label: 'The Harbourmaster', items: ['keycard'], shirts: [0x1d2f5a], pants: [0x1d2f5a], hat: 'cap', tie: true, vip: true },
 };
 const SKINS = [0xf1c7a3, 0xd9a47c, 0xa8714d, 0x7a4b2e, 0xf6d6bd, 0xc68863];
@@ -2187,13 +2203,19 @@ const crawlSpeed = () => CRAWL_SPEED + 0.7 * player.form;
 const launchRange = () => LAUNCH_RANGE + 2.5 * player.form;
 const SLIME_DRAIN = 4;      // health per second out of a host: about 25 seconds, so people are the real danger
 const CRAWL_SPEED = 4.6;    // m/s, faster than anyone can walk, a little slower than a sprint
+const EAT_TIME = 4;         // seconds of holding C, unseen, to eat your host
+const GROW_TIME = 3;        // seconds of holding B, unseen, to grow a body (form III)
+const HOP_COST = 6;         // slime health per hop (form I)
 const STOMP_DMG = 34;       // three stamps and the slime is paste
 const STOMP_WINDUP = 0.35;  // foot in the air: they can't be entered until it comes down
 
 // --- Renderer -------------------------------------------------------------
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+const TOUCH = matchMedia('(pointer: coarse)').matches;
+// Phones: fewer pixels to shade; drops further on its own if frames run slow (see frame()).
+let pixelRatio = Math.min(devicePixelRatio, TOUCH ? 1.25 : 1.5);
+renderer.setPixelRatio(pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -2250,7 +2272,7 @@ function buildPerson(role) {
   const details = [];
   const det = (m) => (details.push(m), m);
   const shirt = new THREE.MeshStandardMaterial({ color: pick(role.shirts), roughness: 0.85, flatShading: true });
-  const skin = new THREE.MeshStandardMaterial({ color: pick(SKINS), roughness: 0.7, flatShading: true });
+  const skin = new THREE.MeshStandardMaterial({ color: pick(role.skins || SKINS), roughness: 0.7, flatShading: true });
   const pants = mat(pick(role.pants));
   const body = new THREE.Group();
   g.add(body);
@@ -2314,9 +2336,54 @@ function buildPerson(role) {
   goo.position.set(0, 1.5, -0.2);
   goo.visible = false;
   body.add(goo);
-  // Small bits that only matter up close: hidden far away, and they cast no shadows.
-  for (const o of details) o.castShadow = false;
-  return { group: g, body, legs, arms, head, torso, shirt, skin, eyeMat, goo, details, near: true };
+  // One draw call per moving part: bake each part's boxes into a single vertex-coloured mesh.
+  const pm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, flatShading: true });
+  const parts = [body, ...legs, ...arms];
+  const skip = new Set([...parts, goo]);
+  const eyes = details.filter((o) => o.material === eyeMat);
+  for (const e of eyes) skip.add(e);
+  const baked = parts.map((part) => bakePart(part, pm, skip));
+  // The eyes stay their own mesh so they can glow.
+  const eyeMesh = bakePart(head, eyeMat, new Set(), eyes);
+  eyeMesh.castShadow = false;
+  return { group: g, body, legs, arms, head, torso, shirt: pm, skin: pm, eyeMat, goo, details: [eyeMesh], baked, near: true };
+}
+
+const _bakeInv = new THREE.Matrix4(), _bakeM = new THREE.Matrix4(), _bakeC = new THREE.Color();
+/** Merge the meshes under `part` (not crossing into other parts) into one mesh on `part`. */
+function bakePart(part, material, skip, only = null) {
+  part.updateMatrixWorld(true);
+  _bakeInv.copy(part.matrixWorld).invert();
+  const found = [];
+  const visit = (o) => { for (const c of o.children) { if (skip.has(c) && c !== part) continue; if (c.isMesh) found.push(c); visit(c); } };
+  if (only) found.push(...only); else visit(part);
+  const pos = [], nor = [], col = [];
+  const v = new THREE.Vector3(), nm = new THREE.Matrix3();
+  for (const m of found) {
+    _bakeM.multiplyMatrices(_bakeInv, m.matrixWorld);
+    nm.getNormalMatrix(_bakeM);
+    const geo = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+    const P = geo.attributes.position, N = geo.attributes.normal;
+    const mm = m.material;
+    _bakeC.copy(mm.color);
+    if (mm.emissive && mm.emissiveIntensity) _bakeC.add(mm.emissive.clone().multiplyScalar(mm.emissiveIntensity));
+    for (let i = 0; i < P.count; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(_bakeM); pos.push(v.x, v.y, v.z);
+      v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); nor.push(v.x, v.y, v.z);
+      col.push(_bakeC.r, _bakeC.g, _bakeC.b);
+    }
+  }
+  for (const m of found) m.parent?.remove(m);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  if (!only) geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  part.add(mesh);
+  return mesh;
 }
 
 // --- Audio ----------------------------------------------------------------
@@ -2506,7 +2573,7 @@ const ICONS = { '?': iconMaterial('?', '#ffc93c'), '!': iconMaterial('!', '#ff4d
 // --- Input ------------------------------------------------------------------
 
 const keys = new Set();
-const input = { aiming: false, stick: { x: 0, y: 0 } };
+const input = { aiming: false, eat: false, grow: false, stick: { x: 0, y: 0 } };
 const view = { yaw: Math.PI, pitch: 0.25 };
 let isTouch = false;
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch'); // menu shows touch controls
@@ -2525,15 +2592,18 @@ addEventListener('keydown', (e) => {
   if (k === 'r') restart();
   if (k === 'f' || k === 'e') useItem();
   if (k === 'q' || k === 'tab') swapItem();
-  if (k === 'c') consume();
+  if (k === 'c') input.eat = true;
+  if (k === 'b') input.grow = true;
   if (k === ' ') input.aiming = true;
 });
 addEventListener('keyup', (e) => {
   const k = e.key.toLowerCase();
   keys.delete(k);
+  if (k === 'c') input.eat = false;
+  if (k === 'b') input.grow = false;
   if (k === ' ' && input.aiming) { input.aiming = false; if (game.running && !game.paused) launch(); }
 });
-addEventListener('blur', () => keys.clear());
+addEventListener('blur', () => { keys.clear(); input.eat = input.grow = false; });
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === canvas;
   if (!locked && game.running && !game.paused && !game.over && !isTouch) togglePause();
@@ -2610,7 +2680,11 @@ function setupTouch() {
   lb.addEventListener('pointercancel', () => { input.aiming = false; });
   $('itembtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); useItem(); });
   $('swapbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); swapItem(); });
-  $('eatbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); consume(); });
+  for (const [id, key] of [['eatbtn', 'eat'], ['bodybtn', 'grow']]) {
+    const b = $(id);
+    b.addEventListener('pointerdown', (e) => { e.stopPropagation(); input[key] = true; });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(ev, () => { input[key] = false; });
+  }
 }
 setupTouch();
 
@@ -2673,6 +2747,20 @@ function addProp(x, y, z, sx, sy, sz, color, o = {}) {
   b.list.push([x, y, z, sx, sy, sz, o.yaw || 0, o.tilt || 0]);
   if (o.solid !== false) fixedBox(x, y, z, sx, sy, sz, o.yaw || 0);
 }
+/** Scenery that never moves (marked userData.merge): one mesh per material. */
+function mergeStatic() {
+  const byMat = new Map();
+  for (const o of levelGroup.children) if (o.isMesh && o.userData.merge) { if (!byMat.has(o.material)) byMat.set(o.material, []); byMat.get(o.material).push(o); }
+  levelGroup.updateMatrixWorld(true);
+  for (const [material, list] of byMat) {
+    if (list.length < 2) continue;
+    const holder = new THREE.Group();
+    levelGroup.add(holder);
+    const m = bakePart(holder, material, new Set(), list);
+    m.castShadow = list[0].castShadow; m.receiveShadow = list[0].receiveShadow;
+  }
+}
+
 function flushProps() {
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
   for (const b of propBatches.values()) {
@@ -2710,6 +2798,7 @@ function makeBuilder() {
         for (let x = x0 + 2; x < x1 - 2; x += 6) {
           const dash = new THREE.Mesh(new THREE.PlaneGeometry(3, 0.25).rotateX(-Math.PI / 2), mat(0xf2efe6));
           dash.position.set(x + 1.5, 0.006 + groundLayer * 0.002, (z0 + z1) / 2);
+          dash.userData.merge = true;
           levelGroup.add(dash);
         }
       }
@@ -2773,10 +2862,8 @@ function makeBuilder() {
         new THREE.MeshBasicMaterial({ color: 0xb6ff8f, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, fog: false }));
       pillar.position.set(x, 45, z);
       pillar.visible = false;
-      const glow = new THREE.PointLight(0x7cff4f, 0, 14, 1.6);
-      glow.position.set(x, 2, z);
-      levelGroup.add(ring, grate, beam, pillar, glow);
-      zones.push({ x, z, r, label, ring, beam, pillar, glow });
+      levelGroup.add(ring, grate, beam, pillar);
+      zones.push({ x, z, r, label, ring, beam, pillar });
     },
     /** Batched scenery: o = { shape: 'box'|'cyl', yaw, tilt, solid, shadow, glow }. */
     prop(x, y, z, sx, sy, sz, color, o) { addProp(x, y, z, sx, sy, sz, color, o); },
@@ -2815,6 +2902,7 @@ function buildPerimeter(half) {
     const r = half + rand(18, 40);
     const h = new THREE.Mesh(new THREE.ConeGeometry(rand(10, 20), rand(8, 22), 6), hillM);
     h.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    h.userData.merge = true;
     levelGroup.add(h);
   }
 }
@@ -2870,7 +2958,8 @@ function loadLevel(i, menu = false) {
   personByHandle.clear();
   seeThrough.clear();
   Object.assign(game, { time: 0, alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0, over: false, hostsUsed: 0, bodiesFound: 0, paused: false });
-  Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, form: 0, absorbed: [], absorbedLabel: '' });
+  Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, growing: null, form: 0, absorbed: [], absorbedLabel: '', shellWarned: false, puddleTold: false });
+  input.eat = input.grow = false;
   slimeMesh.visible = false;
   objectives = L.objectives.map((o) => ({ ...o, done: false }));
 
@@ -2878,6 +2967,7 @@ function loadLevel(i, menu = false) {
   propBatches = new Map();
   L.build(makeBuilder());
   flushProps();
+  mergeStatic();
   director = people.find((p) => p.role.vip);
   d.queryDirty = true;
   if (menu) { game.running = false; return; }
@@ -2937,9 +3027,10 @@ const activeItem = (p) => { const u = usable(p); return u.length ? u[player.acti
 
 function moveChar(p, vx, vz, dt) {
   ctrl.setCharacterMass(HUMAN.mass);
+  // Only filter (a call back into JS per nearby collider) while there's a slime to walk through.
   const slimeH = player.slime?.col.handle;
   ctrl.computeColliderMovement(p.col, { x: vx * dt, y: -4 * dt, z: vz * dt }, undefined, undefined,
-    (c) => c.handle !== slimeH);
+    slimeH === undefined ? undefined : (c) => c.handle !== slimeH);
   const m = ctrl.computedMovement();
   const ox = p.pos.x, oz = p.pos.z;
   p.pos.x += m.x; p.pos.z += m.z;
@@ -2973,8 +3064,7 @@ function kill(p, why) {
   p.mesh.goo.visible = false;
   p.mesh.eyeMat.emissive.setHex(0);
   if (why === 'drained') {
-    p.mesh.shirt.color.lerp(new THREE.Color(0x777777), 0.35);
-    p.mesh.skin.color.lerp(new THREE.Color(0x9fbf8f), 0.6);
+    p.mesh.shirt.color.set(0x9fae96);
     splat(p.pos.x, p.pos.z, 0.8);
   }
   if (why === 'eaten') p.mesh.group.visible = false; // nothing left to find
@@ -3008,7 +3098,7 @@ function syncPersonMesh(p, dt) {
   m.group.position.lerpVectors(p.prev, p.pos, a);
   m.group.rotation.y = p.prevYaw === undefined ? p.yaw : p.prevYaw + angDiff(p.prevYaw, p.yaw) * a;
   const near = Math.abs(p.pos.x - camera.position.x) + Math.abs(p.pos.z - camera.position.z) < 42;
-  if (near !== m.near) { m.near = near; for (const o of m.details) o.visible = near; }
+  if (near !== m.near) { m.near = near; for (const o of m.details) o.visible = near; for (const o of m.baked) o.castShadow = near; }
   if (p.state === 'down') {
     p.downT += dt;
     const k = Math.min(1, p.downT / 0.45);
@@ -3039,7 +3129,7 @@ function syncPersonMesh(p, dt) {
     m.arms[0].rotation.x = m.arms[1].rotation.x = -0.6;
   }
   if (player.consuming && player.consuming.h === p) {
-    const k = 1 - player.consuming.t / 1.2;
+    const k = player.consuming.p * (input.eat ? 1 : 0.5);
     m.body.position.x = Math.sin(game.time * 60) * 0.05 * (1 + k);
     m.body.rotation.z = Math.sin(game.time * 23) * 0.15 * k;
     m.goo.scale.setScalar(0.2 + k * 0.6);
@@ -3350,7 +3440,8 @@ function think(p) {
   if (tp) {
     const exposed = !player.host;
     const odd = !exposed && !player.marked && hostIsOdd(p);
-    if ((exposed || player.marked || odd) && canSee(p, tp)) seeThreat(p, tp, exposed ? 'slime' : player.marked ? 'host' : 'odd');
+    const puddled = exposed && player.slime?.puddle && p.pos.distanceTo(tp) > 2.5;
+    if ((exposed || player.marked || odd) && !puddled && canSee(p, tp)) seeThreat(p, tp, exposed ? 'slime' : player.marked ? 'host' : 'odd');
     else if (p.state === 'combat') {
       if (game.alert) p.state = 'search';
       else { p.state = 'investigate'; p.timer = 3; }
@@ -3441,7 +3532,7 @@ function enterHost(p, quiet = false) {
     for (const it of player.absorbed) if (!p.items.includes(it)) p.items.push(it);
     p.label = `${p.role.label.replace(/^The /, '')} + ${player.absorbedLabel}`;
     p.mesh.goo.scale.setScalar(0.32);
-    p.mesh.shirt.color.lerp(new THREE.Color(0x7cff4f), 0.18);
+    p.mesh.shirt.color.set(0xd2ffc0);
   }
   player.charges = hasItem(p, 'charges') ? 3 : 0;
   player.flares = hasItem(p, 'flares') ? 3 : 0;
@@ -3490,11 +3581,14 @@ function launchVel(S, T, maxRange) {
 
 function launchOrigin() {
   const h = player.host;
+  if (!h && player.slime) { const t = player.slime.body.translation(); return new THREE.Vector3(t.x, t.y + 0.2, t.z); }
   return h ? new THREE.Vector3(h.pos.x, h.pos.y + 2.0, h.pos.z) : null;
 }
 
 function launch() {
-  if (!player.host || game.over) return;
+  if (game.over) return;
+  if (!player.host) { if (canHop()) hop(); return; }
+  if (player.consuming && input.eat) return; // mid-meal: you can't jump out
   const S = launchOrigin();
   const T = player.aimPoint;
   const aimed = player.aimPerson;
@@ -3776,7 +3870,7 @@ function updateAim() {
     player.aimPoint.copy(o).addScaledVector(dir, worldT);
     if (!hit) player.aimPoint.y = 0;
   }
-  const canJump = !!player.host;
+  const canJump = !!player.host || canHop();
   const ch = $('crosshair');
   ch.classList.toggle('person', !!player.aimPerson);
   ch.classList.toggle('hidden', !canJump);
@@ -3798,13 +3892,14 @@ landRing.visible = false;
 scene.add(landRing);
 
 function updateArc() {
-  hoverRing.visible = !!player.aimPerson && !game.over && !!player.host;
+  const jumper = !!player.host || canHop();
+  hoverRing.visible = !!player.aimPerson && !game.over && jumper;
   if (player.aimPerson) hoverRing.position.set(player.aimPerson.pos.x, 0.05, player.aimPerson.pos.z);
   arcDots.visible = landRing.visible = false;
-  if (!input.aiming || game.over || !player.host) return;
+  if (!input.aiming || game.over || !jumper) return;
   const S = launchOrigin();
   const T = player.aimPoint;
-  const v = launchVel(S, T, launchRange());
+  const v = launchVel(S, T, launchRange() * (player.host ? 1 : 0.75));
   let n = 0, len = 0;
   for (let i = 0; i < ARC_N; i++) {
     const t = i * 0.04;
@@ -3860,7 +3955,7 @@ function tick(dt) {
     h.prev.copy(h.pos);
     h.prevYaw = h.yaw; h.stride = 1;
     const run = keys.has('shift') ? 1.5 : 1;
-    const frozen = player.consuming ? 0 : 1;
+    const frozen = player.consuming && input.eat ? 0 : 1;
     const tx = mv.x * HUMAN.speed * run * frozen, tz = mv.z * HUMAN.speed * run * frozen;
     const a = Math.min(1, dt * (tx || tz ? 12 : 16));
     h.vx = (h.vx || 0) + (tx - (h.vx || 0)) * a;
@@ -3874,20 +3969,23 @@ function tick(dt) {
   updateTrespass();
   updatePickups();
   updateConsume(dt);
+  updateGrow(dt);
   updateCamYaw(dt);
   updateFlare(dt);
 
   tickN++;
   for (const p of people) {
     if (p === player.host || p.state === 'down') continue;
-    // Far away, nobody can tell: move them a third as often.
-    const far = Math.abs(p.pos.x - camPivot.x) + Math.abs(p.pos.z - camPivot.z) > 45;
-    if (far && (tickN + p.id) % 3) continue;
+    // Further away, nobody can tell: move them half or a third as often.
+    const dist = Math.abs(p.pos.x - camPivot.x) + Math.abs(p.pos.z - camPivot.z);
+    const busy = p.state === 'combat' || p.state === 'stomp';
+    const stride = busy || dist < 24 ? 1 : dist < 45 ? 2 : 3;
+    if ((tickN + p.id) % stride) continue;
     p.prev.copy(p.pos);
     p.prevYaw = p.yaw;
-    p.stride = far ? 3 : 1;
+    p.stride = stride;
     p.stepTick = tickN;
-    npcStep(p, far ? dt * 3 : dt);
+    npcStep(p, dt * stride);
   }
 
   const tp = targetPoint();
@@ -3911,7 +4009,13 @@ function tick(dt) {
     const sb = player.slime.body;
     const t = sb.translation();
     const v = sb.linvel();
-    player.health -= SLIME_DRAIN * dt;
+    // Form II: keep still and the slime flattens into a puddle nobody notices from afar.
+    const still = player.slime.landed && Math.hypot(v.x, v.z) < 0.5 && !(mv.x || mv.z) && !player.growing;
+    player.slime.stillT = still ? (player.slime.stillT || 0) + dt : 0;
+    const wasPuddle = player.slime.puddle;
+    player.slime.puddle = player.form >= 2 && game.level.consume && player.slime.stillT > 0.7;
+    if (player.slime.puddle && !wasPuddle && !player.puddleTold) { player.puddleTold = true; toast('Puddle', 'Nobody notices you unless they\'re right on top of you.', 1.8); }
+    if (!player.slime.puddle) player.health -= SLIME_DRAIN * dt;
     player.slime.dried = player.health <= SLIME_DRAIN * dt * 2;
     // On the ground, or resting on top of something.
     player.slime.restT = Math.abs(v.y) < 0.3 ? (player.slime.restT || 0) + dt : 0;
@@ -3920,7 +4024,7 @@ function tick(dt) {
       const ka = Math.min(1, dt * (mv.x || mv.z ? 14 : 18));
       const cs = crawlSpeed();
       sb.setLinvel({ x: v.x + (mv.x * cs - v.x) * ka, y: Math.min(v.y, 0.5), z: v.z + (mv.z * cs - v.z) * ka }, true);
-      if (!player.slime.landed) { player.slime.landed = true; toast('Missed!', 'Crawl into someone who hasn\'t seen you.', 1.6); }
+      if (!player.slime.landed) { player.slime.landed = true; if (!player.slime.hopped) toast('Missed!', `Crawl into someone who hasn't seen you.${player.form >= 1 && game.level.consume ? ' Or hop.' : ''}`, 1.6); }
     }
     // A little help reaching someone who walked a step since you jumped.
     const tg = player.slime.target;
@@ -4004,7 +4108,7 @@ function completeObjective(id) {
 }
 function openExit() {
   game.exitOpen = true;
-  for (const z of zones) { z.beam.visible = true; z.pillar.visible = true; z.glow.intensity = 30; }
+  for (const z of zones) { z.beam.visible = true; z.pillar.visible = true; }
   $('exitMark').classList.remove('hidden');
   setTimeout(() => { if (game.exitOpen && !game.over) toast('Get out!', `Head for the ${zones[0]?.label ?? 'exit'}. Follow the green light.`, 3); }, 2600);
 }
@@ -4016,7 +4120,8 @@ function updateExit(dt) {
   z.beam.material.opacity = 0.28 + k * 0.1;
   z.pillar.material.opacity = 0.5 + k * 0.15;
   z.ring.scale.setScalar(1 + 0.1 * (0.5 + 0.5 * k));
-  z.glow.intensity = 26 + k * 8;
+  // The exit's glow borrows the flare light (one fewer light for every surface to shade).
+  if (!flareFire) { flareLight.color.setHex(0x7cff4f); flareLight.distance = 14; flareLight.position.set(z.x, 2, z.z); flareLight.intensity = 26 + k * 8; }
   if (Math.random() < dt * 14) burst(new THREE.Vector3(z.x + rand(-z.r, z.r) * 0.7, 0.2, z.z + rand(-z.r, z.r) * 0.7), 1, 0x9dff6f, { speed: 0.3, up: 4, size: 0.12, life: 1.4, grav: -1 });
   // Marker: on the drain when it's in view, pinned to the screen edge pointing at it when it isn't.
   const el = $('exitMark');
@@ -4164,7 +4269,7 @@ function updateCams() {
     if (!camWorks(c)) continue;
     if ((c.coneT = c.coneT + 1) % 3 === 0 && Math.abs(c.x - camPivot.x) + Math.abs(c.z - camPivot.z) < 60) updateCamCone(c);
     const exposed = tp && !player.host;
-    const threat = tp && (exposed || player.marked || hostIsOdd(null));
+    const threat = tp && (exposed || player.marked || hostIsOdd(null)) && !(exposed && player.slime?.puddle);
     if (threat && camSees(c, tp)) {
       c.sus = Math.min(1.2, c.sus + 0.1 / (exposed || player.marked ? 0.5 : 1.0));
       c.yaw += clamp(angDiff(c.yaw, Math.atan2(tp.x - c.x, tp.z - c.z)), -0.3, 0.3);
@@ -4260,7 +4365,8 @@ function hostIsOdd(p) {
   const h = player.host;
   if (!h) return false;
   if (player.trespass || player.carry) return true;
-  return !!(h.merged && p && p.pos.distanceTo(h.pos) < 7); // up close, a merged host looks wrong
+  if (player.consuming && input.eat) return true; // a person folding in on themselves
+  return !!((h.merged || h.role.shell) && p && p.pos.distanceTo(h.pos) < 7); // up close, a merged host looks wrong
 }
 function oddReason() {
   if (player.trespass) return 'Someone saw you where you shouldn\'t be.';
@@ -4382,6 +4488,7 @@ function updateFlare(dt) {
   flareFire.t -= dt;
   const p = flareFire.pos;
   flareLight.position.set(p.x, 0.8, p.z);
+  flareLight.color.setHex(0xff4a2a); flareLight.distance = 16;
   flareLight.intensity = flareFire.t > 0 ? 18 + Math.random() * 10 : 0;
   if (Math.random() < 0.6) burst(p, 2, Math.random() < 0.5 ? 0xff4a2a : 0xffc23c, { speed: 0.8, up: 3, size: 0.07, life: 0.5 });
   if (Math.random() < 0.2) burst(p, 1, 0x999999, { speed: 0.3, up: 1.5, size: 0.3, life: 1.6, grav: -0.4 });
@@ -4397,25 +4504,52 @@ function swapItem() {
 }
 
 /** Eat the host you're in: the slime grows and keeps what they held. No jump: it drops out where they stood, and it's loud. */
-function consume() {
-  const h = player.host;
-  if (!h || !game.level.consume || player.consuming || game.over) return;
-  player.consuming = { t: 1.2, h };
-  sfx.infect();
-  noise(1.1, { freq: 350, vol: 0.5 });
-  loudAct(h.pos.clone(), 26, 24);
+/** Who (or which camera) can see this point right now, if anyone. */
+function watcher(pt) {
+  for (const q of people) if (q.state !== 'down' && q.state !== 'host' && canSee(q, pt)) return q;
+  for (const c of cams) if (camWorks(c) && camSees(c, pt)) return c;
+  return null;
 }
+/** Eating makes noise: guards nearby come to look, others turn round. */
+function eatNoise(pos) {
+  for (const q of people) {
+    if (q.state === 'down' || q.state === 'host') continue;
+    const dist = q.pos.distanceTo(pos);
+    if (q.armed && dist < 12 && q.state === 'routine' && !game.alert) { q.opts.follow = null; q.state = 'investigate'; q.goal = clampGoal(pos.clone()); q.timer = 2.5; setIcon(q, '?'); }
+    else if (dist < 7 && q.state === 'routine') { q.lookYaw = Math.atan2(pos.x - q.pos.x, pos.z - q.pos.z); setIcon(q, '?', 0.6); }
+  }
+}
+
+/** Consuming (levels that allow it): hold C while nobody can see you, and the slime eats its host. */
+function consume() { input.eat = true; } // test hook: start holding
 function updateConsume(dt) {
-  const c = player.consuming;
+  const h = player.host;
+  const want = input.eat && h && game.level.consume && !game.over;
+  let c = player.consuming;
+  if (want && !c) {
+    if (h.role.shell) { if (!player.shellWarned) { player.shellWarned = true; toast('That\'s you', 'There\'s nothing in your own body to eat.', 1.6); } return; }
+    c = player.consuming = { h, p: 0, seenBy: null, checkT: 0, noiseT: 0.6 };
+    sfx.infect();
+  }
   if (!c) return;
-  const h = c.h;
-  if (player.host !== h || h.state === 'down') { player.consuming = null; return; }
-  c.t -= dt;
-  if (Math.random() < 0.5) burst(new THREE.Vector3(h.pos.x, 1.2, h.pos.z), 2, 0x7cff4f, { speed: 1.5, up: 2, size: 0.1 });
-  if (c.t > 0) return;
+  if (player.host !== c.h || c.h.state === 'down') { player.consuming = null; return; }
+  const pt = new THREE.Vector3(h.pos.x, h.pos.y + 1.2, h.pos.z);
+  if ((c.checkT -= dt) <= 0) { c.checkT = 0.15; c.seenBy = watcher(pt); }
+  if (!want) {
+    c.p -= dt * 0.3; // let go and it slowly heals over
+    if (c.p <= 0) player.consuming = null;
+    return;
+  }
+  if ((c.noiseT -= dt) <= 0) { c.noiseT = 1.3; eatNoise(h.pos); noise(0.5, { freq: 260, vol: 0.25 }); }
+  if (c.seenBy) return; // someone's watching: nothing happens but suspicion
+  c.p += dt / EAT_TIME;
+  if (Math.random() < 0.5) burst(pt, 2, 0x7cff4f, { speed: 1.5, up: 2, size: 0.1 });
+  if (c.p < 1) return;
   player.consuming = null;
+  input.eat = false;
   player.absorbed = [...new Set(h.items)];
   player.absorbedLabel = h.role.label.replace(/^The /, '');
+  const was = player.form;
   player.form = Math.min(3, player.form + 1);
   const pos = new THREE.Vector3(h.pos.x, h.pos.y + 0.8, h.pos.z);
   dropCarry(h.pos);
@@ -4427,7 +4561,58 @@ function updateConsume(dt) {
   splat(h.pos.x, h.pos.z, 1.3);
   shake = Math.max(shake, 0.4);
   sfx.splat();
-  toast(`Slime form ${['', 'II', 'III', 'IV'][player.form]}`, `Faster, tougher, longer jumps.${player.absorbed.length ? ` Your next host also gets: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}.` : ''}`, 3);
+  loudAct(pos, 14, 8);
+  const gained = player.form > was ? FORM_POWERS[player.form] : 'Already as strong as it gets.';
+  toast(`Slime form ${FORM_NAMES[player.form]}`, `${gained}${player.absorbed.length ? ` Next host also gets: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}.` : ''}`, 3.6);
+}
+
+const FORM_NAMES = ['I', 'II', 'III', 'IV'];
+const FORM_POWERS = ['', 'New: HOP. As a slime, aim and jump like from a host.', 'New: PUDDLE. Keep still as a slime and nobody spots you from afar. No drying out.', 'New: BODY. Hold B as a slime, unseen, to grow your own body. Costs two forms.'];
+const canHop = () => !!(player.slime && game.level.consume && player.form >= 1 && player.slime.landed && game.time - (player.slime.hopAt ?? -9) > 0.5);
+
+/** Form I and up: jump from the ground, as a slime. */
+function hop() {
+  const s = player.slime;
+  const S = launchOrigin();
+  const v = launchVel(S, player.aimPoint, launchRange() * 0.75);
+  s.body.setLinvel({ x: v.x, y: v.y, z: v.z }, true);
+  s.landed = false;
+  s.hopped = true;
+  s.born = game.time;
+  s.hopAt = game.time;
+  s.target = player.aimPerson;
+  s.stillT = 0;
+  player.health -= HOP_COST;
+  sfx.launch();
+  burst(S, 8, 0x7cff4f, { speed: 2, up: 1, size: 0.08 });
+}
+
+/** Form III: grow your own body out of slime, unseen. It drops you back two forms. */
+function updateGrow(dt) {
+  const s = player.slime;
+  const want = input.grow && s && s.landed && game.level.consume && player.form >= 3 && !game.over;
+  let g = player.growing;
+  if (want && !g) g = player.growing = { p: 0, seenBy: null, checkT: 0 };
+  if (!g) return;
+  if (!s) { player.growing = null; return; }
+  const t = s.body.translation();
+  const pt = new THREE.Vector3(t.x, 0.4, t.z);
+  if ((g.checkT -= dt) <= 0) { g.checkT = 0.15; g.seenBy = watcher(pt); }
+  if (!want) { g.p -= dt * 0.5; if (g.p <= 0) player.growing = null; return; }
+  s.body.setLinvel({ x: 0, y: Math.min(0, s.body.linvel().y), z: 0 }, true);
+  if (g.seenBy) return;
+  g.p += dt / GROW_TIME;
+  if (Math.random() < 0.6) burst(new THREE.Vector3(t.x, 0.2 + g.p * 1.4, t.z), 2, 0x7cff4f, { speed: 1, up: 2, size: 0.12 });
+  if (g.p < 1) return;
+  player.growing = null;
+  input.grow = false;
+  player.form -= 2;
+  const p = spawnPerson('shell', t.x, t.z, { yaw: view.yaw });
+  p.prevYaw = p.yaw;
+  enterHost(p, true);
+  burst(new THREE.Vector3(t.x, 1, t.z), 30, 0x7cff4f, { speed: 3, up: 3, size: 0.12 });
+  sfx.infect();
+  toast('Your own body', `Back to slime form ${FORM_NAMES[player.form]}. Up close, it doesn't look quite right.`, 3);
 }
 
 // --- Win / lose --------------------------------------------------------------------------------
@@ -4514,12 +4699,26 @@ function updateHud(dt) {
   const warn = !h ? '' : player.trespass ? `⚠ ${player.trespass}` : player.carry ? `Carrying ${player.carry.label}. Guards will notice it.` : h.merged ? 'Merged: up close, guards can tell something\'s wrong.' : '';
   $('warnRow').textContent = warn;
   $('warnRow').classList.toggle('hidden', !warn);
-  const canEat = !!(h && game.level.consume && !player.consuming);
-  $('consumeHint').classList.toggle('hidden', !canEat);
-  if (canEat) $('consumeHint').innerHTML = `${isTouch ? 'EAT' : '<kbd>C</kbd>'} consume this ${h.role.label.replace(/^The /, '').toLowerCase()}: grow stronger and keep what they hold`;
+  const cons = game.level.consume;
+  const canEat = !!(h && cons && !h.role.shell);
+  const canGrow = !!(!h && player.slime && cons && player.form >= 3);
+  const hold = player.consuming || player.growing;
+  let hint = '';
+  if (hold) {
+    const what = player.consuming ? 'Eating' : 'Growing a body';
+    const held = player.consuming ? input.eat : input.grow;
+    const msg = !held ? 'Let go: it\'s healing over' : hold.seenBy ? '<b class="warn">Someone can see you. Get out of sight.</b>' : `${what}… keep holding`;
+    hint = `<div class="pbar"><i style="width:${Math.round(clamp(hold.p, 0, 1) * 100)}%"></i></div>${msg}`;
+  } else if (canEat) hint = isTouch ? 'Hold EAT, unseen, to eat this host and grow' : `Hold <kbd>C</kbd> where nobody can see you to eat this ${h.role.label.replace(/^The /, '').toLowerCase()}: your slime grows a form`;
+  else if (canGrow) hint = isTouch ? 'Hold BODY, unseen, to grow a body (−2 forms)' : 'Hold <kbd>B</kbd> where nobody can see you to grow your own body (costs two forms)';
+  else if (!h && canHop()) hint = `${isTouch ? 'LAUNCH' : 'Aim and jump'} to hop${player.form >= 2 ? ' · keep still to puddle' : ''}`;
+  $('consumeHint').classList.toggle('hidden', !hint);
+  $('consumeHint').innerHTML = hint;
   $('eatbtn').classList.toggle('hidden', !canEat);
+  $('bodybtn').classList.toggle('hidden', !canGrow);
+  const powers = ['hop', 'puddle', 'body'].slice(0, player.form).join(', ');
   $('formRow').classList.toggle('hidden', !player.form);
-  $('formRow').textContent = player.form ? `Slime form ${['', 'II', 'III', 'IV'][player.form]}${player.absorbed.length ? ` · absorbed: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}` : ''}` : '';
+  $('formRow').textContent = player.form ? `Slime form ${FORM_NAMES[player.form]} (${powers})${player.absorbed.length ? ` · absorbed: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}` : ''}` : '';
   $('swapbtn').classList.toggle('hidden', usable(h).length < 2);
   $('hpRow').classList.toggle('hidden', !h);
   $('slimeRow').classList.toggle('hidden', !!h);
@@ -4529,7 +4728,8 @@ function updateHud(dt) {
   const use = h && act && ITEMS[act].use;
   $('itembtn').textContent = use ? use.toUpperCase() : 'ITEM';
   $('itembtn').style.opacity = use ? 1 : 0.4;
-  $('launchbtn').style.opacity = h ? 1 : 0.4;
+  $('launchbtn').style.opacity = h || canHop() ? 1 : 0.4;
+  $('launchbtn').textContent = h ? 'LAUNCH' : 'HOP';
 }
 
 function showScreen(id) {
@@ -4625,10 +4825,19 @@ $('endMenuBtn').onclick = () => toMenu();
 let acc = 0;
 let last = performance.now();
 const _slimeDraw = new THREE.Vector3();
+let slowT = 0, slowN = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  // Running slow for a couple of seconds: render fewer pixels.
+  if (!document.hidden && pixelRatio > 1) {
+    slowT += dt; slowN += dt > 1 / 40 ? 1 : 0;
+    if (slowT > 2.5) {
+      if (slowN > slowT * 30 * 0.6) { pixelRatio = Math.max(1, pixelRatio - 0.25); renderer.setPixelRatio(pixelRatio); }
+      slowT = 0; slowN = 0;
+    }
+  }
   if (game.running && !game.paused) {
     acc += dt;
     let steps = 0;
@@ -4644,9 +4853,12 @@ function frame(now) {
       const sp = Math.min(1, Math.hypot(v.x, v.y, v.z) / 14);
       const wob = Math.sin(game.time * 14) * 0.1;
       const dying = (0.6 + 0.4 * clamp(player.health / slimeMax(), 0, 1)) * (1 + 0.28 * player.form);
-      slimeMesh.scale.set((1 + wob - sp * 0.2) * dying, (1 - wob + sp * 0.35) * dying * (player.slime.landed ? 0.6 : 1), (1 + wob - sp * 0.2) * dying);
+      const pud = player.slime.puddle ? 1 : 0, gr = player.growing ? player.growing.p : 0;
+      player.slime.flat = (player.slime.flat || 0) + (pud - (player.slime.flat || 0)) * Math.min(1, dt * 6);
+      const fl = player.slime.flat;
+      slimeMesh.scale.set((1 + wob - sp * 0.2) * dying * (1 + fl * 0.45), (1 - wob + sp * 0.35) * dying * (player.slime.landed ? 0.6 : 1) * (1 - fl * 0.55) * (1 + gr * 5), (1 + wob - sp * 0.2) * dying * (1 + fl * 0.45));
       slimeLight.position.set(t.x, t.y + 0.5, t.z);
-      slimeLight.intensity = 2;
+      slimeLight.intensity = 2 * (1 - fl * 0.8);
       if (Math.random() < 0.3) burst(new THREE.Vector3(t.x, t.y, t.z), 1, 0x7cff4f, { speed: 0.4, up: 0.5, size: 0.06, life: 0.5 });
     } else slimeLight.intensity = 0;
     updateCamera(dt);
@@ -4687,7 +4899,7 @@ requestAnimationFrame(frame);
 
 // Test hooks for headless checks.
 window.__symbiote = {
-  game, player, view, input, people: () => people, objectives: () => objectives, loadLevel, launch, useItem, d,
+  game, player, view, input, scene, camera, people: () => people, objectives: () => objectives, loadLevel, launch, useItem, d,
   aimNow: () => { alpha = 1; for (const p of people) syncPersonMesh(p, 0); if (player.slime) slimeMesh.position.copy(player.slime.body.translation()); updateCamera(1); updateAim(); return { person: player.aimPerson?.roleId ?? null, p: player.aimPoint.toArray().map((v) => +v.toFixed(1)) }; },
   sim: (sec) => { for (let i = 0; i < sec / TICK; i++) tick(TICK); d.sync(); },
   possess: (p) => { removeSlime(); const h = player.host; if (h) kill(h, 'drained'); player.host = null; enterHost(p, true); },
@@ -4697,6 +4909,7 @@ window.__symbiote = {
   drawAt: (a) => { alpha = a; for (const p of people) syncPersonMesh(p, 0); },
   tickOnce: () => tick(TICK),
   openExit: () => openExit(),
+  watcher: (x, y, z) => !!watcher(new THREE.Vector3(x, y, z)), hop: () => launch(),
   consume: () => consume(), swapItem: () => swapItem(), cams: () => cams, breakables: () => breakables, pickups: () => pickups, power: () => power, objective, breakIt, explodeAt: (x, y, z) => explodeAt(new THREE.Vector3(x, y, z)), relay: () => relay,
   lookAt: (x, y, z) => { const o = camera.position; view.yaw = Math.atan2(x - o.x, z - o.z); view.pitch = Math.atan2(-(y - o.y), Math.hypot(x - o.x, z - o.z)); },
 };
