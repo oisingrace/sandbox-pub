@@ -66,12 +66,16 @@
 
     #crosshair { position: fixed; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px; border: 2px solid rgba(255,255,255,0.85); border-radius: 50%; pointer-events: none; box-shadow: 0 0 4px rgba(0,0,0,0.6); }
     #crosshair::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: #fff; }
-    #exitMark { position: fixed; transform: translate(-50%, -50%); pointer-events: none; text-align: center; font-family: "Russo One", sans-serif; color: var(--slime); text-shadow: 0 0 10px rgba(124,255,79,0.9), 0 2px 4px rgba(0,0,0,0.9); animation: exitPulse 0.8s infinite alternate; z-index: 5; }
-    #exitMark .lbl { font-size: 16px; letter-spacing: 0.12em; }
-    #exitMark #exitDist { font-size: 14px; color: #fff; }
-    #exitArrow { font-size: 30px; line-height: 1; opacity: 0; }
-    #exitMark.edge #exitArrow { opacity: 1; }
-    #exitMark:not(.edge)::before { content: ""; display: block; width: 34px; height: 34px; margin: 0 auto 4px; border: 4px solid var(--slime); border-radius: 50%; box-shadow: 0 0 12px var(--slime); }
+    .mark { position: fixed; transform: translate(-50%, -50%); pointer-events: none; text-align: center; font-family: "Russo One", sans-serif; color: var(--slime); text-shadow: 0 0 10px rgba(124,255,79,0.9), 0 2px 4px rgba(0,0,0,0.9); animation: exitPulse 0.8s infinite alternate; z-index: 5; }
+    .mark .lbl { font-size: 16px; letter-spacing: 0.12em; }
+    .mark .dist { font-size: 14px; color: #fff; }
+    .mark .arrow { font-size: 30px; line-height: 1; opacity: 0; }
+    .mark.edge .arrow { opacity: 1; }
+    .mark:not(.edge)::before { content: ""; display: block; width: 34px; height: 34px; margin: 0 auto 4px; border: 4px solid currentColor; border-radius: 50%; box-shadow: 0 0 12px currentColor; }
+    #goalMark { color: #ffd23c; text-shadow: 0 0 10px rgba(255,210,60,0.8), 0 2px 4px rgba(0,0,0,0.9); z-index: 4; }
+    #goalMark .lbl { font-size: 13px; }
+    #goalMark .arrow { font-size: 24px; }
+    #goalMark:not(.edge)::before { width: 24px; height: 24px; border-width: 3px; }
     @keyframes exitPulse { from { opacity: 0.75; } to { opacity: 1; } }
     #crosshair.person { border-color: var(--slime); transform: scale(1.25); }
 
@@ -152,6 +156,12 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.9.1", "date": "2026-10-09", "title": "Find the ledger",
+      "notes": [
+        "Saltmarsh Docks: the ledger is much easier to find. A yellow LEDGER marker on screen points to it (it's on the desk in the harbour office, in the back left corner of the warehouse), a yellow beam shines up through the warehouse roof, and the ledger itself glows.",
+        "Once you pick it up, the marker switches to the red van so you know where to take it."
+      ]
+    },
     { "version": "0.9", "date": "2026-10-09", "title": "Forms",
       "notes": [
         "Runs faster: each person is now drawn in a handful of pieces instead of a dozen, far away people don't cast shadows, the hills and road lines are drawn in one go, and people further off think less often. About 30% fewer draw calls and half the game logic time.",
@@ -249,7 +259,8 @@
     </div>
     <button id="pausebtn" title="Pause (P)">❚❚</button>
     <div id="crosshair"></div>
-    <div id="exitMark" class="hidden"><div id="exitArrow">▲</div><div class="lbl">EXIT</div><div id="exitDist">0 m</div></div>
+    <div id="exitMark" class="mark hidden"><div class="arrow">▲</div><div class="lbl">EXIT</div><div class="dist">0 m</div></div>
+    <div id="goalMark" class="mark hidden"><div class="arrow">▲</div><div class="lbl">LEDGER</div><div class="dist">0 m</div></div>
     <div id="hostcard" class="panel">
       <div id="hostLabel">Civilian</div>
       <div id="hostItems"></div>
@@ -1987,7 +1998,7 @@ const LEVELS = [
     objectives: [
       { id: 'stealth', type: 'Stealth', text: 'Get onto the docks without setting off a lockdown.' },
       { id: 'power', type: 'Sabotage', text: 'Wreck the 3 fuse boxes to kill the cameras.' },
-      { id: 'deliver', type: 'Smuggling', text: 'Steal the ledger from the warehouse office and put it in the red van outside the gate.' },
+      { id: 'deliver', type: 'Smuggling', text: 'Steal the ledger (yellow marker) from the office desk at the back of the warehouse and put it in the red van outside the gate.' },
       { id: 'director', type: 'Assassination', text: 'Take out the Harbourmaster.' },
       { id: 'relay', type: 'Destruction', text: 'Topple the water tower.' },
       { id: 'extract', type: 'Extraction', text: 'Escape on the speedboat at the end of the pier.' },
@@ -2954,7 +2965,7 @@ function loadLevel(i, menu = false) {
   applyLook(L.look);
   $('hudTitle').textContent = L.title;
   game.exitOpen = false;
-  $('exitMark').classList.add('hidden');
+  $('exitMark').classList.add('hidden'); $('goalMark').classList.add('hidden');
   personByHandle.clear();
   seeThrough.clear();
   Object.assign(game, { time: 0, alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0, over: false, hostsUsed: 0, bodiesFound: 0, paused: false });
@@ -4123,11 +4134,13 @@ function updateExit(dt) {
   // The exit's glow borrows the flare light (one fewer light for every surface to shade).
   if (!flareFire) { flareLight.color.setHex(0x7cff4f); flareLight.distance = 14; flareLight.position.set(z.x, 2, z.z); flareLight.intensity = 26 + k * 8; }
   if (Math.random() < dt * 14) burst(new THREE.Vector3(z.x + rand(-z.r, z.r) * 0.7, 0.2, z.z + rand(-z.r, z.r) * 0.7), 1, 0x9dff6f, { speed: 0.3, up: 4, size: 0.12, life: 1.4, grav: -1 });
-  // Marker: on the drain when it's in view, pinned to the screen edge pointing at it when it isn't.
-  const el = $('exitMark');
+  placeMark($('exitMark'), z.x, 1.5, z.z);
+}
+/** A screen marker: on the spot when it's in view, pinned to the screen edge pointing at it when it isn't. */
+function placeMark(el, x, y, z) {
   const at = player.host?.pos ?? (player.slime ? player.slime.now : camPivot);
-  const dist = Math.hypot(at.x - z.x, at.z - z.z);
-  _exitV.set(z.x, 1.5, z.z).project(camera);
+  const dist = Math.hypot(at.x - x, at.z - z);
+  _exitV.set(x, y, z).project(camera);
   const behind = _exitV.z > 1;
   let sx = _exitV.x, sy = _exitV.y;
   if (behind) { sx = -sx; sy = -sy; }
@@ -4140,8 +4153,21 @@ function updateExit(dt) {
   el.style.left = `${(sx * 0.5 + 0.5) * innerWidth}px`;
   el.style.top = `${(-sy * 0.5 + 0.5) * innerHeight}px`;
   el.classList.toggle('edge', !onScreen);
-  $('exitArrow').style.transform = `rotate(${Math.atan2(-sy, sx) + Math.PI / 2}rad)`;
-  $('exitDist').textContent = `${Math.round(dist)} m`;
+  el.querySelector('.arrow').style.transform = `rotate(${Math.atan2(-sy, sx) + Math.PI / 2}rad)`;
+  el.querySelector('.dist').textContent = `${Math.round(dist)} m`;
+}
+/** Things to pick up: a marker on the item, then on where it goes once you're carrying it. */
+function updateGoalMark() {
+  const el = $('goalMark');
+  const pk = pickups.find((x) => !x.done);
+  const show = !!pk && !game.over;
+  el.classList.toggle('hidden', !show);
+  for (const x of pickups) x.beam.visible = !x.done && !x.held;
+  if (!show) return;
+  pk.beam.material.opacity = 0.3 + Math.sin(game.time * 4) * 0.12;
+  const dz = dropoffs.find((x) => x.id === pk.id);
+  if (pk.held && dz) { el.querySelector('.lbl').textContent = dz.label.toUpperCase(); placeMark(el, dz.x, 1.5, dz.z); }
+  else { el.querySelector('.lbl').textContent = pk.label.replace(/^the /, '').toUpperCase(); placeMark(el, pk.pos.x, pk.held ? 1.5 : pk.pos.y + 0.6, pk.pos.z); }
 }
 const _exitV = new THREE.Vector3();
 function remainingText() {
@@ -4377,15 +4403,20 @@ function oddReason() {
 /** Things you can pick up by walking over them, and where to take them. */
 function addPickup(id, label, x, y, z) {
   const g = new THREE.Group();
-  g.add(box(0.5, 0.36, 0.12, mat(0x5a3b26), 0, 0, 0));
+  g.add(box(0.5, 0.36, 0.12, mat(0x8a5a2a, { emissive: 0xffb020, emissiveIntensity: 0.6 }), 0, 0, 0));
   g.add(box(0.2, 0.06, 0.04, mat(0x1c1e21), 0, 0.21, 0));
   g.add(box(0.06, 0.06, 0.13, mat(0xd8b56a), 0.12, 0.05, 0));
   g.position.set(x, y, z);
   levelGroup.add(g);
-  const ring = zoneRing(0.8, 0xffd23c);
+  const ring = zoneRing(1.1, 0xffd23c);
   ring.position.set(x, 0.05, z);
   levelGroup.add(ring);
-  pickups.push({ id, label, mesh: g, ring, pos: new THREE.Vector3(x, y, z), held: false, dropped: false, done: false });
+  // A yellow beam up through the roof, so you can find it from outside.
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.6, 30, 10, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffd23c, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false, fog: false }));
+  beam.position.set(x, 15, z);
+  levelGroup.add(beam);
+  pickups.push({ id, label, mesh: g, ring, beam, pos: new THREE.Vector3(x, y, z), held: false, dropped: false, done: false });
 }
 function addDropoff(id, x, z, r, label) {
   const ring = zoneRing(r, 0xffd23c);
@@ -4437,6 +4468,7 @@ function dropCarry(at) {
   pk.mesh.rotation.set(Math.PI / 2, 0, Math.random());
   pk.ring.position.set(at.x, 0.05, at.z);
   pk.ring.visible = true;
+  pk.beam.position.set(at.x, 15, at.z);
 }
 
 /** Salt water: slime dissolves in it. Rails keep people out. */
@@ -4633,7 +4665,7 @@ function endScreen() {
 function win() {
   if (game.over) return;
   game.over = true;
-  $('exitMark').classList.add('hidden');
+  $('exitMark').classList.add('hidden'); $('goalMark').classList.add('hidden');
   setSiren(false);
   sfx.win();
   const L = game.level;
@@ -4653,7 +4685,7 @@ function win() {
 function lose(title, text) {
   if (game.over) return;
   game.over = true;
-  $('exitMark').classList.add('hidden');
+  $('exitMark').classList.add('hidden'); $('goalMark').classList.add('hidden');
   setSiren(false);
   sfx.lose();
   if (player.slime) { const t = player.slime.body.translation(); splat(t.x, t.z, 0.9); slimeMesh.visible = false; }
@@ -4872,6 +4904,7 @@ function frame(now) {
     animateWater();
     if (game.exitOpen) updateExit(dt);
     else for (const z of zones) z.beam.material.opacity = 0.1 + Math.sin(game.time * 3) * 0.04;
+    updateGoalMark();
     if (flashT > 0) { flashT -= dt; flash.intensity = Math.max(0, flashT / 0.2) * 60; }
   } else if (game.menu) {
     acc += dt;
