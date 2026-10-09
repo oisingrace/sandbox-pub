@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>Swing (beta)</title>
+  <title>Swing</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=swap" />
@@ -99,7 +99,6 @@
       background: linear-gradient(90deg, rgba(8,10,16,0.88) 0%, rgba(8,10,16,0.6) 45%, rgba(8,10,16,0.08) 100%); }
     .panel { width: min(460px, 100%); display: grid; gap: 14px; margin: auto 0; }
     .logo { font: 700 clamp(64px, 11vw, 112px)/0.86 var(--display); letter-spacing: 0.01em; display: flex; align-items: flex-start; gap: 10px; }
-    .beta { margin-top: 10px; padding: 3px 8px; border-radius: 6px; background: var(--accent); font: 700 13px var(--display); letter-spacing: 0.16em; }
     .tag { color: var(--dim); margin: 0; font-size: 15px; line-height: 1.5; max-width: 40ch; }
     .menu-btns { display: grid; gap: 8px; }
     .mbtn { appearance: none; border: 0; text-align: left; text-decoration: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -211,6 +210,10 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "1.0", "date": "2026-10-09", "title": "Out of beta",
+      "notes": [
+        "Swing is out of beta: the game is now just called Swing, on the site and on its title screen."
+      ] },
     { "version": "0.7 beta", "date": "2026-10-09", "title": "Shop",
       "notes": [
         "New Shop in the main and pause menus. Spend tokens on suits, web colours and a token finder.",
@@ -333,7 +336,7 @@
 
   <div id="menu">
     <section class="panel" data-panel="title">
-      <div class="logo">SWING<span class="beta">BETA</span></div>
+      <div class="logo">SWING</div>
       <p class="tag">Swing through a city of glass and brick. Hunt down gold tokens, chase race times and chain the longest combo.</p>
       <div class="menu-btns">
         <button class="mbtn primary" data-act="play">Play <small>Free roam</small></button>
