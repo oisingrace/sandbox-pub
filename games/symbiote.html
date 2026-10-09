@@ -51,10 +51,24 @@
     #hostItems { color: var(--dim); font-size: 12px; margin-top: 2px; }
     #hostcard.exposed { background: rgba(110, 14, 22, 0.82); animation: pulse 0.4s infinite alternate; }
     #hostcard.exposed #hostItems { color: #ffd0d4; font-weight: 700; }
+    #warnRow { color: var(--warn); font-weight: 700; font-size: 11px; margin-top: 6px; }
+    #formRow { color: var(--slime); font-size: 11px; margin-top: 6px; }
+    #consumeHint { color: var(--dim); font-size: 11px; margin-top: 6px; }
+    #consumeHint kbd, #hostItems .dim { color: var(--dim); font-size: 11px; }
+    #hostItems b { color: var(--slime); }
+    #swapbtn { right: 128px; bottom: 116px; width: 56px; height: 40px; border: 2px solid rgba(255,255,255,0.4); background: rgba(0,0,0,0.3); color: #fff; font-size: 11px; }
+    #eatbtn { right: 26px; bottom: 136px; width: 70px; height: 50px; border: 2px solid rgba(124,255,79,0.8); background: rgba(40,90,20,0.5); color: var(--slime); }
     #spotted { color: var(--bad); font-weight: 700; font-size: 11px; margin-top: 6px; }
 
     #crosshair { position: fixed; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px; border: 2px solid rgba(255,255,255,0.85); border-radius: 50%; pointer-events: none; box-shadow: 0 0 4px rgba(0,0,0,0.6); }
     #crosshair::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: #fff; }
+    #exitMark { position: fixed; transform: translate(-50%, -50%); pointer-events: none; text-align: center; font-family: "Russo One", sans-serif; color: var(--slime); text-shadow: 0 0 10px rgba(124,255,79,0.9), 0 2px 4px rgba(0,0,0,0.9); animation: exitPulse 0.8s infinite alternate; z-index: 5; }
+    #exitMark .lbl { font-size: 16px; letter-spacing: 0.12em; }
+    #exitMark #exitDist { font-size: 14px; color: #fff; }
+    #exitArrow { font-size: 30px; line-height: 1; opacity: 0; }
+    #exitMark.edge #exitArrow { opacity: 1; }
+    #exitMark:not(.edge)::before { content: ""; display: block; width: 34px; height: 34px; margin: 0 auto 4px; border: 4px solid var(--slime); border-radius: 50%; box-shadow: 0 0 12px var(--slime); }
+    @keyframes exitPulse { from { opacity: 0.75; } to { opacity: 1; } }
     #crosshair.person { border-color: var(--slime); transform: scale(1.25); }
 
     #toast { position: fixed; left: 50%; top: 24%; transform: translateX(-50%); font-family: "Russo One", sans-serif; font-size: 22px; text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,0.8); pointer-events: none; transition: opacity 0.4s; opacity: 0; width: 90vw; }
@@ -67,6 +81,19 @@
     #menu .card { width: min(500px, 100%); margin: auto 0; }
     #menu .tag { display: inline-block; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--slime); opacity: 0.8; margin-top: 2px; }
     #menu .controls { font-size: 12px; margin-top: 8px; }
+    #levelList { display: grid; gap: 8px; }
+    .lvl { text-align: left; border: 1px solid rgba(124,255,79,0.18); background: rgba(255,255,255,0.04); color: var(--fg); border-radius: 12px; padding: 10px 14px; cursor: pointer; font: inherit; }
+    .lvl:hover { border-color: rgba(124,255,79,0.45); }
+    .lvl.sel { border-color: rgba(124,255,79,0.6); background: rgba(124,255,79,0.08); }
+    .lvl .top { display: flex; align-items: baseline; gap: 8px; }
+    .lvl b { font-family: "Russo One", sans-serif; font-size: 17px; }
+    .lvl .best { margin-left: auto; color: var(--dim); font-size: 12px; }
+    .lvl .new { font-size: 10px; font-weight: 700; color: #0b1a06; background: var(--slime); border-radius: 4px; padding: 1px 5px; }
+    .lvl .tags { color: var(--warn); font-size: 11px; margin-top: 3px; }
+    .lvl .blurb { color: var(--dim); font-size: 12.5px; margin-top: 4px; display: none; }
+    .lvl ul { margin: 6px 0 0; padding-left: 18px; color: var(--dim); font-size: 12.5px; line-height: 1.55; display: none; }
+    .lvl ul em { color: var(--warn); font-style: normal; font-weight: 700; }
+    .lvl.sel .blurb, .lvl.sel ul { display: block; }
     #menu details.ctl summary { cursor: pointer; color: var(--dim); font-size: 13px; font-weight: 600; }
     #menu details.ctl summary:hover { color: var(--fg); }
     body:not(.touch) #menu .controls .t { display: none; }
@@ -76,7 +103,7 @@
     @media (max-width: 760px) {
       #menu.screen { background: linear-gradient(180deg, rgba(4,10,6,0.15) 0%, rgba(4,10,6,0.75) 32%, rgba(4,10,6,0.94) 60%); align-items: flex-end; }
       #menu .card { margin: 34vh 0 0; }
-      #menu .card p { font-size: 14px; }
+      #menu .card > p { display: none; }
       #menu .mission ul { font-size: 12px; }
     }
     .card h1 { font-family: "Russo One", sans-serif; font-size: clamp(40px, 9vw, 64px); margin: 0; color: var(--slime); text-shadow: 0 0 24px rgba(124,255,79,0.45); letter-spacing: 0.04em; }
@@ -121,6 +148,28 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.8", "date": "2026-10-09", "title": "Saltmarsh Docks",
+      "notes": [
+        "New level: Saltmarsh Docks. A fishing village with a fish market, cottages and a pub, a customs fence, and docks behind it with a warehouse, a maze of shipping containers, two gantry cranes, a cargo ship, a water tower and a pier. It is set at sunset.",
+        "Six missions: get in unseen, wreck 3 fuse boxes, smuggle the ledger out to a red van, take out the Harbourmaster, topple the water tower, and escape on the speedboat.",
+        "New: consuming. On levels that allow it (the docks), press C (EAT on touch) to eat the host you're in. Your slime grows a form: it crawls faster, takes more hits, has more health and jumps further. Your next host also carries what the eaten one held. The catch: you can't jump, you drop out where they stood, and it's loud.",
+        "New: security cameras. They sweep back and forth, see further than guards, and send the nearest guards to look. Shoot or smash them, or cut the power.",
+        "New: no-go zones. The docks are for dock workers, and the harbour office is for staff. Guards and cameras notice anyone in the wrong place, so pick your body to match.",
+        "New: carrying things. Walk over the ledger to pick it up. Guards who see you carrying it get suspicious, and if your host dies it drops on the spot.",
+        "New: flares. Dock workers can throw them, and guards nearby go to look at the light. Shoot the fuel drums round the water tower to set them off.",
+        "New: salt water. Slime dissolves in it fast, so don't miss a jump over the harbour.",
+        "Hosts with more than one item: press Q (SWAP on touch) to switch.",
+        "The menu now has a level list. Pick a level and the sky view behind the menu shows it."
+      ] },
+    { "version": "0.7", "date": "2026-10-09", "title": "Busier Hollow Hill",
+      "notes": [
+        "Hollow Hill is more detailed. The town has a row of shops, a fountain and café tables on the plaza, a pond and benches in the park, parked cars, street lights and a zebra crossing.",
+        "The construction yard has stacked shipping containers, traffic cones, a generator and a portable toilet. The checkpoint has barriers, floodlights and hazard stripes.",
+        "The compound has a car park, flags outside the offices, garden hedges, pipes and AC units along the back wall, satellite dishes by the relay tower, and a watchtower over the storm drain.",
+        "Street lights, barriers, cones and containers are physics objects. Knock them over or blow them up.",
+        "Cars, hedges and the rest give you cover. People can't see through them.",
+        "Once every other mission is done, the storm drain lights up: a tall green pillar of light you can see from anywhere, pulsing goo, and an EXIT marker on screen with the distance. It points the way when the drain is off screen."
+      ] },
     { "version": "0.6", "date": "2026-10-09", "title": "Sky view",
       "notes": [
         "New main menu: behind it, the camera circles slowly over Hollow Hill from the sky while the town and compound go about their day, like Smash Lot and Swing.",
@@ -177,7 +226,7 @@
 
   <div id="hud" class="hidden">
     <div id="objectives" class="panel">
-      <h3>Hollow Hill</h3>
+      <h3 id="hudTitle">Hollow Hill</h3>
       <ul id="objList"></ul>
     </div>
     <div id="alarm" class="panel">
@@ -187,12 +236,16 @@
     </div>
     <button id="pausebtn" title="Pause (P)">❚❚</button>
     <div id="crosshair"></div>
+    <div id="exitMark" class="hidden"><div id="exitArrow">▲</div><div class="lbl">EXIT</div><div id="exitDist">0 m</div></div>
     <div id="hostcard" class="panel">
       <div id="hostLabel">Civilian</div>
       <div id="hostItems"></div>
       <div class="row" id="hpRow"><span>Health</span><div class="bar"><i id="hpBar" style="background:#ff7b7b"></i></div></div>
       <div class="row hidden" id="slimeRow"><span>Slime</span><div class="bar"><i id="slimeBar" style="background:var(--slime)"></i></div></div>
       <div id="spotted" class="hidden">SPOTTED: jump into someone out of sight to lose them</div>
+      <div id="warnRow" class="hidden"></div>
+      <div id="formRow" class="hidden"></div>
+      <div id="consumeHint" class="hidden"></div>
     </div>
     <div id="toast"></div>
   </div>
@@ -200,6 +253,8 @@
   <div id="touch" class="hidden">
     <div id="stick"><i></i></div>
     <button id="itembtn" class="tbtn">ITEM</button>
+    <button id="swapbtn" class="tbtn hidden">SWAP</button>
+    <button id="eatbtn" class="tbtn hidden">EAT</button>
     <button id="launchbtn" class="tbtn">LAUNCH</button>
   </div>
 
@@ -208,16 +263,7 @@
       <h1>SYMBIOTE</h1>
       <span class="tag">A host-hopping stealth game</span>
       <p>You are a slime that lives inside people. Launch yourself out of one body and into the next. Hit someone and they're yours. Miss, and you're a puddle on the floor, and everyone wants to stamp on you. The body you leave behind dies too.</p>
-      <div class="mission">
-        <b>Hollow Hill</b>
-        <ul>
-          <li><em>Stealth</em> Get inside the compound without setting off a lockdown.</li>
-          <li><em>Espionage</em> Download the files in the server room.</li>
-          <li><em>Assassination</em> Take out the Director.</li>
-          <li><em>Destruction</em> Bring down the relay tower.</li>
-          <li><em>Extraction</em> Escape down the storm drain.</li>
-        </ul>
-      </div>
+      <div id="levelList"></div>
       <div class="btns"><button class="btn primary" id="playBtn">Play</button></div>
       <details class="ctl"><summary>Controls</summary>
       <div class="controls">
@@ -225,8 +271,10 @@
         <b>Move</b><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>, <kbd>Shift</kbd> to run</span>
         <b>Launch</b><span>Hold left mouse to see the arc, let go to jump. Aim at a person.</span>
         <b>Use item</b><span>Right mouse or <kbd>F</kbd>: pistol, sledgehammer or charges. Keycards work by themselves.</span>
+        <b>Swap item</b><span><kbd>Q</kbd> when your host holds more than one</span>
+        <b>Consume</b><span><kbd>C</kbd> on levels that allow it: eat your host to grow. Loud, and you drop out instead of jumping.</span>
         <b>Other</b><span><kbd>R</kbd> restart, <kbd>P</kbd> or <kbd>Esc</kbd> pause</span>
-        <b class="t">Touch</b><span class="t">Left stick moves, drag the right side to look, hold LAUNCH to aim and let go to jump. ITEM uses what your host is holding.</span>
+        <b class="t">Touch</b><span class="t">Left stick moves, drag the right side to look, hold LAUNCH to aim and let go to jump. ITEM uses what your host is holding, SWAP changes item, EAT consumes your host where the level allows it.</span>
       </div>
       </details>
     </div>
@@ -1589,6 +1637,136 @@ function grove(d, cx, cz, half, n, seed) {
   scatterKind(d, 'tree', 1.5, cx, cz, half, n, 3.4, seed);
 }
 
+// --- Scenery ----------------------------------------------------------------
+// Static props, batched by colour (B.prop). Low-poly, mostly boxes.
+
+const CAR_COLORS = [0xc8342b, 0x2f6fb3, 0xe0a526, 0xe8e4da, 0x3a3f46, 0x4c8c3a, 0x8a4fb0];
+
+/** A parked car, `yaw` 0 = facing +z. */
+function car(B, x, z, yaw, color) {
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const at = (u, w) => [x + w * c + u * s, z - w * s + u * c]; // u forward, w right
+  const P = (u, y, w, sx, sy, sz, col, o = {}) => { const [px, pz] = at(u, w); B.prop(px, y, pz, sx, sy, sz, col, { yaw, ...o }); };
+  P(0, 0.62, 0, 1.8, 0.7, 4.2, color);
+  P(-0.3, 1.25, 0, 1.6, 0.6, 2.2, color, { solid: false });
+  P(0.55, 1.25, 0, 1.5, 0.48, 0.08, 0x2b3a48, { solid: false, shadow: false });
+  P(-1.3, 1.25, 0, 1.5, 0.48, 0.08, 0x2b3a48, { solid: false, shadow: false });
+  for (const u of [-1.35, 1.35]) for (const w of [-0.86, 0.86]) P(u, 0.34, w, 0.3, 0.68, 0.68, 0x1c1e21, { solid: false, shadow: false });
+  P(2.11, 0.7, -0.6, 0.35, 0.18, 0.04, 0xfff3c4, { solid: false, shadow: false, glow: true });
+  P(2.11, 0.7, 0.6, 0.35, 0.18, 0.04, 0xfff3c4, { solid: false, shadow: false, glow: true });
+}
+
+/** A street light that can be knocked over. */
+function lamp(d, x, z) { d.spawn('pole', { x, y: 3.5 + GAP, z }, 0, SLEEP); }
+
+function bench(B, x, z, yaw = 0) {
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  B.prop(x, 0.45, z, 1.8, 0.12, 0.5, 0x8a6a4a, { yaw });
+  B.prop(x - 0.22 * s, 0.75, z - 0.22 * c, 1.8, 0.45, 0.08, 0x8a6a4a, { yaw, solid: false });
+  B.prop(x, 0.2, z, 1.5, 0.4, 0.3, 0x3a3f46, { yaw, solid: false, shadow: false });
+}
+
+/** A shop facing -x (towards the plaza), body centred at (x, z). */
+function shop(B, x, z, w, color, awning) {
+  B.prop(x, 2.2, z, 5, 4.4, w, color);
+  B.prop(x, 4.55, z, 5.3, 0.3, w + 0.3, 0x5d5a55);
+  B.prop(x - 2.52, 1.35, z - 0.9, 0.06, 1.5, w * 0.45, 0x9fd4ee, { solid: false, shadow: false });
+  B.prop(x - 2.52, 1.05, z + w * 0.3, 0.06, 2.1, 1.1, 0x5a3b26, { solid: false, shadow: false });
+  for (let i = 0; i < 4; i++) B.prop(x - 3.1, 2.75, z - w / 2 + 0.3 + (i + 0.5) * ((w - 0.6) / 4), 1.3, 0.12, (w - 0.6) / 4, i % 2 ? 0xf4f1e8 : awning, { solid: false, tilt: 0, shadow: i === 0 });
+  B.prop(x - 2.55, 3.6, z, 0.1, 0.7, w * 0.7, 0x2b2f33, { solid: false, shadow: false });
+  B.prop(x - 2.6, 3.6, z, 0.04, 0.4, w * 0.55, awning, { solid: false, shadow: false, glow: true });
+}
+
+function planter(B, x, z, w = 1.6) {
+  B.prop(x, 0.3, z, w, 0.6, w, 0x8f8c84);
+  B.prop(x, 0.75, z, w * 0.8, 0.5, w * 0.8, 0x4f8a3c, { solid: false });
+}
+
+function umbrellaTable(B, x, z, color) {
+  B.prop(x, 0.38, z, 0.9, 0.76, 0.9, 0xe8e4da, { shape: 'cyl' });
+  B.prop(x, 1.5, z, 0.06, 1.5, 0.06, 0xdddddd, { shape: 'cyl', solid: false, shadow: false });
+  B.prop(x, 2.25, z, 2.6, 0.18, 2.6, color, { shape: 'cyl', solid: false });
+  for (const [dx, dz] of [[0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9]]) B.prop(x + dx, 0.23, z + dz, 0.4, 0.46, 0.4, 0x3a3f46, { shape: 'cyl', solid: false, shadow: false });
+}
+
+function watchtower(B, x, z) {
+  for (const [dx, dz] of [[-1.3, -1.3], [1.3, -1.3], [-1.3, 1.3], [1.3, 1.3]]) B.prop(x + dx, 2.5, z + dz, 0.25, 5, 0.25, 0x5a5f66);
+  B.prop(x, 5.1, z, 3.2, 0.25, 3.2, 0x6c737b, { solid: false });
+  for (const [dx, dz, sx, sz] of [[0, -1.55, 3.2, 0.08], [0, 1.55, 3.2, 0.08], [-1.55, 0, 0.08, 3.2], [1.55, 0, 0.08, 3.2]]) B.prop(x + dx, 5.7, z + dz, sx, 1, sz, 0x5a5f66, { solid: false });
+  B.prop(x, 7.6, z, 3.6, 0.2, 3.6, 0x3a3f46, { solid: false });
+  for (const [dx, dz] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) B.prop(x + dx, 6.6, z + dz, 0.12, 1.9, 0.12, 0x5a5f66, { solid: false, shadow: false });
+  B.prop(x + 1.3, 6.9, z - 1.3, 0.5, 0.35, 0.5, 0xfff3c4, { solid: false, shadow: false, glow: true });
+}
+
+function dish(B, x, z, yaw) {
+  B.prop(x, 0.6, z, 0.9, 1.2, 0.9, 0x8a8f96);
+  B.prop(x, 1.6, z, 0.2, 1, 0.2, 0x8a8f96, { shape: 'cyl', solid: false });
+  B.prop(x + Math.sin(yaw) * 0.2, 2.4, z + Math.cos(yaw) * 0.2, 2.6, 0.18, 2.6, 0xe8e4da, { shape: 'cyl', solid: false, yaw, tilt: -0.9 });
+}
+
+function crossing(B, x, z0, z1) {
+  for (let z = z0 + 0.6; z < z1 - 0.3; z += 1.2) B.prop(x, 0.02, z, 3.6, 0.02, 0.6, 0xf2efe6, { solid: false, shadow: false });
+}
+
+function parkingBay(B, x0, x1, z, depth) {
+  for (let x = x0; x <= x1 + 1e-6; x += 3) B.prop(x, 0.02, z + depth / 2, 0.15, 0.02, depth, 0xf2efe6, { solid: false, shadow: false });
+}
+
+function hedge(B, x0, z0, x1, z1) {
+  B.prop((x0 + x1) / 2, 0.45, (z0 + z1) / 2, Math.max(0.8, Math.abs(x1 - x0)), 0.9, Math.max(0.8, Math.abs(z1 - z0)), 0x4a7f38);
+}
+
+function stripes(B, x, z, len, yaw) {
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  for (let i = 0; i < len; i++) {
+    const u = i - (len - 1) / 2;
+    B.prop(x + u * c, 0.02, z - u * s, 0.5, 0.02, 1.4, i % 2 ? 0x1c1e21 : 0xf2c230, { solid: false, shadow: false, yaw: yaw + 0.6 });
+  }
+}
+
+function cottage(B, x, z, color, roof = 0x7a3b2e) {
+  B.prop(x, 1.7, z, 7, 3.4, 6, color);
+  for (const side of [-1, 1]) B.prop(x, 4.15, z + side * 1.55, 7.6, 0.22, 3.6, roof, { tilt: side * 0.55 });
+  B.prop(x + 2.2, 4.6, z - 1, 0.7, 1.6, 0.7, 0x6b5a4a);
+  B.prop(x, 1.05, z + 3.02, 1.1, 2.1, 0.06, 0x5a3b26, { solid: false, shadow: false });
+  for (const dx of [-2.2, 2.2]) B.prop(x + dx, 1.8, z + 3.02, 1.1, 1, 0.06, 0xbfe3f2, { solid: false, shadow: false, glow: dx < 0 });
+}
+
+function stall(B, x, z, canopy) {
+  B.prop(x, 0.5, z, 2.4, 1, 1, 0x8a6a4a);
+  B.prop(x, 1.03, z, 2.2, 0.06, 0.8, 0xe8f2f6, { solid: false, shadow: false }); // ice
+  for (let i = 0; i < 5; i++) B.prop(x - 0.85 + i * 0.42, 1.12, z + (i % 2 ? 0.15 : -0.15), 0.32, 0.1, 0.12, [0x9fb3c0, 0xe08a6a, 0xc0c8cc][i % 3], { solid: false, shadow: false });
+  for (const dx of [-1.1, 1.1]) B.prop(x + dx, 1.3, z - 0.45, 0.08, 2.6, 0.08, 0xdddddd, { solid: false, shadow: false });
+  B.prop(x, 2.55, z + 0.1, 2.8, 0.1, 1.6, canopy, { solid: false, tilt: -0.25 });
+}
+
+function boatOnTrailer(B, x, z, color) {
+  B.prop(x, 0.35, z, 1.6, 0.2, 4.4, 0x3a3f46, { solid: false });
+  B.prop(x, 1.0, z, 1.8, 1.1, 4.2, color);
+  B.prop(x, 1.2, z - 2.4, 1.2, 0.8, 0.9, color, { solid: false, tilt: 0.5 });
+  B.prop(x, 1.6, z + 0.6, 1.2, 0.5, 1.4, 0xe8e4da, { solid: false });
+}
+
+function gantry(B, x, color) {
+  for (const dx of [-4, 4]) for (const z of [-35.5, -43]) B.prop(x + dx, 8, z, 0.8, 16, 0.8, color);
+  for (const dx of [-4, 4]) B.prop(x + dx, 16.3, -46, 0.9, 0.9, 26, color, { solid: false });
+  for (const z of [-35.5, -43]) B.prop(x, 16.3, z, 8.8, 0.9, 0.9, color, { solid: false });
+  B.prop(x, 15.2, -49, 3, 2.2, 3, 0xe8e4da, { solid: false });
+  B.prop(x, 15.2, -47.45, 2.4, 1.2, 0.06, 0x2b3a48, { solid: false, shadow: false });
+  B.prop(x, 12.5, -52, 0.08, 7, 0.08, 0x2b2f33, { solid: false, shadow: false });
+  B.prop(x, 8.3, -52, 2.44, 2.6, 6.1, 0x4a90dc, { solid: false });
+}
+
+function waterTower(d, x, z) {
+  d.beginSite();
+  const before = d.siteNow;
+  for (const [dx, dz] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) d.spawn('steelLeg', { x: x + dx, y: 3.5 + GAP, z: z + dz }, 0, SLEEP);
+  d.spawn('platform', { x, y: 7.15 + 2 * GAP, z }, 0, SLEEP);
+  d.spawn('tank', { x, y: 8.6 + 3 * GAP, z }, 0, SLEEP);
+  d.endSite();
+  return before;
+}
+
 // --- The level ------------------------------------------------------------
 //
 // One hand-made map, Hollow Hill: a town in the south, a walled compound
@@ -1602,6 +1780,14 @@ const LEVELS = [
     title: 'Hollow Hill',
     blurb: 'Sneak into the compound, steal the files, take out the Director, bring down the relay tower, and get out through the drain.',
     half: 60,
+    stealthFail: 'The compound locked down before you got inside.',
+    objectives: [
+      { id: 'stealth', type: 'Stealth', text: 'Get inside the compound without setting off a lockdown.' },
+      { id: 'files', type: 'Espionage', text: 'Download the files in the server room. Needs a keycard.' },
+      { id: 'director', type: 'Assassination', text: 'Take out the Director.' },
+      { id: 'relay', type: 'Destruction', text: 'Bring down the relay tower.' },
+      { id: 'extract', type: 'Extraction', text: 'Escape down the storm drain.' },
+    ],
     build(B) {
       const d = B.d;
       // --- Town (south) ---
@@ -1618,7 +1804,7 @@ const LEVELS = [
       B.staticBox(-6, 1.1, 44, 3, 2.2, 1.6, 0xd94e3b); // food stand
       B.staticBox(8, 0.5, 40, 4, 1, 1, 0x8a6a4a);      // bench
       // Park.
-      grove(d, -42, 46, 12, 9, 3);
+      grove(d, -43, 48, 10, 9, 3);
       for (let i = 0; i < 4; i++) B.person('civilian', -50 + i * 6, 38 + i * 4, { wander: [-56, 34, -28, 58] });
       // Street life.
       B.person('civilian', -50, 17, { route: [[-50, 17], [50, 17]] });
@@ -1628,6 +1814,38 @@ const LEVELS = [
       B.person('office', 30, 29, { route: [[30, 29], [4, 12], [-30, 12], [-30, 29]], wait: 2 });
       B.person('guard', -40, 10, { route: [[-40, 10], [40, 10]], wait: 3 });
 
+      // Shops along the east side of the plaza.
+      shop(B, 23, 37.5, 5, 0xd9c8a8, 0xd94e3b);
+      shop(B, 23, 43.5, 5, 0x9fb8c8, 0x2f6fb3);
+      shop(B, 23, 49.5, 5, 0xe0c9d6, 0x8a4fb0);
+      shop(B, 23, 55.5, 5, 0xc9d8b0, 0x4c8c3a);
+      // The plaza: a fountain, planters, café tables, lamps.
+      B.prop(-10, 0.35, 52, 4.4, 0.7, 4.4, 0x9a968e, { shape: 'cyl' });
+      B.prop(-10, 0.72, 52, 3.8, 0.06, 3.8, 0x5aa6d6, { shape: 'cyl', solid: false, shadow: false });
+      B.prop(-10, 1.3, 52, 0.6, 1.4, 0.6, 0x9a968e, { shape: 'cyl' });
+      B.prop(-10, 2.1, 52, 1.6, 0.2, 1.6, 0x9a968e, { shape: 'cyl', solid: false });
+      for (const [x, z] of [[-18, 36], [18, 36], [-18, 56], [-3, 57]]) planter(B, x, z);
+      umbrellaTable(B, -9, 39.5, 0xd94e3b);
+      umbrellaTable(B, -3.5, 39.5, 0xf2c230);
+      bench(B, 8, 56, Math.PI);
+      bench(B, 14, 47, -Math.PI / 2);
+      for (const [x, z] of [[-19.5, 34.5], [19.5, 34.5], [-19.5, 58.5], [12, 58.5]]) lamp(d, x, z);
+      // Street: lamps, parked cars and a crossing to the checkpoint.
+      for (const x of [-48, -32, -16, 16, 32, 48]) { lamp(d, x, 15.4); lamp(d, x + 8, 30.8); }
+      car(B, -40, 26.6, Math.PI / 2, CAR_COLORS[0]);
+      car(B, -24, 26.6, Math.PI / 2, CAR_COLORS[1]);
+      car(B, 22, 26.6, Math.PI / 2, CAR_COLORS[2]);
+      car(B, 46, 19.4, -Math.PI / 2, CAR_COLORS[4]);
+      car(B, -52, 19.4, -Math.PI / 2, CAR_COLORS[3]);
+      crossing(B, 0, 18, 28);
+      // Park: a path, a pond, benches.
+      B.ground(-60, 43.6, -26, 45.2, 'plaza');
+      B.prop(-29.5, 0.03, 56.5, 6, 0.04, 4.4, 0x5aa6d6, { shape: 'cyl', solid: false, shadow: false });
+      for (const [x, z] of [[-32.8, 56], [-26.3, 57.4], [-29, 54], [-31, 58.6]]) B.prop(x, 0.15, z, 0.7, 0.3, 0.6, 0x8a8f96, { solid: false });
+      bench(B, -40, 42.6, Math.PI);
+      bench(B, -50, 42.6, Math.PI);
+      bench(B, -30, 46.2, 0);
+
       // Construction yard: sledgehammers and a demolition worker.
       fenceLine(d, 26, 32, 42, 32);
       fenceLine(d, 48, 32, 58, 32);
@@ -1636,6 +1854,14 @@ const LEVELS = [
       shed(d, 50, 40, 6, 4, 3);
       brickWall(d, 36, 44, 0, 8, 4);
       scatterKind(d, 'barrel', 0.475, 32, 38, 2.4, 8, 0.8, 7);
+      d.spawn('container', { x: 44, y: 1.3 + GAP, z: 57.6 }, 0, SLEEP);
+      d.spawn('container', { x: 44, y: 3.9 + GAP * 2, z: 57.6 }, 0, SLEEP);
+      for (let i = 0; i < 6; i++) d.spawn('cone', { x: 27 + i * 2.6, y: 0.3 + GAP, z: 30.6 }, 0, SLEEP);
+      B.prop(29, 1.2, 57.5, 1.2, 2.4, 1.2, 0x2f6fb3);   // portable toilet
+      B.prop(29, 2.45, 57.5, 1.3, 0.1, 1.3, 0xe8e4da, { solid: false });
+      for (const [x, z] of [[40, 50], [41, 50]]) B.prop(x, 0.07, z, 1, 0.14, 1.2, 0x8a6a4a); // pallets
+      B.prop(56, 0.6, 46, 2, 1.2, 1.4, 0x8a8f96);       // generator
+      B.prop(56, 1.25, 46, 0.3, 0.3, 0.3, 0x3a3f46, { solid: false });
       B.person('builder', 36, 40, { wander: [28, 34, 58, 58] });
       B.person('builder', 44, 52, { wander: [28, 34, 58, 58] });
       B.person('demo', 50, 36.5, { wander: [44, 34, 56, 38] });
@@ -1645,6 +1871,12 @@ const LEVELS = [
       blockWall(d, 1.6, 3, 60, 3, 3);
       B.gate(0, 3, 0, 3.2, 'keycard');
       B.staticBox(4.2, 1.3, 5.6, 2, 2.6, 2, 0x6b7c8f); // booth
+      d.spawn('barrier', { x: -3.6, y: 0.45 + GAP, z: 8 }, 0, SLEEP);
+      d.spawn('barrier', { x: 7.5, y: 0.45 + GAP, z: 6.5 }, 0, SLEEP);
+      stripes(B, 0, 4.4, 7, 0);
+      lamp(d, -6, 4.6); lamp(d, 8, 4.6); lamp(d, -6, 1.4); lamp(d, 8, 1.4);
+      B.prop(4.2, 2.75, 5.6, 2.4, 0.3, 2.4, 0x3a3f46, { solid: false }); // booth roof
+      B.prop(3.15, 1.6, 5.6, 0.06, 0.9, 1.4, 0x9fd4ee, { solid: false, shadow: false });
       B.person('guard', 3, 8, { post: true, yaw: 0 });
       B.person('guard', -3, 0, { post: true, yaw: 0 });
       B.stealthLine(3);
@@ -1654,6 +1886,30 @@ const LEVELS = [
       B.ground(-4, -50, 4, 2, 'concrete');
       B.ground(-50, -30, 4, -22, 'concrete');
       B.ground(4, -14, 40, -8, 'concrete');
+
+      // Car park by the offices.
+      B.ground(-50, -18, -34, -8, 'concrete');
+      parkingBay(B, -49, -35, -18, 5);
+      car(B, -47.5, -15.4, 0, CAR_COLORS[4]);
+      car(B, -41.5, -15.4, 0, CAR_COLORS[3]);
+      car(B, -38.5, -15.4, 0, CAR_COLORS[6]);
+      for (const [x, z] of [[-50.5, -8], [-33.5, -8], [-30, -2], [-6, -2], [20, -2], [-50, -32], [50, -20], [6, -50]]) lamp(d, x, z);
+      // Office front: flags and planters.
+      for (const [x, col] of [[-28, 0xd94e3b], [-24, 0x7cff4f], [-20, 0x2f6fb3]]) {
+        B.prop(x, 3, -6.8, 0.1, 6, 0.1, 0xdddddd, { shape: 'cyl', solid: false });
+        B.prop(x + 0.6, 5.4, -6.8, 1.1, 0.7, 0.04, col, { solid: false, shadow: false });
+      }
+      planter(B, -30, -7, 1.2); planter(B, -18, -7, 1.2);
+      B.prop(-24, 0.05, -7.6, 3, 0.1, 1.6, 0x5d5a55, { solid: false, shadow: false }); // doormat
+      // Garden hedges and benches round the fountain.
+      hedge(B, -4, -31.5, -1, -31.5); hedge(B, 5, -31.5, 8, -31.5);
+      bench(B, 8, -20, -Math.PI / 2); bench(B, -8, -26, Math.PI / 2);
+      B.prop(0, 0.83, -20, 1.6, 0.06, 1.6, 0x5aa6d6, { solid: false, shadow: false });
+      // Pipes, AC units and crates along the north wall.
+      B.prop(-12, 0.5, -58.9, 0.5, 20, 0.5, 0x7d848c, { shape: 'cyl', yaw: Math.PI / 2, tilt: Math.PI / 2, solid: false });
+      for (const x of [-20, -14, -8, -2]) B.prop(x, 0.6, -57.6, 1.4, 1.2, 1, 0xb9b6ad);
+      cratePyramid(d, 10, -56, 2);
+      d.spawn('container', { x: 14, y: 1.3 + GAP, z: -46 }, Math.PI / 2, SLEEP);
 
       // Offices, and the server room behind them.
       office(d, -24, -12, 2);
@@ -1685,13 +1941,197 @@ const LEVELS = [
         d.spawn('fuel', { x: 36 + Math.cos(a) * 5, y: 0.45 + GAP, z: -40 + Math.sin(a) * 5 }, 0, SLEEP);
       }
       scatterKind(d, 'barrel', 0.475, 44, -30, 2, 6, 0.8, 11);
+      dish(B, 44, -47, -0.6); dish(B, 27, -34, 0.8);
+      B.prop(29, 1.1, -46, 2.4, 2.2, 1.6, 0x8a8f96);    // relay equipment cabinet
+      B.prop(29, 1.6, -45.18, 1.6, 0.4, 0.04, 0x7cff4f, { solid: false, shadow: false, glow: true });
+      for (const [x, z] of [[24, -28], [48, -28], [24, -50], [48, -50]]) B.prop(x, 0.02, z, 1.4, 0.02, 1.4, 0xf2c230, { solid: false, shadow: false });
       B.person('guard', 26, -30, { route: [[26, -30], [46, -30], [46, -50], [26, -50]], wait: 2 });
       B.person('builder', 30, -48, { wander: [22, -50, 48, -44] });
       B.person('guard', 30, -4, { route: [[50, -4], [10, -4]], wait: 3 });
 
       // The way out: a storm drain in the north-west corner.
+      B.ground(-58, -58, -46, -46, 'concrete');
+      for (const [x, z, sx, sz] of [[-53, -46.3, 8, 0.4], [-46.3, -53, 0.4, 8]]) B.prop(x, 0.12, z, sx, 0.24, sz, 0x8f8c84); // kerb, easy to step over
+      B.prop(-58.4, 1.4, -52, 0.6, 2.8, 4, 0x1c1e21, { solid: false, shadow: false }); // culvert mouth in the wall
+      B.prop(-58.1, 2.95, -52, 1.2, 0.3, 4.6, 0x8f8c84, { solid: false });
+      stripes(B, -52, -46.9, 6, 0);
+      watchtower(B, -42, -56);
       B.extract(-52, -52, 2.6, 'storm drain');
       B.person('guard', -46, -44, { post: true, yaw: 2.4 });
+    },
+  },
+  {
+    id: 'saltmarsh-docks',
+    title: 'Saltmarsh Docks',
+    isNew: true,
+    consume: true,
+    blurb: 'A harbour full of cameras and people who notice when you are somewhere you should not be. The right body gets you in. Here you can also eat your host to grow.',
+    half: 60,
+    stealthFail: 'The docks locked down before you got in.',
+    look: { sky: 0xf0c9a2, sun: 0xffc48a, sunI: 2.0, hemiSky: 0xffe0c2, hemiGround: 0x4a5a6a, hemiI: 1.05, base: 0x8d9a8a, hills: 0x6f8a78 },
+    objectives: [
+      { id: 'stealth', type: 'Stealth', text: 'Get onto the docks without setting off a lockdown.' },
+      { id: 'power', type: 'Sabotage', text: 'Wreck the 3 fuse boxes to kill the cameras.' },
+      { id: 'deliver', type: 'Smuggling', text: 'Steal the ledger from the warehouse office and put it in the red van outside the gate.' },
+      { id: 'director', type: 'Assassination', text: 'Take out the Harbourmaster.' },
+      { id: 'relay', type: 'Destruction', text: 'Topple the water tower.' },
+      { id: 'extract', type: 'Extraction', text: 'Escape on the speedboat at the end of the pier.' },
+    ],
+    build(B) {
+      const d = B.d;
+      // --- Village (south) ---
+      B.ground(-60, 22, 60, 28, 'road');
+      B.ground(-60, 28, 60, 30, 'kerb');
+      B.ground(-24, 30, 24, 60, 'plaza');
+      B.ground(-60, 30, -24, 60, 'grass');
+      B.ground(24, 30, 60, 60, 'grass');
+      B.start('fisher', 0, 52, Math.PI);
+      for (let i = 0; i < 6; i++) B.person(i % 2 ? 'fisher' : 'civilian', -16 + i * 6, 42 + (i % 3) * 4, { wander: [-22, 31, 22, 58] });
+      // Fish market.
+      stall(B, -9, 38, 0x2f6fb3); stall(B, -3, 38, 0xd94e3b); stall(B, 3, 38, 0x2f6fb3); stall(B, 9, 38, 0xd94e3b);
+      for (const [x, z] of [[-12, 36.4], [12, 36.4], [-6, 36.4]]) B.prop(x, 0.3, z, 0.8, 0.6, 0.6, 0xe8e4da);
+      // Cottages and the pub.
+      cottage(B, -48, 53, 0xe8e0d0); cottage(B, -38, 53, 0xa9c4d6); cottage(B, -28, 53, 0xe9d6a8, 0x3a4a5a);
+      cottage(B, 28, 53, 0xd6b8b0, 0x3a4a5a); cottage(B, 38, 53, 0xe8e0d0); cottage(B, 48, 53, 0xb9d0b0);
+      B.prop(-40, 2.2, 38, 11, 4.4, 7, 0x6b4a3a);
+      B.prop(-40, 4.6, 38, 11.6, 0.4, 7.6, 0x3a2f2a);
+      B.prop(-40, 3.2, 41.6, 3.2, 0.9, 0.12, 0x2b2f33, { solid: false });
+      B.prop(-40, 3.2, 41.68, 2.6, 0.5, 0.04, 0xffc23c, { solid: false, shadow: false, glow: true });
+      for (const dx of [-3, 3]) B.prop(-40 + dx, 1.6, 41.55, 1.6, 1.2, 0.08, 0xffd68a, { solid: false, shadow: false, glow: true });
+      umbrellaTable(B, -45, 44.5, 0x2f6fb3); umbrellaTable(B, -35, 44.5, 0x4c8c3a);
+      B.person('civilian', -44, 46, { wander: [-48, 43, -32, 48] });
+      B.person('fisher', -36, 46, { wander: [-48, 43, -32, 48] });
+      // Boats on trailers, lobster pots and nets.
+      boatOnTrailer(B, 34, 38, 0xd94e3b); boatOnTrailer(B, 40, 38, 0x2f6fb3); boatOnTrailer(B, 46, 38, 0xe8e4da);
+      for (let i = 0; i < 6; i++) B.prop(52 + (i % 3) * 1.1, 0.35 + Math.floor(i / 3) * 0.7, 36, 0.9, 0.7, 0.9, 0x8a6a4a, { solid: i < 3 });
+      B.prop(30, 0.15, 44, 3, 0.3, 2, 0x4c8c3a, { solid: false });
+      B.person('docker', 40, 33, { wander: [30, 31, 56, 35] });
+      // The red van (where the ledger goes) and the street.
+      B.prop(-14, 1.3, 31.5, 2.2, 2.2, 5, 0xc8342b);
+      B.prop(-14, 1.75, 29.05, 2, 0.8, 0.06, 0x2b3a48, { solid: false, shadow: false });
+      for (const dz of [-1.6, 1.6]) for (const dx of [-1.05, 1.05]) B.prop(-14 + dx, 0.38, 31.5 + dz, 0.3, 0.75, 0.75, 0x1c1e21, { solid: false, shadow: false });
+      B.dropoff('ledger', -14, 35, 1.5, 'red van');
+      car(B, 20, 26.6, Math.PI / 2, CAR_COLORS[1]);
+      car(B, -36, 23.4, -Math.PI / 2, CAR_COLORS[3]);
+      for (const x of [-50, -30, -10, 10, 30, 50]) lamp(d, x, 30.8);
+      for (const [x, z] of [[-23.5, 58.5], [23.5, 58.5], [-23.5, 31.5], [23.5, 31.5]]) lamp(d, x, z);
+      B.person('civilian', -55, 25, { route: [[-55, 25], [55, 25]] });
+      B.person('customs', 45, 24, { route: [[45, 24], [-45, 24]], wait: 3 });
+
+      // --- Customs fence and gates ---
+      blockWall(d, -60, 20, -1.6, 20, 3);
+      blockWall(d, 1.6, 20, 28.4, 20, 3);
+      blockWall(d, 31.6, 20, 60, 20, 3);
+      B.gate(0, 20, 0, 3.2, 'keycard');
+      B.gate(30, 20, 0, 3.2, 'pass');
+      B.staticBox(4.4, 1.3, 22.6, 2.4, 2.6, 2.2, 0x3a5a48); // customs booth
+      B.prop(4.4, 2.75, 22.6, 2.8, 0.3, 2.6, 0x2b2f33, { solid: false });
+      B.person('customs', 2.6, 24.6, { post: true, yaw: Math.PI });
+      B.person('customs', -2.8, 17.5, { post: true, yaw: 0 });
+      B.camera(-5, 17.5, 0.5, 0.6, 4);
+      B.camera(33.5, 17.5, -0.5, 0.6, 4);
+      B.stealthLine(20);
+      stripes(B, 0, 18.5, 7, 0);
+      stripes(B, 30, 18.5, 7, 0);
+
+      // --- The docks (north): dock workers only ---
+      B.restricted(-60, -60, 60, 20, ['docker', 'customs', 'harbourmaster'], 'dock workers only');
+      B.ground(-60, -44, 60, 20, 'concrete');
+      B.ground(-60, -34, 60, -32, 'kerb');
+      for (let z = -2; z > -32; z -= 6) B.prop(-1.6, 0.02, z, 0.25, 0.02, 3, 0xf2c230, { solid: false, shadow: false });
+
+      // Warehouse with the harbour office inside: staff only.
+      shed(d, -42, -8, 16, 12, 4, false);
+      B.prop(-42, 4.3, -8, 16.4, 0.3, 12.4, 0x6c737b);
+      B.restricted(-50, -14, -34, -2, ['customs', 'harbourmaster'], 'harbour staff only');
+      B.prop(-44.6, 1.3, -10.4, 0.15, 2.6, 4, 0xbfe3f2, { shadow: false });      // office partition
+      B.prop(-47, 1.3, -8.3, 4.6, 2.6, 0.15, 0xbfe3f2, { shadow: false });
+      B.prop(-46.5, 0.4, -11.5, 2, 0.8, 1, 0x8a6a4a);                           // desk
+      B.prop(-46.5, 1.0, -12.2, 0.6, 0.4, 0.06, 0x2b3a48, { solid: false });
+      B.pickup('ledger', 'the ledger', -46.2, 0.98, -11.3);
+      for (const x of [-40, -36.4]) { B.prop(x, 1.5, -12.6, 3, 3, 0.8, 0x7d848c); for (const y of [0.7, 1.6, 2.5]) B.prop(x, y, -12.3, 2.6, 0.6, 0.5, 0x8a6a4a, { solid: false }); }
+      cratePyramid(d, -38, -6, 2);
+      B.prop(-46, 0.6, -4.5, 1.2, 1.2, 2.2, 0xf2c230);                           // forklift
+      B.prop(-46, 1.8, -3.3, 1, 2.4, 0.15, 0x3a3f46, { solid: false });
+      B.camera(-35.5, -12.3, -1.43, 0.5, 3.6);
+      B.camera(-33, 0.5, -1.9, 0.6, 4.2);
+      B.fusebox(-33.9, -9, Math.PI / 2);
+      B.person('customs', -40, -0.6, { post: true, yaw: 0.4 });
+
+      // Container yard: a maze of stacks.
+      const lanesL = [-15, -12.2, -9.4, -6.6], lanesR = [3.2, 6, 8.8, 11.6];
+      const rows = [[-24, [2, 3, 1, 2], [3, 2, 2, 1]], [-10, [1, 2, 3, 2], [2, 1, 3, 2]]];
+      for (const [z, hl, hr] of rows) {
+        site(d, () => {
+          [[lanesL, hl], [lanesR, hr]].forEach(([lanes, hs]) => lanes.forEach((x, i) => {
+            for (let level = 0; level < hs[i]; level++) d.spawn('container', { x, y: 1.3 + level * (2.6 + GAP), z }, Math.PI / 2, SLEEP);
+          }));
+        });
+      }
+      B.camera(-1.6, -3, Math.PI, 0.7, 5);
+      B.camera(17, -17, -Math.PI / 2, 0.6, 5);
+      B.fusebox(-17.6, -17, -Math.PI / 2);
+      for (let i = 0; i < 3; i++) B.person('docker', -10 + i * 8, -17, { wander: [-17, -19, 15, -15] });
+      B.person('docker', -1.6, -6, { route: [[-1.6, -6], [-1.6, -30]], wait: 2 });
+      B.person('customs', -18, -31, { route: [[-18, -31], [17, -31], [17, -1], [-18, -1]], wait: 2 });
+      // A lorry waiting to load.
+      B.prop(22, 1.5, 4, 2.4, 3, 2.6, 0x2f6fb3);
+      B.prop(22, 1.0, -1.5, 2.4, 0.4, 8.6, 0x3a3f46);
+      d.spawn('container', { x: 22, y: 2.6 + GAP, z: -1.8 }, Math.PI / 2, SLEEP);
+      for (const z of [3, 5]) for (const dx of [-1.3, 1.3]) B.prop(22 + dx, 0.5, z, 0.3, 1, 1, 0x1c1e21, { solid: false, shadow: false });
+
+      // The water tower, ringed with fuel drums.
+      const tw = waterTower(d, 32, -14);
+      B.target(tw, 'water tower');
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + 0.4;
+        d.spawn('fuel', { x: 32 + Math.cos(a) * 4.2, y: 0.45 + GAP, z: -14 + Math.sin(a) * 4.2 }, 0, SLEEP);
+      }
+      fenceLine(d, 26, -8, 38, -8); fenceLine(d, 26, -20, 38, -20); fenceLine(d, 38, -20, 38, -8);
+      B.person('docker', 44, -14, { wander: [40, -26, 56, 0] });
+      B.camera(44, -4, -2.3, 0.7, 4.5);
+
+      // The quay, the ship and the cranes.
+      B.water(-60, -60, 34, -44);
+      B.water(42, -60, 60, -44);
+      B.water(34, -60, 42, -58);
+      B.prop(-13, 0.5, -44.2, 94, 1, 0.3, 0x5a5f66);   // quay rail
+      B.prop(51, 0.5, -44.2, 18, 1, 0.3, 0x5a5f66);
+      for (let x = -56; x <= 56; x += 8) if (x < 33 || x > 43) B.prop(x, 0.4, -43.4, 0.6, 0.8, 0.6, 0x2b2f33, { shape: 'cyl' });
+      // Pier.
+      B.ground(34, -58, 42, -44, 'concrete');
+      B.prop(34.15, 0.5, -51, 0.3, 1, 14, 0x5a5f66); B.prop(41.85, 0.5, -51, 0.3, 1, 14, 0x5a5f66);
+      B.prop(38, 0.5, -58.15, 8, 1, 0.3, 0x5a5f66);
+      B.prop(44.6, 0.5, -52, 2.2, 1.0, 6, 0xe8e4da, { solid: false });          // the speedboat
+      B.prop(44.6, 1.05, -50.2, 1.6, 0.6, 1.2, 0x2b3a48, { solid: false, tilt: -0.4 });
+      B.prop(44.6, 0.62, -55.3, 1.6, 0.8, 0.9, 0xe8e4da, { solid: false, tilt: 0.5 });
+      B.extract(38, -54.5, 2.4, 'speedboat');
+      B.camera(33.6, -43, Math.PI, 0.5, 4.2);
+      B.fusebox(31, -36.5, 0);
+      // The ship.
+      B.prop(-21, 2, -51.5, 54, 6, 8.4, 0x8a2f2f);
+      B.prop(-21, 4.6, -51.5, 54.2, 0.8, 8.6, 0x1c1e21, { solid: false });
+      B.prop(-41, 8, -51.5, 9, 6, 7.4, 0xe8e4da);
+      B.prop(-41, 9.6, -47.75, 8.6, 0.9, 0.06, 0x2b3a48, { solid: false, shadow: false });
+      B.prop(-44, 13, -51.5, 2.2, 4, 2.2, 0x1c1e21, { shape: 'cyl', solid: false });
+      B.prop(-44, 12.2, -51.5, 2.3, 1, 2.3, 0xc8342b, { shape: 'cyl', solid: false });
+      for (let i = 0; i < 6; i++) B.prop(-30 + i * 6.3, 6.3 + (i % 2) * 2.6 * 0, -51.5 + (i % 3 - 1) * 2.5, 6.1, 2.6, 2.44, [0xe0583f, 0x4a90dc, 0x48b873, 0xf29a3e, 0x9370cc, 0xe0583f][i]);
+      B.prop(4.5, 7, -51.5, 0.25, 6, 0.25, 0x5a5f66, { solid: false });
+      B.prop(-21, 2.5, -45.2, 1.2, 0.12, 6.4, 0x8a8f96, { solid: false, tilt: -0.75, yaw: 0 }); // gangway
+      gantry(B, -24, 0xf2c230);
+      gantry(B, 12, 0xd94e3b);
+      for (const [x, z] of [[-50, -37], [-10, -37], [24, -37], [50, -37], [-52, 10], [-20, 14], [16, 14], [50, 10]]) lamp(d, x, z);
+      for (const x of [-34, -6, 26]) for (let i = 0; i < 3; i++) B.prop(x + i * 1.2, 0.07, -38, 1, 0.14, 1.2, 0x8a6a4a);
+      B.prop(-14, 0.6, -38.5, 1.4, 1.2, 1.4, 0x2b2f33, { shape: 'cyl' }); // cable drum
+      B.camera(-20, -34.6, Math.PI / 2, 0.6, 4.5);
+
+      // The Harbourmaster walks the quay with a customs officer.
+      const hm = B.person('harbourmaster', -42, -0.5, { route: [[-42, -0.5], [-20, -37], [10, -37], [30, -37], [10, -37], [-20, -37]], wait: 3 });
+      B.person('customs', -43, 0.5, { follow: hm, offset: [-1.2, -1.3] });
+      B.person('customs', -50, -38, { route: [[-50, -38], [30, -38]], wait: 3 });
+      B.person('docker', -30, -40, { wander: [-52, -42, 30, -36] });
+      B.person('docker', 10, -40, { wander: [-52, -42, 30, -36] });
+      B.person('docker', 38, -46, { wander: [35, -50, 41, -45] });
     },
   },
 ];
@@ -1721,6 +2161,8 @@ const ITEMS = {
   hammer: { label: 'Sledgehammer', use: 'smash' },
   charges: { label: 'Charges', use: 'throw' },
   keycard: { label: 'Keycard' },
+  flares: { label: 'Flares', use: 'flare' },
+  pass: { label: 'Dock pass' },
 };
 const ROLES = {
   civilian: { label: 'Civilian', items: [], shirts: [0x4f86c6, 0xd9534f, 0xf2c230, 0x8e6bbf, 0x55a868, 0xf08a5d, 0xe7e1d4], pants: [0x2d3a52, 0x4a3b2e, 0x3a3a3a, 0x6b6f78] },
@@ -1730,11 +2172,19 @@ const ROLES = {
   guard: { label: 'Guard', items: ['pistol', 'keycard'], shirts: [0x23324f], pants: [0x1a1f2b], hat: 'cap', armed: true },
   bodyguard: { label: 'Bodyguard', items: ['pistol'], shirts: [0x16171a], pants: [0x16171a], shades: true, armed: true },
   director: { label: 'The Director', items: ['keycard'], shirts: [0xf4f4f2], pants: [0x50555e], tie: true, vip: true },
+  fisher: { label: 'Fisher', items: [], shirts: [0x3d6fa8, 0x7a2f2f, 0x4c8c3a, 0xe7e1d4], pants: [0x2d3a52, 0x3a3a3a, 0x4a3b2e] },
+  docker: { label: 'Dock worker', items: ['flares', 'pass'], shirts: [0xf2c230, 0xffb02e], pants: [0x2d3a52], hat: 'hard' },
+  customs: { label: 'Customs officer', items: ['pistol', 'keycard'], shirts: [0x3a5a48], pants: [0x1f2a24], hat: 'cap', armed: true },
+  harbourmaster: { label: 'The Harbourmaster', items: ['keycard'], shirts: [0x1d2f5a], pants: [0x1d2f5a], hat: 'cap', tie: true, vip: true },
 };
 const SKINS = [0xf1c7a3, 0xd9a47c, 0xa8714d, 0x7a4b2e, 0xf6d6bd, 0xc68863];
 
 const SLIME_R = 0.28;
 const LAUNCH_RANGE = 18;    // m
+// Slime forms, grown by consuming hosts (on levels that allow it).
+const slimeMax = () => 100 + 35 * player.form;
+const crawlSpeed = () => CRAWL_SPEED + 0.7 * player.form;
+const launchRange = () => LAUNCH_RANGE + 2.5 * player.form;
 const SLIME_DRAIN = 4;      // health per second out of a host: about 25 seconds, so people are the real danger
 const CRAWL_SPEED = 4.6;    // m/s, faster than anyone can walk, a little slower than a sprint
 const STOMP_DMG = 34;       // three stamps and the slime is paste
@@ -1855,6 +2305,8 @@ function buildPerson(role) {
     arms[1].add(ham);
   }
   if (items.includes('charges')) arms[1].add(box(0.14, 0.1, 0.2, mat(0xd8322a), 0, -0.68, 0.06));
+  if (items.includes('flares')) arms[1].add(box(0.07, 0.07, 0.36, mat(0xff3b2f, { emissive: 0x551010 }), 0, -0.68, 0.12));
+  if (items.includes('pass')) torso.add(box(0.2, 0.26, 0.1, mat(0xf2c230, { emissive: 0x6a5410, emissiveIntensity: 0.4 }), -0.25, -0.1, 0.55));
   if (items.includes('keycard')) torso.add(box(0.22, 0.28, 0.1, mat(0xffffff, { emissive: 0x3a8fd8, emissiveIntensity: 0.4 }), 0.25, -0.1, 0.55));
   // The slime riding this host: a blob on the back of the neck, hidden until it's in.
   const goo = new THREE.Mesh(GOO_GEO, GOO_MAT);
@@ -2063,7 +2515,7 @@ let mouseHeld = false;
 const canvas = renderer.domElement;
 
 addEventListener('keydown', (e) => {
-  if (e.key.startsWith('Arrow') || e.key === ' ') e.preventDefault();
+  if (e.key.startsWith('Arrow') || e.key === ' ' || e.key === 'Tab') e.preventDefault();
   if (e.repeat) return;
   const k = e.key.toLowerCase();
   keys.add(k);
@@ -2072,6 +2524,8 @@ addEventListener('keydown', (e) => {
   if (game.paused) return;
   if (k === 'r') restart();
   if (k === 'f' || k === 'e') useItem();
+  if (k === 'q' || k === 'tab') swapItem();
+  if (k === 'c') consume();
   if (k === ' ') input.aiming = true;
 });
 addEventListener('keyup', (e) => {
@@ -2155,6 +2609,8 @@ function setupTouch() {
   lb.addEventListener('pointerup', release);
   lb.addEventListener('pointercancel', () => { input.aiming = false; });
   $('itembtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); useItem(); });
+  $('swapbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); swapItem(); });
+  $('eatbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); consume(); });
 }
 setupTouch();
 
@@ -2167,7 +2623,8 @@ const game = {
   lastKnown: new THREE.Vector3(), hostsUsed: 0, bodiesFound: 0,
 };
 const player = {
-  host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0,
+  host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0,
+  trespass: '', carry: null, consuming: null, form: 0, absorbed: [], absorbedLabel: '',
   aimPerson: null, aimPoint: new THREE.Vector3(),
 };
 let people = [];
@@ -2180,6 +2637,15 @@ let objectives = [];
 let relay = null;
 let director = null;
 let stealthZ = 0;
+let breakables = [];
+const breakByHandle = new Map();
+let cams = [];
+let power = null;          // { total, broken, on }
+let restricted = [];       // { x0, z0, x1, z1, allow: Set, label }
+let pickups = [];          // the ledger and the like
+let dropoffs = [];
+let waters = [];
+let flareFire = null;      // the one burning flare
 let levelGroup = null;
 let ctrl = null;
 const personByHandle = new Map();
@@ -2194,6 +2660,34 @@ function fixedBox(x, y, z, sx, sy, sz, yaw = 0) {
     .setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }));
   const col = d.world.createCollider(RAPIER.ColliderDesc.cuboid(sx / 2, sy / 2, sz / 2).setFriction(0.8), body);
   return { body, col };
+}
+
+// Scenery that never moves: batched into one instanced mesh per colour, with a fixed collider each.
+const PROP_GEO = { box: new THREE.BoxGeometry(1, 1, 1), cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 10) };
+let propBatches = new Map();
+function addProp(x, y, z, sx, sy, sz, color, o = {}) {
+  const shape = o.shape || 'box', shadow = o.shadow !== false, glow = !!o.glow;
+  const key = `${shape}|${color}|${shadow}|${glow}`;
+  let b = propBatches.get(key);
+  if (!b) propBatches.set(key, (b = { shape, color, shadow, glow, list: [] }));
+  b.list.push([x, y, z, sx, sy, sz, o.yaw || 0, o.tilt || 0]);
+  if (o.solid !== false) fixedBox(x, y, z, sx, sy, sz, o.yaw || 0);
+}
+function flushProps() {
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  for (const b of propBatches.values()) {
+    const material = b.glow ? mat(b.color, { emissive: b.color, emissiveIntensity: 0.9 }) : mat(b.color);
+    const im = new THREE.InstancedMesh(PROP_GEO[b.shape], material, b.list.length);
+    b.list.forEach(([x, y, z, sx, sy, sz, yaw, tilt], i) => {
+      q.setFromEuler(e.set(tilt, yaw, 0, 'YXZ'));
+      im.setMatrixAt(i, m4.compose(v.set(x, y, z), q, sc.set(sx, sy, sz)));
+    });
+    im.castShadow = b.shadow;
+    im.receiveShadow = true;
+    im.frustumCulled = false;
+    levelGroup.add(im);
+  }
+  propBatches = new Map();
 }
 
 function zoneRing(r, color) {
@@ -2274,9 +2768,18 @@ function makeBuilder() {
         new THREE.MeshBasicMaterial({ color: 0x7cff4f, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }));
       beam.position.set(x, 7, z);
       beam.visible = false;
-      levelGroup.add(ring, grate, beam);
-      zones.push({ x, z, r, label, ring, beam });
+      // Once everything else is done: a tall pillar of light you can see from anywhere.
+      const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 2, 90, 16, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0xb6ff8f, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, fog: false }));
+      pillar.position.set(x, 45, z);
+      pillar.visible = false;
+      const glow = new THREE.PointLight(0x7cff4f, 0, 14, 1.6);
+      glow.position.set(x, 2, z);
+      levelGroup.add(ring, grate, beam, pillar, glow);
+      zones.push({ x, z, r, label, ring, beam, pillar, glow });
     },
+    /** Batched scenery: o = { shape: 'box'|'cyl', yaw, tilt, solid, shadow, glow }. */
+    prop(x, y, z, sx, sy, sz, color, o) { addProp(x, y, z, sx, sy, sz, color, o); },
     staticBox(x, y, z, sx, sy, sz, color) {
       levelGroup.add(box(sx, sy, sz, mat(color), x, y, z));
       fixedBox(x, y, z, sx, sy, sz);
@@ -2286,6 +2789,12 @@ function makeBuilder() {
       relay = { name, list, integrity: 1, checkT: 0 };
     },
     stealthLine(z) { stealthZ = z; },
+    camera(x, z, yaw, sweep = 0.8, h = 4.2) { addCamera(x, z, yaw, sweep, h); },
+    fusebox(x, z, yaw = 0) { addFusebox(x, z, yaw); },
+    restricted(x0, z0, x1, z1, allow, label) { restricted.push({ x0, z0, x1, z1, allow: new Set(allow), label }); },
+    pickup(id, label, x, y, z) { addPickup(id, label, x, y, z); },
+    dropoff(id, x, z, r, label) { addDropoff(id, x, z, r, label); },
+    water(x0, z0, x1, z1) { addWater(x0, z0, x1, z1); },
   };
 }
 
@@ -2295,11 +2804,12 @@ function buildPerimeter(half) {
     levelGroup.add(box(sx, 3, sz, wallM, x, 1.5, z));
     fixedBox(x, 6, z, sx, 12, sz);
   }
-  const base = new THREE.Mesh(new THREE.PlaneGeometry(500, 500).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x93a184, roughness: 1 }));
+  const look = game.level.look || {};
+  const base = new THREE.Mesh(new THREE.PlaneGeometry(500, 500).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: look.base ?? 0x93a184, roughness: 1 }));
   base.receiveShadow = true;
   levelGroup.add(base);
   // Low-poly hills beyond the walls.
-  const hillM = mat(0x7e9a6a);
+  const hillM = mat(look.hills ?? 0x7e9a6a);
   for (let i = 0; i < 26; i++) {
     const a = (i / 26) * TAU;
     const r = half + rand(18, 40);
@@ -2309,13 +2819,22 @@ function buildPerimeter(half) {
   }
 }
 
-const OBJECTIVES = [
-  { id: 'stealth', type: 'Stealth', text: 'Get inside the compound without setting off a lockdown.' },
-  { id: 'files', type: 'Espionage', text: 'Download the files in the server room. Needs a keycard.' },
-  { id: 'director', type: 'Assassination', text: 'Take out the Director.' },
-  { id: 'relay', type: 'Destruction', text: 'Bring down the relay tower.' },
-  { id: 'extract', type: 'Extraction', text: 'Escape down the storm drain.' },
-];
+
+const objective = (id) => objectives.find((o) => o.id === id);
+const pending = (id) => { const o = objective(id); return !!o && !o.done; };
+const restDone = () => objectives.every((o) => o.done || o.id === 'extract');
+
+const hemi = scene.children.find((c) => c.isHemisphereLight);
+function applyLook(look = {}) {
+  const sky = look.sky ?? 0x9fc8d8;
+  scene.background.setHex(sky);
+  scene.fog.color.setHex(sky);
+  sun.color.setHex(look.sun ?? 0xfff1dc);
+  sun.intensity = look.sunI ?? 2.1;
+  hemi.color.setHex(look.hemiSky ?? 0xdff2ff);
+  hemi.groundColor.setHex(look.hemiGround ?? 0x5b6b4a);
+  hemi.intensity = look.hemiI ?? 1.15;
+}
 
 function loadLevel(i, menu = false) {
   game.levelIndex = i;
@@ -2342,16 +2861,24 @@ function loadLevel(i, menu = false) {
   ctrl.setMaxSlopeClimbAngle(0.8);
 
   people = []; bodies = []; gates = []; zones = []; terminal = null; relay = null; director = null;
+  breakables = []; breakByHandle.clear(); cams = []; power = null; restricted = []; pickups = []; dropoffs = []; waters = [];
+  flareFire = null; flareLight.intensity = 0;
+  applyLook(L.look);
+  $('hudTitle').textContent = L.title;
+  game.exitOpen = false;
+  $('exitMark').classList.add('hidden');
   personByHandle.clear();
   seeThrough.clear();
   Object.assign(game, { time: 0, alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0, over: false, hostsUsed: 0, bodiesFound: 0, paused: false });
-  Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, aimPerson: null });
+  Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, form: 0, absorbed: [], absorbedLabel: '' });
   slimeMesh.visible = false;
-  objectives = OBJECTIVES.map((o) => ({ ...o, done: false }));
+  objectives = L.objectives.map((o) => ({ ...o, done: false }));
 
   buildPerimeter(L.half);
+  propBatches = new Map();
   L.build(makeBuilder());
-  director = people.find((p) => p.roleId === 'director');
+  flushProps();
+  director = people.find((p) => p.role.vip);
   d.queryDirty = true;
   if (menu) { game.running = false; return; }
   game.running = true;
@@ -2369,7 +2896,7 @@ function spawnPerson(roleId, x, z, opts) {
   const mesh = buildPerson(role);
   levelGroup.add(mesh.group);
   const p = {
-    id: personSeq++, roleId, role, mesh, opts, armed: !!role.armed,
+    id: personSeq++, roleId, role, mesh, opts, armed: !!role.armed, items: [...role.items], roles: [roleId], label: role.label,
     pos: new THREE.Vector3(x, 0, z), prev: new THREE.Vector3(x, 0, z), yaw: opts.yaw ?? Math.random() * TAU, lookYaw: null,
     hp: HUMAN.hp, state: 'routine', goal: null, speed: 0, wait: rand(0, 2), ri: 0,
     walk: 0, moved: 0, stuckT: 0, timer: 0, sus: 0, aware: false, seeing: false,
@@ -2403,7 +2930,10 @@ function spawnPerson(roleId, x, z, opts) {
   return p;
 }
 
-const hasItem = (p, item) => !!p && p.role.items.includes(item);
+const hasItem = (p, item) => !!p && p.items.includes(item);
+/** The items a host can use (shoot, smash, throw...), in order. */
+const usable = (p) => (p ? p.items.filter((i) => ITEMS[i].use) : []);
+const activeItem = (p) => { const u = usable(p); return u.length ? u[player.active % u.length] : null; };
 
 function moveChar(p, vx, vz, dt) {
   ctrl.setCharacterMass(HUMAN.mass);
@@ -2447,10 +2977,11 @@ function kill(p, why) {
     p.mesh.skin.color.lerp(new THREE.Color(0x9fbf8f), 0.6);
     splat(p.pos.x, p.pos.z, 0.8);
   }
-  bodies.push({ p, found: false, pos: p.pos.clone(), at: game.time });
-  if (p === director) completeObjective('director');
+  if (why === 'eaten') p.mesh.group.visible = false; // nothing left to find
+  else bodies.push({ p, found: false, pos: p.pos.clone(), at: game.time });
+  if (p.role.vip) completeObjective('director');
   // Bodyguards without anyone to guard start hunting.
-  if (p === director) for (const q of people) if (q.opts.follow === p && q.state !== 'down' && q.state !== 'host') { q.opts.follow = null; q.state = 'investigate'; q.goal = clampGoal(p.pos.clone()); q.timer = 4; }
+  if (p.role.vip) for (const q of people) if (q.opts.follow === p && q.state !== 'down' && q.state !== 'host') { q.opts.follow = null; q.state = 'investigate'; q.goal = clampGoal(p.pos.clone()); q.timer = 4; }
 }
 
 function setIcon(p, ch, t = 1.5) {
@@ -2507,11 +3038,19 @@ function syncPersonMesh(p, dt) {
     m.legs[0].rotation.x = -1.3 * Math.sin(Math.min(1, k * 1.5) * Math.PI * 0.5) * (k > 0.85 ? (1 - k) / 0.15 : 1);
     m.arms[0].rotation.x = m.arms[1].rotation.x = -0.6;
   }
+  if (player.consuming && player.consuming.h === p) {
+    const k = 1 - player.consuming.t / 1.2;
+    m.body.position.x = Math.sin(game.time * 60) * 0.05 * (1 + k);
+    m.body.rotation.z = Math.sin(game.time * 23) * 0.15 * k;
+    m.goo.scale.setScalar(0.2 + k * 0.6);
+    m.arms[0].rotation.x = m.arms[1].rotation.x = -2.4 * k;
+  } else { m.body.position.x = 0; m.body.rotation.z = 0; }
   if (p.state === 'cower') { m.body.position.y = -0.25; m.arms[0].rotation.x = m.arms[1].rotation.x = -2.6; }
   if (p.state === 'host') {
     m.goo.visible = true;
     const t = game.time * 6 + p.id;
-    m.goo.scale.set(0.2 + Math.sin(t) * 0.02, 0.2 + Math.cos(t * 1.3) * 0.02, 0.2);
+    const gs = p.merged ? 0.32 : 0.2;
+    if (!(player.consuming && player.consuming.h === p)) m.goo.scale.set(gs + Math.sin(t) * 0.02, gs + Math.cos(t * 1.3) * 0.02, gs);
     m.eyeMat.emissive.setHex(0x7cff4f);
     m.eyeMat.emissiveIntensity = 1.5;
     m.shirt.emissive.setHex(0x2a7a12);
@@ -2697,7 +3236,7 @@ function addAlarm(n, why) {
   game.lastAlarmAt = game.time;
   game.peakAlarm = Math.max(game.peakAlarm, game.alarm);
   if (game.alarm >= 100 && !game.alert) {
-    if (!objectives[0].done) { lose('Stealth failed', `${why || 'You were seen.'} The compound locked down before you got inside.`); return; }
+    if (pending('stealth')) { lose('Stealth failed', `${why || 'You were seen.'} ${game.level.stealthFail || 'It locked down before you got inside.'}`); return; }
     game.alert = true;
     game.alertT = 25;
     toast('LOCKDOWN', 'Guards are hunting you. Jump into someone out of sight to lose them.', 3);
@@ -2725,7 +3264,7 @@ function stompLand(p) {
   if (!s) return;
   const t = s.body.translation();
   if (Math.hypot(t.x - foot.x, t.z - foot.z) > 0.95 || t.y > 0.9) return;
-  player.health -= STOMP_DMG;
+  player.health -= STOMP_DMG * (1 - 0.15 * player.form);
   shake = Math.max(shake, 0.35);
   splat(t.x, t.z, 0.5);
   sfx.splat();
@@ -2741,8 +3280,9 @@ function stompLand(p) {
  */
 function seeThreat(p, pos, kind) {
   const slime = kind === 'slime';
+  const odd = kind === 'odd';
   if (!slime && !p.armed) return; // only guards recognise a marked host
-  if (game.alert && p.armed) {
+  if (game.alert && p.armed && !odd) {
     player.seenAt = game.time;
     game.lastKnown.copy(pos);
     if (p.state !== 'combat') { p.state = 'combat'; p.shootT = 0.5; }
@@ -2751,6 +3291,7 @@ function seeThreat(p, pos, kind) {
     return;
   }
   let rate = 0.1 / (p.armed ? NOTICE_ARMED : NOTICE);
+  if (odd) rate *= 0.4; // trespassing or carrying something takes a moment longer to notice
   if (slime && player.slime) {
     const v = player.slime.body.linvel();
     if (Math.hypot(v.x, v.y, v.z) > 6) rate *= 0.5; // a green blur is easy to doubt
@@ -2764,7 +3305,8 @@ function seeThreat(p, pos, kind) {
   }
   player.seenAt = game.time;
   game.lastKnown.copy(pos);
-  const why = slime ? 'Someone saw the slime.' : 'A guard recognised you.';
+  const why = slime ? 'Someone saw the slime.' : odd ? oddReason() : 'A guard recognised you.';
+  if (odd) { player.marked = true; toast('Spotted', oddReason(), 1.8); }
   if (!p.aware) {
     p.aware = true;
     addAlarm(slime ? (p.armed ? 24 : 14) : 12, why);
@@ -2807,7 +3349,8 @@ function think(p) {
   const tp = targetPoint();
   if (tp) {
     const exposed = !player.host;
-    if ((exposed || player.marked) && canSee(p, tp)) seeThreat(p, tp, exposed ? 'slime' : 'host');
+    const odd = !exposed && !player.marked && hostIsOdd(p);
+    if ((exposed || player.marked || odd) && canSee(p, tp)) seeThreat(p, tp, exposed ? 'slime' : player.marked ? 'host' : 'odd');
     else if (p.state === 'combat') {
       if (game.alert) p.state = 'search';
       else { p.state = 'investigate'; p.timer = 3; }
@@ -2891,8 +3434,18 @@ function enterHost(p, quiet = false) {
   // Seen going in: they know which body you're in now.
   player.marked = !quiet && game.time - player.seenAt < 0.6;
   player.host = p;
-  player.health = 100;
+  player.health = slimeMax();
+  // What the slime absorbed from the last host it ate comes along into this one.
+  if (player.absorbed.length && !p.merged) {
+    p.merged = true;
+    for (const it of player.absorbed) if (!p.items.includes(it)) p.items.push(it);
+    p.label = `${p.role.label.replace(/^The /, '')} + ${player.absorbedLabel}`;
+    p.mesh.goo.scale.setScalar(0.32);
+    p.mesh.shirt.color.lerp(new THREE.Color(0x7cff4f), 0.18);
+  }
   player.charges = hasItem(p, 'charges') ? 3 : 0;
+  player.flares = hasItem(p, 'flares') ? 3 : 0;
+  player.active = 0;
   p.state = 'host';
   p.goal = null;
   p.opts.follow = null;
@@ -2902,8 +3455,8 @@ function enterHost(p, quiet = false) {
     sfx.infect();
     burst(new THREE.Vector3(p.pos.x, 1.4, p.pos.z), 22, 0x7cff4f, { speed: 3, up: 3, size: 0.1 });
     if (t) splat(t.x, t.z, 0.4);
-    const items = p.role.items.map((i) => ITEMS[i].label).join(' + ');
-    toast(p.role.label, items ? `Holding: ${items}` : 'Empty-handed', 1.8);
+    const items = p.items.map((i) => ITEMS[i].label).join(' + ');
+    toast(p.label, items ? `Holding: ${items}` : 'Empty-handed', 1.8);
   }
 }
 
@@ -2913,6 +3466,7 @@ function leaveHost(vel) {
   if (!h) return;
   const fwd = new THREE.Vector3(Math.sin(h.yaw), 0, Math.cos(h.yaw));
   const pos = new THREE.Vector3(h.pos.x, h.pos.y + 2.0, h.pos.z).addScaledVector(fwd, 0.25);
+  dropCarry(h.pos);
   player.host = null;
   kill(h, 'drained');
   spawnSlime(pos, vel);
@@ -2944,7 +3498,7 @@ function launch() {
   const S = launchOrigin();
   const T = player.aimPoint;
   const aimed = player.aimPerson;
-  leaveHost(launchVel(S, T, LAUNCH_RANGE));
+  leaveHost(launchVel(S, T, launchRange()));
   player.slime.target = aimed;
   sfx.launch();
 }
@@ -2963,6 +3517,7 @@ function rayFrom(origin, dir, maxDist, exclude) {
     person: personByHandle.get(h) || null,
     slime: !!(player.slime && h === player.slime.col.handle),
     entity: d.byCollider.get(h) || null,
+    handle: h,
   };
 }
 
@@ -2979,6 +3534,7 @@ function fireGun(shooter, aim, spread, dmgPerson) {
   sfx.shot();
   shooter.aimT = 0.4;
   if (!hit) return;
+  if (breakByHandle.has(hit.handle)) { breakIt(breakByHandle.get(hit.handle)); return; }
   if (hit.person) {
     burst(end, 6, 0xb33a3a, { speed: 2, up: 2, size: 0.07, life: 0.4 });
     damagePerson(hit.person, dmgPerson, shooter.pos);
@@ -3010,6 +3566,7 @@ function damagePerson(p, dmg, from) {
 
 function explodeAt(pos, R = 7) {
   d.blast({ x: pos.x, y: pos.y, z: pos.z }, R + 1);
+  breakNear(pos, 5);
   boomFx(pos);
   for (const q of people) {
     if (q.state === 'down') continue;
@@ -3035,13 +3592,13 @@ function boomFx(pos) {
 }
 
 const CHARGE_GEO = new THREE.BoxGeometry(0.22, 0.14, 0.3);
-function throwCharge(h, T) {
+function throwCharge(h, T, kind = 'charge') {
   const S = new THREE.Vector3(h.pos.x, h.pos.y + 1.6, h.pos.z);
   const v = launchVel(S, T, 22);
-  const mesh = new THREE.Mesh(CHARGE_GEO, mat(0xd8322a, { emissive: 0x550000 }));
+  const mesh = new THREE.Mesh(CHARGE_GEO, kind === 'flare' ? mat(0xff3b2f, { emissive: 0xff2010 }) : mat(0xd8322a, { emissive: 0x550000 }));
   mesh.castShadow = true;
   scene.add(mesh);
-  grenades.push({ pos: S, vel: v, fuse: 2.4, mesh });
+  grenades.push({ pos: S, vel: v, fuse: kind === 'flare' ? 1.1 : 2.4, mesh, kind });
 }
 function updateGrenades(dt) {
   for (let i = grenades.length - 1; i >= 0; i--) {
@@ -3062,6 +3619,7 @@ function updateGrenades(dt) {
     if (g.fuse <= 0) {
       scene.remove(g.mesh);
       grenades.splice(i, 1);
+      if (g.kind === 'flare') { igniteFlare(g.pos.clone()); continue; }
       explodeAt(g.pos, 7);
       if (!game.over) loudAct(g.pos.clone(), 50, 18);
     }
@@ -3073,15 +3631,17 @@ function useItem() {
   if (!h || game.over || player.itemCD > 0) return;
   const T = player.aimPoint;
   h.yaw = view.yaw;
-  if (hasItem(h, 'pistol')) {
+  const it = activeItem(h);
+  if (it === 'pistol') {
     fireGun(h, T, 0.008, 55);
     player.itemCD = 0.28;
     loudAct(h.pos.clone(), 30, 30);
-  } else if (hasItem(h, 'hammer')) {
+  } else if (it === 'hammer') {
     const fwd = new THREE.Vector3(Math.sin(h.yaw), 0, Math.cos(h.yaw));
     const at = h.pos.clone().addScaledVector(fwd, 1.4).setY(1.0);
     h.swingT = 0.35;
     d.blast({ x: at.x, y: at.y, z: at.z }, 3.2);
+    breakNear(at, 1.9);
     for (const q of people) {
       if (q === h || q.state === 'down') continue;
       if (Math.hypot(q.pos.x - at.x, q.pos.z - at.z) < 1.8) damagePerson(q, 140, at);
@@ -3091,20 +3651,27 @@ function useItem() {
     shake = Math.max(shake, 0.3);
     player.itemCD = 0.85;
     loudAct(h.pos.clone(), 30, 30);
-  } else if (hasItem(h, 'charges')) {
+  } else if (it === 'charges') {
     if (player.charges <= 0) { toast('Out of charges', '', 1); player.itemCD = 0.5; return; }
     player.charges--;
     h.swingT = 0.35;
     throwCharge(h, T);
     player.itemCD = 0.6;
+  } else if (it === 'flares') {
+    if (player.flares <= 0) { toast('Out of flares', '', 1); player.itemCD = 0.5; return; }
+    player.flares--;
+    h.swingT = 0.35;
+    throwCharge(h, T, 'flare');
+    player.itemCD = 0.6;
   } else {
-    toast(h.role.label, hasItem(h, 'keycard') ? 'The keycard opens doors and the terminal on its own.' : 'Nothing in their hands.', 1.4);
+    toast(h.label, hasItem(h, 'keycard') ? 'The keycard opens doors and the terminal on its own.' : 'Nothing in their hands.', 1.4);
     player.itemCD = 0.5;
   }
 }
 
 d.on('explode', (pos) => {
   boomFx(pos);
+  breakNear(pos, 5);
   for (const q of people) {
     if (q.state === 'down') continue;
     const dist = Math.hypot(q.pos.x - pos.x, q.pos.z - pos.z);
@@ -3237,7 +3804,7 @@ function updateArc() {
   if (!input.aiming || game.over || !player.host) return;
   const S = launchOrigin();
   const T = player.aimPoint;
-  const v = launchVel(S, T, LAUNCH_RANGE);
+  const v = launchVel(S, T, launchRange());
   let n = 0, len = 0;
   for (let i = 0; i < ARC_N; i++) {
     const t = i * 0.04;
@@ -3293,7 +3860,8 @@ function tick(dt) {
     h.prev.copy(h.pos);
     h.prevYaw = h.yaw; h.stride = 1;
     const run = keys.has('shift') ? 1.5 : 1;
-    const tx = mv.x * HUMAN.speed * run, tz = mv.z * HUMAN.speed * run;
+    const frozen = player.consuming ? 0 : 1;
+    const tx = mv.x * HUMAN.speed * run * frozen, tz = mv.z * HUMAN.speed * run * frozen;
     const a = Math.min(1, dt * (tx || tz ? 12 : 16));
     h.vx = (h.vx || 0) + (tx - (h.vx || 0)) * a;
     h.vz = (h.vz || 0) + (tz - (h.vz || 0)) * a;
@@ -3302,6 +3870,12 @@ function tick(dt) {
     const want = input.aiming || player.itemCD > 0 ? view.yaw : (Math.hypot(h.vx, h.vz) > 0.3 ? Math.atan2(h.vx, h.vz) : null);
     if (want !== null) h.yaw += clamp(angDiff(h.yaw, want), -12 * dt, 12 * dt);
   }
+
+  updateTrespass();
+  updatePickups();
+  updateConsume(dt);
+  updateCamYaw(dt);
+  updateFlare(dt);
 
   tickN++;
   for (const p of people) {
@@ -3344,7 +3918,8 @@ function tick(dt) {
     const grounded = (t.y < SLIME_R + 0.2 && v.y < 1) || player.slime.restT > 0.2;
     if (grounded && game.time - player.slime.born > 0.3) {
       const ka = Math.min(1, dt * (mv.x || mv.z ? 14 : 18));
-      sb.setLinvel({ x: v.x + (mv.x * CRAWL_SPEED - v.x) * ka, y: Math.min(v.y, 0.5), z: v.z + (mv.z * CRAWL_SPEED - v.z) * ka }, true);
+      const cs = crawlSpeed();
+      sb.setLinvel({ x: v.x + (mv.x * cs - v.x) * ka, y: Math.min(v.y, 0.5), z: v.z + (mv.z * cs - v.z) * ka }, true);
       if (!player.slime.landed) { player.slime.landed = true; toast('Missed!', 'Crawl into someone who hasn\'t seen you.', 1.6); }
     }
     // A little help reaching someone who walked a step since you jumped.
@@ -3367,15 +3942,22 @@ function tick(dt) {
         }
       }
     }
+    if (player.slime && t.y < 0.7 && inWater(t.x, t.z)) {
+      player.health -= 45 * dt;
+      player.slime.wet = true;
+      if (Math.random() < dt * 20) burst(new THREE.Vector3(t.x, 0.2, t.z), 1, 0xd8f4ff, { speed: 0.6, up: 1.5, size: 0.08, life: 0.5 });
+      if (!player.slime.wetWarned) { player.slime.wetWarned = true; toast('Salt water!', 'It eats slime. Get out, or into someone.', 1.6); }
+    }
     if (player.slime && t.y < -5) lose('Lost', 'The slime fell out of the world.');
   }
-  if (player.health <= 0 && !game.over) lose('The slime died', player.slime && player.slime.dried ? 'It dried out in the open.' : 'Out in the open, people got to it first.');
+  if (player.health <= 0 && !game.over) lose('The slime died', player.slime && player.slime.wet ? 'It dissolved in the salt water.' : player.slime && player.slime.dried ? 'It dried out in the open.' : 'Out in the open, people got to it first.');
 
   // Gates open for anyone holding a keycard.
   for (const g of gates) {
     if (g.open) { g.lift = Math.min(1, g.lift + dt * 1.5); g.panel.position.y = -g.lift * 2.6; continue; }
     const near = h && Math.hypot(h.pos.x - g.x, h.pos.z - g.z) < 3;
     const ok = hasItem(h, g.need);
+    const needLabel = ITEMS[g.need].label.toLowerCase();
     if (near && ok) {
       g.open = true;
       d.world.removeRigidBody(g.fb.body);
@@ -3384,7 +3966,7 @@ function tick(dt) {
       sfx.gate();
     } else if (near && !g.warned) {
       g.warned = true;
-      toast('Locked', 'You need a host with a keycard.', 1.5);
+      toast('Locked', `You need a host with a ${needLabel}.`, 1.5);
     }
   }
 
@@ -3392,6 +3974,7 @@ function tick(dt) {
   if (thinkAcc >= 0.1) {
     thinkAcc -= 0.1;
     for (const p of people) think(p);
+    updateCams();
   }
 
   if (game.alert) {
@@ -3417,18 +4000,55 @@ function completeObjective(id) {
   o.done = true;
   sfx.objective();
   toast(`${o.type} done`, o.id === 'extract' ? '' : remainingText(), 2.4);
-  if (objectives.slice(1, 4).every((x) => x.done)) for (const z of zones) z.beam.visible = true;
+  if (!game.exitOpen && restDone()) openExit();
 }
+function openExit() {
+  game.exitOpen = true;
+  for (const z of zones) { z.beam.visible = true; z.pillar.visible = true; z.glow.intensity = 30; }
+  $('exitMark').classList.remove('hidden');
+  setTimeout(() => { if (game.exitOpen && !game.over) toast('Get out!', `Head for the ${zones[0]?.label ?? 'exit'}. Follow the green light.`, 3); }, 2600);
+}
+/** The exit, once open: pulsing light, rising goo, and a marker on screen that points to it. */
+function updateExit(dt) {
+  if (!game.exitOpen || !zones.length) return;
+  const z = zones[0];
+  const k = Math.sin(game.time * 4);
+  z.beam.material.opacity = 0.28 + k * 0.1;
+  z.pillar.material.opacity = 0.5 + k * 0.15;
+  z.ring.scale.setScalar(1 + 0.1 * (0.5 + 0.5 * k));
+  z.glow.intensity = 26 + k * 8;
+  if (Math.random() < dt * 14) burst(new THREE.Vector3(z.x + rand(-z.r, z.r) * 0.7, 0.2, z.z + rand(-z.r, z.r) * 0.7), 1, 0x9dff6f, { speed: 0.3, up: 4, size: 0.12, life: 1.4, grav: -1 });
+  // Marker: on the drain when it's in view, pinned to the screen edge pointing at it when it isn't.
+  const el = $('exitMark');
+  const at = player.host?.pos ?? (player.slime ? player.slime.now : camPivot);
+  const dist = Math.hypot(at.x - z.x, at.z - z.z);
+  _exitV.set(z.x, 1.5, z.z).project(camera);
+  const behind = _exitV.z > 1;
+  let sx = _exitV.x, sy = _exitV.y;
+  if (behind) { sx = -sx; sy = -sy; }
+  const onScreen = !behind && Math.abs(sx) < 0.9 && Math.abs(sy) < 0.85;
+  if (!onScreen) {
+    const m = Math.max(Math.abs(sx) / 0.9, Math.abs(sy) / 0.85, 1e-6);
+    sx /= m; sy /= m;
+    if (behind && Math.abs(sy) < 0.85 && Math.abs(sx) < 0.9) sy = -0.85;
+  }
+  el.style.left = `${(sx * 0.5 + 0.5) * innerWidth}px`;
+  el.style.top = `${(-sy * 0.5 + 0.5) * innerHeight}px`;
+  el.classList.toggle('edge', !onScreen);
+  $('exitArrow').style.transform = `rotate(${Math.atan2(-sy, sx) + Math.PI / 2}rad)`;
+  $('exitDist').textContent = `${Math.round(dist)} m`;
+}
+const _exitV = new THREE.Vector3();
 function remainingText() {
   const left = objectives.filter((x) => !x.done && x.id !== 'extract');
-  return left.length ? `${left.length} to go` : 'Now get out through the storm drain.';
+  return left.length ? `${left.length} to go` : `Now get out: the ${zones[0]?.label ?? 'exit'}.`;
 }
 
 function updateObjectives(dt) {
   if (game.over) return;
   const at = player.host?.pos ?? (player.slime ? player.slime.body.translation() : null);
-  if (at && !objectives[0].done && at.z < stealthZ - 1.5) completeObjective('stealth');
-  if (relay && !objectives[3].done) {
+  if (at && pending('stealth') && at.z < stealthZ - 1.5) completeObjective('stealth');
+  if (relay && pending('relay')) {
     relay.checkT -= dt;
     if (relay.checkT <= 0) {
       relay.checkT = 0.25;
@@ -3442,7 +4062,7 @@ function updateObjectives(dt) {
       if (relay.integrity <= 0.4) completeObjective('relay');
     }
   }
-  if (terminal && !objectives[1].done) {
+  if (terminal && pending('files')) {
     const hh = player.host;
     if (hh && hasItem(hh, 'keycard') && Math.hypot(hh.pos.x - terminal.x, hh.pos.z - terminal.z) < 1.7) {
       const before = Math.floor(terminal.progress * 10);
@@ -3451,7 +4071,7 @@ function updateObjectives(dt) {
       if (terminal.progress >= 1) { terminal.ring.visible = false; completeObjective('files'); }
     }
   }
-  if (objectives.slice(0, 4).every((x) => x.done) && at) {
+  if (restDone() && at) {
     for (const z of zones) if (Math.hypot(at.x - z.x, at.z - z.z) < z.r) { completeObjective('extract'); win(); }
   }
 }
@@ -3460,8 +4080,354 @@ function objectiveDetail(o) {
   if (o.done) return '';
   if (o.id === 'files' && terminal.progress > 0) return ` Downloading ${Math.round(terminal.progress * 100)}%.`;
   if (o.id === 'relay' && relay) return ` Standing: ${Math.round(relay.integrity * 100)}% (needs 40%).`;
-  if (o.id === 'extract' && !objectives.slice(0, 4).every((x) => x.done)) return ' Finish the rest first.';
+  if (o.id === 'power' && power) return ` ${power.broken}/${power.total} wrecked.`;
+  if (o.id === 'deliver') { const pk = pickups[0]; if (pk && player.carry === pk) return ' You have it.'; if (pk && pk.dropped) return ' Dropped: it\'s where your last host fell.'; }
+  if (o.id === 'extract' && !restDone()) return ' Finish the rest first.';
   return '';
+}
+
+// --- Docks systems: breakables, cameras, power, no-go zones, carrying, salt water, flares, consuming ---
+
+/** Something small that one hit wrecks: a camera, a fuse box. */
+function addBreakable(x, y, z, sx, sy, sz, onBreak) {
+  const fb = fixedBox(x, y, z, sx, sy, sz);
+  const b = { x, y, z, alive: true, fb, onBreak };
+  breakables.push(b);
+  breakByHandle.set(fb.col.handle, b);
+  return b;
+}
+function breakIt(b) {
+  if (!b.alive || game.over) return;
+  b.alive = false;
+  const at = new THREE.Vector3(b.x, b.y, b.z);
+  burst(at, 16, 0xfff1a0, { speed: 5, up: 4, size: 0.07, life: 0.5 });
+  burst(at, 8, 0x444444, { speed: 1.5, up: 2, size: 0.25, life: 1.4, grav: -0.3 });
+  sfx.glass();
+  b.onBreak(b);
+  if (!game.over && !game.menu) loudAct(at, 18, 6);
+}
+function breakNear(pos, r) {
+  for (const b of breakables) if (b.alive && Math.hypot(b.x - pos.x, b.y - pos.y, b.z - pos.z) < r) breakIt(b);
+}
+
+// Security cameras sweep back and forth. They see like a guard but further, and call guards over.
+const CAM_RANGE = 17, CAM_FOV = 1.0;
+function addCamera(x, z, base, sweep, h) {
+  const head = new THREE.Group();
+  head.position.set(x, h, z);
+  head.add(box(0.36, 0.3, 0.62, mat(0xe8e4da), 0, 0, 0.1));
+  head.add(box(0.24, 0.2, 0.08, mat(0x1c1e21), 0, 0, 0.44));
+  const led = box(0.08, 0.08, 0.04, new THREE.MeshBasicMaterial({ color: 0x44ff66 }), 0.12, 0.1, 0.43);
+  head.add(led);
+  levelGroup.add(head);
+  addProp(x, h / 2, z, 0.16, h, 0.16, 0x5a5f66, { shape: 'cyl' });
+  const n = 14;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(new Array((n + 1) * 3).fill(0), 3));
+  const idx = [];
+  for (let i = 1; i < n; i++) idx.push(0, i, i + 1);
+  geo.setIndex(idx);
+  const cone = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x6bd6ff, transparent: true, opacity: 0.13, depthWrite: false, side: THREE.DoubleSide }));
+  cone.renderOrder = 2;
+  cone.frustumCulled = false;
+  levelGroup.add(cone);
+  const c = { x, z, h, base, sweep, phase: Math.random() * TAU, yaw: base, alive: true, head, led, cone, sus: 0, alerted: false, coneT: 0 };
+  c.b = addBreakable(x, h, z, 0.5, 0.45, 0.7, () => {
+    c.alive = false;
+    c.cone.visible = false;
+    c.led.material.color.setHex(0x222222);
+    c.head.rotation.x = 0.7;
+    toast('Camera wrecked', '', 1.2);
+  });
+  cams.push(c);
+}
+function camWorks(c) { return c.alive && (!power || power.on); }
+function updateCamYaw(dt) {
+  for (const c of cams) {
+    if (!camWorks(c)) continue;
+    // Sweep slowly, pausing at each end; lock on while suspicious.
+    if (c.sus < 0.3) c.yaw = c.base + Math.sin(game.time * 0.42 + c.phase) * c.sweep;
+    c.head.rotation.y = c.yaw;
+  }
+}
+function camSees(c, pt) {
+  const dx = pt.x - c.x, dz = pt.z - c.z;
+  const dist = Math.hypot(dx, dz);
+  if (dist > CAM_RANGE || dist < 0.5) return false;
+  if (Math.abs(angDiff(c.yaw, Math.atan2(dx, dz))) > CAM_FOV / 2) return false;
+  _eye.set(c.x + Math.sin(c.yaw) * 0.6, c.h - 0.25, c.z + Math.cos(c.yaw) * 0.6);
+  return clearLine(_eye, pt);
+}
+function updateCams() {
+  const tp = targetPoint();
+  for (const c of cams) {
+    if (!camWorks(c)) continue;
+    if ((c.coneT = c.coneT + 1) % 3 === 0 && Math.abs(c.x - camPivot.x) + Math.abs(c.z - camPivot.z) < 60) updateCamCone(c);
+    const exposed = tp && !player.host;
+    const threat = tp && (exposed || player.marked || hostIsOdd(null));
+    if (threat && camSees(c, tp)) {
+      c.sus = Math.min(1.2, c.sus + 0.1 / (exposed || player.marked ? 0.5 : 1.0));
+      c.yaw += clamp(angDiff(c.yaw, Math.atan2(tp.x - c.x, tp.z - c.z)), -0.3, 0.3);
+      if (c.sus >= 1) {
+        player.seenAt = game.time;
+        game.lastKnown.copy(tp);
+        if (!exposed) player.marked = true;
+        if (!c.alerted) {
+          c.alerted = true;
+          sfx.found();
+          toast('Camera', exposed ? 'A camera saw the slime.' : 'A camera picked you out.', 1.6);
+          addAlarm(exposed ? 22 : 14, 'A camera spotted you.');
+          // The two nearest guards come and look.
+          const guards = people.filter((q) => q.armed && q.state !== 'down' && q.state !== 'host').sort((a, b) => a.pos.distanceTo(tp) - b.pos.distanceTo(tp)).slice(0, 2);
+          for (const q of guards) {
+            q.opts.follow = null;
+            if (game.alert) { q.state = 'search'; } else { q.state = 'investigate'; q.timer = 4; }
+            q.goal = clampGoal(tp.clone());
+            setIcon(q, '!');
+          }
+        } else addAlarm(1.2, 'A camera is watching you.');
+      }
+    } else {
+      c.sus = Math.max(0, c.sus - 0.1 / 3);
+      if (c.sus < 0.3) c.alerted = false;
+    }
+    c.led.material.color.setHex(c.sus >= 1 ? 0xff3344 : c.sus > 0.2 ? 0xffc23c : 0x44ff66);
+    c.cone.material.color.setHex(c.sus > 0.2 ? 0xff4d5e : 0x6bd6ff);
+  }
+}
+function updateCamCone(c) {
+  const pos = c.cone.geometry.attributes.position;
+  const n = pos.count - 1;
+  c.cone.position.set(c.x, 0.03, c.z);
+  c.cone.rotation.y = c.yaw;
+  pos.setXYZ(0, 0, 0, 0);
+  const o = { x: c.x, y: 1.0, z: c.z };
+  for (let i = 0; i < n; i++) {
+    const a = -CAM_FOV / 2 + (CAM_FOV * i) / (n - 1);
+    const wa = c.yaw + a;
+    const hit = castSight(o, { x: Math.sin(wa), y: 0, z: Math.cos(wa) }, CAM_RANGE);
+    const r = hit ? hit.timeOfImpact : CAM_RANGE;
+    pos.setXYZ(i + 1, Math.sin(a) * r, 0, Math.cos(a) * r);
+  }
+  pos.needsUpdate = true;
+}
+
+/** Fuse boxes: wreck them all and the power (and every camera) goes out. */
+function addFusebox(x, z, yaw) {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  g.rotation.y = yaw;
+  g.add(box(0.12, 1.2, 0.12, mat(0x5a5f66), 0, 0.6, -0.1));
+  const bodyM = mat(0x8a8f96);
+  g.add(box(0.8, 1.0, 0.36, bodyM, 0, 1.5, 0));
+  const door = box(0.72, 0.9, 0.04, mat(0xf2c230), 0, 1.5, 0.2);
+  g.add(door);
+  g.add(box(0.3, 0.3, 0.02, mat(0x1c1e21), 0, 1.6, 0.225));
+  const led = box(0.08, 0.08, 0.04, new THREE.MeshBasicMaterial({ color: 0x44ff66 }), 0.25, 1.9, 0.22);
+  g.add(led);
+  levelGroup.add(g);
+  if (!power) power = { total: 0, broken: 0, on: true };
+  power.total++;
+  addBreakable(x, 1.5, z, 0.8, 1.0, 0.5, () => {
+    led.material.color.setHex(0x222222);
+    door.rotation.y = -1.2;
+    door.position.x = -0.3;
+    power.broken++;
+    if (power.broken >= power.total) {
+      power.on = false;
+      for (const c of cams) { c.cone.visible = false; c.led.material.color.setHex(0x222222); }
+      for (const l of powerLights) l.material.color.setHex(0x3a3f46);
+      completeObjective('power');
+      setTimeout(() => toast('Blackout', 'Every camera on the docks is dead.', 2.2), 900);
+    } else toast('Fuse box wrecked', `${power.total - power.broken} to go.`, 1.4);
+  });
+}
+let powerLights = [];
+
+/** No-go zones: hosts whose job doesn't belong there get noticed by guards and cameras. */
+function zoneAt(x, z) {
+  let found = null;
+  for (const r of restricted) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) found = r;
+  return found;
+}
+function updateTrespass() {
+  const h = player.host;
+  const r = h ? zoneAt(h.pos.x, h.pos.z) : null;
+  player.trespass = r && !h.roles.some((id) => r.allow.has(id)) ? `No-go zone: ${r.label}` : '';
+}
+/** Is the current host doing something a guard would notice? (p = the guard, or null for a camera) */
+function hostIsOdd(p) {
+  const h = player.host;
+  if (!h) return false;
+  if (player.trespass || player.carry) return true;
+  return !!(h.merged && p && p.pos.distanceTo(h.pos) < 7); // up close, a merged host looks wrong
+}
+function oddReason() {
+  if (player.trespass) return 'Someone saw you where you shouldn\'t be.';
+  if (player.carry) return `Someone saw you with ${player.carry.label}.`;
+  return 'Someone noticed something wrong with your host.';
+}
+
+/** Things you can pick up by walking over them, and where to take them. */
+function addPickup(id, label, x, y, z) {
+  const g = new THREE.Group();
+  g.add(box(0.5, 0.36, 0.12, mat(0x5a3b26), 0, 0, 0));
+  g.add(box(0.2, 0.06, 0.04, mat(0x1c1e21), 0, 0.21, 0));
+  g.add(box(0.06, 0.06, 0.13, mat(0xd8b56a), 0.12, 0.05, 0));
+  g.position.set(x, y, z);
+  levelGroup.add(g);
+  const ring = zoneRing(0.8, 0xffd23c);
+  ring.position.set(x, 0.05, z);
+  levelGroup.add(ring);
+  pickups.push({ id, label, mesh: g, ring, pos: new THREE.Vector3(x, y, z), held: false, dropped: false, done: false });
+}
+function addDropoff(id, x, z, r, label) {
+  const ring = zoneRing(r, 0xffd23c);
+  ring.position.set(x, 0.05, z);
+  levelGroup.add(ring);
+  dropoffs.push({ id, x, z, r, label, ring });
+}
+function updatePickups() {
+  const h = player.host;
+  if (!h) return;
+  if (!player.carry) {
+    for (const pk of pickups) {
+      if (pk.done || pk.held || Math.hypot(h.pos.x - pk.pos.x, h.pos.z - pk.pos.z) > 1.3) continue;
+      pk.held = true;
+      pk.dropped = false;
+      player.carry = pk;
+      pk.ring.visible = false;
+      h.mesh.arms[0].add(pk.mesh);
+      pk.mesh.position.set(0, -0.78, 0.12);
+      pk.mesh.rotation.set(0, Math.PI / 2, 0);
+      sfx.gate();
+      const dz = dropoffs.find((x) => x.id === pk.id);
+      toast(`Got ${pk.label}`, dz ? `Take it to the ${dz.label}. Guards who see it will know.` : '', 2.4);
+      break;
+    }
+  } else {
+    const pk = player.carry;
+    const dz = dropoffs.find((x) => x.id === pk.id);
+    if (dz && Math.hypot(h.pos.x - dz.x, h.pos.z - dz.z) < dz.r) {
+      player.carry = null;
+      pk.held = false;
+      pk.done = true;
+      levelGroup.add(pk.mesh);
+      pk.mesh.position.set(dz.x, 0.9, dz.z);
+      dz.ring.visible = false;
+      completeObjective('deliver');
+    }
+  }
+}
+function dropCarry(at) {
+  const pk = player.carry;
+  if (!pk) return;
+  player.carry = null;
+  pk.held = false;
+  pk.dropped = true;
+  levelGroup.add(pk.mesh);
+  pk.pos.set(at.x, 0.12, at.z);
+  pk.mesh.position.copy(pk.pos);
+  pk.mesh.rotation.set(Math.PI / 2, 0, Math.random());
+  pk.ring.position.set(at.x, 0.05, at.z);
+  pk.ring.visible = true;
+}
+
+/** Salt water: slime dissolves in it. Rails keep people out. */
+function addWater(x0, z0, x1, z1) {
+  const w = x1 - x0, dd = z1 - z0;
+  const geo = new THREE.PlaneGeometry(w, dd, Math.max(2, Math.round(w / 3)), Math.max(2, Math.round(dd / 3))).rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x2f7c97, roughness: 0.25, metalness: 0.1, flatShading: true, transparent: true, opacity: 0.94 }));
+  m.position.set((x0 + x1) / 2, 0.03, (z0 + z1) / 2);
+  m.receiveShadow = true;
+  levelGroup.add(m);
+  const base = Float32Array.from(geo.attributes.position.array);
+  waters.push({ x0, z0, x1, z1, m, base });
+}
+function inWater(x, z) {
+  for (const w of waters) if (x > w.x0 && x < w.x1 && z > w.z0 && z < w.z1) return true;
+  return false;
+}
+function animateWater() {
+  for (const w of waters) {
+    const pos = w.m.geometry.attributes.position;
+    const a = pos.array, b = w.base;
+    for (let i = 0; i < a.length; i += 3) a[i + 1] = Math.sin(game.time * 1.3 + b[i] * 0.35 + b[i + 2] * 0.22) * 0.12 - 0.12;
+    pos.needsUpdate = true;
+  }
+}
+
+/** A burning flare pulls guards over to look at it. */
+const flareLight = new THREE.PointLight(0xff4a2a, 0, 16, 1.6);
+scene.add(flareLight);
+function igniteFlare(pos) {
+  pos.y = 0.1;
+  flareFire = { pos, t: 10 };
+  sfx.launch();
+  let n = 0;
+  for (const q of people) {
+    if (!q.armed || q.state === 'down' || q.state === 'host' || q.state === 'combat') continue;
+    if (q.pos.distanceTo(pos) > 26) continue;
+    q.opts.follow = null;
+    q.state = 'investigate';
+    q.goal = clampGoal(pos.clone().add(new THREE.Vector3(rand(-1.5, 1.5), 0, rand(-1.5, 1.5))));
+    q.timer = 6;
+    setIcon(q, '?');
+    n++;
+  }
+  toast('Flare', n ? `${n} guard${n > 1 ? 's' : ''} going to look.` : 'Nobody close enough to notice.', 1.6);
+}
+function updateFlare(dt) {
+  if (!flareFire) { flareLight.intensity = 0; return; }
+  flareFire.t -= dt;
+  const p = flareFire.pos;
+  flareLight.position.set(p.x, 0.8, p.z);
+  flareLight.intensity = flareFire.t > 0 ? 18 + Math.random() * 10 : 0;
+  if (Math.random() < 0.6) burst(p, 2, Math.random() < 0.5 ? 0xff4a2a : 0xffc23c, { speed: 0.8, up: 3, size: 0.07, life: 0.5 });
+  if (Math.random() < 0.2) burst(p, 1, 0x999999, { speed: 0.3, up: 1.5, size: 0.3, life: 1.6, grav: -0.4 });
+  if (flareFire.t <= 0) flareFire = null;
+}
+
+/** Swap which item the host uses. */
+function swapItem() {
+  const h = player.host;
+  if (!h || usable(h).length < 2) return;
+  player.active = (player.active + 1) % usable(h).length;
+  sfx.beep();
+}
+
+/** Eat the host you're in: the slime grows and keeps what they held. No jump: it drops out where they stood, and it's loud. */
+function consume() {
+  const h = player.host;
+  if (!h || !game.level.consume || player.consuming || game.over) return;
+  player.consuming = { t: 1.2, h };
+  sfx.infect();
+  noise(1.1, { freq: 350, vol: 0.5 });
+  loudAct(h.pos.clone(), 26, 24);
+}
+function updateConsume(dt) {
+  const c = player.consuming;
+  if (!c) return;
+  const h = c.h;
+  if (player.host !== h || h.state === 'down') { player.consuming = null; return; }
+  c.t -= dt;
+  if (Math.random() < 0.5) burst(new THREE.Vector3(h.pos.x, 1.2, h.pos.z), 2, 0x7cff4f, { speed: 1.5, up: 2, size: 0.1 });
+  if (c.t > 0) return;
+  player.consuming = null;
+  player.absorbed = [...new Set(h.items)];
+  player.absorbedLabel = h.role.label.replace(/^The /, '');
+  player.form = Math.min(3, player.form + 1);
+  const pos = new THREE.Vector3(h.pos.x, h.pos.y + 0.8, h.pos.z);
+  dropCarry(h.pos);
+  player.host = null;
+  kill(h, 'eaten');
+  spawnSlime(pos, new THREE.Vector3(rand(-1, 1), 3, rand(-1, 1)));
+  player.health = slimeMax();
+  burst(pos, 40, 0x7cff4f, { speed: 5, up: 5, size: 0.14, life: 1 });
+  splat(h.pos.x, h.pos.z, 1.3);
+  shake = Math.max(shake, 0.4);
+  sfx.splat();
+  toast(`Slime form ${['', 'II', 'III', 'IV'][player.form]}`, `Faster, tougher, longer jumps.${player.absorbed.length ? ` Your next host also gets: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}.` : ''}`, 3);
 }
 
 // --- Win / lose --------------------------------------------------------------------------------
@@ -3482,6 +4448,7 @@ function endScreen() {
 function win() {
   if (game.over) return;
   game.over = true;
+  $('exitMark').classList.add('hidden');
   setSiren(false);
   sfx.win();
   const L = game.level;
@@ -3501,6 +4468,7 @@ function win() {
 function lose(title, text) {
   if (game.over) return;
   game.over = true;
+  $('exitMark').classList.add('hidden');
   setSiren(false);
   sfx.lose();
   if (player.slime) { const t = player.slime.body.translation(); splat(t.x, t.z, 0.9); slimeMesh.visible = false; }
@@ -3508,7 +4476,7 @@ function lose(title, text) {
     $('endTitle').textContent = title;
     $('endText').textContent = text;
     const done = objectives.filter((o) => o.done).length;
-    $('endStats').innerHTML = `<div><b>${fmtTime(game.time)}</b>time</div><div><b>${done}/5</b>objectives</div><div><b>${game.hostsUsed}</b>hosts used</div>`;
+    $('endStats').innerHTML = `<div><b>${fmtTime(game.time)}</b>time</div><div><b>${done}/${objectives.length}</b>objectives</div><div><b>${game.hostsUsed}</b>hosts used</div>`;
     endScreen();
   }, 900);
 }
@@ -3535,18 +4503,30 @@ function updateHud(dt) {
   $('alarmBar').style.width = `${game.alarm}%`;
   $('alarmLabel').textContent = game.alert ? 'LOCKDOWN' : a > 60 ? 'ALERTED' : a > 15 ? 'SUSPICIOUS' : 'CALM';
   $('alarm').classList.toggle('alert', game.alert);
-  $('alarmNote').textContent = game.alert ? `Hunting you · ${Math.ceil(game.alertT)}s` : !objectives[0].done ? 'Stealth: a lockdown now fails the mission' : '';
+  $('alarmNote').textContent = game.alert ? `Hunting you · ${Math.ceil(game.alertT)}s` : pending('stealth') ? 'Stealth: a lockdown now fails the mission' : power && !power.on ? 'Power out: cameras are dead' : '';
   const h = player.host;
   $('hostcard').classList.toggle('exposed', !h);
-  $('hostLabel').textContent = h ? h.role.label : 'Out in the open';
-  const items = h ? h.role.items.map((i) => ITEMS[i].label + (i === 'charges' ? ` ×${player.charges}` : '')).join(' + ') : '';
-  $('hostItems').textContent = h ? (items ? `Holding: ${items}` : 'Empty-handed') : 'Stay out of sight. They\'ll stamp on you.';
+  $('hostLabel').textContent = h ? h.label : 'Out in the open';
+  const act = activeItem(h);
+  const count = (i) => (i === 'charges' ? ` ×${player.charges}` : i === 'flares' ? ` ×${player.flares}` : '');
+  const items = h ? h.items.map((i) => (i === act && usable(h).length > 1 ? `<b>${ITEMS[i].label}${count(i)}</b>` : ITEMS[i].label + count(i))).join(' + ') : '';
+  $('hostItems').innerHTML = h ? (items ? `Holding: ${items}${usable(h).length > 1 ? ' <span class="dim">(Q to swap)</span>' : ''}` : 'Empty-handed') : 'Stay out of sight. They\'ll stamp on you.';
+  const warn = !h ? '' : player.trespass ? `⚠ ${player.trespass}` : player.carry ? `Carrying ${player.carry.label}. Guards will notice it.` : h.merged ? 'Merged: up close, guards can tell something\'s wrong.' : '';
+  $('warnRow').textContent = warn;
+  $('warnRow').classList.toggle('hidden', !warn);
+  const canEat = !!(h && game.level.consume && !player.consuming);
+  $('consumeHint').classList.toggle('hidden', !canEat);
+  if (canEat) $('consumeHint').innerHTML = `${isTouch ? 'EAT' : '<kbd>C</kbd>'} consume this ${h.role.label.replace(/^The /, '').toLowerCase()}: grow stronger and keep what they hold`;
+  $('eatbtn').classList.toggle('hidden', !canEat);
+  $('formRow').classList.toggle('hidden', !player.form);
+  $('formRow').textContent = player.form ? `Slime form ${['', 'II', 'III', 'IV'][player.form]}${player.absorbed.length ? ` · absorbed: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}` : ''}` : '';
+  $('swapbtn').classList.toggle('hidden', usable(h).length < 2);
   $('hpRow').classList.toggle('hidden', !h);
   $('slimeRow').classList.toggle('hidden', !!h);
   if (h) $('hpBar').style.width = `${clamp(h.hp / HUMAN.hp, 0, 1) * 100}%`;
-  $('slimeBar').style.width = `${clamp(player.health, 0, 100)}%`;
+  $('slimeBar').style.width = `${clamp(player.health / slimeMax(), 0, 1) * 100}%`;
   $('spotted').classList.toggle('hidden', !(h && player.marked));
-  const use = h && h.role.items.map((i) => ITEMS[i].use).find(Boolean);
+  const use = h && act && ITEMS[act].use;
   $('itembtn').textContent = use ? use.toUpperCase() : 'ITEM';
   $('itembtn').style.opacity = use ? 1 : 0.4;
   $('launchbtn').style.opacity = h ? 1 : 0.4;
@@ -3556,11 +4536,25 @@ function showScreen(id) {
   for (const s of ['menu', 'pause', 'end', 'loading']) $(s).classList.toggle('hidden', s !== id);
 }
 
+let menuLevel = 0;
+try { menuLevel = clamp(+localStorage.getItem('symbiote-level') || 0, 0, LEVELS.length - 1); } catch { /* private mode */ }
 function buildMenu() {
   const prog = loadProgress();
-  const L = LEVELS[0];
-  const best = prog[L.id];
-  $('playBtn').textContent = best ? `Play again (best ${fmtTime(best.time)})` : 'Play';
+  $('levelList').innerHTML = LEVELS.map((L, i) => {
+    const best = prog[L.id];
+    const tags = [...new Set(L.objectives.map((o) => o.type))].join(' · ') + (L.consume ? ' · Consuming' : '');
+    return `<button class="lvl${i === menuLevel ? ' sel' : ''}" data-i="${i}"><div class="top"><b>${L.title}</b>${L.isNew && !best ? '<span class="new">NEW</span>' : ''}<span class="best">${best ? `best ${fmtTime(best.time)}` : ''}</span></div><div class="tags">${tags}</div><div class="blurb">${L.blurb}</div><ul>${L.objectives.map((o) => `<li><em>${o.type}</em> ${o.text}</li>`).join('')}</ul></button>`;
+  }).join('');
+  for (const b of $('levelList').querySelectorAll('.lvl')) b.onclick = () => selectLevel(+b.dataset.i);
+  const best = prog[LEVELS[menuLevel].id];
+  $('playBtn').textContent = best ? `Play ${LEVELS[menuLevel].title} again` : `Play ${LEVELS[menuLevel].title}`;
+}
+function selectLevel(i) {
+  if (i === menuLevel) return;
+  menuLevel = i;
+  try { localStorage.setItem('symbiote-level', String(i)); } catch { /* private mode */ }
+  loadLevel(i, true);
+  buildMenu();
 }
 
 function toMenu() {
@@ -3569,7 +4563,7 @@ function toMenu() {
   $('hud').classList.add('hidden');
   $('touch').classList.add('hidden');
   if (document.pointerLockElement) document.exitPointerLock();
-  loadLevel(0, true);
+  loadLevel(menuLevel, true);
   buildMenu();
   showScreen('menu');
 }
@@ -3618,7 +4612,7 @@ function togglePause() {
   if (game.paused) { setSiren(false); input.aiming = false; if (document.pointerLockElement) document.exitPointerLock(); }
   else if (game.alert) setSiren(true);
 }
-$('playBtn').onclick = () => { audio(); loadLevel(0); };
+$('playBtn').onclick = () => { audio(); loadLevel(menuLevel); };
 $('pausebtn').onclick = () => togglePause();
 $('resumeBtn').onclick = () => togglePause();
 $('restartBtn').onclick = () => restart();
@@ -3649,7 +4643,7 @@ function frame(now) {
       slimeMesh.position.copy(t);
       const sp = Math.min(1, Math.hypot(v.x, v.y, v.z) / 14);
       const wob = Math.sin(game.time * 14) * 0.1;
-      const dying = 0.6 + 0.4 * clamp(player.health / 100, 0, 1);
+      const dying = (0.6 + 0.4 * clamp(player.health / slimeMax(), 0, 1)) * (1 + 0.28 * player.form);
       slimeMesh.scale.set((1 + wob - sp * 0.2) * dying, (1 - wob + sp * 0.35) * dying * (player.slime.landed ? 0.6 : 1), (1 + wob - sp * 0.2) * dying);
       slimeLight.position.set(t.x, t.y + 0.5, t.z);
       slimeLight.intensity = 2;
@@ -3663,7 +4657,9 @@ function frame(now) {
       terminal.ring.rotation.y += dt;
       terminal.screen.material.emissiveIntensity = 0.6 + Math.sin(game.time * 6) * 0.3 * (terminal.progress > 0 ? 1 : 0.3);
     }
-    for (const z of zones) z.beam.material.opacity = 0.1 + Math.sin(game.time * 3) * 0.04;
+    animateWater();
+    if (game.exitOpen) updateExit(dt);
+    else for (const z of zones) z.beam.material.opacity = 0.1 + Math.sin(game.time * 3) * 0.04;
     if (flashT > 0) { flashT -= dt; flash.intensity = Math.max(0, flashT / 0.2) * 60; }
   } else if (game.menu) {
     acc += dt;
@@ -3674,6 +4670,8 @@ function frame(now) {
     d.sync();
     for (const p of people) syncPersonMesh(p, dt);
     updateMenuCamera(dt);
+    animateWater();
+    for (const c of cams) c.head.rotation.y = c.base + Math.sin(game.time * 0.42 + c.phase) * c.sweep;
     for (const z of zones) z.beam.material.opacity = 0.1 + Math.sin(game.time * 3) * 0.04;
   }
   updateParts(dt);
@@ -3682,7 +4680,7 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 
-loadLevel(0, true);
+loadLevel(menuLevel, true);
 buildMenu();
 showScreen('menu');
 requestAnimationFrame(frame);
@@ -3698,6 +4696,8 @@ window.__symbiote = {
   renderInfo: () => { let meshes = 0, people_ = 0; scene.traverse((o) => { if (o.isMesh && o.visible) meshes++; }); return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, meshes, people: people.length }; },
   drawAt: (a) => { alpha = a; for (const p of people) syncPersonMesh(p, 0); },
   tickOnce: () => tick(TICK),
+  openExit: () => openExit(),
+  consume: () => consume(), swapItem: () => swapItem(), cams: () => cams, breakables: () => breakables, pickups: () => pickups, power: () => power, objective, breakIt, explodeAt: (x, y, z) => explodeAt(new THREE.Vector3(x, y, z)), relay: () => relay,
   lookAt: (x, y, z) => { const o = camera.position; view.yaw = Math.atan2(x - o.x, z - o.z); view.pitch = Math.atan2(-(y - o.y), Math.hypot(x - o.x, z - o.z)); },
 };
 </script>
