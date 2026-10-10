@@ -156,6 +156,11 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.9.2", "date": "2026-10-10", "title": "Office door",
+      "notes": [
+        "Fixed: on Saltmarsh Docks the harbour office had no way in, so the ledger couldn't be reached. Its glass front now has a doorway."
+      ]
+    },
     { "version": "0.9.1", "date": "2026-10-09", "title": "Find the ledger",
       "notes": [
         "Saltmarsh Docks: the ledger is much easier to find. A yellow LEDGER marker on screen points to it (it's on the desk in the harbour office, in the back left corner of the warehouse), a yellow beam shines up through the warehouse roof, and the ledger itself glows.",
@@ -2071,7 +2076,10 @@ const LEVELS = [
       B.prop(-42, 4.3, -8, 16.4, 0.3, 12.4, 0x6c737b);
       B.restricted(-50, -14, -34, -2, ['customs', 'harbourmaster'], 'harbour staff only');
       B.prop(-44.6, 1.3, -10.4, 0.15, 2.6, 4, 0xbfe3f2, { shadow: false });      // office partition
-      B.prop(-47, 1.3, -8.3, 4.6, 2.6, 0.15, 0xbfe3f2, { shadow: false });
+      // Front glass with a doorway in it (x -46.8 to -45.4) so you can walk in.
+      B.prop(-48.05, 1.3, -8.3, 2.5, 2.6, 0.15, 0xbfe3f2, { shadow: false });
+      B.prop(-45.0, 1.3, -8.3, 0.8, 2.6, 0.15, 0xbfe3f2, { shadow: false });
+      B.prop(-46.1, 2.4, -8.3, 1.4, 0.4, 0.15, 0xbfe3f2, { shadow: false });    // over the doorway
       B.prop(-46.5, 0.4, -11.5, 2, 0.8, 1, 0x8a6a4a);                           // desk
       B.prop(-46.5, 1.0, -12.2, 0.6, 0.4, 0.06, 0x2b3a48, { solid: false });
       B.pickup('ledger', 'the ledger', -46.2, 0.98, -11.3);
