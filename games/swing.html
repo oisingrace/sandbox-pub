@@ -210,6 +210,13 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "1.1", "date": "2026-10-12", "title": "Neon Heights",
+      "notes": [
+        "The city has a new district across the channel to the east: Neon Heights. Swing over to it from Harbour City; two bridges with tall towers carry you across.",
+        "Neon Heights is tighter and much taller than Harbour City: narrow street canyons, towers up to 400 m, skybridges high between towers, a raised rail line you can run along, and neon signs everywhere.",
+        "Pick where you start, Harbour City or Neon Heights, under Start in on the main or pause menu.",
+        "Neon Heights adds 90 more tokens and four more races."
+      ] },
     { "version": "1.0", "date": "2026-10-09", "title": "Out of beta",
       "notes": [
         "Swing is out of beta: the game is now just called Swing, on the site and on its title screen."
@@ -294,7 +301,7 @@
 
   <div id="hud" hidden>
     <div id="topleft" class="glass">
-      <div class="tok"><i class="gem"></i><span id="tokCount">0</span><span class="of" id="tokTotal">/ 90</span></div>
+      <div class="tok"><i class="gem"></i><span id="tokCount">0</span><span class="of" id="tokTotal">/ 180</span></div>
       <div class="score-row"><span>Score</span><b id="score">0</b></div>
       <div class="score-row" id="roomRow" hidden><span>Room</span><b id="roomInfo"></b></div>
     </div>
@@ -337,10 +344,11 @@
   <div id="menu">
     <section class="panel" data-panel="title">
       <div class="logo">SWING</div>
-      <p class="tag">Swing through a city of glass and brick. Hunt down gold tokens, chase race times and chain the longest combo.</p>
+      <p class="tag">Swing through a city of towers. Hunt down gold tokens, chase race times and chain the longest combo.</p>
       <div class="menu-btns">
         <button class="mbtn primary" data-act="play">Play <small>Free roam</small></button>
         <button class="mbtn" data-act="online">Play online <small>With friends, by room code</small></button>
+        <button class="mbtn" data-act="maps">Start in <small id="titleMap"></small></button>
         <button class="mbtn" data-act="levels">Levels <small id="titleLevels"></small></button>
         <button class="mbtn" data-act="races">Races <small id="titleMedals"></small></button>
         <button class="mbtn" data-act="shop">Shop <small id="titleWallet"></small></button>
@@ -366,6 +374,7 @@
         <button class="mbtn" data-act="levels">Levels</button>
         <button class="mbtn" data-act="races">Races</button>
         <button class="mbtn" data-act="shop">Shop</button>
+        <button class="mbtn" data-act="maps">Start in</button>
         <button class="mbtn" data-act="settings">Settings</button>
         <button class="mbtn" data-act="controls">Controls</button>
         <button class="mbtn" data-act="respawn">Back to start roof</button>
@@ -413,6 +422,13 @@
       <h2>Races</h2>
       <p class="tag">Fly through every ring in order. Beat the par times for medals. Cyan beams in the city mark each start.</p>
       <div class="menu-btns" id="raceList"></div>
+      <button class="mbtn" data-act="back">Back</button>
+    </section>
+
+    <section class="panel" data-panel="maps" hidden>
+      <h2>Start in</h2>
+      <p class="tag">Both districts are one city: Neon Heights is across the channel to the east of Harbour City, and you can swing between them. Pick where you start and where Back to start roof takes you.</p>
+      <div class="menu-btns" id="mapList"></div>
       <button class="mbtn" data-act="back">Back</button>
     </section>
 
@@ -523,7 +539,6 @@ const CFG = {
     sensitivity: 0.0023, keyTurnRate: 2.4, keyPitchRate: 1.4, padTurnRate: 3.0,
     follow: 16, autoAlignDelay: 1.0, autoAlignRate: 1.8,
   },
-  city: { blocks: 13, seed: 4242 },
   tokens: 90,
 };
 
@@ -595,6 +610,45 @@ if (!save.owned) save.owned = { suits: SUITS.filter((x) => x.need > 0 && x.need 
 const owns = (kind, id) => (kind === 'suits' && (SUIT_PRICE[id] === 0 || (id === 'champion' && allLevelsDone()))) || (kind === 'webs' && id === 'white') || save.owned[kind].includes(id);
 const wallet = () => save.tokens.length + save.bonus - save.spent;
 function allLevelsDone() { return typeof LEVELS !== 'undefined' && LEVELS.every((d) => save.levels?.[d.id]); }
+// ---------- districts ----------
+// The city is two districts side by side, each a recipe for City: street and block sizes, where
+// downtown is (relative to the district's centre), how tall it gets, which facade palettes and extras it has.
+const DISTRICTS = {
+  classic: {
+    id: 'classic', name: 'Harbour City', blurb: 'Glass and brick on an island grid, with parks, water towers and two downtowns.',
+    blocks: 13, seed: 4242, tokenBase: 0, raceSuffix: 'b',
+    raceNames: ['Midtown Dash', 'Avenue Sprint', 'Skyline Loop', 'Harbor Run'],
+    avenueEvery: 4, avenueChance: 0.12, avenueW: [36, 8], streetW: [24, 10], blockW: [48, 56],
+    cores: (X, Z) => [{ x: -X.size * 0.12, z: Z.size * 0.08, r: 260, k: 1 }, { x: X.size * 0.24, z: -Z.size * 0.22, r: 190, k: 0.75 }],
+    height: (r, dt) => 10 + r() * r() * 42 + dt * (35 + Math.pow(r(), 1.4) * 210),
+    landmark: 0.035, parkChance: 0.09, plazaChance: 0.13,
+    palette(dt, r) {
+      if (dt > 0.45) return r < 0.32 ? 'blueGlass' : r < 0.52 ? 'tealGlass' : r < 0.66 ? 'dark' : r < 0.84 ? 'concrete' : 'white';
+      if (dt > 0.15) return r < 0.18 ? 'blueGlass' : r < 0.42 ? 'concrete' : r < 0.6 ? 'sandstone' : r < 0.78 ? 'white' : 'brick';
+      return r < 0.38 ? 'brick' : r < 0.62 ? 'sandstone' : r < 0.82 ? 'concrete' : 'white';
+    },
+    antennaY: 150, billboard: 0.1, signs: 0, skybridges: false, rail: false,
+    land: 0x34373d, walk: 0x8e9095, park: 0x5f8a4a,
+    spawn: [400, 40, 90], titleCam: [330, 175, 70],
+  },
+  heights: {
+    id: 'heights', name: 'Neon Heights', blurb: 'A tight canyon of towers up to 400 m, with skybridges, a raised rail line and neon signs.',
+    blocks: 15, seed: 9107, tokenBase: 1000, raceSuffix: 'h',
+    raceNames: ['Canyon Dash', 'Skybridge Sprint', 'Neon Loop', 'Rail Run'],
+    avenueEvery: 5, avenueChance: 0.06, avenueW: [26, 4], streetW: [16, 4], blockW: [40, 30],
+    cores: (X, Z) => [{ x: 0, z: 0, r: 380, k: 1 }, { x: X.size * 0.3, z: Z.size * 0.3, r: 200, k: 0.8 }],
+    height: (r, dt) => 24 + r() * r() * 50 + dt * (70 + Math.pow(r(), 1.3) * 280),
+    landmark: 0.04, parkChance: 0.03, plazaChance: 0.05,
+    palette(dt, r) {
+      if (dt > 0.4) return r < 0.34 ? 'obsidian' : r < 0.56 ? 'violetGlass' : r < 0.74 ? 'tealGlass' : r < 0.9 ? 'steel' : 'white';
+      return r < 0.3 ? 'copper' : r < 0.55 ? 'obsidian' : r < 0.75 ? 'steel' : r < 0.9 ? 'violetGlass' : 'dark';
+    },
+    antennaY: 170, billboard: 0.32, signs: 0.4, skybridges: true, rail: true,
+    land: 0x34323c, walk: 0x5c5a66, park: 0x3f6a4a,
+    spawn: [600, 40, 140], titleCam: [560, 270, 110],
+  },
+};
+const START = DISTRICTS[save.settings.spawn] ? save.settings.spawn : 'classic';
 const coarsePointer = matchMedia('(pointer: coarse)').matches;
 if (!save.settings.quality) save.settings.quality = coarsePointer ? 'low' : 'medium';
 
@@ -705,14 +759,18 @@ const PALETTES = {
   blueGlass: { c: [0.28, 0.36, 0.45], col: [1.5, 2.1], fill: [0.86, 0.94] },
   tealGlass: { c: [0.42, 0.56, 0.57], col: [1.6, 2.4], fill: [0.82, 0.92] },
   dark:      { c: [0.22, 0.23, 0.26], col: [1.8, 2.6], fill: [0.70, 0.86] },
+  obsidian:  { c: [0.13, 0.13, 0.17], col: [1.4, 2.0], fill: [0.84, 0.94] },
+  violetGlass: { c: [0.30, 0.25, 0.40], col: [1.5, 2.2], fill: [0.82, 0.92] },
+  steel:     { c: [0.46, 0.49, 0.54], col: [1.8, 2.6], fill: [0.66, 0.8] },
+  copper:    { c: [0.55, 0.35, 0.25], col: [2.2, 3.0], fill: [0.56, 0.72] },
 };
+const NEON_COLORS = [0xff2d95, 0x29e6ff, 0xb84dff, 0xffd23d, 0x5cff8a, 0xff6a2d];
 const BILLBOARD_COLORS = [0xff4d6d, 0x45d8ea, 0xffc23d, 0x7cf27a, 0xb57bff, 0xff8a3d, 0xf2f2f2];
 const bldU = { uNight: { value: 0 } }; // shared with the facade shader
 
 class City {
-  constructor(cfg) {
-    this.cfg = cfg;
-    this.rnd = mulberry32(cfg.seed);
+  constructor(defs) {
+    this.defs = defs;
     this.colliders = [];
     this.parts = [];        // rendered building boxes: { min, max, color, style:[colW, fill, seed] }
     this.roofs = [];        // walkable top surfaces: { x0, z0, x1, z1, y }
@@ -776,12 +834,13 @@ class City {
     const r = this.rnd, out = { blocks: [], streets: [] };
     let x = 0;
     for (let i = 0; i <= n; i++) {
-      const avenue = i % 4 === 0 || r() < 0.12;
-      const sw = avenue ? 36 + r() * 8 : 24 + r() * 10;
+      const M = this.cfg;
+      const avenue = i % M.avenueEvery === 0 || r() < M.avenueChance;
+      const sw = avenue ? M.avenueW[0] + r() * M.avenueW[1] : M.streetW[0] + r() * M.streetW[1];
       out.streets.push({ c: x + sw / 2, w: sw, avenue });
       x += sw;
       if (i === n) break;
-      const bw = 48 + r() * 56;
+      const bw = this.cfg.blockW[0] + r() * this.cfg.blockW[1];
       out.blocks.push([x, x + bw]);
       x += bw;
     }
@@ -793,18 +852,32 @@ class City {
   }
 
   generate() {
-    const r = this.rnd;
-    const X = (this.X = this.axis(this.cfg.blocks));
-    const Z = (this.Z = this.axis(this.cfg.blocks));
-    this.size = Math.max(X.size, Z.size);
-    this.landHalfX = X.size / 2 + 30;
-    this.landHalfZ = Z.size / 2 + 30;
-    // Two downtown cores, off-centre and of different sizes.
-    this.cores = [
-      { x: -X.size * 0.12, z: Z.size * 0.08, r: 260, k: 1 },
-      { x: X.size * 0.24, z: -Z.size * 0.22, r: 190, k: 0.75 },
-    ];
-    const downtown = (x, z) => Math.max(...this.cores.map((c) => c.k * Math.exp(-((x - c.x) ** 2 + (z - c.z) ** 2) / (c.r * c.r))));
+    this.districts = [];
+    this.cores = [];
+    this.lands = [];        // ground you can stand on: { x0, z0, x1, z1 }
+    for (const def of this.defs) this.generateDistrict(def);
+    this.makeBridges(this.districts[0], this.districts[1]);
+  }
+
+  /** One district on its own grid. Each one after the first sits east of the last, across a 60 m channel. */
+  generateDistrict(def) {
+    this.cfg = def;
+    const r = (this.rnd = mulberry32(def.seed));
+    const X = this.axis(def.blocks);
+    const Z = this.axis(def.blocks);
+    const prev = this.districts.at(-1);
+    const ox = prev ? prev.land.x1 + 60 + X.size / 2 + 30 : 0;
+    X.blocks.forEach((b) => { b[0] += ox; b[1] += ox; });
+    X.streets.forEach((st) => { st.c += ox; });
+    const d = {
+      def, X, Z, ox, cores: def.cores(X, Z).map((c) => ({ ...c, x: c.x + ox })),
+      land: { x0: ox - X.size / 2 - 30, x1: ox + X.size / 2 + 30, z0: -Z.size / 2 - 30, z1: Z.size / 2 + 30 },
+      roofs0: this.roofs.length, beacons0: this.beacons.length, foot0: this.footprints.length, blocks0: this.blocks.length, parks0: this.parks.length,
+    };
+    this.districts.push(d);
+    this.cores.push(...d.cores);
+    this.lands.push(d.land);
+    const downtown = (x, z) => Math.max(...d.cores.map((c) => c.k * Math.exp(-((x - c.x) ** 2 + (z - c.z) ** 2) / (c.r * c.r))));
     this.downtown = downtown;
 
     for (const [x0, x1] of X.blocks) {
@@ -814,8 +887,8 @@ class City {
         this.addCollider(new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x1, 0.15, z1)); // kerb / sidewalk
         const dt = downtown((x0 + x1) / 2, (z0 + z1) / 2);
         const roll = r();
-        if (roll < 0.09 - dt * 0.06) { block.type = 'park'; this.makePark(x0 + 3, z0 + 3, x1 - 3, z1 - 3); }
-        else if (roll < 0.13 - dt * 0.06) block.type = 'plaza';
+        if (roll < this.cfg.parkChance - dt * 0.06) { block.type = 'park'; this.makePark(x0 + 3, z0 + 3, x1 - 3, z1 - 3); }
+        else if (roll < this.cfg.plazaChance - dt * 0.06) block.type = 'plaza';
         else {
           const lots = [];
           this.subdivide({ x0: x0 + 2.5, z0: z0 + 2.5, x1: x1 - 2.5, z1: z1 - 2.5 }, 0, lots);
@@ -824,6 +897,110 @@ class City {
         this.placeLamps(block);
       }
     }
+    if (def.rail) this.makeRail(d);
+    if (def.skybridges) this.makeSkybridges(d);
+    d.roofs = this.roofs.slice(d.roofs0);
+    d.beacons = this.beacons.slice(d.beacons0);
+    d.blocks = this.blocks.slice(d.blocks0);
+    d.parks = this.parks.slice(d.parks0);
+  }
+
+  /** Two road bridges over the channel between neighbouring districts, each with a pair of tall towers to swing from. */
+  makeBridges(a, b) {
+    const x0 = a.land.x1, x1 = b.land.x0, deck = [0.42, 0.42, 0.45], steel = [0.62, 0.22, 0.2], blank = [1, 0, 0];
+    this.bridges = [];
+    const zs = a.Z.streets, n = zs.length;
+    for (const st of [zs[Math.floor(n * 0.3)], zs[Math.floor(n * 0.7)]]) {
+      const z = st.c, hw = 9;
+      this.lands.push({ x0: x0 - 1, x1: x1 + 1, z0: z - hw, z1: z + hw });
+      this.bridges.push({ x0, x1, z0: z - hw, z1: z + hw });
+      for (const side of [-1, 1]) this.solid(x0, 0, z + side * hw - 0.3, x1, 1.1, z + side * hw + 0.3, deck, blank); // railings
+      for (const x of [x0 + 12, x1 - 12]) { // towers: two legs and a crossbeam
+        for (const side of [-1, 1]) this.solid(x - 1.2, 0, z + side * (hw + 0.4) - 1.2, x + 1.2, 58, z + side * (hw + 0.4) + 1.2, steel, blank);
+        this.solid(x - 1, 50, z - hw - 1.6, x + 1, 53, z + hw + 1.6, steel, blank);
+      }
+      this.footprints.push({ x0, x1, z0: z - hw, z1: z + hw, h: 2 });
+    }
+  }
+
+  /** Raised rail line down one avenue each way: a deck at 9 m on pillars that stand mid-block, clear of the crossings. */
+  makeRail(d) {
+    const grey = [0.5, 0.5, 0.53], dark = [0.24, 0.24, 0.27], blank = [1, 0, 0];
+    const pick = (streets) => { const av = streets.filter((st) => st.avenue); return av[Math.floor(av.length / 2)] || streets[Math.floor(streets.length / 2)]; };
+    const run = (st, cross, alongZ) => {
+      const lo = (alongZ ? d.land.z0 : d.land.x0) + 10, hi = (alongZ ? d.land.z1 : d.land.x1) - 10, y0 = 8.6, y1 = 9.8, hw = 3.6;
+      if (alongZ) this.solid(st.c - hw, y0, lo, st.c + hw, y1, hi, grey, blank);
+      else this.solid(lo, y0, st.c - hw, hi, y1, st.c + hw, grey, blank);
+      for (const side of [-1, 1]) { // low side walls you can run along
+        const c = st.c + side * (hw - 0.2);
+        if (alongZ) this.solid(c - 0.2, y1, lo, c + 0.2, y1 + 0.7, hi, dark, blank);
+        else this.solid(lo, y1, c - 0.2, hi, y1 + 0.7, c + 0.2, dark, blank);
+      }
+      for (const [a0, a1] of cross.blocks) {
+        for (const t of [0.3, 0.7]) {
+          const m = a0 + (a1 - a0) * t;
+          if (alongZ) this.solid(st.c - 0.6, 0, m - 0.6, st.c + 0.6, y0, m + 0.6, dark, blank);
+          else this.solid(m - 0.6, 0, st.c - 0.6, m + 0.6, y0, st.c + 0.6, dark, blank);
+        }
+      }
+      this.footprints.push(alongZ ? { x0: st.c - hw, z0: lo, x1: st.c + hw, z1: hi, h: 10 } : { x0: lo, z0: st.c - hw, x1: hi, z1: st.c + hw, h: 10 });
+    };
+    run(pick(d.X.streets), d.Z, true);
+    run(pick(d.Z.streets), d.X, false);
+  }
+
+  /** Glass walkways high across the streets between pairs of tall towers. They stay above 70 m, clear of the race rings. */
+  makeSkybridges(d) {
+    const r = this.rnd, tall = this.footprints.slice(d.foot0).filter((f) => f.h > 95);
+    const color = [0.78, 0.82, 0.86], rail = [0.2, 0.2, 0.24], blank = [1, 0, 0];
+    let made = 0;
+    for (const a of tall) {
+      for (const b of tall) {
+        if (a === b || made > 140) continue;
+        for (const alongX of [true, false]) {
+          const gap = alongX ? b.x0 - a.x1 : b.z0 - a.z1;
+          if (gap < 10 || gap > 42) continue;
+          const lo = alongX ? Math.max(a.z0, b.z0) : Math.max(a.x0, b.x0), hi = alongX ? Math.min(a.z1, b.z1) : Math.min(a.x1, b.x1);
+          if (hi - lo < 8 || r() > 0.4) continue;
+          const top = Math.min(a.h, b.h) - 10;
+          if (top < 75) continue;
+          const y = 70 + Math.floor(r() * (top - 70) / 3.6) * 3.6, c = (lo + hi) / 2, w = 2.6;
+          if (alongX) {
+            this.solid(a.x1 - 0.2, y, c - w, b.x0 + 0.2, y + 4.2, c + w, color, [1.4, 0.9, Math.floor(r() * 100)]);
+            this.solid(a.x1 - 0.2, y - 0.6, c - w - 0.3, b.x0 + 0.2, y, c + w + 0.3, rail, blank);
+          } else {
+            this.solid(c - w, y, a.z1 - 0.2, c + w, y + 4.2, b.z0 + 0.2, color, [1.4, 0.9, Math.floor(r() * 100)]);
+            this.solid(c - w - 0.3, y - 0.6, a.z1 - 0.2, c + w + 0.3, y, b.z0 + 0.2, rail, blank);
+          }
+          made++;
+        }
+      }
+    }
+  }
+
+  /** Tall neon sign hanging off one face of a building. */
+  makeSign(x0, z0, x1, z1, h) {
+    const r = this.rnd;
+    const len = Math.min(8 + r() * 18, h - 12);
+    if (len < 6) return;
+    const y0 = 7 + r() * Math.min(20, h - len - 10), y1 = y0 + len;
+    const side = Math.floor(r() * 4), w = 1.4 + r() * 1.2, t = 0.5, o = 0.9;
+    const cx = x0 + (x1 - x0) * (0.2 + r() * 0.6), cz = z0 + (z1 - z0) * (0.2 + r() * 0.6);
+    let min, max;
+    if (side === 0) { min = new THREE.Vector3(x0 - o - t, y0, cz - w); max = new THREE.Vector3(x0 - o, y1, cz + w); }
+    if (side === 1) { min = new THREE.Vector3(x1 + o, y0, cz - w); max = new THREE.Vector3(x1 + o + t, y1, cz + w); }
+    if (side === 2) { min = new THREE.Vector3(cx - w, y0, z0 - o - t); max = new THREE.Vector3(cx + w, y1, z0 - o); }
+    if (side === 3) { min = new THREE.Vector3(cx - w, y0, z1 + o); max = new THREE.Vector3(cx + w, y1, z1 + o + t); }
+    // Brackets back to the wall.
+    const dark = [0.18, 0.18, 0.2], blank = [1, 0, 0];
+    for (const yy of [y0 + 1, y1 - 1.4]) {
+      if (side === 0) this.solid(x0 - o, yy, cz - 0.2, x0, yy + 0.4, cz + 0.2, dark, blank);
+      if (side === 1) this.solid(x1, yy, cz - 0.2, x1 + o, yy + 0.4, cz + 0.2, dark, blank);
+      if (side === 2) this.solid(cx - 0.2, yy, z0 - o, cx + 0.2, yy + 0.4, z0, dark, blank);
+      if (side === 3) this.solid(cx - 0.2, yy, z1, cx + 0.2, yy + 0.4, z1 + o, dark, blank);
+    }
+    this.addCollider(min, max);
+    this.billboards.push({ min, max, color: NEON_COLORS[Math.floor(r() * NEON_COLORS.length)] });
   }
 
   subdivide(rect, depth, out) {
@@ -844,10 +1021,7 @@ class City {
   }
 
   pickPalette(dt) {
-    const r = this.rnd();
-    if (dt > 0.45) return r < 0.32 ? 'blueGlass' : r < 0.52 ? 'tealGlass' : r < 0.66 ? 'dark' : r < 0.84 ? 'concrete' : 'white';
-    if (dt > 0.15) return r < 0.18 ? 'blueGlass' : r < 0.42 ? 'concrete' : r < 0.6 ? 'sandstone' : r < 0.78 ? 'white' : 'brick';
-    return r < 0.38 ? 'brick' : r < 0.62 ? 'sandstone' : r < 0.82 ? 'concrete' : 'white';
+    return this.cfg.palette(dt, this.rnd());
   }
 
   /** Low parapet around a roof: four solid strips that overhang the facade slightly (no coplanar faces). */
@@ -866,8 +1040,8 @@ class City {
     if (x1 - x0 < 8 || z1 - z0 < 8) return;
     if (r() < 0.06) return; // the odd empty lot
     const dt = this.downtown((x0 + x1) / 2, (z0 + z1) / 2);
-    let h = 10 + r() * r() * 42 + dt * (35 + Math.pow(r(), 1.4) * 210);
-    if (r() < 0.035) h *= 1.65; // occasional landmark tower
+    let h = this.cfg.height(r, dt);
+    if (r() < this.cfg.landmark) h *= 1.65; // occasional landmark tower
     h = Math.round(h / 3.6) * 3.6 + 1.2; // whole storeys
 
     const pal = PALETTES[this.pickPalette(dt)];
@@ -897,6 +1071,7 @@ class City {
     let top = { x0: bx0, z0: bz0, x1: bx1, z1: bz1, y: h };
     this.solid(bx0, 0, bz0, bx1, h, bz1, color, style);
     this.footprints.push({ x0: bx0, z0: bz0, x1: bx1, z1: bz1, h });
+    if (this.cfg.signs && h > 30 && r() < this.cfg.signs) this.makeSign(bx0, bz0, bx1, bz1, h);
 
     // Set-back tiers on taller towers.
     const tiers = h > 60 ? (r() < 0.55 ? 1 + (r() < 0.4 ? 1 : 0) : 0) : 0;
@@ -915,7 +1090,7 @@ class City {
     this.rim(top, capColor);
 
     // Antenna on the tallest towers (a great swing anchor), with a blinking tip light.
-    if (top.y > 150 && r() < 0.6) {
+    if (top.y > this.cfg.antennaY && r() < 0.6) {
       const cx = (top.x0 + top.x1) / 2, cz = (top.z0 + top.z1) / 2, sh = 18 + r() * 26;
       const dark = [0.25, 0.26, 0.29], blank = [1, 0, 0];
       this.solid(cx - 2, top.y, cz - 2, cx + 2, top.y + 2.5, cz + 2, dark, blank);
@@ -924,7 +1099,7 @@ class City {
       return;
     }
     // Rooftop billboard on some mid-rise buildings.
-    if (top.y > 22 && top.y < 130 && r() < 0.1) this.makeBillboard(top);
+    if (top.y > 22 && top.y < 130 && r() < this.cfg.billboard) this.makeBillboard(top);
     else this.roofClutter(top, capColor);
   }
 
@@ -935,7 +1110,8 @@ class City {
     const len = Math.min(16, (alongX ? w : d) - 4);
     if (len < 7) return;
     const y0 = top.y + 2.2, y1 = y0 + 5 + r() * 2;
-    const color = BILLBOARD_COLORS[Math.floor(r() * BILLBOARD_COLORS.length)];
+    const pool = this.cfg.signs ? NEON_COLORS : BILLBOARD_COLORS;
+    const color = pool[Math.floor(r() * pool.length)];
     const dark = [0.2, 0.21, 0.24], blank = [1, 0, 0];
     let min, max;
     if (alongX) {
@@ -1007,14 +1183,20 @@ class City {
     const pos = new THREE.Vector3(), scl = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
     const unitBox = () => { const g = new THREE.BoxGeometry(1, 1, 1); g.translate(0, 0.5, 0); return g; };
 
-    // Island: a thick slab whose top is the street (y = 0).
-    const land = new THREE.Mesh(
-      new THREE.BoxGeometry(this.landHalfX * 2, 4, this.landHalfZ * 2),
-      new THREE.MeshStandardMaterial({ color: 0x34373d, roughness: 1 })
-    );
-    land.position.y = -2;
-    land.receiveShadow = true;
-    scene.add(land);
+    // Islands: a thick slab per district whose top is the street (y = 0), and the bridge decks between them.
+    for (const d of this.districts) {
+      const L = d.land;
+      const land = new THREE.Mesh(new THREE.BoxGeometry(L.x1 - L.x0, 4, L.z1 - L.z0), new THREE.MeshStandardMaterial({ color: d.def.land, roughness: 1 }));
+      land.position.set((L.x0 + L.x1) / 2, -2, (L.z0 + L.z1) / 2);
+      land.receiveShadow = true;
+      scene.add(land);
+    }
+    for (const b of this.bridges) {
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(b.x1 - b.x0 + 2, 1.6, b.z1 - b.z0), new THREE.MeshStandardMaterial({ color: 0x3a3c42, roughness: 1 }));
+      deck.position.set((b.x0 + b.x1) / 2, -0.8, (b.z0 + b.z1) / 2);
+      deck.receiveShadow = true;
+      scene.add(deck);
+    }
 
     const slabs = (list, color, y0, h) => {
       const mesh = new THREE.InstancedMesh(unitBox(), new THREE.MeshStandardMaterial({ color, roughness: 0.95 }), list.length);
@@ -1025,8 +1207,10 @@ class City {
       scene.add(mesh);
       return mesh;
     };
-    slabs(this.blocks.map((b) => [b.x0, b.z0, b.x1, b.z1]), 0x8e9095, 0, 0.15);
-    slabs(this.parks, 0x5f8a4a, 0.15, 0.15);
+    for (const d of this.districts) {
+      slabs(d.blocks.map((b) => [b.x0, b.z0, b.x1, b.z1]), d.def.walk, 0, 0.15);
+      if (d.parks.length) slabs(d.parks, d.def.park, 0.15, 0.15);
+    }
 
     // Road paint: flat quads pulled toward the camera with polygon offset so
     // they never fight the asphalt. Lines stop at intersections; zebra crossings at each end.
@@ -1048,8 +1232,7 @@ class City {
         }
       }
     };
-    roadPaint(this.X.streets, this.Z, true);
-    roadPaint(this.Z.streets, this.X, false);
+    for (const d of this.districts) { roadPaint(d.X.streets, d.Z, true); roadPaint(d.Z.streets, d.X, false); }
     const paintGeo = new THREE.PlaneGeometry(1, 1);
     paintGeo.rotateX(-Math.PI / 2);
     const paintMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
@@ -1259,7 +1442,7 @@ class City {
     return inside;
   }
 
-  onLand(x, z) { return Math.abs(x) < this.landHalfX && Math.abs(z) < this.landHalfZ; }
+  onLand(x, z) { return this.lands.some((L) => x > L.x0 && x < L.x1 && z > L.z0 && z < L.z1); }
 
   /** A free standing spot on the roof nearest to p (horizontally), within a height band. */
   nearestRoof(p, maxDist = 400, minY = 15, maxY = 110) {
@@ -1279,8 +1462,18 @@ class City {
   }
 }
 
-const city = new City(CFG.city);
-const SPAWN = city.nearestRoof(new THREE.Vector3(0, 0, 0), 400, 40, 90) || new THREE.Vector3(0, 1, 0);
+const city = new City([DISTRICTS.classic, DISTRICTS.heights]);
+const districtOf = (id) => city.districts.find((d) => d.def.id === id) || city.districts[0];
+/** Where you start (and go back to): a roof near the middle of the chosen district. Each district's spot is worked out once. */
+const SPAWN = new THREE.Vector3(), spawnSpots = {};
+let spawnDistrict = districtOf(START);
+function setSpawn(id) {
+  spawnDistrict = districtOf(id);
+  const d = spawnDistrict, c = new THREE.Vector3(d.ox, 0, 0);
+  spawnSpots[id] ||= city.nearestRoof(c, ...d.def.spawn) || city.nearestRoof(c, 900, 12, 400) || new THREE.Vector3(d.ox, 1, 0);
+  SPAWN.copy(spawnSpots[id]);
+}
+setSpawn(START);
 
 // =====================================================================
 // Traffic: cars cruise both lanes of every street, queue behind each
@@ -1288,15 +1481,18 @@ const SPAWN = city.nearestRoof(new THREE.Vector3(0, 0, 0), 400, 40, 90) || new T
 // =====================================================================
 class Traffic {
   constructor(count) {
-    const rnd = mulberry32(CFG.city.seed + 31);
+    const rnd = mulberry32(DISTRICTS.classic.seed + 31);
     this.lanes = [];
-    const addLanes = (streets, cross, axis, len) => {
+    // A lane's car positions (s) run along its axis from the district's centre (o); x-axis lanes in a district east of the first are offset.
+    const addLanes = (streets, cross, axis, len, o) => {
       for (const s of streets) {
-        for (const dir of [1, -1]) this.lanes.push({ axis, c: s.c + dir * s.w * 0.22 * (axis === 'z' ? -1 : 1), dir, len, cross: cross.streets, cars: [] });
+        for (const dir of [1, -1]) this.lanes.push({ axis, o, c: s.c + dir * s.w * 0.22 * (axis === 'z' ? -1 : 1), dir, len, cross: cross.streets.map((x) => ({ c: x.c - o, w: x.w })), cars: [] });
       }
     };
-    addLanes(city.X.streets, city.Z, 'z', city.Z.size + 50);
-    addLanes(city.Z.streets, city.X, 'x', city.X.size + 50);
+    for (const d of city.districts) {
+      addLanes(d.X.streets, d.Z, 'z', d.Z.size + 50, 0);
+      addLanes(d.Z.streets, d.X, 'x', d.X.size + 50, d.ox);
+    }
     const COLORS = [0xd8d8dc, 0x22252b, 0x8a1c22, 0x1d4e89, 0xe0b623, 0xe0b623, 0x6b7078, 0x2f6b4f, 0xf0f0f0, 0x5a2e6e];
     this.cars = [];
     for (let i = 0; i < count; i++) {
@@ -1360,37 +1556,42 @@ class Traffic {
     this.cars.forEach((c, k) => {
       const ln = c.lane;
       if (ln.axis === 'z') { p.set(ln.c, 0, c.s); q.setFromAxisAngle(UP, ln.dir > 0 ? 0 : Math.PI); }
-      else { p.set(c.s, 0, ln.c); q.setFromAxisAngle(UP, ln.dir > 0 ? Math.PI / 2 : -Math.PI / 2); }
+      else { p.set(c.s + ln.o, 0, ln.c); q.setFromAxisAngle(UP, ln.dir > 0 ? Math.PI / 2 : -Math.PI / 2); }
       m.compose(p, q, one);
       this.body.setMatrixAt(k, m); this.cab.setMatrixAt(k, m); this.head.setMatrixAt(k, m); this.tail.setMatrixAt(k, m);
     });
     for (const im of [this.body, this.cab, this.head, this.tail]) im.instanceMatrix.needsUpdate = true;
   }
 }
-const traffic = new Traffic(save.settings.quality === 'low' ? 80 : 170);
+const traffic = new Traffic(save.settings.quality === 'low' ? 120 : 260);
 
 // =====================================================================
 // Tokens: gold collectibles on roofs, antenna tips and in the air over streets.
 // =====================================================================
 const tokens = (() => {
-  const rnd = mulberry32(CFG.city.seed + 99);
+  const all = [];
+  for (const d of city.districts) {
+  const rnd = mulberry32(d.def.seed + 99);
   const list = [];
-  const add = (p) => list.push({ id: list.length, pos: p, got: false });
-  const roofs = city.roofs.filter((r) => r.y > 10 && r.x1 - r.x0 > 8 && r.z1 - r.z0 > 8);
+  const add = (p) => list.push({ id: d.def.tokenBase + list.length, pos: p, got: false }); // ids differ per district
+  const roofs = d.roofs.filter((r) => r.y > 10 && r.x1 - r.x0 > 8 && r.z1 - r.z0 > 8);
   for (let tries = 0; list.length < 38 && tries < 400; tries++) {
     const r = roofs[Math.floor(rnd() * roofs.length)];
     const p = new THREE.Vector3(r.x0 + 3 + rnd() * (r.x1 - r.x0 - 6), r.y + 1.6, r.z0 + 3 + rnd() * (r.z1 - r.z0 - 6));
     if (!city.pointInside(p, 1) && !list.some((t) => t.pos.distanceToSquared(p) < 900)) add(p);
   }
-  for (const b of city.beacons.slice(0, 6)) add(b.clone().add(new THREE.Vector3(0, 3, 0)));
-  const streets = [...city.X.streets.map((s) => ({ s, axis: 'z', len: city.Z.size })), ...city.Z.streets.map((s) => ({ s, axis: 'x', len: city.X.size }))];
+  for (const b of d.beacons.slice(0, 6)) add(b.clone().add(new THREE.Vector3(0, 3, 0)));
+  const streets = [...d.X.streets.map((s) => ({ s, axis: 'z', len: d.Z.size })), ...d.Z.streets.map((s) => ({ s, axis: 'x', len: d.X.size }))];
   for (let tries = 0; list.length < CFG.tokens && tries < 2000; tries++) {
     const { s, axis, len } = streets[Math.floor(rnd() * streets.length)];
     const along = (rnd() - 0.5) * (len - 60);
-    const p = axis === 'z' ? new THREE.Vector3(s.c, 0, along) : new THREE.Vector3(along, 0, s.c);
+    const p = axis === 'z' ? new THREE.Vector3(s.c, 0, along) : new THREE.Vector3(d.ox + along, 0, s.c);
     p.y = clamp(city.skyline(p, 50) * (0.3 + rnd() * 0.5), 14, 90);
     if (!city.pointInside(p, 2) && !list.some((t) => t.pos.distanceToSquared(p) < 1600)) add(p);
   }
+  all.push(...list);
+  }
+  const list = all;
   for (const t of list) t.got = save.tokens.includes(t.id);
 
   const mesh = new THREE.InstancedMesh(
@@ -1426,7 +1627,6 @@ const tokens = (() => {
 // =====================================================================
 // Races: ring routes along the street grid, with a light beam at each start.
 // =====================================================================
-const RACE_NAMES = ['Midtown Dash', 'Avenue Sprint', 'Skyline Loop', 'Harbor Run'];
 /** Is there something solid to swing from when flying through p along dir? (Same fan of rays as a real web.) */
 function anchorAhead(p, dir) {
   const S = CFG.swing, right = new THREE.Vector3(-dir.z, 0, dir.x), d = new THREE.Vector3();
@@ -1439,10 +1639,11 @@ function anchorAhead(p, dir) {
 }
 
 const races = (() => {
-  const rnd = mulberry32(CFG.city.seed + 7);
-  const xs = city.X.streets, zs = city.Z.streets;
-  const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const out = [];
+  for (const d of city.districts) {
+  const rnd = mulberry32(d.def.seed + 7);
+  const xs = d.X.streets, zs = d.Z.streets;
+  const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   /** Random walk along the street grid: a list of intersections, or null. */
   const walk = (legs) => {
     let i = 2 + Math.floor(rnd() * (xs.length - 4)), j = 2 + Math.floor(rnd() * (zs.length - 4));
@@ -1489,7 +1690,7 @@ const races = (() => {
     });
     return { pts, rings, misses };
   };
-  for (let k = 0; k < RACE_NAMES.length; k++) {
+  for (let k = 0; k < d.def.raceNames.length; k++) {
     let best = null;
     for (let attempt = 0; attempt < 80 && !(best && best.misses === 0); attempt++) {
       const path = walk(4 + k);
@@ -1505,9 +1706,10 @@ const races = (() => {
     for (let n = 1; n < rings.length; n++) length += rings[n].pos.distanceTo(rings[n - 1].pos);
     out.push({
       // 'b' suffix: routes changed in v0.3, so best times saved for the old routes don't carry over.
-      id: 'r' + k + 'b', name: RACE_NAMES[k], rings, start: startPos, length,
+      id: 'r' + k + d.def.raceSuffix, name: d.def.raceNames[k], where: d.def.name, rings, start: startPos, length,
       par: { gold: length / 34, silver: length / 27, bronze: length / 20 },
     });
+  }
   }
   // Start beams.
   const beamGeo = new THREE.CylinderGeometry(1.4, 1.4, 160, 16, 1, true); beamGeo.translate(0, 80, 0);
@@ -1930,7 +2132,7 @@ const player = {
     cam.target.copy(p);
     character.snap?.();
   },
-  reset() { this.teleport(SPAWN, Math.atan2(SPAWN.x - city.cores[0].x, SPAWN.z - city.cores[0].z)); },
+  reset() { const c = spawnDistrict.cores[0]; this.teleport(SPAWN, Math.atan2(SPAWN.x - c.x, SPAWN.z - c.z)); },
 };
 
 const tA = new THREE.Vector3(), tB = new THREE.Vector3(), tC = new THREE.Vector3();
@@ -2328,7 +2530,7 @@ function onSplash() {
     const ahead = r.rings[i].pos;
     player.teleport(back, Math.atan2(back.x - ahead.x, back.z - ahead.z));
   } else {
-    const p = city.nearestRoof(player.pos.clone().clampScalar(-city.size / 2 + 40, city.size / 2 - 40), 500, 15, 80) || SPAWN;
+    const p = city.nearestRoof(player.pos, 900, 15, 80) || SPAWN;
     player.teleport(p, cam.yaw);
   }
 }
@@ -2762,10 +2964,10 @@ function updateCamera(dt, renderPos) {
   const now = performance.now() / 1000;
 
   if (game.mode === 'title') {
-    const core = city.cores[0];
+    const core = spawnDistrict.cores[0], [cr, cy, ly] = spawnDistrict.def.titleCam;
     const a = now * 0.035;
-    camera.position.set(core.x + Math.sin(a) * 330, 175, core.z + Math.cos(a) * 330);
-    camera.lookAt(core.x, 70, core.z);
+    camera.position.set(core.x + Math.sin(a) * cr, cy, core.z + Math.cos(a) * cr);
+    camera.lookAt(core.x, ly, core.z);
     camera.fov = 60; camera.updateProjectionMatrix();
     return 0;
   }
@@ -2972,7 +3174,7 @@ const minimap = (() => {
       ctx.scale(S, S);
       ctx.translate(-p.x, -p.z);
       ctx.fillStyle = '#2b2f36';
-      ctx.fillRect(-city.landHalfX, -city.landHalfZ, city.landHalfX * 2, city.landHalfZ * 2);
+      for (const L of city.lands) ctx.fillRect(L.x0, L.z0, L.x1 - L.x0, L.z1 - L.z0);
       ctx.fillStyle = '#454a53';
       for (const b of city.blocks) {
         if (b.x1 < p.x - RANGE * 1.5 || b.x0 > p.x + RANGE * 1.5 || b.z1 < p.z - RANGE * 1.5 || b.z0 > p.z + RANGE * 1.5) continue;
@@ -4001,6 +4203,7 @@ function openMenu(name, push = true) {
   if (name === 'levels') renderLevels();
   if (name === 'settings') renderSettings();
   if (name === 'shop') renderShop();
+  if (name === 'maps') renderMaps();
   if (name === 'pause') {
     panels.pause.querySelectorAll('[data-race-only]').forEach((b) => { b.hidden = race.state === 'idle'; });
     panels.pause.querySelectorAll('[data-level-only]').forEach((b) => { b.hidden = !level.def; });
@@ -4056,10 +4259,11 @@ function goTitle() {
   openMenu('title', false);
 }
 menuEl.addEventListener('click', (e) => {
-  const b = e.target.closest('[data-act], [data-race], [data-level], [data-suit]');
+  const b = e.target.closest('[data-act], [data-race], [data-level], [data-suit], [data-map]');
   if (!b) return;
   audio.init();
   audio.click();
+  if (b.dataset.map) { pickMap(b.dataset.map); return; }
   if (b.dataset.race) { const def = races.find((r) => r.id === b.dataset.race); startRace(def, true); $('#hud').hidden = false; character.root.visible = true; ui.stack.length = 0; resume(); return; }
   if (b.dataset.level) {
     const i = LEVELS.findIndex((d) => d.id === b.dataset.level);
@@ -4076,6 +4280,7 @@ menuEl.addEventListener('click', (e) => {
     case 'races': openMenu('races'); break;
     case 'settings': openMenu('settings'); break;
     case 'shop': openMenu('shop'); break;
+    case 'maps': openMenu('maps'); break;
     case 'controls': openMenu('controls'); break;
     case 'back': back(); break;
     case 'respawn': quitRace(); quitLevel(); player.reset(); resume(); break;
@@ -4100,6 +4305,7 @@ function medalCount() {
 function renderTitle() {
   const c = medalCount();
   $('#titleMedals').textContent = `${c.gold + c.silver + c.bronze} / ${races.length} medals`;
+  $('#titleMap').textContent = spawnDistrict.def.name;
   $('#titleWallet').textContent = `${wallet()} tokens to spend`;
   $('#titleLevels').textContent = `${LEVELS.filter((d) => save.levels?.[d.id]).length} / ${LEVELS.length} done`;
   $('#titleStats').innerHTML =
@@ -4113,7 +4319,7 @@ function renderRaces() {
     const m = t ? medalFor(r, t) : 'none';
     return `<button class="mbtn race-btn" data-race="${r.id}">
       <span class="rn">${r.name}</span><span class="medal ${m}" title="${m === 'none' ? 'No medal yet' : m + ' medal'}"></span>
-      <span class="rd"><span>${(r.length / 1000).toFixed(2)} km · ${r.rings.length} rings</span><span>${t ? 'Best ' + fmtTime(t) : 'Not raced yet'}</span><span>Gold ${fmtTime(r.par.gold)}</span></span>
+      <span class="rd"><span>${r.where} · ${(r.length / 1000).toFixed(2)} km · ${r.rings.length} rings</span><span>${t ? 'Best ' + fmtTime(t) : 'Not raced yet'}</span><span>Gold ${fmtTime(r.par.gold)}</span></span>
     </button>`;
   }).join('');
 }
@@ -4146,6 +4352,24 @@ $('#settingsList').addEventListener('click', (e) => {
     return;
   }
 });
+
+// ---------- start district ----------
+function renderMaps() {
+  $('#mapList').innerHTML = city.districts.map(({ def: m }) => {
+    const here = m.id === spawnDistrict.def.id;
+    const got = tokens.list.filter((t) => t.got && t.id >= m.tokenBase && t.id < m.tokenBase + 1000).length;
+    return `<button class="mbtn race-btn" data-map="${m.id}">
+      <span class="rn">${m.name}</span><span class="medal ${here ? 'done' : 'none'}" title="${here ? 'You start here' : ''}"></span>
+      <span class="rd"><span>${m.blurb}</span><span>${here ? 'You start here' : 'Tokens ' + got + ' / ' + CFG.tokens}</span></span>
+    </button>`;
+  }).join('');
+}
+function pickMap(id) {
+  save.settings.spawn = id; writeSave();
+  setSpawn(id);
+  if (game.mode === 'play') { quitRace(); quitLevel(); player.reset(); ui.stack.length = 0; resume(); toast(`Starting in ${spawnDistrict.def.name}`, 'cyan'); }
+  else { player.reset(); back(); }
+}
 
 // ---------- shop ----------
 let shopTab = 'suits';
@@ -4879,7 +5103,7 @@ function frame(now) {
   // Sky follows the camera; the shadow map covers the area just ahead of the player.
   sky.position.copy(camera.position);
   if (game.mode === 'play') shadowCenter.copy(renderPos).addScaledVector(cam.forwardFlat(), shadowState.extent * 0.35);
-  else shadowCenter.set(city.cores[0].x, 0, city.cores[0].z);
+  else shadowCenter.set(spawnDistrict.cores[0].x, 0, spawnDistrict.cores[0].z);
   updateShadowCamera(shadowCenter);
 
   renderer.render(scene, camera);
