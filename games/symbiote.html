@@ -56,6 +56,12 @@
     #consumeHint { color: var(--dim); font-size: 11px; margin-top: 6px; }
     #consumeHint kbd, #hostItems .dim { color: var(--dim); font-size: 11px; }
     #hostItems b { color: var(--slime); }
+    #zoombtn { right: 128px; bottom: 164px; width: 56px; height: 40px; border: 2px solid rgba(255,80,80,0.6); background: rgba(0,0,0,0.3); color: #ffb0b0; font-size: 11px; }
+    #zoombtn.on { background: rgba(255,60,60,0.35); }
+    #scope { position: fixed; inset: 0; pointer-events: none; z-index: 1; background: radial-gradient(circle at 50% 50%, transparent 0, transparent 34vmin, rgba(0,0,0,0.85) 35vmin); }
+    #scope::before, #scope::after { content: ""; position: absolute; left: 50%; top: 50%; background: rgba(0,0,0,0.6); }
+    #scope::before { width: 70vmin; height: 1px; transform: translate(-50%, 0); }
+    #scope::after { width: 1px; height: 70vmin; transform: translate(0, -50%); }
     #swapbtn { right: 128px; bottom: 116px; width: 56px; height: 40px; border: 2px solid rgba(255,255,255,0.4); background: rgba(0,0,0,0.3); color: #fff; font-size: 11px; }
     #consumeHint .pbar { height: 5px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; margin: 2px 0 4px; }
     #consumeHint .pbar i { display: block; height: 100%; background: var(--slime); }
@@ -134,7 +140,7 @@
     #pausebtn { position: fixed; top: 14px; right: 196px; width: 36px; height: 36px; border-radius: 10px; border: 0; background: var(--bg); color: var(--fg); font-size: 16px; cursor: pointer; }
 
     /* Touch controls */
-    #touch { position: fixed; inset: 0; pointer-events: none; }
+    #touch { position: fixed; inset: 0; pointer-events: none; z-index: 4; }
     #stick { position: fixed; left: 22px; bottom: 24px; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25); background: rgba(0,0,0,0.12); }
     #stick i { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px; border-radius: 50%; background: rgba(255,255,255,0.35); }
     .tbtn { position: fixed; border-radius: 50%; pointer-events: auto; font: 700 11px system-ui; letter-spacing: 0.06em; }
@@ -156,6 +162,19 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.10", "date": "2026-10-12", "title": "Meridian Tower",
+      "notes": [
+        "New level 3: Meridian Tower, a glass skyscraper at night. Sneak past the lobby turnstiles, download the board's files in the floor 2 server room, silence two snipers on the towers next door, take out the CEO at the penthouse party, and escape on the roof helicopter.",
+        "Snipers: they watch the tower from the neighbouring roofs with a red laser. If the laser holds on you, they fire. Jump into one and the rifle is yours.",
+        "Sniper rifle with zoom: press Z (or ZOOM on phones) to look down the scope, then shoot with F, right mouse or SNIPE. One shot takes most people down.",
+        "Shootable glass: windows shatter when shot, and a slime flung fast enough breaks through them. People can see through glass.",
+        "Floors: walk up stairs or ride the lift between floors. Falls hurt now, and a long drop kills a slime.",
+        "Window-cleaner platform: a cleaner rides a cradle up and down the outside of the tower. Take them over to reach any floor from outside.",
+        "Penthouse party: guests fill floor 3. Only party guests and staff belong up there, so arrive in a guest or waiter to blend in.",
+        "Consuming and forms work on this level too.",
+        "Phones: the scope no longer covers the touch buttons."
+      ]
+    },
     { "version": "0.9.2", "date": "2026-10-10", "title": "Office door",
       "notes": [
         "Fixed: on Saltmarsh Docks the harbour office had no way in, so the ledger couldn't be reached. Its glass front now has a doorway."
@@ -279,10 +298,12 @@
     <div id="toast"></div>
   </div>
 
+  <div id="scope" class="hidden"></div>
   <div id="touch" class="hidden">
     <div id="stick"><i></i></div>
     <button id="itembtn" class="tbtn">ITEM</button>
     <button id="swapbtn" class="tbtn hidden">SWAP</button>
+    <button id="zoombtn" class="tbtn hidden">ZOOM</button>
     <button id="eatbtn" class="tbtn hidden">EAT</button>
     <button id="bodybtn" class="tbtn hidden">BODY</button>
     <button id="launchbtn" class="tbtn">LAUNCH</button>
@@ -302,6 +323,7 @@
         <b>Launch</b><span>Hold left mouse to see the arc, let go to jump. Aim at a person.</span>
         <b>Use item</b><span>Right mouse or <kbd>F</kbd>: pistol, sledgehammer or charges. Keycards work by themselves.</span>
         <b>Swap item</b><span><kbd>Q</kbd> when your host holds more than one</span>
+        <b>Zoom</b><span><kbd>Z</kbd> with a sniper rifle</span>
         <b>Consume</b><span>Hold <kbd>C</kbd> where nobody can see you, on levels that allow it: eat your host and your slime grows a form.</span>
         <b>Forms</b><span>II: hop as a slime. III: keep still to become a puddle. IV: hold <kbd>B</kbd> as a slime to grow your own body (drops two forms).</span>
         <b>Other</b><span><kbd>R</kbd> restart, <kbd>P</kbd> or <kbd>Esc</kbd> pause</span>
@@ -1805,6 +1827,104 @@ function waterTower(d, x, z) {
 // (sledgehammer), demo (explosive charges), guard (pistol + keycard),
 // director (the assassination target), bodyguard (pistol).
 
+// --- Meridian Tower --------------------------------------------------------------------------------
+// One 30 x 30 m tower: lobby (y 0), offices (5), security and servers (10), penthouse (15), roof (20).
+// Stairs in the north-east corner (x 9..15, z -15..-7), a glass lift in the middle (x/z -1.8..1.8).
+const T = 15;                 // half the tower's width
+const FLOOR_H = 5;
+const STAIR = { x0: 9, x1: 15, z0: -15, z1: -7 };
+const SHAFT = 1.85;
+
+/** A floor slab with holes cut out of it (each hole [x0, z0, x1, z1]). */
+function slab(B, holes, color = 0x8f8c84) {
+  const xs = [...new Set([-T, T, ...holes.flatMap((h) => [h[0], h[2]])])].sort((a, b) => a - b);
+  const zs = [...new Set([-T, T, ...holes.flatMap((h) => [h[1], h[3]])])].sort((a, b) => a - b);
+  for (let j = 0; j < zs.length - 1; j++) {
+    let run = null;
+    const flush = () => { if (run) B.prop((run[0] + run[1]) / 2, -0.2, (zs[j] + zs[j + 1]) / 2, run[1] - run[0], 0.4, zs[j + 1] - zs[j], color); run = null; };
+    for (let i = 0; i < xs.length - 1; i++) {
+      const cx = (xs[i] + xs[i + 1]) / 2, cz = (zs[j] + zs[j + 1]) / 2;
+      const inHole = holes.some((h) => cx > h[0] && cx < h[2] && cz > h[1] && cz < h[3]);
+      if (inHole) flush();
+      else if (run) run[1] = xs[i + 1];
+      else run = [xs[i], xs[i + 1]];
+    }
+    flush();
+  }
+}
+
+/** The outside walls of one floor: glass all round, concrete corners, a lit band at the slab edge. */
+function facade(B, opts = {}) {
+  const h = FLOOR_H - 0.4;
+  if (opts.entrance) { B.glass(-T, T, -2.5, T, h); B.glass(2.5, T, T, T, h); }
+  else B.glass(-T, T, T, T, h);
+  B.glass(-T, -T, T, -T, h);
+  B.glass(T, -T, T, T, h);
+  B.glass(-T, -T, -T, T, h);
+  for (const [x, z] of [[-T, -T], [T, -T], [-T, T], [T, T]]) B.prop(x, h / 2, z, 0.7, h, 0.7, 0x4a4f57);
+}
+
+/** One floor's flights of stairs, up to the floor above. */
+function stairs(B) {
+  B.ramp(10.3, -7, 10.3, -13, 0, 2.5, 2.6);
+  B.prop(12, 2.3, -14, 6, 0.4, 2, 0x8f8c84);                 // landing
+  B.ramp(13.7, -13, 13.7, -7, 2.5, 5, 2.6);
+  B.prop(12, 2.5, -9.5, 0.8, 5, 7, 0x6c737b);                // between the flights
+  B.prop(8.85, 2.5, -11, 0.3, 5, 8, 0x6c737b);               // stairwell wall
+  B.prop(10.3, 3.4, -6.1, 2.4, 0.5, 0.1, 0x7cff4f, { solid: false, shadow: false, glow: true }); // sign: up
+}
+
+/** Lift shaft walls for one floor (the doors come with the lift). */
+function shaft(B) {
+  B.prop(-1.95, 2.5, 0, 0.3, 5, 4.2, 0xc9d2da);
+  B.prop(1.95, 2.5, 0, 0.3, 5, 4.2, 0xc9d2da);
+  B.prop(0, 2.5, -1.95, 4.2, 5, 0.3, 0xc9d2da);
+  B.prop(0, 4.3, 2.05, 4.2, 1.4, 0.3, 0xc9d2da, { solid: false });
+}
+
+/** Ceiling lights for a floor. */
+function ceilingLights(B, color = 0xfff1d6) {
+  for (let x = -12; x <= 12; x += 6) for (let z = -12; z <= 12; z += 6) {
+    if (x >= 9 && z <= -7) continue;
+    if (Math.abs(x) < 3 && Math.abs(z) < 3) continue;
+    B.prop(x, 4.52, z, 2.6, 0.06, 0.5, color, { solid: false, shadow: false, glow: true });
+  }
+}
+
+function desk(B, x, z, yaw = 0) {
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  B.prop(x, 0.74, z, 1.6, 0.06, 0.8, 0xd9d2c3, { yaw });
+  B.prop(x, 0.36, z, 1.5, 0.72, 0.1, 0x6c737b, { yaw });
+  B.prop(x - 0.25 * s, 1.0, z - 0.25 * c, 0.6, 0.38, 0.04, 0x8fd4ff, { yaw, solid: false, shadow: false, glow: true });
+  B.prop(x + 0.55 * s, 0.45, z + 0.55 * c, 0.5, 0.9, 0.5, 0x2b2f33, { yaw, solid: false });
+}
+
+function sofa(B, x, z, yaw, color) {
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  B.prop(x, 0.25, z, 2.2, 0.5, 0.9, color, { yaw });
+  B.prop(x - 0.4 * s, 0.6, z - 0.4 * c, 2.2, 0.7, 0.2, color, { yaw, solid: false });
+}
+
+function plant(B, x, z) {
+  B.prop(x, 0.35, z, 0.6, 0.7, 0.6, 0x3a3f46, { shape: 'cyl' });
+  B.prop(x, 1.1, z, 0.9, 1.0, 0.9, 0x3f7a3a, { solid: false });
+}
+
+/** A tower next door: solid, lit windows, a parapet on top. */
+function neighbour(B, x0, z0, x1, z1, h) {
+  B.floor(0);
+  B.prop((x0 + x1) / 2, h / 2, (z0 + z1) / 2, x1 - x0, h, z1 - z0, 0x262b38);
+  for (let y = 2; y < h - 1; y += 3) {
+    B.prop(x0 - 0.02, y, (z0 + z1) / 2, 0.04, 1.2, (z1 - z0) - 2, 0xffd890, { solid: false, shadow: false, glow: true });
+    B.prop(x1 + 0.02, y, (z0 + z1) / 2, 0.04, 1.2, (z1 - z0) - 2, 0xffd890, { solid: false, shadow: false, glow: true });
+  }
+  B.floor(h);
+  for (const [cx, cz, sx, sz] of [[(x0 + x1) / 2, z0 + 0.15, x1 - x0, 0.3], [(x0 + x1) / 2, z1 - 0.15, x1 - x0, 0.3], [x0 + 0.15, (z0 + z1) / 2, 0.3, z1 - z0], [x1 - 0.15, (z0 + z1) / 2, 0.3, z1 - z0]]) B.prop(cx, 0.5, cz, sx, 1.0, sz, 0x3a3f46);
+  B.prop((x0 + x1) / 2 + 2, 0.8, (z0 + z1) / 2 - 3, 2.5, 1.6, 2, 0x7d848c);  // vents
+  B.prop(x1 - 2, 3, z1 - 2, 0.2, 6, 0.2, 0x9a9da3, { shape: 'cyl' });       // aerial
+  B.prop(x1 - 2, 6.1, z1 - 2, 0.25, 0.25, 0.25, 0xff3344, { solid: false, shadow: false, glow: true });
+}
+
 const LEVELS = [
   {
     id: 'hollow-hill',
@@ -1994,7 +2114,6 @@ const LEVELS = [
   {
     id: 'saltmarsh-docks',
     title: 'Saltmarsh Docks',
-    isNew: true,
     consume: true,
     blurb: 'A harbour full of cameras and people who notice when you are somewhere you should not be. The right body gets you in. Here you can also eat your host to grow.',
     half: 60,
@@ -2168,6 +2287,151 @@ const LEVELS = [
       B.person('docker', 38, -46, { wander: [35, -50, 41, -45] });
     },
   },
+  {
+    id: 'meridian-tower',
+    title: 'Meridian Tower',
+    isNew: true,
+    consume: true,
+    floors: true,
+    blurb: 'A glass tower at night: climb it floor by floor, past security, to the penthouse party. Snipers on the towers next door watch every window.',
+    half: 50,
+    stealthFail: 'The tower locked down before you got out of the lobby.',
+    look: { sky: 0x0b1222, sun: 0x9db4ff, sunI: 0.7, hemiSky: 0x8fa3d9, hemiGround: 0x4a4650, hemiI: 2.3, base: 0x23262e, city: true },
+    objectives: [
+      { id: 'stealth', type: 'Stealth', text: 'Get up out of the lobby without setting off a lockdown.' },
+      { id: 'files', type: 'Espionage', text: 'Download the board\'s files in the server room on floor 2. Needs a keycard.' },
+      { id: 'snipers', type: 'Counter-sniper', text: 'Silence the two snipers on the towers next door. Get into one and its rifle is yours.' },
+      { id: 'director', type: 'Assassination', text: 'Take out the CEO at the penthouse party on floor 3.' },
+      { id: 'extract', type: 'Extraction', text: 'Escape on the helicopter on the roof.' },
+    ],
+    build(B) {
+      const d = B.d;
+      // --- The street and the plaza ---
+      B.ground(-50, -50, 50, 50, 'plaza');
+      B.ground(-50, 38, 50, 46, 'road');
+      B.ground(-50, 36, 50, 38, 'kerb');
+      for (let x = -46; x < 50; x += 7) B.prop(x, 0.02, 42, 3, 0.02, 0.25, 0xf2efe6, { solid: false, shadow: false });
+      car(B, -20, 40, Math.PI / 2, 0x2f6fb3); car(B, 6, 44, -Math.PI / 2, 0xe8e4da); car(B, 24, 40, Math.PI / 2, 0xc8342b);
+      for (const x of [-24, -12, 12, 24]) lamp(d, x, 34);
+      for (const x of [-18, 18]) { planter(B, x, 22, 2.4); bench(B, x, 25, Math.PI); }
+      B.prop(0, 0.15, 24, 6, 0.3, 6, 0x6c737b, { shape: 'cyl' });                        // fountain
+      B.prop(0, 0.6, 24, 1, 1.2, 1, 0x9fd4ee, { shape: 'cyl', solid: false, glow: true });
+      B.prop(0, 4.9, 17.5, 6, 0.2, 5, 0x2a2f36);                                          // entrance canopy
+      B.start('courier', 0, 30, Math.PI);
+      for (let i = 0; i < 6; i++) B.person(i % 3 ? 'civilian' : 'clerk', -24 + i * 9, 20 + (i % 3) * 5, { wander: [-30, 17, 30, 35] });
+      B.person('security', 6, 17.5, { post: true, yaw: 0 });
+
+      // --- Next door: two towers, a sniper on each roof ---
+      neighbour(B, 26, -36, 38, -22, 12);
+      B.person('sniper', 27.3, -23.3, { post: true, yaw: -0.86 });
+      neighbour(B, -38, -36, -26, -22, 17);
+      B.person('sniper', -27.3, -23.3, { post: true, yaw: 0.86 });
+
+      // --- Floor 0: the lobby ---
+      B.floor(0);
+      facade(B, { entrance: true });
+      stairs(B); shaft(B); ceilingLights(B);
+      B.prop(-8, 0.55, 6, 6, 1.1, 1.2, 0xd9d2c3);                                        // reception desk
+      B.prop(-8, 1.12, 6, 6.2, 0.06, 1.4, 0x2a2f36, { solid: false });
+      B.prop(-8, 3.2, 1.2, 7, 1.0, 0.2, 0x2a2f36, { solid: false });                      // MERIDIAN sign
+      B.prop(-8, 3.2, 1.32, 6, 0.4, 0.05, 0x9fd4ff, { solid: false, shadow: false, glow: true });
+      for (const x of [-4, -2, 2, 4]) B.prop(x, 0.5, 5, 0.2, 1.0, 1.2, 0x9a9da3, { solid: false });   // turnstiles
+      sofa(B, 8, 10, Math.PI, 0x5a1f2f); sofa(B, 12, 10, Math.PI, 0x5a1f2f);
+      for (const [x, z] of [[-13, 13], [13, 13], [-13, -13], [5, -13]]) plant(B, x, z);
+      B.person('security', -8, 4.4, { post: true, yaw: Math.PI });
+      B.person('security', 0, 6, { route: [[-6, 9], [6, 9], [6, -6], [-6, -6]], wait: 1.5 });
+      B.person('clerk', -6, 10, { wander: [-13, 6, 13, 13] });
+      B.person('clerk', 6, -10, { wander: [-13, -13, 7, -4] });
+      B.person('clerk', -10, -8, { wander: [-13, -13, 7, -4] });
+      B.restricted(-15, -15, 15, 5, ['clerk', 'security', 'cleaner', 'ceo', 'waiter', 'guest'], 'staff only past the turnstiles');
+      B.camera(-14, 14, 2.4, 0.6, 4.2);
+      B.camera(8, -6, Math.PI * 0.85, 0.7, 4.2);
+      B.stealthFloor(FLOOR_H);
+
+      // The lift: floors 0 to 2. Doors open while it's stopped.
+      B.mover({ x: 0, z: 0, sx: 3.6, sz: 3.6, stops: [0, 5, 10], speed: 2.2, wait: 3.5, doors: true, color: 0xc9d2da });
+
+      // Window cleaners' platform on the east face, all the way up to the penthouse.
+      B.mover({ x: 16.4, z: 0, sx: 2.4, sz: 5, stops: [0, 5, 10, 15], speed: 1.3, wait: 5, rails: ['e', 'n', 's'], cables: true, color: 0x5a5f66 });
+      B.person('cleaner', 16.6, 1.2, { post: true, yaw: -Math.PI / 2 });
+
+      // --- Floor 1: offices ---
+      B.floor(5);
+      slab(B, [[STAIR.x0, STAIR.z0, STAIR.x1, STAIR.z1], [-SHAFT, -SHAFT, SHAFT, SHAFT]]);
+      facade(B); stairs(B); shaft(B); ceilingLights(B);
+      for (const z of [6, 10]) for (const x of [-12, -8, -4, 4, 8, 12]) desk(B, x, z, z === 6 ? 0 : Math.PI);
+      for (const x of [-4, 0, 4]) desk(B, x, -10, 0);
+      B.glass(-14.9, -6, -6, -6, 3.0); B.glass(-6, -14.9, -6, -9, 3.0);                     // meeting room
+      B.prop(-10.5, 0.75, -10.5, 4, 0.08, 1.6, 0x5a3b26); B.prop(-10.5, 0.37, -10.5, 0.4, 0.74, 0.4, 0x3a3f46);
+      for (const [x, z] of [[-13, 2], [13, 2], [-13, -4]]) plant(B, x, z);
+      B.prop(13, 0.6, 13, 0.5, 1.2, 0.5, 0x9fd4ee, { solid: false });                   // water cooler
+      for (let i = 0; i < 6; i++) B.person('clerk', -10 + i * 4, i % 2 ? 12.5 : 3.5, { wander: i < 3 ? [-14, 3, 0, 13.5] : [0, 3, 14, 13.5] });
+      B.person('clerk', 2, -12, { wander: [-5, -13.5, 7, -5] });
+      B.person('security', 0, 4, { route: [[-12, 3.5], [12, 3.5], [12, 13.5], [-12, 13.5]], wait: 1 });
+      B.camera(14, 14, -2.3, 0.6, 4.2);
+
+      // --- Floor 2: security and the server room ---
+      B.floor(10);
+      slab(B, [[STAIR.x0, STAIR.z0, STAIR.x1, STAIR.z1], [-SHAFT, -SHAFT, SHAFT, SHAFT]]);
+      facade(B); stairs(B); shaft(B); ceilingLights(B, 0xd6ecff);
+      B.glass(-14.9, -4, -7.5, -4, 3.4); B.glass(-5.5, -4, -4, -4, 3.4); B.glass(-4, -14.9, -4, -4, 3.4);   // server room (door at x -7.5..-5.5)
+      for (const x of [-13, -10.5, -8]) for (const z of [-13, -9.5]) { B.prop(x, 1.1, z, 1.4, 2.2, 0.9, 0x1c1e21); B.prop(x, 1.1, z + 0.47, 1.2, 1.9, 0.04, 0x2cff7a, { solid: false, shadow: false, glow: true }); }
+      B.terminal(-6, -7);
+      B.restricted(-15, -15, -4, -4, ['security'], 'security staff only');
+      for (const [x, z] of [[6, 10], [10, 10]]) desk(B, x, z, Math.PI);
+      B.prop(8, 2.4, 14.6, 8, 2.6, 0.1, 0x1c1e21, { solid: false });                     // monitor wall
+      for (let i = 0; i < 4; i++) B.prop(5.5 + i * 1.7, 2.4, 14.5, 1.5, 1.0, 0.04, 0x8fd4ff, { solid: false, shadow: false, glow: true });
+      B.gate(10.3, -6.3, 0, 2.6, 'keycard');                                             // stairs up to the party
+      B.person('security', 10.3, -4.8, { post: true, yaw: Math.PI });
+      B.person('security', 0, 6, { route: [[-12, 6], [12, 6], [12, 12], [-12, 12]], wait: 1 });
+      B.person('security', -6, 0, { route: [[-8, -2], [-8, 13], [6, 13], [6, -2]], wait: 1.5 });
+      B.person('clerk', 7, 9, { wander: [3, 6, 13, 13] });
+      B.camera(-14, -2, Math.PI * 0.75, 0.5, 4.2);
+      B.camera(4, -4, -Math.PI * 0.6, 0.6, 4.2);
+
+      // --- Floor 3: the penthouse party ---
+      B.floor(15);
+      slab(B, [[STAIR.x0, STAIR.z0, STAIR.x1, STAIR.z1]], 0xb9a58a);
+      facade(B); stairs(B);
+      for (let x = -12; x <= 12; x += 4) for (let z = -12; z <= 12; z += 4) if (!(x >= 8 && z <= -7)) B.prop(x, 4.5, z, 0.5, 0.06, 0.5, (x + z) % 8 ? 0xff7ad9 : 0x7ad9ff, { solid: false, shadow: false, glow: true });
+      B.prop(-10, 0.55, 11.5, 7, 1.1, 1.2, 0x1c1e21); B.prop(-10, 1.12, 11.5, 7.2, 0.06, 1.4, 0xd8b56a, { solid: false, glow: true });   // bar
+      B.prop(-10, 2.2, 14.6, 7, 1.6, 0.1, 0x3a2f2a, { solid: false });
+      for (let i = 0; i < 6; i++) B.prop(-13 + i * 1.2, 2.2, 14.5, 0.3, 0.9, 0.1, [0xd8322a, 0x4c8c3a, 0xf2c230][i % 3], { solid: false, shadow: false, glow: true });
+      for (let x = -4; x <= 4; x += 2) for (let z = 2; z <= 8; z += 2) B.prop(x, 0.02, z, 1.9, 0.04, 1.9, (x + z) % 4 ? 0x6a2f8e : 0x1f3b73, { solid: false, shadow: false, glow: true });   // dance floor
+      B.prop(0, 0.6, 11, 3, 1.2, 1.2, 0x1c1e21); B.prop(0, 1.25, 11, 2.4, 0.1, 0.8, 0x7ad9ff, { solid: false, glow: true });                // DJ
+      sofa(B, 10, 8, Math.PI / 2, 0xe7e1d4); sofa(B, 10, 3, Math.PI / 2, 0xe7e1d4); sofa(B, -11, -2, -Math.PI / 2, 0x8e2b4f);
+      for (const [x, z] of [[-6, -10], [-1, -10], [4, -10]]) { B.prop(x, 0.38, z, 1, 0.76, 1, 0xe8e4da, { shape: 'cyl' }); }
+      for (const [x, z] of [[-14, 14], [14, 14], [-14, -14], [-14, 0]]) plant(B, x, z);
+      for (let i = 0; i < 12; i++) B.person('guest', -11 + (i % 6) * 4.2, i < 6 ? 4 : -6, { wander: i < 6 ? [-8, 1, 7, 9.5] : [-13, -13, 6, -3] });
+      B.person('guest', -11, 9, { wander: [-14, 6, -6, 10] });
+      B.person('guest', 12, 6, { wander: [8, 1, 13.5, 13] });
+      B.person('waiter', -6, 0, { route: [[-12, 9], [6, 10], [12, 0], [4, -12], [-12, -12]], wait: 2 });
+      B.person('waiter', 6, -4, { route: [[8, -4], [8, 12], [-6, 12], [-6, -4]], wait: 2 });
+      const ceo = B.person('ceo', 0, -2, { route: [[-10, -2], [-10, 6], [6, 12], [11, -2], [2, -12]], wait: 3 });
+      B.person('bodyguard', 1, -3, { follow: ceo, offset: [1.2, -1.2] });
+      B.person('bodyguard', -1, -3, { follow: ceo, offset: [-1.2, -1.2] });
+      B.restricted(-15, -15, 15, 15, ['guest', 'waiter', 'ceo', 'bodyguard'], 'party guests only');
+
+      // --- The roof ---
+      B.floor(20);
+      slab(B, [[STAIR.x0, STAIR.z0, STAIR.x1, STAIR.z1]], 0x5d5a55);
+      for (const [cx, cz, sx, sz] of [[0, -T + 0.15, 2 * T, 0.3], [0, T - 0.15, 2 * T, 0.3], [-T + 0.15, 0, 0.3, 2 * T], [T - 0.15, 0, 0.3, 2 * T]]) B.prop(cx, 0.55, cz, sx, 1.1, sz, 0x4a4f57);
+      B.prop(8.85, 1.25, -11, 0.3, 2.5, 8, 0x6c737b);                                      // stair hut
+      B.prop(12, 2.6, -11, 6.3, 0.2, 8.3, 0x4a4f57, { solid: false });
+      B.prop(-6, 0.05, 6, 9, 0.1, 9, 0x3a3f46); B.prop(-6, 0.11, 6, 5, 0.02, 0.8, 0xf2c230, { solid: false, shadow: false, glow: true });
+      for (const dx of [-2, 2]) B.prop(-6 + dx, 0.11, 6, 0.8, 0.02, 4.4, 0xf2c230, { solid: false, shadow: false, glow: true });
+      // The helicopter.
+      B.prop(-6, 1.3, 2.6, 2.4, 1.8, 4.2, 0x1d2f5a); B.prop(-6, 1.6, 0.7, 2.0, 1.2, 0.2, 0x8fd4ff, { solid: false, glow: true });
+      B.prop(-6, 1.5, 7.6, 0.5, 0.5, 6, 0x1d2f5a, { solid: false });
+      B.prop(-6, 2.4, 2.6, 0.2, 0.4, 0.2, 0x2b2f33, { solid: false }); B.prop(-6, 2.65, 2.6, 0.3, 0.08, 11, 0x2b2f33, { solid: false, shadow: false });
+      B.extract(-6, 6, 2.6, 'helicopter');
+      for (const [x, z] of [[8, 8], [11, 8], [8, 11]]) B.prop(x, 0.8, z, 2.2, 1.6, 2.2, 0x7d848c);     // air units
+      B.prop(-12, 5, -12, 0.3, 10, 0.3, 0x9a9da3, { shape: 'cyl' });
+      B.prop(-12, 10.2, -12, 0.35, 0.35, 0.35, 0xff3344, { solid: false, shadow: false, glow: true });
+      B.person('security', 0, -8, { route: [[-12, -12], [6, -12], [6, 12], [-12, 12]], wait: 2 });
+      B.floor(0);
+    },
+  },
 ];
 
 // ===== main.js =====
@@ -2197,6 +2461,7 @@ const ITEMS = {
   keycard: { label: 'Keycard' },
   flares: { label: 'Flares', use: 'flare' },
   pass: { label: 'Dock pass' },
+  rifle: { label: 'Sniper rifle', use: 'snipe' },
 };
 const ROLES = {
   civilian: { label: 'Civilian', items: [], shirts: [0x4f86c6, 0xd9534f, 0xf2c230, 0x8e6bbf, 0x55a868, 0xf08a5d, 0xe7e1d4], pants: [0x2d3a52, 0x4a3b2e, 0x3a3a3a, 0x6b6f78] },
@@ -2210,6 +2475,14 @@ const ROLES = {
   docker: { label: 'Dock worker', items: ['flares', 'pass'], shirts: [0xf2c230, 0xffb02e], pants: [0x2d3a52], hat: 'hard' },
   customs: { label: 'Customs officer', items: ['pistol', 'keycard'], shirts: [0x3a5a48], pants: [0x1f2a24], hat: 'cap', armed: true },
   shell: { label: 'Slime body', items: [], shirts: [0x4f9a35], pants: [0x2f5e22], skins: [0x9fdc7a], shell: true },
+  sniper: { label: 'Sniper', items: ['rifle'], shirts: [0x2b2f26], pants: [0x22261f], hat: 'cap', shades: true, armed: true, sniper: true },
+  courier: { label: 'Courier', items: [], shirts: [0xe0583f, 0x3d7dd8], pants: [0x22252b], hat: 'cap', pack: true },
+  clerk: { label: 'Office worker', items: [], shirts: [0xdfe7f0, 0xbcd3ea, 0xf3efe6, 0xe9d6e0], pants: [0x2e3440, 0x3d3d46] },
+  cleaner: { label: 'Window cleaner', items: [], shirts: [0x3a8fd8], pants: [0x2d3a52], hat: 'hard' },
+  security: { label: 'Security', items: ['pistol', 'keycard'], shirts: [0x16171a], pants: [0x16171a], hat: 'cap', armed: true },
+  guest: { label: 'Party guest', items: [], shirts: [0x8e2b4f, 0x1f3b73, 0xd8b56a, 0x111111, 0x6a2f8e, 0xe7e1d4], pants: [0x111111, 0x2a2a2f, 0x5a1f2f], tie: false },
+  waiter: { label: 'Waiter', items: [], shirts: [0xf4f4f2], pants: [0x111111], tie: true },
+  ceo: { label: 'The CEO', items: ['keycard'], shirts: [0x2a2a2f], pants: [0x2a2a2f], tie: true, shades: true, vip: true },
   harbourmaster: { label: 'The Harbourmaster', items: ['keycard'], shirts: [0x1d2f5a], pants: [0x1d2f5a], hat: 'cap', tie: true, vip: true },
 };
 const SKINS = [0xf1c7a3, 0xd9a47c, 0xa8714d, 0x7a4b2e, 0xf6d6bd, 0xc68863];
@@ -2225,6 +2498,7 @@ const CRAWL_SPEED = 4.6;    // m/s, faster than anyone can walk, a little slower
 const EAT_TIME = 4;         // seconds of holding C, unseen, to eat your host
 const GROW_TIME = 3;        // seconds of holding B, unseen, to grow a body (form III)
 const HOP_COST = 6;         // slime health per hop (form I)
+const SLIME_FALL = 18.5;    // m/s at impact: a drop of about 17 m is the end of the slime
 const STOMP_DMG = 34;       // three stamps and the slime is paste
 const STOMP_WINDUP = 0.35;  // foot in the air: they can't be entered until it comes down
 
@@ -2337,6 +2611,7 @@ function buildPerson(role) {
   body.add(head);
   // What they hold.
   const items = role.items;
+  if (items.includes('rifle')) { arms[1].add(box(0.07, 0.1, 1.1, mat(0x1b1d1f), 0, -0.66, 0.4)); arms[1].add(box(0.06, 0.06, 0.3, mat(0x2e3236), 0, -0.56, 0.3)); }
   if (items.includes('pistol')) arms[1].add(box(0.08, 0.12, 0.34, mat(0x111316), 0, -0.66, 0.14));
   if (items.includes('hammer')) {
     const ham = new THREE.Group();
@@ -2376,13 +2651,13 @@ function bakePart(part, material, skip, only = null) {
   const found = [];
   const visit = (o) => { for (const c of o.children) { if (skip.has(c) && c !== part) continue; if (c.isMesh) found.push(c); visit(c); } };
   if (only) found.push(...only); else visit(part);
-  const pos = [], nor = [], col = [];
+  const pos = [], nor = [], col = [], uv = [];
   const v = new THREE.Vector3(), nm = new THREE.Matrix3();
   for (const m of found) {
     _bakeM.multiplyMatrices(_bakeInv, m.matrixWorld);
     nm.getNormalMatrix(_bakeM);
     const geo = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
-    const P = geo.attributes.position, N = geo.attributes.normal;
+    const P = geo.attributes.position, N = geo.attributes.normal, U = geo.attributes.uv;
     const mm = m.material;
     _bakeC.copy(mm.color);
     if (mm.emissive && mm.emissiveIntensity) _bakeC.add(mm.emissive.clone().multiplyScalar(mm.emissiveIntensity));
@@ -2390,6 +2665,7 @@ function bakePart(part, material, skip, only = null) {
       v.fromBufferAttribute(P, i).applyMatrix4(_bakeM); pos.push(v.x, v.y, v.z);
       v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); nor.push(v.x, v.y, v.z);
       col.push(_bakeC.r, _bakeC.g, _bakeC.b);
+      if (U) uv.push(U.getX(i), U.getY(i));
     }
   }
   for (const m of found) m.parent?.remove(m);
@@ -2397,6 +2673,7 @@ function bakePart(part, material, skip, only = null) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   if (!only) geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  if (only && uv.length === (pos.length / 3) * 2) geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   geo.computeBoundingSphere();
   const mesh = new THREE.Mesh(geo, material);
   mesh.castShadow = true;
@@ -2536,9 +2813,9 @@ function updateParts(dt) {
 // Green puddles where the slime lands, fading out.
 const SPLAT_GEO = new THREE.CircleGeometry(1, 18).rotateX(-Math.PI / 2);
 const splats = [];
-function splat(x, z, r = 0.6) {
+function splat(x, z, r = 0.6, y = 0) {
   const m = new THREE.Mesh(SPLAT_GEO, new THREE.MeshBasicMaterial({ color: 0x5fd33a, transparent: true, opacity: 0.75, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
-  m.position.set(x, 0.03, z);
+  m.position.set(x, y + 0.03, z);
   m.scale.setScalar(r * rand(0.8, 1.2));
   scene.add(m);
   splats.push({ m, t: 8 });
@@ -2613,6 +2890,7 @@ addEventListener('keydown', (e) => {
   if (k === 'q' || k === 'tab') swapItem();
   if (k === 'c') input.eat = true;
   if (k === 'b') input.grow = true;
+  if (k === 'z') toggleZoom();
   if (k === ' ') input.aiming = true;
 });
 addEventListener('keyup', (e) => {
@@ -2646,8 +2924,9 @@ addEventListener('pointerup', (e) => {
 addEventListener('pointermove', (e) => {
   if (e.pointerType !== 'mouse' || !game.running || game.paused) return;
   if (!locked && !mouseHeld) return;
-  view.yaw -= e.movementX * 0.0026;
-  view.pitch = clamp(view.pitch + e.movementY * 0.0022, -0.45, 1.15);
+  const zs = player.zoom ? 0.3 : 1;
+  view.yaw -= e.movementX * 0.0026 * zs;
+  view.pitch = clamp(view.pitch + e.movementY * 0.0022 * zs, -0.45, 1.15);
 });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -2681,8 +2960,9 @@ function setupTouch() {
       input.stick.x = dx / m; input.stick.y = dy / m;
       knob(dx, dy);
     } else if (e.pointerId === lookId) {
-      view.yaw -= (e.clientX - lookP.x) * 0.006;
-      view.pitch = clamp(view.pitch + (e.clientY - lookP.y) * 0.005, -0.45, 1.15);
+      const zs = player.zoom ? 0.3 : 1;
+      view.yaw -= (e.clientX - lookP.x) * 0.006 * zs;
+      view.pitch = clamp(view.pitch + (e.clientY - lookP.y) * 0.005 * zs, -0.45, 1.15);
       lookP = { x: e.clientX, y: e.clientY };
     }
   });
@@ -2699,6 +2979,7 @@ function setupTouch() {
   lb.addEventListener('pointercancel', () => { input.aiming = false; });
   $('itembtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); useItem(); });
   $('swapbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); swapItem(); });
+  $('zoombtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); toggleZoom(); });
   for (const [id, key] of [['eatbtn', 'eat'], ['bodybtn', 'grow']]) {
     const b = $(id);
     b.addEventListener('pointerdown', (e) => { e.stopPropagation(); input[key] = true; });
@@ -2730,6 +3011,8 @@ let objectives = [];
 let relay = null;
 let director = null;
 let stealthZ = 0;
+let stealthY = null; // tower: stealth is done once you're up off the ground floor
+let BY = 0;          // the builder's current floor height (B.floor)
 let breakables = [];
 const breakByHandle = new Map();
 let cams = [];
@@ -2743,6 +3026,7 @@ let levelGroup = null;
 let ctrl = null;
 const personByHandle = new Map();
 const seeThrough = new Set();
+const glassHandles = new Set(); // windows: you can see (and be seen) through them, and shoot them out
 
 // --- Level building -------------------------------------------------------------
 
@@ -2766,6 +3050,139 @@ function addProp(x, y, z, sx, sy, sz, color, o = {}) {
   b.list.push([x, y, z, sx, sy, sz, o.yaw || 0, o.tilt || 0]);
   if (o.solid !== false) fixedBox(x, y, z, sx, sy, sz, o.yaw || 0);
 }
+// --- Tower pieces: glass walls, ramps, lifts ------------------------------------------------------
+
+let panes = [];
+let paneMesh = null;
+const GLASS_MAT = new THREE.MeshStandardMaterial({ color: 0x9fd4ee, transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.3, depthWrite: false, side: THREE.DoubleSide });
+/** A straight glass wall from (x0,z0) to (x1,z1) on the current floor, split into panes you can shoot out. */
+function addGlass(x0, z0, x1, z1, h, n) {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  n = Math.max(n, Math.round(len / 3));
+  const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
+  for (let i = 0; i < n; i++) {
+    const cx = x0 + ((x1 - x0) * (i + 0.5)) / n, cz = z0 + ((z1 - z0) * (i + 0.5)) / n;
+    const w = len / n - 0.08;
+    const sx = alongX ? w : 0.08, sz = alongX ? 0.08 : w, y = BY + h / 2;
+    const idx = panes.length;
+    const b = addBreakable(cx, y, cz, sx, h, sz, () => {
+      d.world.removeRigidBody(b.fb.body);
+      d.queryDirty = true;
+      glassHandles.delete(b.fb.col.handle);
+      if (paneMesh) { paneMesh.setMatrixAt(idx, new THREE.Matrix4().makeScale(0, 0, 0)); paneMesh.instanceMatrix.needsUpdate = true; }
+      burst(new THREE.Vector3(cx, y, cz), 30, 0xcfeeff, { speed: 4, up: 2, size: 0.09, life: 1.1 });
+    });
+    b.glass = true; b.hx = sx / 2; b.hy = h / 2; b.hz = sz / 2;
+    glassHandles.add(b.fb.col.handle);
+    panes.push({ x: cx, y, z: cz, sx, sy: h, sz });
+    // Frame between panes.
+    addProp(x0 + ((x1 - x0) * i) / n, y, z0 + ((z1 - z0) * i) / n, 0.12, h, 0.12, 0x2a2f36, { solid: false });
+  }
+  addProp(x1, BY + h / 2, z1, 0.12, h, 0.12, 0x2a2f36, { solid: false });
+}
+function flushGlass() {
+  paneMesh = null;
+  if (!panes.length) return;
+  paneMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), GLASS_MAT, panes.length);
+  const m = new THREE.Matrix4();
+  panes.forEach((pn, i) => paneMesh.setMatrixAt(i, m.compose(new THREE.Vector3(pn.x, pn.y, pn.z), new THREE.Quaternion(), new THREE.Vector3(pn.sx, pn.sy, pn.sz))));
+  paneMesh.renderOrder = 1;
+  levelGroup.add(paneMesh);
+}
+
+/** A sloped walkway (stairs) from (x0,z0,y0) to (x1,z1,y1), w wide. */
+function addRamp(x0, z0, x1, z1, y0, y1, w, color = 0x8f8c84) {
+  const run = Math.hypot(x1 - x0, z1 - z0), rise = y1 - y0;
+  const len = Math.hypot(run, rise);
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.atan2(rise, run), Math.atan2(x1 - x0, z1 - z0), 0, 'YXZ'));
+  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
+  const c = new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2).addScaledVector(up, -0.15);
+  const body = d.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(c.x, c.y, c.z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }));
+  d.world.createCollider(RAPIER.ColliderDesc.cuboid(w / 2, 0.15, len / 2).setFriction(1.0), body);
+  const mesh = new THREE.Mesh(BOX, mat(color));
+  mesh.position.copy(c); mesh.quaternion.copy(q); mesh.scale.set(w, 0.3, len);
+  mesh.castShadow = mesh.receiveShadow = true;
+  levelGroup.add(mesh);
+  // Step lines, so it reads as stairs.
+  const steps = Math.round(len / 0.45);
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const sm = new THREE.Mesh(BOX, mat(0x5d5a54));
+    sm.position.set(x0 + (x1 - x0) * t, y0 + rise * t + 0.005, z0 + (z1 - z0) * t);
+    sm.quaternion.copy(q); sm.scale.set(w, 0.02, 0.06);
+    sm.userData.merge = true;
+    levelGroup.add(sm);
+  }
+}
+
+/**
+ * Something that rides up and down between stops: a lift, a window cleaner's platform.
+ * o = { x, z, sx, sz, stops: [y...], speed, wait, rails: ['n','s','e','w'], color, doors: true }
+ */
+let movers = [];
+function addMover(o) {
+  const y0 = o.stops[0];
+  const body = d.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(o.x, y0 - 0.15, o.z));
+  d.world.createCollider(RAPIER.ColliderDesc.cuboid(o.sx / 2, 0.15, o.sz / 2).setFriction(1.2), body);
+  const g = new THREE.Group();
+  g.add(box(o.sx, 0.3, o.sz, mat(o.color ?? 0x7d848c)));
+  for (const side of o.rails || []) {
+    const along = side === 'n' || side === 's';
+    const rx = side === 'e' ? o.sx / 2 - 0.05 : side === 'w' ? -o.sx / 2 + 0.05 : 0;
+    const rz = side === 's' ? o.sz / 2 - 0.05 : side === 'n' ? -o.sz / 2 + 0.05 : 0;
+    const lx = along ? o.sx : 0.1, lz = along ? 0.1 : o.sz;
+    g.add(box(lx, 0.08, lz, mat(0xf2c230), rx, 1.1, rz));
+    for (const k of [-0.5, 0.5]) g.add(box(0.08, 1.1, 0.08, mat(0xf2c230), rx + (along ? k * (o.sx - 0.1) : 0), 0.6, rz + (along ? 0 : k * (o.sz - 0.1))));
+    d.world.createCollider(RAPIER.ColliderDesc.cuboid(lx / 2, 0.6, lz / 2).setTranslation(rx, 0.75, rz), body);
+  }
+  if (o.cables) for (const k of [-1, 1]) g.add(box(0.04, 60, 0.04, mat(0x222428), (o.sx / 2 - 0.2) * k, 30, 0));
+  g.position.set(o.x, y0 - 0.15, o.z);
+  levelGroup.add(g);
+  // Lift doors: a barrier at each stop, open only while the lift is there.
+  const doors = [];
+  if (o.doors) for (const sy of o.stops) {
+    const dz = o.z + o.sz / 2 + 0.25;
+    const fb = fixedBox(o.x, sy + 1.2, dz, o.sx, 2.4, 0.1);
+    const dm = box(o.sx, 2.4, 0.06, new THREE.MeshStandardMaterial({ color: 0xc9d2da, metalness: 0.6, roughness: 0.3 }), o.x, sy + 1.2, dz);
+    levelGroup.add(dm);
+    doors.push({ y: sy, fb, mesh: dm, open: false });
+  }
+  const m = { ...o, body, g, y: y0, i: 0, dir: 1, waitT: o.wait ?? 3, doors, dy: 0 };
+  movers.push(m);
+  return m;
+}
+const _riders = [];
+function updateMovers(dt) {
+  for (const m of movers) {
+    const prevY = m.y;
+    if (m.waitT > 0) m.waitT -= dt;
+    else {
+      let ni = m.i + m.dir;
+      if (ni < 0 || ni >= m.stops.length) { m.dir *= -1; ni = m.i + m.dir; }
+      const ty = m.stops[ni];
+      const step = (m.speed ?? 1.6) * dt;
+      if (Math.abs(ty - m.y) <= step) { m.y = ty; m.i = ni; m.waitT = m.wait ?? 3; }
+      else m.y += Math.sign(ty - m.y) * step;
+    }
+    const dy = m.y - prevY;
+    m.body.setNextKinematicTranslation({ x: m.x, y: m.y - 0.15, z: m.z });
+    m.g.position.y = m.y - 0.15;
+    for (const dr of m.doors) {
+      const open = Math.abs(m.y - dr.y) < 0.05 && m.waitT > 0.4;
+      if (open !== dr.open) { dr.open = open; dr.fb.col.setEnabled(!open); dr.mesh.visible = !open; d.queryDirty = true; }
+    }
+    if (!dy) continue;
+    // People standing on it go with it.
+    for (const p of people) {
+      if (!p.rb || p.state === 'down') continue;
+      if (Math.abs(p.pos.x - m.x) < m.sx / 2 + 0.1 && Math.abs(p.pos.z - m.z) < m.sz / 2 + 0.1 && Math.abs(p.pos.y - prevY) < 0.35) {
+        p.pos.y = m.y; p.prev.y += dy; p.vy = 0;
+        p.rb.setNextKinematicTranslation({ x: p.pos.x, y: p.pos.y + p.cy, z: p.pos.z });
+      }
+    }
+  }
+}
+
 /** Scenery that never moves (marked userData.merge): one mesh per material. */
 function mergeStatic() {
   const byMat = new Map();
@@ -2822,6 +3239,8 @@ function makeBuilder() {
         }
       }
     },
+    /** Everything built after this stands on a floor this high (tower levels). */
+    floor(y) { BY = y; },
     person(role, x, z, opts = {}) { return spawnPerson(role, x, z, opts); },
     start(role, x, z, yaw) {
       const p = spawnPerson(role, x, z, { post: true, yaw });
@@ -2832,7 +3251,7 @@ function makeBuilder() {
     },
     gate(x, z, yaw, w, need) {
       const g = new THREE.Group();
-      g.position.set(x, 0, z);
+      g.position.set(x, BY, z);
       g.rotation.y = yaw;
       const postM = mat(0x5a5f66);
       g.add(box(0.3, 2.8, 0.3, postM, -w / 2 - 0.15, 1.4, 0), box(0.3, 2.8, 0.3, postM, w / 2 + 0.15, 1.4, 0));
@@ -2849,59 +3268,89 @@ function makeBuilder() {
       light.position.set(w / 2 + 0.15, 2.95, 0);
       g.add(light);
       levelGroup.add(g);
-      const fb = fixedBox(x, 1.2, z, w, 2.4, 0.25, yaw);
+      const fb = fixedBox(x, BY + 1.2, z, w, 2.4, 0.25, yaw);
       seeThrough.add(fb.col.handle);
-      gates.push({ x, z, w, need, open: false, panel, light, fb, lift: 0 });
+      gates.push({ x, y: BY, z, w, need, open: false, panel, light, fb, lift: 0 });
     },
     terminal(x, z) {
       const g = new THREE.Group();
-      g.position.set(x, 0, z);
+      g.position.set(x, BY, z);
       g.add(box(1.2, 0.9, 0.6, mat(0x4a4f57), 0, 0.45, 0));
       const screen = box(0.9, 0.6, 0.06, new THREE.MeshStandardMaterial({ color: 0x0a2a14, emissive: 0x2cff7a, emissiveIntensity: 0.8 }), 0, 1.25, 0.1);
       screen.rotation.x = 0.25;
       g.add(screen);
       levelGroup.add(g);
-      fixedBox(x, 0.45, z, 1.2, 0.9, 0.6);
+      fixedBox(x, BY + 0.45, z, 1.2, 0.9, 0.6);
       const ring = zoneRing(1.6, 0x2cff7a);
-      ring.position.set(x, 0.04, z + 1);
+      ring.position.set(x, BY + 0.04, z + 1);
       levelGroup.add(ring);
-      terminal = { x, z: z + 1, progress: 0, screen, ring };
+      terminal = { x, y: BY, z: z + 1, progress: 0, screen, ring };
     },
     extract(x, z, r, label) {
       const ring = zoneRing(r, 0x7cff4f);
-      ring.position.set(x, 0.04, z);
+      ring.position.set(x, BY + 0.04, z);
       const grate = new THREE.Mesh(new THREE.CircleGeometry(r - 0.3, 20).rotateX(-Math.PI / 2), mat(0x2b2f33));
-      grate.position.set(x, 0.03, z);
+      grate.position.set(x, BY + 0.03, z);
       const beam = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 14, 24, 1, true),
         new THREE.MeshBasicMaterial({ color: 0x7cff4f, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }));
-      beam.position.set(x, 7, z);
+      beam.position.set(x, BY + 7, z);
       beam.visible = false;
       // Once everything else is done: a tall pillar of light you can see from anywhere.
       const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 2, 90, 16, 1, true),
         new THREE.MeshBasicMaterial({ color: 0xb6ff8f, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, fog: false }));
-      pillar.position.set(x, 45, z);
+      pillar.position.set(x, BY + 45, z);
       pillar.visible = false;
       levelGroup.add(ring, grate, beam, pillar);
-      zones.push({ x, z, r, label, ring, beam, pillar });
+      zones.push({ x, y: BY, z, r, label, ring, beam, pillar });
     },
     /** Batched scenery: o = { shape: 'box'|'cyl', yaw, tilt, solid, shadow, glow }. */
-    prop(x, y, z, sx, sy, sz, color, o) { addProp(x, y, z, sx, sy, sz, color, o); },
+    prop(x, y, z, sx, sy, sz, color, o) { addProp(x, BY + y, z, sx, sy, sz, color, o); },
     staticBox(x, y, z, sx, sy, sz, color) {
-      levelGroup.add(box(sx, sy, sz, mat(color), x, y, z));
-      fixedBox(x, y, z, sx, sy, sz);
+      levelGroup.add(box(sx, sy, sz, mat(color), x, BY + y, z));
+      fixedBox(x, BY + y, z, sx, sy, sz);
     },
     target(siteObj, name) {
       const list = [...siteObj.members].map((e) => { const t = e.body.translation(); return { e, x: t.x, y: t.y, z: t.z }; });
       relay = { name, list, integrity: 1, checkT: 0 };
     },
     stealthLine(z) { stealthZ = z; },
-    camera(x, z, yaw, sweep = 0.8, h = 4.2) { addCamera(x, z, yaw, sweep, h); },
+    stealthFloor(y) { stealthY = y; },
+    camera(x, z, yaw, sweep = 0.8, h = 4.2) { addCamera(x, z, yaw, sweep, BY + h, BY); },
     fusebox(x, z, yaw = 0) { addFusebox(x, z, yaw); },
-    restricted(x0, z0, x1, z1, allow, label) { restricted.push({ x0, z0, x1, z1, allow: new Set(allow), label }); },
-    pickup(id, label, x, y, z) { addPickup(id, label, x, y, z); },
+    restricted(x0, z0, x1, z1, allow, label) { restricted.push({ x0, z0, x1, z1, y0: BY - 0.5, y1: BY + 4, allow: new Set(allow), label }); },
+    pickup(id, label, x, y, z) { addPickup(id, label, x, BY + y, z); },
     dropoff(id, x, z, r, label) { addDropoff(id, x, z, r, label); },
+    glass(x0, z0, x1, z1, h = 3.6, panes = 1) { addGlass(x0, z0, x1, z1, h, panes); },
+    mover(o) { return addMover(o); },
+    ramp(x0, z0, x1, z1, y0, y1, w, color) { addRamp(x0, z0, x1, z1, BY + y0, BY + y1, w, color); },
     water(x0, z0, x1, z1) { addWater(x0, z0, x1, z1); },
   };
+}
+
+/** Night city around the level: towers with lit windows. */
+let skylineMat = null;
+function buildSkyline(half) {
+  if (!skylineMat) {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 128;
+    const g = c.getContext('2d');
+    g.fillStyle = '#000'; g.fillRect(0, 0, 64, 128);
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 8; x++) {
+      if (Math.random() < 0.42) { g.fillStyle = Math.random() < 0.8 ? '#ffd890' : '#9fd4ff'; g.fillRect(x * 8 + 2, y * 4 + 1, 4, 2); }
+    }
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    skylineMat = new THREE.MeshStandardMaterial({ color: 0x1d2230, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.9, roughness: 0.9 });
+  }
+  for (let i = 0; i < 34; i++) {
+    const a = (i / 34) * TAU + rand(-0.05, 0.05);
+    const r = half + rand(14, 60);
+    const w = rand(10, 22), h = rand(30, 110);
+    const t = new THREE.Mesh(BOX, skylineMat);
+    t.scale.set(w, h, rand(10, 22));
+    t.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r);
+    t.rotation.y = rand(0, 1);
+    t.userData.merge = true;
+    levelGroup.add(t);
+  }
 }
 
 function buildPerimeter(half) {
@@ -2914,6 +3363,7 @@ function buildPerimeter(half) {
   const base = new THREE.Mesh(new THREE.PlaneGeometry(500, 500).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: look.base ?? 0x93a184, roughness: 1 }));
   base.receiveShadow = true;
   levelGroup.add(base);
+  if (look.city) { buildSkyline(half); return; }
   // Low-poly hills beyond the walls.
   const hillM = mat(look.hills ?? 0x7e9a6a);
   for (let i = 0; i < 26; i++) {
@@ -2975,17 +3425,20 @@ function loadLevel(i, menu = false) {
   game.exitOpen = false;
   $('exitMark').classList.add('hidden'); $('goalMark').classList.add('hidden');
   personByHandle.clear();
-  seeThrough.clear();
+  seeThrough.clear(); glassHandles.clear(); movers = []; panes = [];
   Object.assign(game, { time: 0, alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0, over: false, hostsUsed: 0, bodiesFound: 0, paused: false });
-  Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, growing: null, form: 0, absorbed: [], absorbedLabel: '', shellWarned: false, puddleTold: false });
+  Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, growing: null, form: 0, absorbed: [], absorbedLabel: '', shellWarned: false, puddleTold: false, zoom: false });
   input.eat = input.grow = false;
   slimeMesh.visible = false;
   objectives = L.objectives.map((o) => ({ ...o, done: false }));
 
   buildPerimeter(L.half);
   propBatches = new Map();
+  stealthY = null; BY = 0;
   L.build(makeBuilder());
+  BY = 0;
   flushProps();
+  flushGlass();
   mergeStatic();
   director = people.find((p) => p.role.vip);
   d.queryDirty = true;
@@ -3002,21 +3455,23 @@ function loadLevel(i, menu = false) {
 let personSeq = 0;
 function spawnPerson(roleId, x, z, opts) {
   const role = ROLES[roleId];
+  const y0 = opts.y ?? BY;
   const mesh = buildPerson(role);
   levelGroup.add(mesh.group);
   const p = {
     id: personSeq++, roleId, role, mesh, opts, armed: !!role.armed, items: [...role.items], roles: [roleId], label: role.label,
-    pos: new THREE.Vector3(x, 0, z), prev: new THREE.Vector3(x, 0, z), yaw: opts.yaw ?? Math.random() * TAU, lookYaw: null,
+    pos: new THREE.Vector3(x, y0, z), prev: new THREE.Vector3(x, y0, z), vy: 0, yaw: opts.yaw ?? Math.random() * TAU, lookYaw: null,
     hp: HUMAN.hp, state: 'routine', goal: null, speed: 0, wait: rand(0, 2), ri: 0,
     walk: 0, moved: 0, stuckT: 0, timer: 0, sus: 0, aware: false, seeing: false,
     shootT: 0, stompT: 0, stompCD: 0, icon: null, iconT: 0, aimT: 0, swingT: 0, downT: 0,
-    halfH: 0.45, r: 0.3, post: opts.post ? { x, z, yaw: opts.yaw ?? 0 } : null,
+    halfH: 0.45, r: 0.3, post: opts.post ? { x, y: y0, z, yaw: opts.yaw ?? 0 } : null,
   };
   p.cy = p.halfH + p.r + 0.06;
-  p.rb = d.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, p.cy, z));
+  p.rb = d.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y0 + p.cy, z));
   p.col = d.world.createCollider(RAPIER.ColliderDesc.capsule(p.halfH, p.r).setFriction(0.3), p.rb);
   personByHandle.set(p.col.handle, p);
-  if (p.armed) {
+  if (role.sniper) addLaser(p);
+  else if (p.armed) {
     const n = 16;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(new Array((n + 1) * 3).fill(0), 3));
@@ -3048,17 +3503,32 @@ function moveChar(p, vx, vz, dt) {
   ctrl.setCharacterMass(HUMAN.mass);
   // Only filter (a call back into JS per nearby collider) while there's a slime to walk through.
   const slimeH = player.slime?.col.handle;
-  ctrl.computeColliderMovement(p.col, { x: vx * dt, y: -4 * dt, z: vz * dt }, undefined, undefined,
+  // Falling: off a ledge, out of a window, down a lift shaft.
+  p.vy = (p.vy || 0) - GRAV * dt;
+  ctrl.computeColliderMovement(p.col, { x: vx * dt, y: Math.min(-4 * dt, p.vy * dt), z: vz * dt }, undefined, undefined,
     slimeH === undefined ? undefined : (c) => c.handle !== slimeH);
   const m = ctrl.computedMovement();
   const ox = p.pos.x, oz = p.pos.z;
   p.pos.x += m.x; p.pos.z += m.z;
   p.pos.y = Math.max(0, p.pos.y + m.y);
+  if (ctrl.computedGrounded() || p.pos.y <= 0) {
+    if (p.vy < -FALL_HURT) hardLanding(p, p.vy);
+    p.vy = 0;
+  }
   const half = game.level.half - 0.6;
   p.pos.x = clamp(p.pos.x, -half, half);
   p.pos.z = clamp(p.pos.z, -half, half);
   p.rb.setNextKinematicTranslation({ x: p.pos.x, y: p.pos.y + p.cy, z: p.pos.z });
   p.speed = Math.hypot(p.pos.x - ox, p.pos.z - oz) / dt;
+}
+
+const FALL_HURT = 13;  // m/s at impact: about a two-floor drop
+function hardLanding(p, vy) {
+  const dmg = (-vy - FALL_HURT) * 22 + 40;
+  burst(new THREE.Vector3(p.pos.x, p.pos.y + 0.3, p.pos.z), 10, 0xb33a3a, { speed: 2, up: 2, size: 0.08 });
+  sfx.thud(1);
+  if (p === player.host) shake = Math.max(shake, 0.5);
+  damagePerson(p, dmg, p.pos);
 }
 
 function removePersonPhysics(p) {
@@ -3084,7 +3554,7 @@ function kill(p, why) {
   p.mesh.eyeMat.emissive.setHex(0);
   if (why === 'drained') {
     p.mesh.shirt.color.set(0x9fae96);
-    splat(p.pos.x, p.pos.z, 0.8);
+    splat(p.pos.x, p.pos.z, 0.8, p.pos.y);
   }
   if (why === 'eaten') p.mesh.group.visible = false; // nothing left to find
   else bodies.push({ p, found: false, pos: p.pos.clone(), at: game.time });
@@ -3168,7 +3638,7 @@ function syncPersonMesh(p, dt) {
     m.shirt.emissiveIntensity = 0;
   }
   if (p.cone) {
-    p.cone.position.set(p.pos.x, 0.02, p.pos.z);
+    p.cone.position.set(p.pos.x, p.pos.y + 0.02, p.pos.z);
     p.cone.rotation.y = p.yaw;
     const hot = game.alert || p.state === 'investigate' || p.state === 'combat' || p.state === 'stomp' || p.sus > 0.2;
     p.cone.material.color.setHex(hot ? 0xff4d5e : 0xffe36b);
@@ -3201,16 +3671,16 @@ function npcStep(p, dt) {
         const c = Math.cos(lead.yaw), s = Math.sin(lead.yaw);
         const [ox, oz] = p.opts.offset;
         const tx = lead.pos.x + ox * c + oz * s, tz = lead.pos.z - ox * s + oz * c;
-        if (Math.hypot(tx - p.pos.x, tz - p.pos.z) > 0.7) p.goal = new THREE.Vector3(tx, 0, tz);
+        if (Math.hypot(tx - p.pos.x, tz - p.pos.z) > 0.7) p.goal = new THREE.Vector3(tx, p.pos.y, tz);
         else { p.goal = null; p.lookYaw = lead.yaw + Math.sin(game.time * 0.5 + p.id) * 0.9; }
         speed = Math.max(1.5, lead.speed * 1.2);
         break;
       }
       if (p.wait > 0) { p.wait -= dt; p.goal = null; }
       else if (!p.goal) {
-        if (p.opts.route) { const r = p.opts.route[p.ri % p.opts.route.length]; p.goal = new THREE.Vector3(r[0], 0, r[1]); }
-        else if (p.opts.wander) p.goal = randomIn(p.opts.wander);
-        else if (p.post && Math.hypot(p.pos.x - p.post.x, p.pos.z - p.post.z) > 0.6) p.goal = new THREE.Vector3(p.post.x, 0, p.post.z);
+        if (p.opts.route) { const r = p.opts.route[p.ri % p.opts.route.length]; p.goal = new THREE.Vector3(r[0], r[2] ?? p.pos.y, r[1]); if (r[2] !== undefined) p.goal.stairs = true; }
+        else if (p.opts.wander) p.goal = randomIn(p.opts.wander).setY(p.pos.y);
+        else if (p.post && Math.hypot(p.pos.x - p.post.x, p.pos.z - p.post.z) > 0.6) p.goal = new THREE.Vector3(p.post.x, p.post.y, p.post.z);
       }
       if (p.post && !p.goal) p.lookYaw = p.post.yaw + Math.sin(game.time * 0.35 + p.id) * 0.75;
       break;
@@ -3246,7 +3716,7 @@ function npcStep(p, dt) {
       if (!s || p.timer <= 0) { p.state = 'cower'; p.timer = 3; p.goal = null; p.stompT = 0; break; }
       const t = s.now;
       const dist = Math.hypot(t.x - p.pos.x, t.z - p.pos.z);
-      p.goal = dist > 1.0 && p.stompT <= 0 ? new THREE.Vector3(t.x, 0, t.z) : null;
+      p.goal = dist > 1.0 && p.stompT <= 0 ? new THREE.Vector3(t.x, p.pos.y, t.z) : null;
       if (!p.goal) p.lookYaw = Math.atan2(t.x - p.pos.x, t.z - p.pos.z);
       if (p.stompT > 0) {
         p.stompT -= dt;
@@ -3256,6 +3726,11 @@ function npcStep(p, dt) {
     }
   }
   let vx = 0, vz = 0;
+  // Somewhere on another floor: they can't get there from here (routes say when they take the stairs).
+  if (p.goal && !p.goal.stairs && Math.abs(p.goal.y - p.pos.y) > 2.6) {
+    p.goal = null;
+    if (p.state === 'investigate' || p.state === 'search') p.timer = Math.min(p.timer, 1);
+  }
   if (p.goal) {
     const dx = p.goal.x - p.pos.x, dz = p.goal.z - p.pos.z;
     const dist = Math.hypot(dx, dz);
@@ -3293,7 +3768,7 @@ function npcStep(p, dt) {
 
 const _sightRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
 function blocksSight(c) {
-  if (personByHandle.has(c.handle) || seeThrough.has(c.handle)) return false;
+  if (personByHandle.has(c.handle) || seeThrough.has(c.handle) || glassHandles.has(c.handle)) return false;
   if (player.slime && c.handle === player.slime.col.handle) return false;
   const e = d.byCollider.get(c.handle);
   if (e && (e.kind.glass || e.kind.name === 'fence' || e.kind.name === 'fenceBit' || e.kind.name === 'cone' || (e.fragment && e.kind.mass < 40))) return false;
@@ -3315,9 +3790,10 @@ const _eye = new THREE.Vector3();
 function canSee(p, pt) {
   const dx = pt.x - p.pos.x, dz = pt.z - p.pos.z;
   const dist = Math.hypot(dx, dz);
-  const range = HUMAN.range * (p.state === 'cower' ? 0.5 : 1) * (game.alert && p.armed ? 1.3 : 1);
+  const sn = p.role.sniper;
+  const range = HUMAN.range * (sn ? SNIPER_RANGE : 1) * (p.state === 'cower' ? 0.5 : 1) * (game.alert && p.armed ? 1.3 : 1);
   if (dist > range) return false;
-  if (dist > 1.8 && Math.abs(angDiff(p.yaw, Math.atan2(dx, dz))) > HUMAN.fov / 2) return false;
+  if (dist > 1.8 && Math.abs(angDiff(p.yaw, Math.atan2(dx, dz))) > (sn ? SNIPER_FOV : HUMAN.fov) / 2) return false;
   _eye.set(p.pos.x, p.pos.y + 1.62, p.pos.z);
   return clearLine(_eye, pt);
 }
@@ -3375,7 +3851,7 @@ function stompLand(p) {
   if (Math.hypot(t.x - foot.x, t.z - foot.z) > 0.95 || t.y > 0.9) return;
   player.health -= STOMP_DMG * (1 - 0.15 * player.form);
   shake = Math.max(shake, 0.35);
-  splat(t.x, t.z, 0.5);
+  splat(t.x, t.z, 0.5, t.y - SLIME_R);
   sfx.splat();
   burst(new THREE.Vector3(t.x, 0.2, t.z), 12, 0x7cff4f, { speed: 3, up: 1.5, size: 0.08 });
   // Squirts out from under the foot.
@@ -3447,7 +3923,7 @@ function flee(p, from) {
   p.timer = 3;
   const dx = p.pos.x - from.x, dz = p.pos.z - from.z;
   const l = Math.hypot(dx, dz) || 1;
-  p.goal = clampGoal(new THREE.Vector3(p.pos.x + (dx / l) * 10, 0, p.pos.z + (dz / l) * 10));
+  p.goal = clampGoal(new THREE.Vector3(p.pos.x + (dx / l) * 10, p.pos.y, p.pos.z + (dz / l) * 10));
   if (Math.random() < 0.6) sfx.scream();
 }
 
@@ -3473,7 +3949,7 @@ function think(p) {
   }
   for (const b of bodies) {
     if (b.found || game.time - b.at < 1.2) continue; // still falling: nobody's sure what they saw yet
-    if (canSee(p, new THREE.Vector3(b.pos.x, 0.35, b.pos.z))) {
+    if (canSee(p, new THREE.Vector3(b.pos.x, b.pos.y + 0.35, b.pos.z))) {
       b.found = true;
       game.bodiesFound++;
       game.lastKnown.copy(b.pos);
@@ -3564,7 +4040,7 @@ function enterHost(p, quiet = false) {
   if (!quiet) {
     sfx.infect();
     burst(new THREE.Vector3(p.pos.x, 1.4, p.pos.z), 22, 0x7cff4f, { speed: 3, up: 3, size: 0.1 });
-    if (t) splat(t.x, t.z, 0.4);
+    if (t) splat(t.x, t.z, 0.4, p.pos.y);
     const items = p.items.map((i) => ITEMS[i].label).join(' + ');
     toast(p.label, items ? `Holding: ${items}` : 'Empty-handed', 1.8);
   }
@@ -3634,14 +4110,14 @@ function rayFrom(origin, dir, maxDist, exclude) {
   };
 }
 
-function fireGun(shooter, aim, spread, dmgPerson) {
+function fireGun(shooter, aim, spread, dmgPerson, slimeDmg = 25, range = 70) {
   const fwd = new THREE.Vector3(Math.sin(shooter.yaw), 0, Math.cos(shooter.yaw));
   const origin = new THREE.Vector3(shooter.pos.x, shooter.pos.y + 1.35, shooter.pos.z).addScaledVector(fwd, 0.5);
   const dir = aim.clone().sub(origin).normalize();
   dir.x += rand(-spread, spread); dir.y += rand(-spread, spread) * 0.5; dir.z += rand(-spread, spread);
   dir.normalize();
-  const hit = rayFrom(origin, dir, 70, shooter.col);
-  const end = origin.clone().addScaledVector(dir, hit ? hit.dist : 70);
+  const hit = rayFrom(origin, dir, range, shooter.col);
+  const end = origin.clone().addScaledVector(dir, hit ? hit.dist : range);
   tracer(origin, end);
   burst(origin, 3, 0xffe08a, { speed: 1, up: 1, size: 0.07, life: 0.15, grav: 0 });
   sfx.shot();
@@ -3652,7 +4128,7 @@ function fireGun(shooter, aim, spread, dmgPerson) {
     burst(end, 6, 0xb33a3a, { speed: 2, up: 2, size: 0.07, life: 0.4 });
     damagePerson(hit.person, dmgPerson, shooter.pos);
   } else if (hit.slime) {
-    player.health -= 25;
+    player.health -= slimeDmg;
     burst(end, 10, 0x7cff4f, { speed: 3, up: 2, size: 0.08 });
   } else if (hit.entity) {
     d.damageEntity(hit.entity, 6, end, dir);
@@ -3749,6 +4225,11 @@ function useItem() {
     fireGun(h, T, 0.008, 55);
     player.itemCD = 0.28;
     loudAct(h.pos.clone(), 30, 30);
+  } else if (it === 'rifle') {
+    fireGun(h, T, 0, 160, 60, 160);
+    player.itemCD = 1.3;
+    shake = Math.max(shake, 0.2);
+    loudAct(h.pos.clone(), 40, 28);
   } else if (it === 'hammer') {
     const fwd = new THREE.Vector3(Math.sin(h.yaw), 0, Math.cos(h.yaw));
     const at = h.pos.clone().addScaledVector(fwd, 1.4).setY(1.0);
@@ -3850,6 +4331,9 @@ function updateCamera(dt) {
   camera.position.x += (Math.random() - 0.5) * shake * 0.5;
   camera.position.y += (Math.random() - 0.5) * shake * 0.5;
   camera.lookAt(_camWant.copy(camera.position).add(camFwd));
+  if (player.zoom && activeItem(player.host) !== 'rifle') player.zoom = false;
+  const fov = player.zoom ? 20 : 62;
+  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 12); camera.updateProjectionMatrix(); }
   // Move the shadow map in whole texels so shadows don't shimmer as you walk.
   const texel = (sun.shadow.camera.right - sun.shadow.camera.left) / sun.shadow.mapSize.x;
   const u = Math.round((camPivot.x * SUN_U.x + camPivot.z * SUN_U.z) / texel) * texel;
@@ -3864,7 +4348,7 @@ function updateCamera(dt) {
 function updateAim() {
   const o = camera.position;
   const dir = camFwd;
-  let best = null, bestT = 60;
+  let best = null, bestT = player.zoom ? 150 : 60;
   for (const q of people) {
     if (q.state === 'down' || q === player.host) continue;
     const cx = q.pos.x - o.x, cy = q.pos.y + 1.0 - o.y, cz = q.pos.z - o.z;
@@ -3878,9 +4362,10 @@ function updateAim() {
   _sightRay.dir = { x: dir.x, y: dir.y, z: dir.z };
   const exclude = player.host?.col;
   const slimeH = player.slime?.col.handle;
-  const hit = d.world.castRay(_sightRay, 80, true, undefined, undefined, exclude, undefined,
+  const reach = player.zoom ? 160 : 80;
+  const hit = d.world.castRay(_sightRay, reach, true, undefined, undefined, exclude, undefined,
     (c) => !seeThrough.has(c.handle) && c.handle !== slimeH && !personByHandle.has(c.handle));
-  const worldT = hit ? hit.timeOfImpact : 80;
+  const worldT = hit ? hit.timeOfImpact : reach;
   if (best && bestT < worldT + 0.5) {
     player.aimPerson = best;
     player.aimPoint.set(best.pos.x, best.pos.y + 1.15, best.pos.z);
@@ -3996,7 +4481,7 @@ function tick(dt) {
   for (const p of people) {
     if (p === player.host || p.state === 'down') continue;
     // Further away, nobody can tell: move them half or a third as often.
-    const dist = Math.abs(p.pos.x - camPivot.x) + Math.abs(p.pos.z - camPivot.z);
+    const dist = Math.abs(p.pos.x - camPivot.x) + Math.abs(p.pos.z - camPivot.z) + Math.abs(p.pos.y + 1.7 - camPivot.y) * 4;
     const busy = p.state === 'combat' || p.state === 'stomp';
     const stride = busy || dist < 24 ? 1 : dist < 45 ? 2 : 3;
     if ((tickN + p.id) % stride) continue;
@@ -4009,6 +4494,7 @@ function tick(dt) {
 
   const tp = targetPoint();
   for (const p of people) {
+    if (p.role.sniper) { sniperStep(p, tp, dt); continue; }
     if (p.state !== 'combat' || !tp) continue;
     p.lookYaw = Math.atan2(tp.x - p.pos.x, tp.z - p.pos.z);
     if (p.shootT <= 0 && Math.abs(angDiff(p.yaw, p.lookYaw)) < 0.3) {
@@ -4018,6 +4504,7 @@ function tick(dt) {
     }
   }
 
+  updateMovers(dt);
   d.step(null);
   updateGrenades(dt);
 
@@ -4054,7 +4541,13 @@ function tick(dt) {
         sb.setLinvel({ x: v.x + (dx / dist * sp - v.x) * 0.15, y: v.y, z: v.z + (dz / dist * sp - v.z) * 0.15 }, true);
       }
     }
-    if (player.slime.lastVy < -3 && v.y > -1 && t.y < 1.2) { splat(t.x, t.z); sfx.splat(); }
+    if (player.slime.lastVy < -3 && v.y > -1 && (t.y < 1.2 || game.level.floors)) {
+      splat(t.x, t.z, 0.6, t.y - SLIME_R); sfx.splat();
+      // Too far a drop and the slime just goes everywhere.
+      if (player.slime.lastVy < -SLIME_FALL) { player.health = 0; player.slime.fell = true; splat(t.x, t.z, 2, t.y - SLIME_R); }
+    }
+    // Flung hard enough, the slime goes straight through a window.
+    if (!player.slime.landed && Math.hypot(v.x, v.y, v.z) > 7) for (const b of breakables) if (b.glass && b.alive && Math.abs(t.x - b.x) < b.hx + 0.45 && Math.abs(t.z - b.z) < b.hz + 0.45 && Math.abs(t.y - b.y) < b.hy) breakIt(b);
     player.slime.lastVy = v.y;
     if (game.time - player.slime.born > 0.12) {
       for (const p of people) {
@@ -4073,12 +4566,12 @@ function tick(dt) {
     }
     if (player.slime && t.y < -5) lose('Lost', 'The slime fell out of the world.');
   }
-  if (player.health <= 0 && !game.over) lose('The slime died', player.slime && player.slime.wet ? 'It dissolved in the salt water.' : player.slime && player.slime.dried ? 'It dried out in the open.' : 'Out in the open, people got to it first.');
+  if (player.health <= 0 && !game.over) lose('The slime died', player.slime && player.slime.wet ? 'It dissolved in the salt water.' : player.slime && player.slime.fell ? 'It fell too far and splattered.' : player.slime && player.slime.dried ? 'It dried out in the open.' : 'Out in the open, people got to it first.');
 
   // Gates open for anyone holding a keycard.
   for (const g of gates) {
     if (g.open) { g.lift = Math.min(1, g.lift + dt * 1.5); g.panel.position.y = -g.lift * 2.6; continue; }
-    const near = h && Math.hypot(h.pos.x - g.x, h.pos.z - g.z) < 3;
+    const near = h && Math.abs(h.pos.y - g.y) < 2 && Math.hypot(h.pos.x - g.x, h.pos.z - g.z) < 3;
     const ok = hasItem(h, g.need);
     const needLabel = ITEMS[g.need].label.toLowerCase();
     if (near && ok) {
@@ -4186,7 +4679,7 @@ function remainingText() {
 function updateObjectives(dt) {
   if (game.over) return;
   const at = player.host?.pos ?? (player.slime ? player.slime.body.translation() : null);
-  if (at && pending('stealth') && at.z < stealthZ - 1.5) completeObjective('stealth');
+  if (at && pending('stealth') && (stealthY !== null ? at.y > stealthY - 0.6 : at.z < stealthZ - 1.5)) completeObjective('stealth');
   if (relay && pending('relay')) {
     relay.checkT -= dt;
     if (relay.checkT <= 0) {
@@ -4203,15 +4696,16 @@ function updateObjectives(dt) {
   }
   if (terminal && pending('files')) {
     const hh = player.host;
-    if (hh && hasItem(hh, 'keycard') && Math.hypot(hh.pos.x - terminal.x, hh.pos.z - terminal.z) < 1.7) {
+    if (hh && hasItem(hh, 'keycard') && Math.abs(hh.pos.y - terminal.y) < 1.5 && Math.hypot(hh.pos.x - terminal.x, hh.pos.z - terminal.z) < 1.7) {
       const before = Math.floor(terminal.progress * 10);
       terminal.progress = Math.min(1, terminal.progress + dt / 5);
       if (Math.floor(terminal.progress * 10) !== before) sfx.beep();
       if (terminal.progress >= 1) { terminal.ring.visible = false; completeObjective('files'); }
     }
   }
+  if (pending('snipers') && people.every((q) => !q.role.sniper || q.state === 'down' || q === player.host)) completeObjective('snipers');
   if (restDone() && at) {
-    for (const z of zones) if (Math.hypot(at.x - z.x, at.z - z.z) < z.r) { completeObjective('extract'); win(); }
+    for (const z of zones) if (Math.abs(at.y - z.y) < 2 && Math.hypot(at.x - z.x, at.z - z.z) < z.r) { completeObjective('extract'); win(); }
   }
 }
 
@@ -4221,6 +4715,7 @@ function objectiveDetail(o) {
   if (o.id === 'relay' && relay) return ` Standing: ${Math.round(relay.integrity * 100)}% (needs 40%).`;
   if (o.id === 'power' && power) return ` ${power.broken}/${power.total} wrecked.`;
   if (o.id === 'deliver') { const pk = pickups[0]; if (pk && player.carry === pk) return ' You have it.'; if (pk && pk.dropped) return ' Dropped: it\'s where your last host fell.'; }
+  if (o.id === 'snipers') { const n = people.filter((q) => q.role.sniper && q.state !== 'down' && q !== player.host).length; return ` ${n} still up.`; }
   if (o.id === 'extract' && !restDone()) return ' Finish the rest first.';
   return '';
 }
@@ -4251,7 +4746,7 @@ function breakNear(pos, r) {
 
 // Security cameras sweep back and forth. They see like a guard but further, and call guards over.
 const CAM_RANGE = 17, CAM_FOV = 1.0;
-function addCamera(x, z, base, sweep, h) {
+function addCamera(x, z, base, sweep, h, fy = 0) {
   const head = new THREE.Group();
   head.position.set(x, h, z);
   head.add(box(0.36, 0.3, 0.62, mat(0xe8e4da), 0, 0, 0.1));
@@ -4259,7 +4754,9 @@ function addCamera(x, z, base, sweep, h) {
   const led = box(0.08, 0.08, 0.04, new THREE.MeshBasicMaterial({ color: 0x44ff66 }), 0.12, 0.1, 0.43);
   head.add(led);
   levelGroup.add(head);
-  addProp(x, h / 2, z, 0.16, h, 0.16, 0x5a5f66, { shape: 'cyl' });
+  // On a pole from the floor, or hung from the ceiling indoors.
+  if (fy) addProp(x, h + 0.5, z, 0.12, 1, 0.12, 0x5a5f66, { shape: 'cyl' });
+  else addProp(x, h / 2, z, 0.16, h, 0.16, 0x5a5f66, { shape: 'cyl' });
   const n = 14;
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(new Array((n + 1) * 3).fill(0), 3));
@@ -4270,7 +4767,7 @@ function addCamera(x, z, base, sweep, h) {
   cone.renderOrder = 2;
   cone.frustumCulled = false;
   levelGroup.add(cone);
-  const c = { x, z, h, base, sweep, phase: Math.random() * TAU, yaw: base, alive: true, head, led, cone, sus: 0, alerted: false, coneT: 0 };
+  const c = { x, z, h, fy, base, sweep, phase: Math.random() * TAU, yaw: base, alive: true, head, led, cone, sus: 0, alerted: false, coneT: 0 };
   c.b = addBreakable(x, h, z, 0.5, 0.45, 0.7, () => {
     c.alive = false;
     c.cone.visible = false;
@@ -4337,10 +4834,10 @@ function updateCams() {
 function updateCamCone(c) {
   const pos = c.cone.geometry.attributes.position;
   const n = pos.count - 1;
-  c.cone.position.set(c.x, 0.03, c.z);
+  c.cone.position.set(c.x, c.fy + 0.03, c.z);
   c.cone.rotation.y = c.yaw;
   pos.setXYZ(0, 0, 0, 0);
-  const o = { x: c.x, y: 1.0, z: c.z };
+  const o = { x: c.x, y: c.fy + 1.0, z: c.z };
   for (let i = 0; i < n; i++) {
     const a = -CAM_FOV / 2 + (CAM_FOV * i) / (n - 1);
     const wa = c.yaw + a;
@@ -4384,14 +4881,14 @@ function addFusebox(x, z, yaw) {
 let powerLights = [];
 
 /** No-go zones: hosts whose job doesn't belong there get noticed by guards and cameras. */
-function zoneAt(x, z) {
+function zoneAt(x, z, y = 0) {
   let found = null;
-  for (const r of restricted) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) found = r;
+  for (const r of restricted) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1 && y > r.y0 && y < r.y1) found = r;
   return found;
 }
 function updateTrespass() {
   const h = player.host;
-  const r = h ? zoneAt(h.pos.x, h.pos.z) : null;
+  const r = h ? zoneAt(h.pos.x, h.pos.z, h.pos.y) : null;
   player.trespass = r && !h.roles.some((id) => r.allow.has(id)) ? `No-go zone: ${r.label}` : '';
 }
 /** Is the current host doing something a guard would notice? (p = the guard, or null for a camera) */
@@ -4417,27 +4914,27 @@ function addPickup(id, label, x, y, z) {
   g.position.set(x, y, z);
   levelGroup.add(g);
   const ring = zoneRing(1.1, 0xffd23c);
-  ring.position.set(x, 0.05, z);
+  ring.position.set(x, y - 0.93, z);
   levelGroup.add(ring);
   // A yellow beam up through the roof, so you can find it from outside.
   const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.6, 30, 10, 1, true),
     new THREE.MeshBasicMaterial({ color: 0xffd23c, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false, fog: false }));
-  beam.position.set(x, 15, z);
+  beam.position.set(x, y + 15, z);
   levelGroup.add(beam);
   pickups.push({ id, label, mesh: g, ring, beam, pos: new THREE.Vector3(x, y, z), held: false, dropped: false, done: false });
 }
 function addDropoff(id, x, z, r, label) {
   const ring = zoneRing(r, 0xffd23c);
-  ring.position.set(x, 0.05, z);
+  ring.position.set(x, BY + 0.05, z);
   levelGroup.add(ring);
-  dropoffs.push({ id, x, z, r, label, ring });
+  dropoffs.push({ id, x, y: BY, z, r, label, ring });
 }
 function updatePickups() {
   const h = player.host;
   if (!h) return;
   if (!player.carry) {
     for (const pk of pickups) {
-      if (pk.done || pk.held || Math.hypot(h.pos.x - pk.pos.x, h.pos.z - pk.pos.z) > 1.3) continue;
+      if (pk.done || pk.held || Math.abs(h.pos.y + 0.9 - pk.pos.y) > 1.6 || Math.hypot(h.pos.x - pk.pos.x, h.pos.z - pk.pos.z) > 1.3) continue;
       pk.held = true;
       pk.dropped = false;
       player.carry = pk;
@@ -4453,12 +4950,12 @@ function updatePickups() {
   } else {
     const pk = player.carry;
     const dz = dropoffs.find((x) => x.id === pk.id);
-    if (dz && Math.hypot(h.pos.x - dz.x, h.pos.z - dz.z) < dz.r) {
+    if (dz && Math.abs(h.pos.y - dz.y) < 2 && Math.hypot(h.pos.x - dz.x, h.pos.z - dz.z) < dz.r) {
       player.carry = null;
       pk.held = false;
       pk.done = true;
       levelGroup.add(pk.mesh);
-      pk.mesh.position.set(dz.x, 0.9, dz.z);
+      pk.mesh.position.set(dz.x, dz.y + 0.9, dz.z);
       dz.ring.visible = false;
       completeObjective('deliver');
     }
@@ -4471,12 +4968,12 @@ function dropCarry(at) {
   pk.held = false;
   pk.dropped = true;
   levelGroup.add(pk.mesh);
-  pk.pos.set(at.x, 0.12, at.z);
+  pk.pos.set(at.x, at.y + 0.12, at.z);
   pk.mesh.position.copy(pk.pos);
   pk.mesh.rotation.set(Math.PI / 2, 0, Math.random());
-  pk.ring.position.set(at.x, 0.05, at.z);
+  pk.ring.position.set(at.x, at.y + 0.05, at.z);
   pk.ring.visible = true;
-  pk.beam.position.set(at.x, 15, at.z);
+  pk.beam.position.set(at.x, at.y + 15, at.z);
 }
 
 /** Salt water: slime dissolves in it. Rails keep people out. */
@@ -4544,6 +5041,74 @@ function swapItem() {
 }
 
 /** Eat the host you're in: the slime grows and keeps what they held. No jump: it drops out where they stood, and it's loud. */
+// --- Snipers -----------------------------------------------------------------------------------
+
+const SNIPER_RANGE = 4.2;   // × a person's normal sight: about 55 m
+const SNIPER_FOV = 0.7;     // a narrow scope
+const SNIPER_LOCK = 1.4;    // seconds the laser sits on you before the shot
+const LASER_GEO = new THREE.BoxGeometry(1, 1, 1).translate(0, 0, 0.5);
+function addLaser(p) {
+  const m = new THREE.Mesh(LASER_GEO, new THREE.MeshBasicMaterial({ color: 0xff2a2a, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  m.frustumCulled = false;
+  m.renderOrder = 3;
+  levelGroup.add(m);
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3a3a, fog: false }));
+  levelGroup.add(dot);
+  p.laser = { mesh: m, dot, len: 30, castT: 0, pitch: 0 };
+  p.lockT = 0;
+}
+const _lzO = new THREE.Vector3(), _lzD = new THREE.Vector3();
+/** Snipers sweep, lock their laser on what they've seen, then take one heavy shot. */
+function sniperStep(p, tp, dt) {
+  if (p.state === 'down' || p.state === 'host') return;
+  if (p.state === 'combat' && tp && ((p.sightT = (p.sightT || 0) + 1) % 6 === 0)) p.sees = canSee(p, tp);
+  const locking = p.state === 'combat' && tp && p.sees;
+  if (locking) {
+    p.lookYaw = Math.atan2(tp.x - p.pos.x, tp.z - p.pos.z);
+    p.lockT += dt;
+    if (p.lockT > SNIPER_LOCK && p.shootT <= 0) {
+      const dist = p.pos.distanceTo(tp);
+      fireGun(p, tp, 0.002 + dist * 0.0004, 120, 60, 90);
+      sfx.shot();
+      p.shootT = 2.4;
+      p.lockT = 0.3;
+    }
+  } else p.lockT = Math.max(0, p.lockT - dt * 2);
+}
+/** Draw a sniper's laser: where they're looking, and bright when they're locking on. */
+function updateLaser(p) {
+  const L = p.laser;
+  if (!L) return;
+  const on = p.state !== 'down' && p.state !== 'host';
+  L.mesh.visible = L.dot.visible = on;
+  if (!on) return;
+  const g = p.mesh.group;
+  _lzO.set(g.position.x, g.position.y + 1.4, g.position.z);
+  const tp = p.lockT > 0 ? targetPoint() : null;
+  const yaw = g.rotation.y;
+  let pitch = -0.06;
+  if (tp) pitch = Math.atan2(tp.y - _lzO.y, Math.hypot(tp.x - _lzO.x, tp.z - _lzO.z));
+  L.pitch += (pitch - L.pitch) * 0.2;
+  _lzD.set(Math.sin(yaw) * Math.cos(L.pitch), Math.sin(L.pitch), Math.cos(yaw) * Math.cos(L.pitch));
+  _lzO.addScaledVector(_lzD, 0.9);
+  if ((L.castT = (L.castT + 1) % 3) === 0) {
+    const hit = castSight(_lzO, _lzD, 70);
+    L.len = hit ? hit.timeOfImpact : 70;
+  }
+  L.mesh.position.copy(_lzO);
+  L.mesh.lookAt(_lzO.x + _lzD.x, _lzO.y + _lzD.y, _lzO.z + _lzD.z);
+  const k = clamp(p.lockT / SNIPER_LOCK, 0, 1);
+  const w = 0.025 + k * 0.05;
+  L.mesh.scale.set(w, w, L.len);
+  L.mesh.material.opacity = 0.35 + k * 0.6;
+  L.dot.position.copy(_lzO).addScaledVector(_lzD, L.len - 0.05);
+  L.dot.scale.setScalar(1 + k * 1.5);
+}
+function toggleZoom() {
+  if (!game.running || game.paused) return;
+  player.zoom = !player.zoom && activeItem(player.host) === 'rifle';
+}
+
 /** Who (or which camera) can see this point right now, if anyone. */
 function watcher(pt) {
   for (const q of people) if (q.state !== 'down' && q.state !== 'host' && canSee(q, pt)) return q;
@@ -4598,7 +5163,7 @@ function updateConsume(dt) {
   spawnSlime(pos, new THREE.Vector3(rand(-1, 1), 3, rand(-1, 1)));
   player.health = slimeMax();
   burst(pos, 40, 0x7cff4f, { speed: 5, up: 5, size: 0.14, life: 1 });
-  splat(h.pos.x, h.pos.z, 1.3);
+  splat(h.pos.x, h.pos.z, 1.3, h.pos.y);
   shake = Math.max(shake, 0.4);
   sfx.splat();
   loudAct(pos, 14, 8);
@@ -4696,7 +5261,7 @@ function lose(title, text) {
   $('exitMark').classList.add('hidden'); $('goalMark').classList.add('hidden');
   setSiren(false);
   sfx.lose();
-  if (player.slime) { const t = player.slime.body.translation(); splat(t.x, t.z, 0.9); slimeMesh.visible = false; }
+  if (player.slime) { const t = player.slime.body.translation(); splat(t.x, t.z, 0.9, t.y - SLIME_R); slimeMesh.visible = false; }
   setTimeout(() => {
     $('endTitle').textContent = title;
     $('endText').textContent = text;
@@ -4760,6 +5325,9 @@ function updateHud(dt) {
   $('formRow').classList.toggle('hidden', !player.form);
   $('formRow').textContent = player.form ? `Slime form ${FORM_NAMES[player.form]} (${powers})${player.absorbed.length ? ` · absorbed: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}` : ''}` : '';
   $('swapbtn').classList.toggle('hidden', usable(h).length < 2);
+  $('zoombtn').classList.toggle('hidden', activeItem(h) !== 'rifle');
+  $('zoombtn').classList.toggle('on', !!player.zoom);
+  $('scope').classList.toggle('hidden', !player.zoom);
   $('hpRow').classList.toggle('hidden', !h);
   $('slimeRow').classList.toggle('hidden', !!h);
   if (h) $('hpBar').style.width = `${clamp(h.hp / HUMAN.hp, 0, 1) * 100}%`;
@@ -4885,7 +5453,7 @@ function frame(now) {
     if (steps === 4) acc = 0;
     alpha = acc / TICK;
     d.sync();
-    for (const p of people) syncPersonMesh(p, dt);
+    for (const p of people) { syncPersonMesh(p, dt); if (p.laser) updateLaser(p); }
     if (player.slime) {
       const t = _slimeDraw.lerpVectors(player.slime.prev, player.slime.now, alpha);
       const v = player.slime.body.linvel();
@@ -4921,7 +5489,7 @@ function frame(now) {
     if (steps === 4) acc = 0;
     alpha = acc / TICK;
     d.sync();
-    for (const p of people) syncPersonMesh(p, dt);
+    for (const p of people) { syncPersonMesh(p, dt); if (p.laser) updateLaser(p); }
     updateMenuCamera(dt);
     animateWater();
     for (const c of cams) c.head.rotation.y = c.base + Math.sin(game.time * 0.42 + c.phase) * c.sweep;
@@ -4944,12 +5512,14 @@ window.__symbiote = {
   aimNow: () => { alpha = 1; for (const p of people) syncPersonMesh(p, 0); if (player.slime) slimeMesh.position.copy(player.slime.body.translation()); updateCamera(1); updateAim(); return { person: player.aimPerson?.roleId ?? null, p: player.aimPoint.toArray().map((v) => +v.toFixed(1)) }; },
   sim: (sec) => { for (let i = 0; i < sec / TICK; i++) tick(TICK); d.sync(); },
   possess: (p) => { removeSlime(); const h = player.host; if (h) kill(h, 'drained'); player.host = null; enterHost(p, true); },
-  teleport: (x, z) => { const h = player.host; h.pos.set(x, 0, z); h.prev.set(x, 0, z); h.rb.setTranslation({ x, y: h.cy, z }, true); d.queryDirty = true; },
+  teleport: (x, z, y = player.host.pos.y) => { const h = player.host; h.pos.set(x, y, z); h.prev.set(x, y, z); h.vy = 0; h.rb.setTranslation({ x, y: y + h.cy, z }, true); d.queryDirty = true; },
   drop: (x, z) => { const h = player.host; if (h) { player.host = null; kill(h, 'drained'); } spawnSlime(new THREE.Vector3(x, 0.5, z), new THREE.Vector3()); player.slime.landed = true; },
   renderInfo: () => { let meshes = 0, people_ = 0; scene.traverse((o) => { if (o.isMesh && o.visible) meshes++; }); return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, meshes, people: people.length }; },
   drawAt: (a) => { alpha = a; for (const p of people) syncPersonMesh(p, 0); },
   tickOnce: () => tick(TICK),
   openExit: () => openExit(),
+  spawn: (role, x, z, opts = {}) => spawnPerson(role, x, z, opts),
+  launch: () => launch(), movers: () => movers, liftAt: () => { const m = movers[0]; return m && Math.abs(m.y - (player.host?.pos.y ?? -9)) < 0.05 && m.waitT > 1.5; },
   watcher: (x, y, z) => !!watcher(new THREE.Vector3(x, y, z)), hop: () => launch(),
   consume: () => consume(), swapItem: () => swapItem(), cams: () => cams, breakables: () => breakables, pickups: () => pickups, power: () => power, objective, breakIt, explodeAt: (x, y, z) => explodeAt(new THREE.Vector3(x, y, z)), relay: () => relay,
   lookAt: (x, y, z) => { const o = camera.position; view.yaw = Math.atan2(x - o.x, z - o.z); view.pitch = Math.atan2(-(y - o.y), Math.hypot(x - o.x, z - o.z)); },
