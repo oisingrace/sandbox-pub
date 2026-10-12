@@ -162,6 +162,11 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.10.1", "date": "2026-10-12", "title": "Stairs",
+      "notes": [
+        "The slime crawls up stairs and slopes at full speed now. Before, it barely moved going up the stairs in Meridian Tower."
+      ]
+    },
     { "version": "0.10", "date": "2026-10-12", "title": "Meridian Tower",
       "notes": [
         "New level 3: Meridian Tower, a glass skyscraper at night. Sneak past the lobby turnstiles, download the board's files in the floor 2 server room, silence two snipers on the towers next door, take out the CEO at the penthouse party, and escape on the roof helicopter.",
@@ -3766,6 +3771,7 @@ function npcStep(p, dt) {
 
 // --- Perception --------------------------------------------------------------------
 
+const _slimeRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 const _sightRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
 function blocksSight(c) {
   if (personByHandle.has(c.handle) || seeThrough.has(c.handle) || glassHandles.has(c.handle)) return false;
@@ -4525,11 +4531,18 @@ function tick(dt) {
     player.slime.dried = player.health <= SLIME_DRAIN * dt * 2;
     // On the ground, or resting on top of something.
     player.slime.restT = Math.abs(v.y) < 0.3 ? (player.slime.restT || 0) + dt : 0;
-    const grounded = (t.y < SLIME_R + 0.2 && v.y < 1) || player.slime.restT > 0.2;
+    // Feel for the floor underneath, so the slime can crawl up stairs and slopes too.
+    _slimeRay.origin = { x: t.x, y: t.y, z: t.z };
+    const under = d.world.castRayAndGetNormal(_slimeRay, SLIME_R + 0.3, true, undefined, undefined, player.slime.col);
+    const slopeN = under && under.normal.y > 0.6 && under.normal.y < 0.99 ? under.normal : null;
+    const grounded = (t.y < SLIME_R + 0.2 && v.y < 1) || player.slime.restT > 0.2 || (under && under.normal.y > 0.6 && v.y < 3.5);
     if (grounded && game.time - player.slime.born > 0.3) {
       const ka = Math.min(1, dt * (mv.x || mv.z ? 14 : 18));
       const cs = crawlSpeed();
-      sb.setLinvel({ x: v.x + (mv.x * cs - v.x) * ka, y: Math.min(v.y, 0.5), z: v.z + (mv.z * cs - v.z) * ka }, true);
+      const nx = v.x + (mv.x * cs - v.x) * ka, nz = v.z + (mv.z * cs - v.z) * ka;
+      // On a slope, run along it rather than into it.
+      const ny = slopeN ? -(slopeN.x * nx + slopeN.z * nz) / slopeN.y : Math.min(v.y, 0.5);
+      sb.setLinvel({ x: nx, y: ny, z: nz }, true);
       if (!player.slime.landed) { player.slime.landed = true; if (!player.slime.hopped) toast('Missed!', `Crawl into someone who hasn't seen you.${player.form >= 1 && game.level.consume ? ' Or hop.' : ''}`, 1.6); }
     }
     // A little help reaching someone who walked a step since you jumped.
