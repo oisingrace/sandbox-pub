@@ -57,6 +57,10 @@
     #consumeHint kbd, #hostItems .dim { color: var(--dim); font-size: 11px; }
     #hostItems b { color: var(--slime); }
     #zoombtn { right: 128px; bottom: 164px; width: 56px; height: 40px; border: 2px solid rgba(255,80,80,0.6); background: rgba(0,0,0,0.3); color: #ffb0b0; font-size: 11px; }
+    #grabbtn { right: 128px; bottom: 164px; width: 56px; height: 40px; border: 2px solid rgba(124,255,79,0.7); background: rgba(0,0,0,0.3); color: var(--slime); font-size: 11px; }
+    .reward-box { margin: 10px 0 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(124,255,79,0.45); background: rgba(124,255,79,0.08); font-size: 14px; line-height: 1.4; }
+    .reward-box b { display: block; color: var(--slime); margin-bottom: 3px; }
+    .lvl .reward { color: var(--slime); font-size: 11px; margin-top: 4px; }
     #zoombtn.on { background: rgba(255,60,60,0.35); }
     #scope { position: fixed; inset: 0; pointer-events: none; z-index: 1; background: radial-gradient(circle at 50% 50%, transparent 0, transparent 34vmin, rgba(0,0,0,0.85) 35vmin); }
     #scope::before, #scope::after { content: ""; position: absolute; left: 50%; top: 50%; background: rgba(0,0,0,0.6); }
@@ -103,6 +107,11 @@
     .lvl b { font-family: "Russo One", sans-serif; font-size: 17px; }
     .lvl .best { margin-left: auto; color: var(--dim); font-size: 12px; }
     .lvl .new { font-size: 10px; font-weight: 700; color: #0b1a06; background: var(--slime); border-radius: 4px; padding: 1px 5px; }
+    .lvl .lock { font-size: 10px; font-weight: 700; color: var(--dim); border: 1px solid var(--dim); border-radius: 4px; padding: 0 5px; }
+    .lvl.locked { opacity: 0.55; }
+    .lvl.locked b::before { content: "🔒 "; font-size: 13px; }
+    label.free { display: flex; gap: 8px; align-items: center; color: var(--dim); font-size: 13px; margin: 10px 2px 0; cursor: pointer; }
+    #playBtn:disabled { opacity: 0.5; cursor: not-allowed; }
     .lvl .tags { color: var(--warn); font-size: 11px; margin-top: 3px; }
     .lvl .blurb { color: var(--dim); font-size: 12.5px; margin-top: 4px; display: none; }
     .lvl ul { margin: 6px 0 0; padding-left: 18px; color: var(--dim); font-size: 12.5px; line-height: 1.55; display: none; }
@@ -162,6 +171,17 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.11", "date": "2026-10-12", "title": "Brutes and giants",
+      "notes": [
+        "Levels now unlock in order: finish one to open the next. Turn on Free play on the menu to unlock every level and power. Winning a level shows a Next button.",
+        "Finishing Hollow Hill gives you the mutagen vial, which lets your slime eat its hosts and grow forms.",
+        "Finishing Saltmarsh Docks unlocks growing your own body.",
+        "Forms now go up to six. Growing a body uses up every form, and the more people you've eaten, the bigger it is: a normal body from 1 or 2 forms, a brute from 3, and a giant at 6.",
+        "Brutes smash walls, doors and glass with F (SMASH on phones), and pick up crates, barrels, blocks and rubble with G (GRAB) to throw them.",
+        "Giants walk straight through walls, stamp on anyone underfoot, lift almost anything, and shrug off most bullets.",
+        "Big bodies are bad at espionage: everyone who sees one panics and guards open fire, they can't use keycards or terminals, lifts won't move with them on, and a giant won't fit indoors."
+      ]
+    },
     { "version": "0.10.1", "date": "2026-10-12", "title": "Stairs",
       "notes": [
         "The slime crawls up stairs and slopes at full speed now. Before, it barely moved going up the stairs in Meridian Tower."
@@ -311,6 +331,7 @@
     <button id="zoombtn" class="tbtn hidden">ZOOM</button>
     <button id="eatbtn" class="tbtn hidden">EAT</button>
     <button id="bodybtn" class="tbtn hidden">BODY</button>
+    <button id="grabbtn" class="tbtn hidden">GRAB</button>
     <button id="launchbtn" class="tbtn">LAUNCH</button>
   </div>
 
@@ -320,6 +341,7 @@
       <span class="tag">A host-hopping stealth game</span>
       <p>You are a slime that lives inside people. Launch yourself out of one body and into the next. Hit someone and they're yours. Miss, and you're a puddle on the floor, and everyone wants to stamp on you. The body you leave behind dies too.</p>
       <div id="levelList"></div>
+      <label class="free"><input type="checkbox" id="freePlay"> Free play: every level and power unlocked</label>
       <div class="btns"><button class="btn primary" id="playBtn">Play</button></div>
       <details class="ctl"><summary>Controls</summary>
       <div class="controls">
@@ -330,7 +352,8 @@
         <b>Swap item</b><span><kbd>Q</kbd> when your host holds more than one</span>
         <b>Zoom</b><span><kbd>Z</kbd> with a sniper rifle</span>
         <b>Consume</b><span>Hold <kbd>C</kbd> where nobody can see you, on levels that allow it: eat your host and your slime grows a form.</span>
-        <b>Forms</b><span>II: hop as a slime. III: keep still to become a puddle. IV: hold <kbd>B</kbd> as a slime to grow your own body (drops two forms).</span>
+        <b>Forms</b><span>Eat hosts (hold <kbd>C</kbd>) to grow up to six forms. II: hop as a slime. III: keep still to become a puddle. Hold <kbd>B</kbd> as a slime to grow your own body: it uses every form, and 3+ makes a brute, 6 a giant.</span>
+        <b>Big bodies</b><span><kbd>F</kbd> smashes walls, doors and people, <kbd>G</kbd> picks things up and throws them. Everyone panics on sight, they can't use keycards or lifts, and a giant won't fit indoors.</span>
         <b>Other</b><span><kbd>R</kbd> restart, <kbd>P</kbd> or <kbd>Esc</kbd> pause</span>
         <b class="t">Touch</b><span class="t">Left stick moves, drag the right side to look, hold LAUNCH to aim and let go to jump. ITEM uses what your host is holding, SWAP changes item, hold EAT to consume your host where the level allows it, hold BODY to grow a body.</span>
       </div>
@@ -353,9 +376,11 @@
     <div class="card">
       <h2 id="endTitle"></h2>
       <p id="endText"></p>
+      <div id="endReward" class="reward-box hidden"></div>
       <div class="stats" id="endStats"></div>
       <div class="btns">
-        <button class="btn primary" id="retryBtn">Play again</button>
+        <button class="btn primary hidden" id="nextBtn">Next</button>
+        <button class="btn" id="retryBtn">Play again</button>
         <button class="btn" id="endMenuBtn">Menu</button>
       </div>
     </div>
@@ -1935,6 +1960,7 @@ const LEVELS = [
     id: 'hollow-hill',
     title: 'Hollow Hill',
     blurb: 'Sneak into the compound, steal the files, take out the Director, bring down the relay tower, and get out through the drain.',
+    reward: { title: '🧪 Reward: the mutagen vial', text: 'From the Director\'s lab. Your slime can now eat the people it rides and grow new forms.' },
     half: 60,
     stealthFail: 'The compound locked down before you got inside.',
     objectives: [
@@ -2121,6 +2147,7 @@ const LEVELS = [
     title: 'Saltmarsh Docks',
     consume: true,
     blurb: 'A harbour full of cameras and people who notice when you are somewhere you should not be. The right body gets you in. Here you can also eat your host to grow.',
+    reward: { title: '🧬 Reward: grow your own body', text: 'Hold B as a slime, unseen. It uses up every form, and the more people you\'ve eaten, the bigger it gets: a brute from 3 forms, a giant at 6.' },
     half: 60,
     stealthFail: 'The docks locked down before you got in.',
     look: { sky: 0xf0c9a2, sun: 0xffc48a, sunI: 2.0, hemiSky: 0xffe0c2, hemiGround: 0x4a5a6a, hemiI: 1.05, base: 0x8d9a8a, hills: 0x6f8a78 },
@@ -2462,6 +2489,7 @@ const HUMAN = { speed: 4.3, hp: 100, range: 13, fov: 2.0, mass: 85 };
 const ITEMS = {
   pistol: { label: 'Pistol', use: 'shoot' },
   hammer: { label: 'Sledgehammer', use: 'smash' },
+  fists: { label: 'Huge fists', use: 'smash' },
   charges: { label: 'Charges', use: 'throw' },
   keycard: { label: 'Keycard' },
   flares: { label: 'Flares', use: 'flare' },
@@ -2496,6 +2524,17 @@ const SLIME_R = 0.28;
 const LAUNCH_RANGE = 18;    // m
 // Slime forms, grown by consuming hosts (on levels that allow it).
 const slimeMax = () => 100 + 35 * player.form;
+const MAX_FORM = 6;
+// Grown bodies come in three sizes, set by how many forms went into them.
+// Bigger is stronger, and hopeless at espionage.
+const BODY_SIZES = [
+  null,
+  { name: 'Slime body', scale: 1, hp: 100, armor: 1, speed: 1, mass: 85, lift: 0 },
+  { name: 'Brute', scale: 2, hp: 320, armor: 0.55, speed: 1.12, mass: 700, lift: 300 },
+  { name: 'Giant', scale: 3, hp: 800, armor: 0.3, speed: 1.3, mass: 3000, lift: 3200 },
+];
+const bodyTier = (forms) => (forms >= 6 ? 3 : forms >= 3 ? 2 : 1);
+const bigHost = () => (player.host?.size || 1) >= 2;
 const crawlSpeed = () => CRAWL_SPEED + 0.7 * player.form;
 const launchRange = () => LAUNCH_RANGE + 2.5 * player.form;
 const SLIME_DRAIN = 4;      // health per second out of a host: about 25 seconds, so people are the real danger
@@ -2896,6 +2935,7 @@ addEventListener('keydown', (e) => {
   if (k === 'c') input.eat = true;
   if (k === 'b') input.grow = true;
   if (k === 'z') toggleZoom();
+  if (k === 'g') grab();
   if (k === ' ') input.aiming = true;
 });
 addEventListener('keyup', (e) => {
@@ -2985,6 +3025,7 @@ function setupTouch() {
   $('itembtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); useItem(); });
   $('swapbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); swapItem(); });
   $('zoombtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); toggleZoom(); });
+  $('grabbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); grab(); });
   for (const [id, key] of [['eatbtn', 'eat'], ['bodybtn', 'grow']]) {
     const b = $(id);
     b.addEventListener('pointerdown', (e) => { e.stopPropagation(); input[key] = true; });
@@ -3003,7 +3044,7 @@ const game = {
 };
 const player = {
   host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0,
-  trespass: '', carry: null, consuming: null, form: 0, absorbed: [], absorbedLabel: '',
+  trespass: '', carry: null, consuming: null, form: 0, held: null, thrown: [], absorbed: [], absorbedLabel: '',
   aimPerson: null, aimPoint: new THREE.Vector3(),
 };
 let people = [];
@@ -3053,7 +3094,68 @@ function addProp(x, y, z, sx, sy, sz, color, o = {}) {
   let b = propBatches.get(key);
   if (!b) propBatches.set(key, (b = { shape, color, shadow, glow, list: [] }));
   b.list.push([x, y, z, sx, sy, sz, o.yaw || 0, o.tilt || 0]);
-  if (o.solid !== false) fixedBox(x, y, z, sx, sy, sz, o.yaw || 0);
+  if (o.solid === false) return;
+  const fb = fixedBox(x, y, z, sx, sy, sz, o.yaw || 0);
+  // Upright walls and columns: a brute or a giant can smash through them.
+  if (shape === 'box' && !o.yaw && !o.tilt && sy >= 1.2 && Math.min(sx, sz) <= 1.2 && sy > Math.min(sx, sz) * 1.5) walls.push({ x, y, z, sx, sy, sz, color, fb, batch: b, index: b.list.length - 1, alive: true });
+}
+
+/** Walls a big body can smash: knock a hole as wide as it is, and the rest stays standing. */
+let walls = [];
+const _zeroM = new THREE.Matrix4().makeScale(0, 0, 0);
+function removeWall(w) {
+  w.alive = false;
+  d.world.removeRigidBody(w.fb.body);
+  d.queryDirty = true;
+  if (w.mesh) levelGroup.remove(w.mesh);
+  else if (w.batch.im) { w.batch.im.setMatrixAt(w.index, _zeroM); w.batch.im.instanceMatrix.needsUpdate = true; }
+}
+function addWallPiece(w, alongX, a0, a1, y0, y1) {
+  const thick = alongX ? w.sz : w.sx;
+  const sx = alongX ? a1 - a0 : thick, sz = alongX ? thick : a1 - a0, sy = y1 - y0;
+  const x = alongX ? (a0 + a1) / 2 : w.x, z = alongX ? w.z : (a0 + a1) / 2, y = (y0 + y1) / 2;
+  const mesh = box(sx, sy, sz, mat(w.color), x, y, z);
+  levelGroup.add(mesh);
+  walls.push({ x, y, z, sx, sy, sz, color: w.color, fb: fixedBox(x, y, z, sx, sy, sz), mesh, alive: true });
+}
+function smashWall(w, at, push, scale) {
+  const alongX = w.sx >= w.sz;
+  const lo = alongX ? w.x - w.sx / 2 : w.z - w.sz / 2, hi = lo + (alongX ? w.sx : w.sz);
+  const yb = w.y - w.sy / 2, top = w.y + w.sy / 2;
+  const W = 1.6 * scale + 0.4, H = 2.1 * scale + 0.2;
+  const hitA = alongX ? at.x : at.z;
+  let a0 = clamp(hitA - W / 2, lo, hi), a1 = clamp(hitA + W / 2, lo, hi);
+  if (a0 - lo < 0.5) a0 = lo;
+  if (hi - a1 < 0.5) a1 = hi;
+  let h1 = Math.min(top, yb + H);
+  if (top - h1 < 0.4) h1 = top;
+  removeWall(w);
+  if (a0 > lo) addWallPiece(w, alongX, lo, a0, yb, top);
+  if (a1 < hi) addWallPiece(w, alongX, a1, hi, yb, top);
+  if (h1 < top) addWallPiece(w, alongX, a0, a1, h1, top);
+  // The hole turns into rubble, thrown the way the punch went.
+  const area = (a1 - a0) * (h1 - yb);
+  const kind = area > 6 ? 'block' : 'blockChunk', c = area > 6 ? 1 : 0.5;
+  const na = Math.max(1, Math.round((a1 - a0) / c)), ny = Math.max(1, Math.round((h1 - yb) / c));
+  const color = new THREE.Color(w.color);
+  for (let i = 0; i < na; i++) for (let j = 0; j < ny; j++) {
+    const a = a0 + ((a1 - a0) * (i + 0.5)) / na, y = yb + ((h1 - yb) * (j + 0.5)) / ny;
+    const pos = alongX ? { x: a, y, z: w.z } : { x: w.x, y, z: a };
+    const k = rand(3, 7) * (1 - j / (ny * 2));
+    d.spawn(kind, pos, rand(-0.3, 0.3), { fragment: true, color, vel: { x: push.x * k + rand(-1, 1), y: rand(0, 2.5), z: push.z * k + rand(-1, 1) }, angvel: { x: rand(-4, 4), y: rand(-4, 4), z: rand(-4, 4) } });
+  }
+  burst(new THREE.Vector3(at.x, at.y, at.z), 30, w.color, { speed: 5, up: 4, size: 0.2, life: 1 });
+  burst(new THREE.Vector3(at.x, at.y, at.z), 14, 0x777777, { speed: 2, up: 3, size: 0.4, life: 1.4, grav: 0.2 });
+}
+/** Every wall within r of a point (and roughly at its height). */
+function wallsNear(at, r) {
+  const out = [];
+  for (const w of walls) {
+    if (!w.alive) continue;
+    const dx = Math.max(Math.abs(at.x - w.x) - w.sx / 2, 0), dz = Math.max(Math.abs(at.z - w.z) - w.sz / 2, 0), dy = Math.max(Math.abs(at.y - w.y) - w.sy / 2, 0);
+    if (Math.hypot(dx, dz) < r && dy < r * 0.8) out.push(w);
+  }
+  return out;
 }
 // --- Tower pieces: glass walls, ramps, lifts ------------------------------------------------------
 
@@ -3160,6 +3262,12 @@ const _riders = [];
 function updateMovers(dt) {
   for (const m of movers) {
     const prevY = m.y;
+    const hh = player.host;
+    if (hh && hh.size >= 2 && Math.abs(hh.pos.x - m.x) < m.sx / 2 + 0.3 && Math.abs(hh.pos.z - m.z) < m.sz / 2 + 0.3 && Math.abs(hh.pos.y - m.y) < 0.4) {
+      // Far too heavy: it won't budge.
+      m.waitT = Math.max(m.waitT, 0.6);
+      if (!m.heavyWarned) { m.heavyWarned = true; toast('Too heavy', `It won't move with a ${hh.label.toLowerCase()} on it.`, 1.6); }
+    }
     if (m.waitT > 0) m.waitT -= dt;
     else {
       let ni = m.i + m.dir;
@@ -3214,6 +3322,7 @@ function flushProps() {
     im.castShadow = b.shadow;
     im.receiveShadow = true;
     im.frustumCulled = false;
+    b.im = im;
     levelGroup.add(im);
   }
   propBatches = new Map();
@@ -3422,7 +3531,7 @@ function loadLevel(i, menu = false) {
   ctrl.setSlideEnabled(true);
   ctrl.setMaxSlopeClimbAngle(0.8);
 
-  people = []; bodies = []; gates = []; zones = []; terminal = null; relay = null; director = null;
+  people = []; bodies = []; walls = []; gates = []; zones = []; terminal = null; relay = null; director = null;
   breakables = []; breakByHandle.clear(); cams = []; power = null; restricted = []; pickups = []; dropoffs = []; waters = [];
   flareFire = null; flareLight.intensity = 0;
   applyLook(L.look);
@@ -3432,6 +3541,8 @@ function loadLevel(i, menu = false) {
   personByHandle.clear();
   seeThrough.clear(); glassHandles.clear(); movers = []; panes = [];
   Object.assign(game, { time: 0, alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0, over: false, hostsUsed: 0, bodiesFound: 0, paused: false });
+  // Rewards from earlier levels: the mutagen vial (Hollow Hill) lets the slime eat and grow; Saltmarsh Docks unlocks growing a body.
+  { const prog = loadProgress(); game.mutagen = freePlay() || !!prog['hollow-hill']; game.bodyOK = freePlay() || !!prog['saltmarsh-docks']; }
   Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, growing: null, form: 0, absorbed: [], absorbedLabel: '', shellWarned: false, puddleTold: false, zoom: false });
   input.eat = input.grow = false;
   slimeMesh.visible = false;
@@ -3471,6 +3582,16 @@ function spawnPerson(roleId, x, z, opts) {
     shootT: 0, stompT: 0, stompCD: 0, icon: null, iconT: 0, aimT: 0, swingT: 0, downT: 0,
     halfH: 0.45, r: 0.3, post: opts.post ? { x, y: y0, z, yaw: opts.yaw ?? 0 } : null,
   };
+  const BS = opts.size ? BODY_SIZES[opts.size] : null;
+  if (BS) {
+    p.size = opts.size;
+    p.halfH *= BS.scale; p.r *= BS.scale;
+    p.hp = BS.hp;
+    p.label = BS.name;
+    if (opts.size >= 2) p.items = ['fists'];
+    mesh.group.scale.setScalar(BS.scale);
+  }
+  p.maxHp = p.hp;
   p.cy = p.halfH + p.r + 0.06;
   p.rb = d.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y0 + p.cy, z));
   p.col = d.world.createCollider(RAPIER.ColliderDesc.capsule(p.halfH, p.r).setFriction(0.3), p.rb);
@@ -3505,7 +3626,9 @@ const usable = (p) => (p ? p.items.filter((i) => ITEMS[i].use) : []);
 const activeItem = (p) => { const u = usable(p); return u.length ? u[player.active % u.length] : null; };
 
 function moveChar(p, vx, vz, dt) {
-  ctrl.setCharacterMass(HUMAN.mass);
+  const BS = p.size > 1 ? BODY_SIZES[p.size] : null;
+  ctrl.setCharacterMass(BS ? BS.mass : HUMAN.mass);
+  if (BS) ctrl.enableAutostep(0.45 * BS.scale, 0.2, true);
   // Only filter (a call back into JS per nearby collider) while there's a slime to walk through.
   const slimeH = player.slime?.col.handle;
   // Falling: off a ledge, out of a window, down a lift shaft.
@@ -3513,6 +3636,7 @@ function moveChar(p, vx, vz, dt) {
   ctrl.computeColliderMovement(p.col, { x: vx * dt, y: Math.min(-4 * dt, p.vy * dt), z: vz * dt }, undefined, undefined,
     slimeH === undefined ? undefined : (c) => c.handle !== slimeH);
   const m = ctrl.computedMovement();
+  if (BS) ctrl.enableAutostep(0.45, 0.2, true);
   const ox = p.pos.x, oz = p.pos.z;
   p.pos.x += m.x; p.pos.z += m.z;
   p.pos.y = Math.max(0, p.pos.y + m.y);
@@ -3855,7 +3979,7 @@ function stompLand(p) {
   if (!s) return;
   const t = s.body.translation();
   if (Math.hypot(t.x - foot.x, t.z - foot.z) > 0.95 || t.y > 0.9) return;
-  player.health -= STOMP_DMG * (1 - 0.15 * player.form);
+  player.health -= STOMP_DMG * (1 - 0.15 * Math.min(4, player.form));
   shake = Math.max(shake, 0.35);
   splat(t.x, t.z, 0.5, t.y - SLIME_R);
   sfx.splat();
@@ -3872,7 +3996,8 @@ function stompLand(p) {
 function seeThreat(p, pos, kind) {
   const slime = kind === 'slime';
   const odd = kind === 'odd';
-  if (!slime && !p.armed) return; // only guards recognise a marked host
+  const big = kind === 'big'; // a brute or a giant: everyone reacts
+  if (!slime && !big && !p.armed) return; // only guards recognise a marked host
   if (game.alert && p.armed && !odd) {
     player.seenAt = game.time;
     game.lastKnown.copy(pos);
@@ -3883,6 +4008,7 @@ function seeThreat(p, pos, kind) {
   }
   let rate = 0.1 / (p.armed ? NOTICE_ARMED : NOTICE);
   if (odd) rate *= 0.4; // trespassing or carrying something takes a moment longer to notice
+  if (big) rate *= 2.5;
   if (slime && player.slime) {
     const v = player.slime.body.linvel();
     if (Math.hypot(v.x, v.y, v.z) > 6) rate *= 0.5; // a green blur is easy to doubt
@@ -3896,16 +4022,17 @@ function seeThreat(p, pos, kind) {
   }
   player.seenAt = game.time;
   game.lastKnown.copy(pos);
-  const why = slime ? 'Someone saw the slime.' : odd ? oddReason() : 'A guard recognised you.';
+  const why = slime ? 'Someone saw the slime.' : big ? 'Someone saw something huge.' : odd ? oddReason() : 'A guard recognised you.';
   if (odd) { player.marked = true; toast('Spotted', oddReason(), 1.8); }
+  if (big) player.marked = true;
   if (!p.aware) {
     p.aware = true;
-    addAlarm(slime ? (p.armed ? 24 : 14) : 12, why);
+    addAlarm(big ? 30 : slime ? (p.armed ? 24 : 14) : 12, why);
   } else {
     addAlarm(p.armed ? 1.6 : 0.5, why);
   }
   setIcon(p, '!');
-  if (p.armed && slime) {
+  if (p.armed && (slime || big)) {
     // Armed people open fire on a slime, lockdown or not.
     p.opts.follow = null;
     if (p.state !== 'combat') { p.state = 'combat'; p.shootT = 0.45; }
@@ -3915,6 +4042,8 @@ function seeThreat(p, pos, kind) {
     p.state = 'investigate';
     p.goal = clampGoal(pos.clone());
     p.timer = 3;
+  } else if (big) {
+    if (p.state !== 'flee' && p.state !== 'cower') flee(p, pos);
   } else if (slime && (p.state === 'stomp' || p.pos.distanceTo(pos) < 6)) {
     // Close enough to do something about it: stamp on it.
     if (p.state !== 'stomp') { p.state = 'stomp'; p.stompCD = 0.15; p.goal = null; if (Math.random() < 0.5) sfx.scream(); }
@@ -3942,7 +4071,7 @@ function think(p) {
     const exposed = !player.host;
     const odd = !exposed && !player.marked && hostIsOdd(p);
     const puddled = exposed && player.slime?.puddle && p.pos.distanceTo(tp) > 2.5;
-    if ((exposed || player.marked || odd) && !puddled && canSee(p, tp)) seeThreat(p, tp, exposed ? 'slime' : player.marked ? 'host' : 'odd');
+    if ((exposed || player.marked || odd) && !puddled && canSee(p, tp)) seeThreat(p, tp, exposed ? 'slime' : bigHost() ? 'big' : player.marked ? 'host' : 'odd');
     else if (p.state === 'combat') {
       if (game.alert) p.state = 'search';
       else { p.state = 'investigate'; p.timer = 3; }
@@ -4028,6 +4157,7 @@ function enterHost(p, quiet = false) {
   player.host = p;
   player.health = slimeMax();
   // What the slime absorbed from the last host it ate comes along into this one.
+  if (p.size >= 2) player.absorbed = []; // fingers far too big for keycards
   if (player.absorbed.length && !p.merged) {
     p.merged = true;
     for (const it of player.absorbed) if (!p.items.includes(it)) p.items.push(it);
@@ -4059,6 +4189,7 @@ function leaveHost(vel) {
   const fwd = new THREE.Vector3(Math.sin(h.yaw), 0, Math.cos(h.yaw));
   const pos = new THREE.Vector3(h.pos.x, h.pos.y + 2.0, h.pos.z).addScaledVector(fwd, 0.25);
   dropCarry(h.pos);
+  dropHeld();
   player.host = null;
   kill(h, 'drained');
   spawnSlime(pos, vel);
@@ -4083,7 +4214,7 @@ function launchVel(S, T, maxRange) {
 function launchOrigin() {
   const h = player.host;
   if (!h && player.slime) { const t = player.slime.body.translation(); return new THREE.Vector3(t.x, t.y + 0.2, t.z); }
-  return h ? new THREE.Vector3(h.pos.x, h.pos.y + 2.0, h.pos.z) : null;
+  return h ? new THREE.Vector3(h.pos.x, h.pos.y + 2.0 * (h.size ? BODY_SIZES[h.size].scale : 1), h.pos.z) : null;
 }
 
 function launch() {
@@ -4146,6 +4277,7 @@ function fireGun(shooter, aim, spread, dmgPerson, slimeDmg = 25, range = 70) {
 
 function damagePerson(p, dmg, from) {
   if (p.state === 'down') return;
+  if (p.size > 1) dmg *= BODY_SIZES[p.size].armor;
   p.hp -= dmg;
   if (p === player.host) {
     shake = Math.max(shake, 0.25);
@@ -4236,6 +4368,8 @@ function useItem() {
     player.itemCD = 1.3;
     shake = Math.max(shake, 0.2);
     loudAct(h.pos.clone(), 40, 28);
+  } else if (it === 'fists') {
+    punch(h);
   } else if (it === 'hammer') {
     const fwd = new THREE.Vector3(Math.sin(h.yaw), 0, Math.cos(h.yaw));
     const at = h.pos.clone().addScaledVector(fwd, 1.4).setY(1.0);
@@ -4267,6 +4401,139 @@ function useItem() {
     toast(h.label, hasItem(h, 'keycard') ? 'The keycard opens doors and the terminal on its own.' : 'Nothing in their hands.', 1.4);
     player.itemCD = 0.5;
   }
+}
+
+function openGate(g) {
+  if (g.open) return;
+  g.open = true;
+  d.world.removeRigidBody(g.fb.body);
+  d.queryDirty = true;
+  g.light.material.color.setHex(0x44ff66);
+  sfx.gate();
+}
+
+/** A brute's or a giant's fist: walls, doors, glass, crates and people. */
+function punch(h) {
+  const BS = BODY_SIZES[h.size], sc = BS.scale;
+  const fwd = new THREE.Vector3(Math.sin(h.yaw), 0, Math.cos(h.yaw));
+  const at = h.pos.clone().addScaledVector(fwd, h.r + 0.7 * sc).setY(h.pos.y + 0.9 * sc);
+  h.swingT = 0.35;
+  for (const w of wallsNear(at, 0.55 * sc)) smashWall(w, at, fwd, sc);
+  for (const g of gates) if (!g.open && Math.abs(h.pos.y - g.y) < 2 && Math.hypot(g.x - at.x, g.z - at.z) < 1.6 * sc) { openGate(g); toast('Smashed', 'The door didn\'t need a keycard after all.', 1.4); }
+  d.blast({ x: at.x, y: at.y, z: at.z }, 2.2 * sc);
+  breakNear(at, 1.3 * sc);
+  for (const q of people) {
+    if (q === h || q.state === 'down') continue;
+    if (Math.hypot(q.pos.x - at.x, q.pos.z - at.z) < 1.1 * sc && Math.abs(q.pos.y - h.pos.y) < 1.5 * sc) damagePerson(q, 220 * sc, at);
+  }
+  burst(at, 14 * sc, 0xcfc8b8, { speed: 5, up: 4, size: 0.14 * sc, life: 0.9 });
+  sfx.smash();
+  shake = Math.max(shake, 0.25 * sc);
+  player.itemCD = 0.55 + 0.15 * sc;
+  loudAct(h.pos.clone(), 20 + 10 * sc, 30);
+}
+
+/** A giant walks through what's in its way: walls, glass, crates and people. */
+function giantStep(h, dt) {
+  const sp = Math.hypot(h.vx || 0, h.vz || 0);
+  if (sp < 1) return;
+  const sc = BODY_SIZES[3].scale;
+  const fwd = new THREE.Vector3(h.vx / sp, 0, h.vz / sp);
+  const at = h.pos.clone().addScaledVector(fwd, h.r + 0.25).setY(h.pos.y + 1.2 * sc);
+  for (const w of wallsNear(at, 0.35)) smashWall(w, at, fwd, sc);
+  breakNear(at, 1.6);
+  // Loose blocks, crates and brick walls just burst out of the way.
+  h.plowT = (h.plowT || 0) - dt;
+  if (h.plowT <= 0) { h.plowT = 0.25; d.blast({ x: at.x + fwd.x * 0.6, y: h.pos.y + 1.5, z: at.z + fwd.z * 0.6 }, 2.6); }
+  for (const g of gates) if (!g.open && Math.abs(h.pos.y - g.y) < 2 && Math.hypot(g.x - at.x, g.z - at.z) < 2.2) openGate(g);
+  for (const q of people) {
+    if (q === h || q.state === 'down') continue;
+    if (Math.hypot(q.pos.x - h.pos.x, q.pos.z - h.pos.z) < h.r + 0.6 && Math.abs(q.pos.y - h.pos.y) < 1.5) {
+      kill(q, 'stomped');
+      splat(q.pos.x, q.pos.z, 1.2, q.pos.y);
+      burst(new THREE.Vector3(q.pos.x, q.pos.y + 0.3, q.pos.z), 16, 0xb33a3a, { speed: 3, up: 2, size: 0.1 });
+      sfx.thud(1);
+      shake = Math.max(shake, 0.3);
+      loudAct(h.pos.clone(), 25, 20);
+    }
+  }
+  // The ground shakes under every step.
+  h.stepT = (h.stepT || 0) - dt;
+  if (h.stepT <= 0) { h.stepT = 0.55; shake = Math.max(shake, 0.12); sfx.thud(0.6); }
+}
+
+/** Big bodies pick up loose things (G) and throw them where you aim. */
+const kindHalfH = (k) => (k.shape === 'cyl' || k.shape === 'tree' ? k.size[1] / 2 : k.size[1] / 2);
+function grab() {
+  const h = player.host;
+  if (!h || !(h.size >= 2) || game.over || game.paused) return;
+  if (player.held) { throwHeld(h); return; }
+  const BS = BODY_SIZES[h.size], sc = BS.scale;
+  const fwd = new THREE.Vector3(Math.sin(view.yaw), 0, Math.cos(view.yaw));
+  const c = h.pos.clone().addScaledVector(fwd, h.r + 0.6 * sc).setY(h.pos.y + 0.6 * sc);
+  d.queries();
+  let best = null, bd = Infinity, heavy = false;
+  d.world.collidersWithAabbIntersectingAabb({ x: c.x, y: c.y, z: c.z }, { x: 1.2 * sc, y: 1.2 * sc, z: 1.2 * sc }, (col) => {
+    const e = d.byCollider.get(col.handle);
+    if (!e || !e.alive || e.frozen) return true;
+    if (e.kind.mass > BS.lift) { heavy = true; return true; }
+    const t = e.body.translation();
+    const dd = Math.hypot(t.x - c.x, t.y - c.y, t.z - c.z);
+    if (dd < bd) { bd = dd; best = e; }
+    return true;
+  });
+  if (!best) { toast(heavy ? 'Too heavy' : 'Nothing to pick up', heavy ? `A ${BS.name.toLowerCase()} can't lift that. A giant could.` : 'Get right up to a crate, a barrel, a block or some rubble.', 1.6); return; }
+  best.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+  player.held = { e: best, h };
+  sfx.thud(0.5);
+}
+function heldSpot(h, e) {
+  return { x: h.pos.x + Math.sin(h.yaw) * h.r * 0.6, y: h.pos.y + 1.95 * BODY_SIZES[h.size].scale + kindHalfH(e.kind) + 0.1, z: h.pos.z + Math.cos(h.yaw) * h.r * 0.6 };
+}
+function updateHeld(dt) {
+  const hd = player.held;
+  if (hd) {
+    if (!hd.e.alive || player.host !== hd.h) player.held = null;
+    else { hd.e.body.setNextKinematicTranslation(heldSpot(hd.h, hd.e)); hd.e.body.setNextKinematicRotation({ x: 0, y: Math.sin(hd.h.yaw / 2), z: 0, w: Math.cos(hd.h.yaw / 2) }); }
+  }
+  // Thrown things flatten people they land on.
+  for (let i = player.thrown.length - 1; i >= 0; i--) {
+    const th = player.thrown[i];
+    th.t -= dt;
+    if (th.t <= 0 || !th.e.alive) { player.thrown.splice(i, 1); continue; }
+    const v = th.e.body.linvel();
+    if (Math.hypot(v.x, v.y, v.z) < 4) continue;
+    const t = th.e.body.translation();
+    const r = Math.max(...th.e.kind.size) * 0.6 + 0.4;
+    for (const q of people) {
+      if (q.state === 'down' || q === player.host) continue;
+      if (Math.hypot(q.pos.x - t.x, q.pos.z - t.z) < r && t.y > q.pos.y - 0.3 && t.y < q.pos.y + 2.2) damagePerson(q, 60 + th.e.kind.mass * 0.4, new THREE.Vector3(t.x, t.y, t.z));
+    }
+    breakNear(new THREE.Vector3(t.x, t.y, t.z), r);
+  }
+}
+function throwHeld(h) {
+  const { e } = player.held;
+  player.held = null;
+  const BS = BODY_SIZES[h.size];
+  const from = e.body.translation();
+  const T = player.aimPoint || new THREE.Vector3(from.x + Math.sin(view.yaw) * 20, from.y, from.z + Math.cos(view.yaw) * 20);
+  const dir = new THREE.Vector3(T.x - from.x, T.y - from.y, T.z - from.z).normalize();
+  const speed = clamp(10 + BS.lift / Math.max(30, e.kind.mass) * 3, 12, 30);
+  e.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+  e.body.setLinvel({ x: dir.x * speed, y: dir.y * speed + 3, z: dir.z * speed }, true);
+  e.body.setAngvel({ x: rand(-3, 3), y: rand(-3, 3), z: rand(-3, 3) }, true);
+  player.thrown.push({ e, t: 2.5 });
+  h.swingT = 0.35;
+  h.yaw = view.yaw;
+  sfx.launch();
+  loudAct(h.pos.clone(), 25, 15);
+}
+function dropHeld() {
+  const hd = player.held;
+  if (!hd) return;
+  player.held = null;
+  if (hd.e.alive) hd.e.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
 }
 
 d.on('explode', (pos) => {
@@ -4314,7 +4581,8 @@ function updateCamera(dt) {
   view.yaw += lx * 2.6 * dt;
   view.pitch = clamp(view.pitch + ly * 1.6 * dt, -0.45, 1.15);
   const f = player.host ? player.host.mesh.group.position : player.slime ? slimeMesh.position : camPivot;
-  const height = player.host ? 1.75 : 0.8;
+  const hs = player.host?.size ? BODY_SIZES[player.host.size].scale : 1;
+  const height = player.host ? 1.75 * hs : 0.8;
   const k = Math.min(1, dt * 25);
   camPivot.x += (f.x - camPivot.x) * k;
   camPivot.y += (f.y + height - camPivot.y) * k;
@@ -4322,8 +4590,8 @@ function updateCamera(dt) {
   const cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
   camFwd.set(Math.sin(view.yaw) * cp, -sp, Math.cos(view.yaw) * cp);
   const right = _camRight.set(-Math.cos(view.yaw), 0, Math.sin(view.yaw));
-  const dist = player.host ? 4.6 : 3.2;
-  const shoulder = player.host ? 0.75 : 0;
+  const dist = player.host ? 4.6 + (hs - 1) * 3.4 : 3.2;
+  const shoulder = player.host ? 0.75 * hs : 0;
   const want = _camWant.copy(camPivot).addScaledVector(right, shoulder);
   // Don't let walls get between the camera and the slime.
   _camDir.copy(camFwd).negate();
@@ -4466,7 +4734,8 @@ function tick(dt) {
     h.prevYaw = h.yaw; h.stride = 1;
     const run = keys.has('shift') ? 1.5 : 1;
     const frozen = player.consuming && input.eat ? 0 : 1;
-    const tx = mv.x * HUMAN.speed * run * frozen, tz = mv.z * HUMAN.speed * run * frozen;
+    const sp = HUMAN.speed * run * frozen * (h.size ? BODY_SIZES[h.size].speed : 1);
+    const tx = mv.x * sp, tz = mv.z * sp;
     const a = Math.min(1, dt * (tx || tz ? 12 : 16));
     h.vx = (h.vx || 0) + (tx - (h.vx || 0)) * a;
     h.vz = (h.vz || 0) + (tz - (h.vz || 0)) * a;
@@ -4474,7 +4743,9 @@ function tick(dt) {
     // Face the crosshair while aiming or using an item, otherwise the way you're walking.
     const want = input.aiming || player.itemCD > 0 ? view.yaw : (Math.hypot(h.vx, h.vz) > 0.3 ? Math.atan2(h.vx, h.vz) : null);
     if (want !== null) h.yaw += clamp(angDiff(h.yaw, want), -12 * dt, 12 * dt);
+    if (h.size === 3) giantStep(h, dt);
   }
+  updateHeld(dt);
 
   updateTrespass();
   updatePickups();
@@ -4587,15 +4858,10 @@ function tick(dt) {
     const near = h && Math.abs(h.pos.y - g.y) < 2 && Math.hypot(h.pos.x - g.x, h.pos.z - g.z) < 3;
     const ok = hasItem(h, g.need);
     const needLabel = ITEMS[g.need].label.toLowerCase();
-    if (near && ok) {
-      g.open = true;
-      d.world.removeRigidBody(g.fb.body);
-      d.queryDirty = true;
-      g.light.material.color.setHex(0x44ff66);
-      sfx.gate();
-    } else if (near && !g.warned) {
+    if (near && ok) openGate(g);
+    else if (near && !g.warned) {
       g.warned = true;
-      toast('Locked', `You need a host with a ${needLabel}.`, 1.5);
+      toast('Locked', h.size >= 2 ? 'Fingers far too big for a keycard. Smash it open with F.' : `You need a host with a ${needLabel}.`, 1.5);
     }
   }
 
@@ -4908,6 +5174,7 @@ function updateTrespass() {
 function hostIsOdd(p) {
   const h = player.host;
   if (!h) return false;
+  if (h.size >= 2) return true; // there's no hiding something that size
   if (player.trespass || player.carry) return true;
   if (player.consuming && input.eat) return true; // a person folding in on themselves
   return !!((h.merged || h.role.shell) && p && p.pos.distanceTo(h.pos) < 7); // up close, a merged host looks wrong
@@ -5142,7 +5409,7 @@ function eatNoise(pos) {
 function consume() { input.eat = true; } // test hook: start holding
 function updateConsume(dt) {
   const h = player.host;
-  const want = input.eat && h && game.level.consume && !game.over;
+  const want = input.eat && h && game.level.consume && game.mutagen && !game.over;
   let c = player.consuming;
   if (want && !c) {
     if (h.role.shell) { if (!player.shellWarned) { player.shellWarned = true; toast('That\'s you', 'There\'s nothing in your own body to eat.', 1.6); } return; }
@@ -5168,7 +5435,7 @@ function updateConsume(dt) {
   player.absorbed = [...new Set(h.items)];
   player.absorbedLabel = h.role.label.replace(/^The /, '');
   const was = player.form;
-  player.form = Math.min(3, player.form + 1);
+  player.form = Math.min(MAX_FORM, player.form + 1);
   const pos = new THREE.Vector3(h.pos.x, h.pos.y + 0.8, h.pos.z);
   dropCarry(h.pos);
   player.host = null;
@@ -5180,12 +5447,19 @@ function updateConsume(dt) {
   shake = Math.max(shake, 0.4);
   sfx.splat();
   loudAct(pos, 14, 8);
-  const gained = player.form > was ? FORM_POWERS[player.form] : 'Already as strong as it gets.';
+  const gained = player.form > was ? formGain(player.form) : 'Already as strong as it gets.';
   toast(`Slime form ${FORM_NAMES[player.form]}`, `${gained}${player.absorbed.length ? ` Next host also gets: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}.` : ''}`, 3.6);
 }
 
-const FORM_NAMES = ['I', 'II', 'III', 'IV'];
-const FORM_POWERS = ['', 'New: HOP. As a slime, aim and jump like from a host.', 'New: PUDDLE. Keep still as a slime and nobody spots you from afar. No drying out.', 'New: BODY. Hold B as a slime, unseen, to grow your own body. Costs two forms.'];
+const FORM_NAMES = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+function formGain(f) {
+  const body = game.bodyOK;
+  if (f === 1) return `New: HOP. As a slime, aim and jump like from a host.${body ? ' And BODY: hold B as a slime, unseen, to grow your own.' : ''}`;
+  if (f === 2) return 'New: PUDDLE. Keep still as a slime and nobody spots you from afar. No drying out.';
+  if (f === 3 && body) return 'A body grown now is a BRUTE: it smashes walls and throws things. Everyone panics when they see it.';
+  if (f === 6 && body) return 'A body grown now is a GIANT: it walks through walls and stamps on people. It\'s too big for most doors.';
+  return 'Stronger, faster, and it launches further.';
+}
 const canHop = () => !!(player.slime && game.level.consume && player.form >= 1 && player.slime.landed && game.time - (player.slime.hopAt ?? -9) > 0.5);
 
 /** Form I and up: jump from the ground, as a slime. */
@@ -5208,9 +5482,19 @@ function hop() {
 /** Form III: grow your own body out of slime, unseen. It drops you back two forms. */
 function updateGrow(dt) {
   const s = player.slime;
-  const want = input.grow && s && s.landed && game.level.consume && player.form >= 3 && !game.over;
+  const want = input.grow && s && s.landed && game.level.consume && game.bodyOK && player.form >= 1 && !game.over;
   let g = player.growing;
-  if (want && !g) g = player.growing = { p: 0, seenBy: null, checkT: 0 };
+  if (want && !g) {
+    const tier = bodyTier(player.form), BS = BODY_SIZES[tier];
+    // A giant needs the sky above it.
+    const t0 = s.body.translation();
+    _slimeRay.origin = { x: t0.x, y: t0.y, z: t0.z };
+    _slimeRay.dir = { x: 0, y: 1, z: 0 };
+    const roof = d.world.castRay(_slimeRay, 1.9 * BS.scale + 0.3, true, undefined, undefined, s.col);
+    _slimeRay.dir = { x: 0, y: -1, z: 0 };
+    if (roof) { input.grow = false; toast('No room', `A ${BS.name.toLowerCase()} won't fit under this ceiling. Find more headroom.`, 2); return; }
+    g = player.growing = { p: 0, seenBy: null, checkT: 0, tier };
+  }
   if (!g) return;
   if (!s) { player.growing = null; return; }
   const t = s.body.translation();
@@ -5219,18 +5503,21 @@ function updateGrow(dt) {
   if (!want) { g.p -= dt * 0.5; if (g.p <= 0) player.growing = null; return; }
   s.body.setLinvel({ x: 0, y: Math.min(0, s.body.linvel().y), z: 0 }, true);
   if (g.seenBy) return;
-  g.p += dt / GROW_TIME;
+  g.p += dt / (GROW_TIME * (1 + (g.tier - 1) * 0.5));
   if (Math.random() < 0.6) burst(new THREE.Vector3(t.x, 0.2 + g.p * 1.4, t.z), 2, 0x7cff4f, { speed: 1, up: 2, size: 0.12 });
   if (g.p < 1) return;
   player.growing = null;
   input.grow = false;
-  player.form -= 2;
-  const p = spawnPerson('shell', t.x, t.z, { yaw: view.yaw });
+  const spent = player.form;
+  player.form = 0;
+  const p = spawnPerson('shell', t.x, t.z, { yaw: view.yaw, y: Math.max(0, t.y - SLIME_R), size: g.tier });
   p.prevYaw = p.yaw;
   enterHost(p, true);
   burst(new THREE.Vector3(t.x, 1, t.z), 30, 0x7cff4f, { speed: 3, up: 3, size: 0.12 });
   sfx.infect();
-  toast('Your own body', `Back to slime form ${FORM_NAMES[player.form]}. Up close, it doesn't look quite right.`, 3);
+  if (g.tier === 1) toast('Your own body', `It took all ${spent === 1 ? 'your form' : `${spent} forms`}. Up close, it doesn't look quite right.`, 3);
+  else toast(`A ${BODY_SIZES[g.tier].name.toLowerCase()}`, `${spent} forms went into it. F smashes, G picks things up and throws them. Everyone who sees it panics.`, 3.6);
+  if (g.tier >= 2) { shake = Math.max(shake, 0.4 * g.tier); loudAct(new THREE.Vector3(t.x, t.y, t.z), 12 * g.tier, 10); }
 }
 
 // --- Win / lose --------------------------------------------------------------------------------
@@ -5260,9 +5547,16 @@ function win() {
   const best = !prev || game.time < prev.time;
   if (best) prog[L.id] = { time: game.time, alarm: Math.round(game.peakAlarm) };
   saveProgress(prog);
+  const li = LEVELS.indexOf(L), next = LEVELS[li + 1];
+  const unlockedNow = next && !prev && !freePlay();
+  $('nextBtn').classList.toggle('hidden', !next);
+  if (next) { $('nextBtn').textContent = `Next: ${next.title}`; $('nextBtn').onclick = () => { menuLevel = li + 1; try { localStorage.setItem('symbiote-level', String(menuLevel)); } catch { /* private mode */ } loadLevel(menuLevel); }; }
   setTimeout(() => {
     $('endTitle').textContent = 'Mission complete';
-    $('endText').textContent = `${L.title}${best && prev ? ' · new best time!' : ''}`;
+    $('endText').textContent = `${L.title}${best && prev ? ' · new best time!' : ''}${unlockedNow ? ` · ${next.title} unlocked` : ''}`;
+    const reward = !prev && L.reward;
+    $('endReward').classList.toggle('hidden', !reward);
+    if (reward) $('endReward').innerHTML = `<b>${L.reward.title}</b>${L.reward.text}`;
     $('endStats').innerHTML = `<div><b>${fmtTime(game.time)}</b>time</div><div><b>${game.hostsUsed}</b>hosts used</div><div><b>${Math.round(game.peakAlarm)}%</b>peak alarm</div>`;
     endScreen();
   }, 900);
@@ -5274,6 +5568,8 @@ function lose(title, text) {
   $('exitMark').classList.add('hidden'); $('goalMark').classList.add('hidden');
   setSiren(false);
   sfx.lose();
+  $('nextBtn').classList.add('hidden');
+  $('endReward').classList.add('hidden');
   if (player.slime) { const t = player.slime.body.translation(); splat(t.x, t.z, 0.9, t.y - SLIME_R); slimeMesh.visible = false; }
   setTimeout(() => {
     $('endTitle').textContent = title;
@@ -5314,12 +5610,12 @@ function updateHud(dt) {
   const count = (i) => (i === 'charges' ? ` ×${player.charges}` : i === 'flares' ? ` ×${player.flares}` : '');
   const items = h ? h.items.map((i) => (i === act && usable(h).length > 1 ? `<b>${ITEMS[i].label}${count(i)}</b>` : ITEMS[i].label + count(i))).join(' + ') : '';
   $('hostItems').innerHTML = h ? (items ? `Holding: ${items}${usable(h).length > 1 ? ' <span class="dim">(Q to swap)</span>' : ''}` : 'Empty-handed') : 'Stay out of sight. They\'ll stamp on you.';
-  const warn = !h ? '' : player.trespass ? `⚠ ${player.trespass}` : player.carry ? `Carrying ${player.carry.label}. Guards will notice it.` : h.merged ? 'Merged: up close, guards can tell something\'s wrong.' : '';
+  const warn = !h ? '' : h.size >= 2 ? 'Too big to hide: everyone who sees you panics.' : player.trespass ? `⚠ ${player.trespass}` : player.carry ? `Carrying ${player.carry.label}. Guards will notice it.` : h.merged ? 'Merged: up close, guards can tell something\'s wrong.' : '';
   $('warnRow').textContent = warn;
   $('warnRow').classList.toggle('hidden', !warn);
   const cons = game.level.consume;
   const canEat = !!(h && cons && !h.role.shell);
-  const canGrow = !!(!h && player.slime && cons && player.form >= 3);
+  const canGrow = !!(!h && player.slime && cons && game.bodyOK && player.form >= 1);
   const hold = player.consuming || player.growing;
   let hint = '';
   if (hold) {
@@ -5328,24 +5624,27 @@ function updateHud(dt) {
     const msg = !held ? 'Let go: it\'s healing over' : hold.seenBy ? '<b class="warn">Someone can see you. Get out of sight.</b>' : `${what}… keep holding`;
     hint = `<div class="pbar"><i style="width:${Math.round(clamp(hold.p, 0, 1) * 100)}%"></i></div>${msg}`;
   } else if (canEat) hint = isTouch ? 'Hold EAT, unseen, to eat this host and grow' : `Hold <kbd>C</kbd> where nobody can see you to eat this ${h.role.label.replace(/^The /, '').toLowerCase()}: your slime grows a form`;
-  else if (canGrow) hint = isTouch ? 'Hold BODY, unseen, to grow a body (−2 forms)' : 'Hold <kbd>B</kbd> where nobody can see you to grow your own body (costs two forms)';
+  else if (canGrow) { const nm = BODY_SIZES[bodyTier(player.form)].name.toLowerCase(); hint = isTouch ? `Hold BODY, unseen, to grow a ${nm} (uses every form)` : `Hold <kbd>B</kbd> where nobody can see you to grow a ${nm === 'slime body' ? 'body' : nm} (uses all ${player.form} form${player.form > 1 ? 's' : ''})`; }
+  else if (h && h.size >= 2) hint = isTouch ? '' : `<kbd>F</kbd> smash walls, doors and people · <kbd>G</kbd> ${player.held ? 'throw' : 'pick up'}`;
   else if (!h && canHop()) hint = `${isTouch ? 'LAUNCH' : 'Aim and jump'} to hop${player.form >= 2 ? ' · keep still to puddle' : ''}`;
   $('consumeHint').classList.toggle('hidden', !hint);
   $('consumeHint').innerHTML = hint;
   $('eatbtn').classList.toggle('hidden', !canEat);
   $('bodybtn').classList.toggle('hidden', !canGrow);
-  const powers = ['hop', 'puddle', 'body'].slice(0, player.form).join(', ');
+  const powers = ['hop', 'puddle'].slice(0, player.form).concat(game.bodyOK ? [`body: ${BODY_SIZES[bodyTier(player.form)].name.toLowerCase()}`] : []).join(', ');
   $('formRow').classList.toggle('hidden', !player.form);
   $('formRow').textContent = player.form ? `Slime form ${FORM_NAMES[player.form]} (${powers})${player.absorbed.length ? ` · absorbed: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}` : ''}` : '';
   $('swapbtn').classList.toggle('hidden', usable(h).length < 2);
   $('zoombtn').classList.toggle('hidden', activeItem(h) !== 'rifle');
+  $('grabbtn').classList.toggle('hidden', !(h && h.size >= 2));
+  $('grabbtn').textContent = player.held ? 'THROW' : 'GRAB';
   $('zoombtn').classList.toggle('on', !!player.zoom);
   $('scope').classList.toggle('hidden', !player.zoom);
   $('hpRow').classList.toggle('hidden', !h);
   $('slimeRow').classList.toggle('hidden', !!h);
-  if (h) $('hpBar').style.width = `${clamp(h.hp / HUMAN.hp, 0, 1) * 100}%`;
+  if (h) $('hpBar').style.width = `${clamp(h.hp / (h.maxHp || HUMAN.hp), 0, 1) * 100}%`;
   $('slimeBar').style.width = `${clamp(player.health / slimeMax(), 0, 1) * 100}%`;
-  $('spotted').classList.toggle('hidden', !(h && player.marked));
+  $('spotted').classList.toggle('hidden', !(h && player.marked && !(h.size >= 2)));
   const use = h && act && ITEMS[act].use;
   $('itembtn').textContent = use ? use.toUpperCase() : 'ITEM';
   $('itembtn').style.opacity = use ? 1 : 0.4;
@@ -5359,16 +5658,25 @@ function showScreen(id) {
 
 let menuLevel = 0;
 try { menuLevel = clamp(+localStorage.getItem('symbiote-level') || 0, 0, LEVELS.length - 1); } catch { /* private mode */ }
+// Levels unlock one at a time, in order, unless free play is on.
+const freePlay = () => { try { return localStorage.getItem('symbiote-freeplay') === '1'; } catch { return false; } };
+const levelUnlocked = (i, prog = loadProgress()) => i === 0 || freePlay() || !!prog[LEVELS[i - 1].id];
 function buildMenu() {
   const prog = loadProgress();
   $('levelList').innerHTML = LEVELS.map((L, i) => {
     const best = prog[L.id];
+    const open = levelUnlocked(i, prog);
     const tags = [...new Set(L.objectives.map((o) => o.type))].join(' · ') + (L.consume ? ' · Consuming' : '');
-    return `<button class="lvl${i === menuLevel ? ' sel' : ''}" data-i="${i}"><div class="top"><b>${L.title}</b>${L.isNew && !best ? '<span class="new">NEW</span>' : ''}<span class="best">${best ? `best ${fmtTime(best.time)}` : ''}</span></div><div class="tags">${tags}</div><div class="blurb">${L.blurb}</div><ul>${L.objectives.map((o) => `<li><em>${o.type}</em> ${o.text}</li>`).join('')}</ul></button>`;
+    const badge = !open ? '<span class="lock">LOCKED</span>' : L.isNew && !best ? '<span class="new">NEW</span>' : '';
+    const body = open ? `<div class="tags">${tags}</div><div class="blurb">${L.blurb}</div>${L.reward ? `<div class="reward">${best ? '✓ ' : ''}${L.reward.title}</div>` : ''}<ul>${L.objectives.map((o) => `<li><em>${o.type}</em> ${o.text}</li>`).join('')}</ul>` : `<div class="blurb">Finish ${LEVELS[i - 1].title} to unlock.</div>`;
+    return `<button class="lvl${i === menuLevel ? ' sel' : ''}${open ? '' : ' locked'}" data-i="${i}"><div class="top"><b>${L.title}</b>${badge}<span class="best">${best ? `best ${fmtTime(best.time)}` : ''}</span></div>${body}</button>`;
   }).join('');
   for (const b of $('levelList').querySelectorAll('.lvl')) b.onclick = () => selectLevel(+b.dataset.i);
   const best = prog[LEVELS[menuLevel].id];
-  $('playBtn').textContent = best ? `Play ${LEVELS[menuLevel].title} again` : `Play ${LEVELS[menuLevel].title}`;
+  const open = levelUnlocked(menuLevel, prog);
+  $('playBtn').disabled = !open;
+  $('playBtn').textContent = !open ? `Locked: finish ${LEVELS[menuLevel - 1].title} first` : best ? `Play ${LEVELS[menuLevel].title} again` : `Play ${LEVELS[menuLevel].title}`;
+  $('freePlay').checked = freePlay();
 }
 function selectLevel(i) {
   if (i === menuLevel) return;
@@ -5433,7 +5741,8 @@ function togglePause() {
   if (game.paused) { setSiren(false); input.aiming = false; if (document.pointerLockElement) document.exitPointerLock(); }
   else if (game.alert) setSiren(true);
 }
-$('playBtn').onclick = () => { audio(); loadLevel(menuLevel); };
+$('playBtn').onclick = () => { if (!levelUnlocked(menuLevel)) return; audio(); loadLevel(menuLevel); };
+$('freePlay').onchange = (e) => { try { localStorage.setItem('symbiote-freeplay', e.target.checked ? '1' : '0'); } catch { /* private mode */ } buildMenu(); };
 $('pausebtn').onclick = () => togglePause();
 $('resumeBtn').onclick = () => togglePause();
 $('restartBtn').onclick = () => restart();
@@ -5532,7 +5841,7 @@ window.__symbiote = {
   tickOnce: () => tick(TICK),
   openExit: () => openExit(),
   spawn: (role, x, z, opts = {}) => spawnPerson(role, x, z, opts),
-  launch: () => launch(), movers: () => movers, liftAt: () => { const m = movers[0]; return m && Math.abs(m.y - (player.host?.pos.y ?? -9)) < 0.05 && m.waitT > 1.5; },
+  walls: () => walls, grab: () => grab(), held: () => player.held, win: () => win(), launch: () => launch(), movers: () => movers, liftAt: () => { const m = movers[0]; return m && Math.abs(m.y - (player.host?.pos.y ?? -9)) < 0.05 && m.waitT > 1.5; },
   watcher: (x, y, z) => !!watcher(new THREE.Vector3(x, y, z)), hop: () => launch(),
   consume: () => consume(), swapItem: () => swapItem(), cams: () => cams, breakables: () => breakables, pickups: () => pickups, power: () => power, objective, breakIt, explodeAt: (x, y, z) => explodeAt(new THREE.Vector3(x, y, z)), relay: () => relay,
   lookAt: (x, y, z) => { const o = camera.position; view.yaw = Math.atan2(x - o.x, z - o.z); view.pitch = Math.atan2(-(y - o.y), Math.hypot(x - o.x, z - o.z)); },
