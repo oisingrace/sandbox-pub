@@ -76,6 +76,10 @@
     #marker .arrow { position: absolute; left: -9px; top: -32px; width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 13px solid var(--cyan); }
     #markerDist { position: absolute; left: -40px; top: 16px; width: 80px; text-align: center; font: 700 12px var(--display); color: var(--cyan); text-shadow: 0 1px 3px #000; font-variant-numeric: tabular-nums; }
     #vignette { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 52%, rgba(6,10,18,0.6) 100%); }
+    #health { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); width: min(260px, 60vw); height: 8px; border-radius: 4px; background: rgba(0,0,0,0.45); overflow: hidden; transition: opacity 0.3s; }
+    #health i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #ff4d5a, #ff9a6b); border-radius: 4px; transition: width 0.15s; }
+    #hurt { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(255,0,0,0) 45%, rgba(200,20,30,0.55) 100%); transition: opacity 0.5s; }
+    #hurt.on { opacity: 1; transition: none; }
     #fade { position: fixed; inset: 0; pointer-events: none; background: #05070b; opacity: 0; transition: opacity 0.25s; }
     #fade.on { opacity: 1; transition: none; }
 
@@ -92,6 +96,7 @@
     #tDive { right: 128px; bottom: 112px; }
     #tTrick { right: 128px; bottom: 190px; }
     #tStart { right: 210px; bottom: 34px; background: rgba(69,216,234,0.7); }
+    #tHit { right: 210px; bottom: 112px; background: rgba(255,90,90,0.55); }
     #tPause { left: max(16px, env(safe-area-inset-left)); top: 150px; width: 46px; height: 46px; }
 
     /* ---------- Menus ---------- */
@@ -210,6 +215,15 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "1.2", "date": "2026-10-13", "title": "Fighting",
+      "notes": [
+        "Crimes: red beams on rooftops mark gangs of thugs. Three are going on around the city at any time.",
+        "Press F (Y on a gamepad, HIT on touch) to punch. Every third hit in a row is a heavy finisher, and pressing it near a thug further away lunges you at them.",
+        "Swing or dive into a thug fast for an instant takedown, and knock them off the roof for bonus style.",
+        "Thugs rush you and wind up their punches with a red warning; brutes are bigger and hit harder. Jump or swing away to dodge.",
+        "You have health now. It comes back on its own when you're out of the fight; get knocked out and you're back at your start roof.",
+        "Stopping a crime pays 3 tokens, and a new one starts somewhere else."
+      ] },
     { "version": "1.1", "date": "2026-10-12", "title": "Neon Heights",
       "notes": [
         "The city has a new district across the channel to the east: Neon Heights. Swing over to it from Harbour City; two bridges with tall towers carry you across.",
@@ -298,6 +312,7 @@
 <body>
   <div id="app"></div>
   <div id="vignette"></div>
+  <div id="hurt"></div>
 
   <div id="hud" hidden>
     <div id="topleft" class="glass">
@@ -325,6 +340,7 @@
     <div id="countdown" hidden></div>
     <div id="prompt" class="glass" hidden></div>
     <div id="hint" class="glass" hidden></div>
+    <div id="health" style="opacity:0"><i></i></div>
     <div id="marker" hidden><div class="pip"></div><div class="arrowWrap"><div class="arrow"></div></div><span id="markerDist"></span></div>
   </div>
 
@@ -336,6 +352,7 @@
     <button class="tbtn" id="tDive" data-hold="dive">DIVE</button>
     <button class="tbtn" id="tTrick" data-press="trick">FLIP</button>
     <button class="tbtn" id="tStart" data-press="interact" hidden>START</button>
+    <button class="tbtn" id="tHit" data-press="interact">HIT</button>
     <button class="tbtn" id="tPause" data-press="pause">II</button>
   </div>
 
@@ -344,7 +361,7 @@
   <div id="menu">
     <section class="panel" data-panel="title">
       <div class="logo">SWING</div>
-      <p class="tag">Swing through a city of towers. Hunt down gold tokens, chase race times and chain the longest combo.</p>
+      <p class="tag">Swing through a city of towers. Hunt down gold tokens, stop crimes, chase race times and chain the longest combo.</p>
       <div class="menu-btns">
         <button class="mbtn primary" data-act="play">Play <small>Free roam</small></button>
         <button class="mbtn" data-act="online">Play online <small>With friends, by room code</small></button>
@@ -463,7 +480,7 @@
             <dt><kbd>E</kbd><kbd>Right-click</kbd></dt><dd>Web-zip forward</dd>
             <dt><kbd>C</kbd></dt><dd>Hold to dive</dd>
             <dt><kbd>Q</kbd></dt><dd>Flip in the air</dd>
-            <dt><kbd>F</kbd></dt><dd>Start a race at a cyan beam</dd>
+            <dt><kbd>F</kbd></dt><dd>Punch (lunges at thugs further off) · start a race at a cyan beam</dd>
             <dt><kbd>R</kbd><kbd>M</kbd><kbd>Esc</kbd></dt><dd>Restart race or respawn · mute · pause</dd>
           </dl>
         </section>
@@ -473,7 +490,7 @@
             <dt><kbd>RT</kbd></dt><dd>Swing</dd>
             <dt><kbd>L stick</kbd><kbd>R stick</kbd></dt><dd>Move · look</dd>
             <dt><kbd>A</kbd><kbd>B</kbd><kbd>X</kbd></dt><dd>Jump · zip · flip</dd>
-            <dt><kbd>LT</kbd><kbd>Y</kbd><kbd>Start</kbd></dt><dd>Dive · start race · pause</dd>
+            <dt><kbd>LT</kbd><kbd>Y</kbd><kbd>Start</kbd></dt><dd>Dive · punch or start race · pause</dd>
           </dl>
         </section>
         <section>
@@ -2122,11 +2139,12 @@ const player = {
   web: null,               // { anchor, normal, length, target, safe, hand }
   diveT: 0, trickT: 0, trickCount: 0, kickT: 0, kickN: new THREE.Vector3(), heroT: 0,
   nearCd: 0, stepN: 0,
+  hp: 100, hurtT: 9, punchT: 0, punchKind: 'R', attackCd: 0, lunge: null, // fighting
   events: [],
   teleport(p, yaw) {
     this.pos.copy(p); this.prevPos.copy(p);
     this.vel.set(0, 0, 0);
-    this.state = State.AIR; this.web = null; this.zipT = 0; this.trickT = 0; this.diveT = 0; this.heroT = 0;
+    this.state = State.AIR; this.web = null; this.zipT = 0; this.trickT = 0; this.diveT = 0; this.heroT = 0; this.lunge = null; this.punchT = 0;
     if (yaw !== undefined) { cam.yaw = yaw; cam.pitch = 0.18; }
     this.heading.copy(cam.forwardFlat());
     cam.target.copy(p);
@@ -2436,6 +2454,8 @@ function step(dt) {
     else if (d2 < 400) t.pos.lerp(P.pos, Math.min(1, dt * (22 / Math.sqrt(d2)))); // nearby tokens fly to you
   }
 
+  fight.step(dt);
+
   // ---------- levels: hazards, checkpoints, the exit ----------
   if (level.def && levelCheck()) return;
 
@@ -2716,6 +2736,13 @@ class Character {
       Character.bend(this.legL, 0.9 - 0.4 * fall, k);
       Character.bend(this.legR, 0.4, k);
     }
+    if (P.punchT > 0) { // fighting: a straight punch, or a kick for the finisher
+      const kq = damp(45, dt);
+      if (P.punchKind === 'kick') { Character.aim(this.legR, D(-0.05, 0.25, 1), kq); Character.bend(this.legR, 0, kq); Character.aim(this.legL, D(0.1, -1, -0.2), kq); }
+      else { const arm = P.punchKind === 'L' ? this.armL : this.armR; Character.aim(arm, D(P.punchKind === 'L' ? 0.12 : -0.12, 0.12, 1), kq); Character.bend(arm, 0, kq); }
+    } else if (P.windT > 0) { // a thug drawing back to punch
+      Character.aim(this.armR, D(-0.5, 0.7, -0.6), damp(20, dt)); Character.bend(this.armR, -1.8, damp(20, dt));
+    }
     if (P.trickT > 0) {
       const prog = 1 - P.trickT / CFG.trick.duration;
       this.body.rotation.x = wrapAngle(prog * Math.PI * 2); // forward flip; same orientation mod 2π
@@ -2728,6 +2755,281 @@ class Character {
 }
 const character = new Character();
 character.applySuit(save.suit);
+
+// =====================================================================
+// Fighting: crimes on rooftops, each a gang of thugs under a red beam.
+// Thugs loiter until you come close, then rush you and wind up punches.
+// Punch (F) them, lunge at ones further off, or swing into them fast.
+// Thugs are local to each player, even online.
+// =====================================================================
+const FIGHT = {
+  hp: 100, regenDelay: 4, regen: 12, punchRange: 2.7, lungeRange: 15, lungeSpeed: 26, swingKickSpeed: 17,
+  crimes: 3, wakeDist: 90, alertDist: 30, reward: 3, attackers: 2,
+};
+const THUG_LOOKS = [[0x3a3f47, 0x2b3a55], [0x4b2e2e, 0x2a2d33], [0x2e3b2f, 0x33302b], [0x3b3350, 0x25262c], [0x5a5e66, 0x1f2f4a]];
+const fight = (() => {
+  const sites = city.roofs.filter((r) => r.y >= 14 && r.y <= 120 && r.x1 - r.x0 >= 16 && r.z1 - r.z0 >= 16);
+  const pool = [];
+  for (let i = 0; i < 6; i++) {
+    const ch = new Character();
+    ch.root.visible = false;
+    const warn = new THREE.Mesh(new THREE.OctahedronGeometry(0.16), new THREE.MeshBasicMaterial({ color: 0xff3a3a }));
+    warn.position.y = 1.35; warn.visible = false; ch.root.add(warn); ch.warn = warn;
+    pool.push(ch);
+  }
+  const beamGeo = new THREE.CylinderGeometry(1.8, 1.8, 150, 16, 1, true); beamGeo.translate(0, 75, 0);
+  const beamMat = new THREE.MeshBasicMaterial({ color: 0xff3a3a, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const crimes = [];
+  let thugs = [], live = null, respawnT = [], comboHits = 0, comboT = 0;
+  const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
+
+  function pickSite() {
+    for (let tries = 0; tries < 60; tries++) {
+      const r = sites[Math.floor(Math.random() * sites.length)];
+      const c = new THREE.Vector3((r.x0 + r.x1) / 2, r.y, (r.z0 + r.z1) / 2);
+      if (crimes.some((k) => k.pos.distanceTo(c) < 250) || c.distanceTo(player.pos) < 120) continue;
+      return { roof: r, pos: c };
+    }
+    return null;
+  }
+  function addCrime() {
+    const s = pickSite();
+    if (!s) return;
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.copy(s.pos);
+    scene.add(beam);
+    crimes.push({ ...s, beam, brute: Math.random() < 0.5 });
+  }
+  for (let i = 0; i < FIGHT.crimes; i++) addCrime();
+
+  function makeThug(ch, crime, k, brute) {
+    const [main, sec] = brute ? [0x8a3a1c, 0x2a2d33] : THUG_LOOKS[Math.floor(Math.random() * THUG_LOOKS.length)];
+    ch.suit = { main, sec };
+    ch.main.color.setHex(main); ch.sec.color.setHex(sec);
+    ch.eye.color.setHex(0xe8e8e8); ch.eye.emissive.setHex(0x333333); ch.eye.emissiveIntensity = 0.3;
+    ch.setNight((TOD[save.settings.timeOfDay] || TOD.day).night);
+    ch.root.scale.setScalar(brute ? 1.28 : 1);
+    ch.root.visible = true;
+    const a = (k / 5) * Math.PI * 2, R = 3 + Math.random() * 2.5, r = crime.roof;
+    const pos = new THREE.Vector3(clamp(crime.pos.x + Math.cos(a) * R, r.x0 + 1, r.x1 - 1), r.y + 0.9, clamp(crime.pos.z + Math.sin(a) * R, r.z0 + 1, r.z1 - 1));
+    return {
+      ch, pos, vel: new THREE.Vector3(), brute, hp: brute ? 6 : 3, state: 'idle', t: Math.random() * 2, cd: 0.6 + Math.random(), downT: 0, wander: a,
+      pose: { vel: new THREE.Vector3(), heading: tmp.subVectors(crime.pos, pos).setY(0).normalize().clone(), state: State.GROUND, diveT: 0, trickT: 0, heroT: 0, zipT: 0, web: null, punchT: 0, punchKind: 'R', windT: 0 },
+    };
+  }
+  function wake(crime) {
+    live = crime;
+    const n = crime.brute ? 4 : 3 + Math.floor(Math.random() * 3);
+    thugs = [];
+    for (let k = 0; k < n; k++) thugs.push(makeThug(pool[k], crime, k, crime.brute && k === 0));
+  }
+  function sleep() {
+    for (const t of thugs) { t.ch.root.visible = false; t.ch.warn.visible = false; }
+    thugs = []; live = null;
+  }
+  const standing = () => thugs.filter((t) => t.state !== 'down');
+
+  function hitThug(t, dmg, dir, label, pts) {
+    t.hp -= dmg;
+    learn('fight');
+    combo.add(label, pts); combo.chain++;
+    camFx.shake = Math.max(camFx.shake, dmg > 1 ? 0.45 : 0.25);
+    audio.thud(dmg > 1 ? 0.7 : 0.45); audio.noiseBurst({ f0: 1400, f1: 300, q: 1, dur: 0.12, gain: 0.35 });
+    particles.emit(tmp2.copy(t.pos).setY(t.pos.y + 0.5), { count: dmg > 1 ? 18 : 9, speed: 5, color: 0xfff1c9, size: 0.4, life: 0.35 });
+    const out = t.hp <= 0;
+    t.vel.copy(dir).setY(0).normalize().multiplyScalar(out ? (dmg > 1 ? 15 : 10) : 4);
+    t.pose.windT = 0; t.ch.warn.visible = false;
+    if (out) { t.state = 'down'; t.vel.y = 6; t.downT = 0; t.air = true; combo.add('Takedown', 150); }
+    else { t.state = 'hurt'; t.t = dmg > 1 ? 0.6 : 0.35; }
+  }
+
+  /** F / Y / HIT: punch whoever's in reach, else lunge at the best target nearby. */
+  function attack() {
+    const P = player;
+    if (P.attackCd > 0 || !live) return false;
+    let best = null, bestScore = Infinity;
+    const fwd = P.state === State.GROUND ? P.heading : cam.forwardFlat();
+    for (const t of standing()) {
+      tmp.subVectors(t.pos, P.pos);
+      if (Math.abs(tmp.y) > 4) continue;
+      const d = Math.hypot(tmp.x, tmp.z);
+      if (d > FIGHT.lungeRange) continue;
+      const facing = (tmp.x * fwd.x + tmp.z * fwd.z) / Math.max(d, 0.01);
+      const score = d * (1.6 - facing);
+      if (score < bestScore) { bestScore = score; best = t; }
+    }
+    if (!best) return false;
+    P.attackCd = 0.3;
+    const d = tmp.subVectors(best.pos, P.pos).setY(0).length();
+    if (d <= FIGHT.punchRange) strike(best);
+    else { P.lunge = { t: best, time: 0.6 }; audio.whoosh(); }
+    return true;
+  }
+  function strike(t) {
+    const P = player;
+    const dir = tmp.subVectors(t.pos, P.pos).setY(0).normalize();
+    P.heading.copy(dir);
+    comboHits = comboT > 0 ? comboHits + 1 : 1;
+    comboT = 1.1;
+    const finisher = comboHits % 3 === 0;
+    P.punchT = 0.22; P.punchKind = finisher ? 'kick' : comboHits % 2 ? 'R' : 'L';
+    hitThug(t, finisher ? 2 : 1, dir, finisher ? 'Finisher' : 'Punch', finisher ? 120 : 50);
+  }
+  function hurtPlayer(dmg, from) {
+    const P = player;
+    P.hp -= dmg; P.hurtT = 0;
+    P.lunge = null;
+    camFx.shake = Math.max(camFx.shake, 0.5);
+    audio.thud(0.6);
+    hurtFlash();
+    tmp.subVectors(P.pos, from).setY(0).normalize();
+    P.vel.addScaledVector(tmp, 3.5); P.vel.y = Math.max(P.vel.y, 2);
+    if (P.hp <= 0) {
+      P.hp = FIGHT.hp;
+      combo.lose('Knocked out');
+      toast('Knocked out', 'red big');
+      flashFade();
+      sleep();
+      player.reset();
+    }
+  }
+
+  function step(dt) {
+    const P = player;
+    P.attackCd -= dt; P.punchT -= dt; P.hurtT += dt; comboT -= dt;
+    if (P.hurtT > FIGHT.regenDelay) P.hp = Math.min(FIGHT.hp, P.hp + FIGHT.regen * dt);
+    // Crimes come back a while after one is stopped.
+    for (let i = respawnT.length - 1; i >= 0; i--) { respawnT[i] -= dt; if (respawnT[i] <= 0) { respawnT.splice(i, 1); addCrime(); } }
+    const busy = race.state !== 'idle' || !!level.def;
+    if (busy) { if (live) sleep(); return; }
+    if (!live) {
+      const c = crimes.find((k) => k.pos.distanceTo(P.pos) < FIGHT.wakeDist);
+      if (c) wake(c); else return;
+    }
+    if (live.pos.distanceTo(P.pos) > FIGHT.wakeDist * 2.2) { sleep(); return; }
+
+    // Lunge: close the gap fast, then hit.
+    if (P.lunge) {
+      const t = P.lunge.t;
+      P.lunge.time -= dt;
+      tmp.subVectors(t.pos, P.pos); tmp.y = 0;
+      const d = tmp.length();
+      if (t.state === 'down' || P.lunge.time <= 0) P.lunge = null;
+      else if (d <= 1.9) { P.lunge = null; P.vel.multiplyScalar(0.15); strike(t); }
+      else { tmp.divideScalar(d); P.vel.x = tmp.x * FIGHT.lungeSpeed; P.vel.z = tmp.z * FIGHT.lungeSpeed; P.heading.copy(tmp); }
+    }
+
+    const speed = P.vel.length();
+    const onRoof = Math.abs(P.pos.y - (live.roof.y + 0.9)) < 5 && P.pos.x > live.roof.x0 - 6 && P.pos.x < live.roof.x1 + 6 && P.pos.z > live.roof.z0 - 6 && P.pos.z < live.roof.z1 + 6;
+    const near = live.pos.distanceTo(P.pos) < FIGHT.alertDist;
+    let attackers = thugs.filter((t) => t.state === 'windup' || t.state === 'punch').length;
+    const r = live.roof;
+    for (const t of thugs) {
+      if (!live) return; // knocked out mid-loop
+      t.t -= dt; t.cd -= dt;
+      const pose = t.pose;
+      pose.punchT -= dt;
+      tmp.subVectors(P.pos, t.pos); const dy = tmp.y; tmp.y = 0;
+      const d = tmp.length();
+      // Swinging or diving into a thug knocks them out on the spot.
+      if (t.state !== 'down' && d < 1.9 && Math.abs(dy) < 2 && speed > FIGHT.swingKickSpeed && P.state !== State.GROUND) {
+        hitThug(t, 99, P.vel, 'Swing Kick', 250);
+        P.vel.multiplyScalar(0.75);
+        continue;
+      }
+      if (t.state === 'down') {
+        t.downT += dt;
+        if (t.air) {
+          t.vel.y -= CFG.gravity * dt;
+          t.pos.addScaledVector(t.vel, dt);
+          const over = t.pos.x > r.x0 && t.pos.x < r.x1 && t.pos.z > r.z0 && t.pos.z < r.z1;
+          const floor = (over ? r.y : 0) + 0.25;
+          if (!over && !t.offRoof && t.pos.y < r.y) { t.offRoof = true; combo.add('Off the roof', 150); }
+          if (t.pos.y <= floor && t.vel.y < 0) { t.pos.y = floor; t.air = false; t.vel.set(0, 0, 0); }
+        }
+        continue;
+      }
+      if (t.state === 'hurt') {
+        t.vel.multiplyScalar(Math.exp(-6 * dt));
+        if (t.t <= 0) { t.state = 'chase'; t.cd = Math.max(t.cd, 0.4); }
+      } else if (t.state === 'windup') {
+        t.vel.multiplyScalar(Math.exp(-10 * dt));
+        pose.heading.copy(tmp).normalize();
+        if (t.t <= 0) {
+          t.state = 'punch'; t.t = 0.35; pose.windT = 0; t.ch.warn.visible = false;
+          pose.punchT = 0.25; pose.punchKind = 'R';
+          if (d < (t.brute ? 2.6 : 2.2) && Math.abs(dy) < 1.6) hurtPlayer(t.brute ? 16 : 8, t.pos);
+        }
+      } else if (t.state === 'punch') {
+        if (t.t <= 0) { t.state = 'chase'; t.cd = 1.4 + Math.random() * 1.2; }
+      } else if (near || t.state === 'chase') {
+        t.state = 'chase';
+        const reach = onRoof && Math.abs(dy) < 2.5;
+        if (d > 1.5 && reach) {
+          const sp = t.brute ? 4.2 : 5.4;
+          t.vel.x += (tmp.x / d * sp - t.vel.x) * Math.min(1, 8 * dt);
+          t.vel.z += (tmp.z / d * sp - t.vel.z) * Math.min(1, 8 * dt);
+        } else t.vel.multiplyScalar(Math.exp(-8 * dt));
+        if (d > 0.01) pose.heading.copy(tmp).normalize();
+        if (reach && d < 1.9 && t.cd <= 0 && attackers < FIGHT.attackers) {
+          t.state = 'windup'; t.t = t.brute ? 0.8 : 0.6; pose.windT = t.t; t.ch.warn.visible = true; attackers++;
+        }
+      } else { // loiter around the middle of the roof
+        t.wander += dt * 0.3;
+        const gx = live.pos.x + Math.cos(t.wander) * 4 - t.pos.x, gz = live.pos.z + Math.sin(t.wander) * 4 - t.pos.z;
+        const gl = Math.hypot(gx, gz);
+        if (gl > 0.5) { t.vel.x = gx / gl * 1.4; t.vel.z = gz / gl * 1.4; pose.heading.set(gx / gl, 0, gz / gl); } else t.vel.set(0, 0, 0);
+      }
+      pose.windT = t.state === 'windup' ? t.t : 0;
+      // Keep apart from each other, and on the roof.
+      for (const o of thugs) {
+        if (o === t || o.state === 'down') continue;
+        const sx = t.pos.x - o.pos.x, sz = t.pos.z - o.pos.z, sl = Math.hypot(sx, sz);
+        if (sl > 0.01 && sl < 1.3) { t.pos.x += sx / sl * (1.3 - sl) * 0.5; t.pos.z += sz / sl * (1.3 - sl) * 0.5; }
+      }
+      t.pos.x += t.vel.x * dt; t.pos.z += t.vel.z * dt;
+      t.pos.x = clamp(t.pos.x, r.x0 + 0.7, r.x1 - 0.7); t.pos.z = clamp(t.pos.z, r.z0 + 0.7, r.z1 - 0.7);
+      t.pos.y = r.y + 0.9;
+    }
+    // Stopped?
+    if (thugs.length && thugs.every((t) => t.state === 'down' && !t.air)) {
+      const c = live;
+      save.bonus += FIGHT.reward; save.crimes = (save.crimes || 0) + 1; writeSave();
+      toast(`Crime stopped! +${FIGHT.reward} tokens`, 'gold big');
+      audio.fanfare();
+      combo.add('Crime stopped', 300);
+      scene.remove(c.beam);
+      crimes.splice(crimes.indexOf(c), 1);
+      respawnT.push(25);
+      const gone = thugs;
+      live = null; thugs = [];
+      setTimeout(() => { for (const t of gone) { if (!thugs.includes(t)) { t.ch.root.visible = false; t.ch.warn.visible = false; } } }, 2500);
+    }
+  }
+
+  const q = new THREE.Quaternion(), m = new THREE.Matrix4(), left = new THREE.Vector3(), back = new THREE.Vector3();
+  function render(dt) {
+    for (const c of crimes) c.beam.visible = race.state === 'idle';
+    for (const t of thugs) {
+      t.pose.vel.copy(t.vel);
+      t.pose.state = t.state === 'down' && t.air ? State.AIR : State.GROUND;
+      if (t.state === 'down' && !t.air) {
+        // Flat on their back.
+        back.copy(t.pose.heading).negate();
+        left.crossVectors(back, UP).normalize();
+        t.ch.root.position.copy(t.pos);
+        t.ch.root.quaternion.slerp(q.setFromRotationMatrix(m.makeBasis(left, back, UP)), damp(10, dt));
+        continue;
+      }
+      t.ch.update(dt, t.pos, t.pose);
+    }
+  }
+  return {
+    crimes, step, render, attack, sleep,
+    get thugs() { return thugs; },
+    get engaged() { return !!live && thugs.some((t) => t.state !== 'idle' && t.state !== 'down'); },
+  };
+})();
 
 // =====================================================================
 // Web line, splats, speed lines
@@ -3069,6 +3371,11 @@ function toast(text, cls = '') {
   while (box.children.length > 4) box.firstChild.remove();
   setTimeout(() => el.remove(), 2900);
 }
+function hurtFlash() {
+  const el = $('#hurt');
+  el.classList.add('on');
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('on')));
+}
 function flashFade() {
   const f = $('#fade');
   f.classList.add('on');
@@ -3076,9 +3383,9 @@ function flashFade() {
 }
 
 const LABELS = {
-  kbm: { swing: '<kbd>Click</kbd> or <kbd>Shift</kbd>', zip: '<kbd>E</kbd> or right-click', dive: '<kbd>C</kbd>', trick: '<kbd>Q</kbd>', jump: '<kbd>Space</kbd>', interact: '<kbd>F</kbd>' },
-  pad: { swing: '<kbd>RT</kbd>', zip: '<kbd>B</kbd>', dive: '<kbd>LT</kbd>', trick: '<kbd>X</kbd>', jump: '<kbd>A</kbd>', interact: '<kbd>Y</kbd>' },
-  touch: { swing: '<kbd>SWING</kbd>', zip: '<kbd>ZIP</kbd>', dive: '<kbd>DIVE</kbd>', trick: '<kbd>FLIP</kbd>', jump: '<kbd>JUMP</kbd>', interact: '<kbd>START</kbd>' },
+  kbm: { swing: '<kbd>Click</kbd> or <kbd>Shift</kbd>', zip: '<kbd>E</kbd> or right-click', dive: '<kbd>C</kbd>', trick: '<kbd>Q</kbd>', jump: '<kbd>Space</kbd>', interact: '<kbd>F</kbd>', attack: '<kbd>F</kbd>' },
+  pad: { swing: '<kbd>RT</kbd>', zip: '<kbd>B</kbd>', dive: '<kbd>LT</kbd>', trick: '<kbd>X</kbd>', jump: '<kbd>A</kbd>', interact: '<kbd>Y</kbd>', attack: '<kbd>Y</kbd>' },
+  touch: { swing: '<kbd>SWING</kbd>', zip: '<kbd>ZIP</kbd>', dive: '<kbd>DIVE</kbd>', trick: '<kbd>FLIP</kbd>', jump: '<kbd>JUMP</kbd>', interact: '<kbd>START</kbd>', attack: '<kbd>HIT</kbd>' },
 };
 const HINTS = [
   { id: 'swing', text: (l) => `Hold ${l.swing} to swing` },
@@ -3087,6 +3394,7 @@ const HINTS = [
   { id: 'dive', text: (l) => `Hold ${l.dive} while falling to dive, then swing out of it` },
   { id: 'trick', text: (l) => `Press ${l.trick} in the air to flip. Land to bank your combo` },
   { id: 'explore', text: () => 'Gold tokens unlock suits. Cyan beams start races', timed: 9 },
+  { id: 'fight', text: (l) => `Red beams mark crimes. Press ${l.attack} to punch thugs, or swing into them`, timed: 12 },
 ];
 const hud = {
   el: $('#hud'),
@@ -3105,6 +3413,9 @@ const hud = {
     this.zip.classList.toggle('on', player.zipCooldown <= 0);
     this.vignette.style.opacity = (fast * 0.85).toFixed(3);
     this.set('tok', this.tok, String(tokens.count));
+    const hp = clamp(player.hp / FIGHT.hp, 0, 1);
+    this.set('hp', $('#health i').style, `${(hp * 100).toFixed(1)}%`, 'width');
+    this.set('hpShow', $('#health').style, hp < 0.999 || fight.engaged ? '1' : '0', 'opacity');
     this.set('score', this.score, save.score.toLocaleString());
 
     combo.labelT -= dt;
@@ -3192,6 +3503,11 @@ const minimap = (() => {
         if (t.got || Math.abs(t.pos.x - p.x) > RANGE * 1.5 || Math.abs(t.pos.z - p.z) > RANGE * 1.5) continue;
         dot(t.pos.x, t.pos.z, 3.5, '#ffc23d');
       }
+      for (const c of fight.crimes) {
+        if (Math.abs(c.pos.x - p.x) > RANGE * 1.5 || Math.abs(c.pos.z - p.z) > RANGE * 1.5) continue;
+        dot(c.pos.x, c.pos.z, 6, '#ff3a3a');
+      }
+      for (const t of fight.thugs) if (t.state !== 'down') dot(t.pos.x, t.pos.z, 2.6, '#ff8a8f');
       if (level.def) {
         for (const b of level.boxes) {
           if (b.max.y < 1) continue; // floors under the hall
@@ -4311,7 +4627,8 @@ function renderTitle() {
   $('#titleStats').innerHTML =
     `<span>Tokens <b>${tokens.count} / ${tokens.list.length}</b></span>` +
     `<span>Score <b>${save.score.toLocaleString()}</b></span>` +
-    `<span>Best combo <b>${save.bestCombo.toLocaleString()}</b></span>`;
+    `<span>Best combo <b>${save.bestCombo.toLocaleString()}</b></span>` +
+    `<span>Crimes stopped <b>${save.crimes || 0}</b></span>`;
 }
 function renderRaces() {
   $('#raceList').innerHTML = races.map((r) => {
@@ -4984,7 +5301,7 @@ applyQuality();
 applyTimeOfDay();
 player.reset();
 character.root.visible = false;
-window.game = { CFG, player, city, cam, State, races, tokens, startRace, save, game, race, combo, traffic, net, remotes, level, LEVELS, startLevel };
+window.game = { CFG, player, city, cam, State, races, tokens, startRace, save, game, race, combo, traffic, net, remotes, level, LEVELS, startLevel, fight };
 
 /** Per-frame game rules outside the physics step: races, race-start prompts, banking combos. */
 function tickGame(dt) {
@@ -5004,9 +5321,9 @@ function tickGame(dt) {
   const L = LABELS[input.device] || LABELS.kbm;
   const promptHtml = near ? `Press ${L.interact} to start <b>${near.name}</b>` : '';
   if (hud.last.prompt !== promptHtml) { hud.last.prompt = promptHtml; hud.prompt.innerHTML = promptHtml; hud.prompt.hidden = !promptHtml; $('#tStart').hidden = !near; }
-  if (input.consume('interact') && near) startRace(near, true);
+  if (input.consume('interact')) { if (near) startRace(near, true); else if (!fight.attack()) player.punchT = 0.18, player.punchKind = Math.random() < 0.5 ? 'L' : 'R'; }
   // Bank the combo after standing on the ground for a moment.
-  if (player.state === State.GROUND && combo.active) { combo.groundT += dt; if (combo.groundT > CFG.style.bankDelay) combo.bank(); }
+  if (player.state === State.GROUND && combo.active && !fight.engaged) { combo.groundT += dt; if (combo.groundT > CFG.style.bankDelay) combo.bank(); }
   else combo.groundT = 0;
 }
 /** Test/debug helper: run the simulation for `sec` seconds without rendering. */
@@ -5081,6 +5398,7 @@ function frame(now) {
   if (game.mode === 'play') {
     character.update(simDt, renderPos);
     character.root.updateMatrixWorld(true);
+    fight.render(simDt);
     webLine.update(simDt);
   }
   remotes.update(dt);
