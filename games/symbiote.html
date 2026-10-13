@@ -57,6 +57,7 @@
     #consumeHint kbd, #hostItems .dim { color: var(--dim); font-size: 11px; }
     #hostItems b { color: var(--slime); }
     #zoombtn { right: 128px; bottom: 164px; width: 56px; height: 40px; border: 2px solid rgba(255,80,80,0.6); background: rgba(0,0,0,0.3); color: #ffb0b0; font-size: 11px; }
+    #shrinkbtn { right: 26px; bottom: 196px; width: 70px; height: 50px; border: 2px solid rgba(160,220,255,0.8); background: rgba(20,60,90,0.5); color: #bfe6ff; }
     #grabbtn { right: 128px; bottom: 164px; width: 56px; height: 40px; border: 2px solid rgba(124,255,79,0.7); background: rgba(0,0,0,0.3); color: var(--slime); font-size: 11px; }
     .reward-box { margin: 10px 0 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(124,255,79,0.45); background: rgba(124,255,79,0.08); font-size: 14px; line-height: 1.4; }
     .reward-box b { display: block; color: var(--slime); margin-bottom: 3px; }
@@ -171,6 +172,16 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.12", "date": "2026-10-12", "title": "Blackwater Lab and shrink",
+      "notes": [
+        "New level 4: Blackwater Lab, the underground lab where the slime was made. Get past the checkpoint, download the slime research, smash the cloning vats, take out Dr. Halloran, and ride the freight lift out.",
+        "Finishing Meridian Tower now unlocks shrink, a different body you can grow instead of a brute.",
+        "Shrink: with 3 or more forms, hold V (SHRINK on phones) as a slime to grow a tiny body. It's very fast, people only notice it right at their feet, it can still carry keycards, and if you keep still it turns invisible. Like growing a body, it uses up every form.",
+        "Laser tripwires: walking through the red beams marks you and brings guards. A slime or a shrunk body slips under them.",
+        "Crawl vents: low ducts and holes in the walls that only a slime or a shrunk body fits through.",
+        "Cloning vats: glass tanks you can shoot, smash or blow up."
+      ]
+    },
     { "version": "0.11", "date": "2026-10-12", "title": "Brutes and giants",
       "notes": [
         "Levels now unlock in order: finish one to open the next. Turn on Free play on the menu to unlock every level and power. Winning a level shows a Next button.",
@@ -332,6 +343,7 @@
     <button id="eatbtn" class="tbtn hidden">EAT</button>
     <button id="bodybtn" class="tbtn hidden">BODY</button>
     <button id="grabbtn" class="tbtn hidden">GRAB</button>
+    <button id="shrinkbtn" class="tbtn hidden">SHRINK</button>
     <button id="launchbtn" class="tbtn">LAUNCH</button>
   </div>
 
@@ -353,6 +365,7 @@
         <b>Zoom</b><span><kbd>Z</kbd> with a sniper rifle</span>
         <b>Consume</b><span>Hold <kbd>C</kbd> where nobody can see you, on levels that allow it: eat your host and your slime grows a form.</span>
         <b>Forms</b><span>Eat hosts (hold <kbd>C</kbd>) to grow up to six forms. II: hop as a slime. III: keep still to become a puddle. Hold <kbd>B</kbd> as a slime to grow your own body: it uses every form, and 3+ makes a brute, 6 a giant.</span>
+        <b>Shrink</b><span>After Meridian Tower: with 3+ forms, hold <kbd>V</kbd> as a slime instead of <kbd>B</kbd> to become tiny and fast. People only notice you right at their feet, and if you keep still you turn invisible.</span>
         <b>Big bodies</b><span><kbd>F</kbd> smashes walls, doors and people, <kbd>G</kbd> picks things up and throws them. Everyone panics on sight, they can't use keycards or lifts, and a giant won't fit indoors.</span>
         <b>Other</b><span><kbd>R</kbd> restart, <kbd>P</kbd> or <kbd>Esc</kbd> pause</span>
         <b class="t">Touch</b><span class="t">Left stick moves, drag the right side to look, hold LAUNCH to aim and let go to jump. ITEM uses what your host is holding, SWAP changes item, hold EAT to consume your host where the level allows it, hold BODY to grow a body.</span>
@@ -1857,6 +1870,29 @@ function waterTower(d, x, z) {
 // (sledgehammer), demo (explosive charges), guard (pistol + keycard),
 // director (the assassination target), bodyguard (pistol).
 
+// --- Blackwater Lab --------------------------------------------------------------------------------
+const LAB_H = 3.4, LAB_C = 0xc9cfd2;
+const DOOR = 2.6, VENT = 0.95;   // gap kinds: a doorway with a lintel above, a crawl hole at the floor
+/** A lab wall from (x0,z0) to (x1,z1) with gaps [a0, a1, h]: open below h (0 = no wall at all, for glass). */
+function labWall(B, x0, z0, x1, z1, gaps = []) {
+  const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
+  const lo = alongX ? Math.min(x0, x1) : Math.min(z0, z1), hi = alongX ? Math.max(x0, x1) : Math.max(z0, z1);
+  const c = alongX ? z0 : x0;
+  const seg = (a0, a1, y0, y1) => {
+    const l = a1 - a0, h = y1 - y0, m = (a0 + a1) / 2;
+    if (l < 0.05 || h < 0.05) return;
+    B.prop(alongX ? m : c, y0 + h / 2, alongX ? c : m, alongX ? l : 0.3, h, alongX ? 0.3 : l, LAB_C);
+    if (h > 3 && l > 4) for (const side of [-1, 1]) B.prop(alongX ? m : c + side * 0.17, 3.0, alongX ? c + side * 0.17 : m, alongX ? 1.8 : 0.04, 0.12, alongX ? 0.04 : 1.8, 0xdff4ff, { solid: false, shadow: false, glow: true });
+  };
+  let a = lo;
+  for (const [g0, g1, h] of [...gaps].sort((p, q) => p[0] - q[0])) {
+    seg(a, g0, 0, LAB_H);
+    if (h) seg(g0, g1, h, LAB_H);
+    a = g1;
+  }
+  seg(a, hi, 0, LAB_H);
+}
+
 // --- Meridian Tower --------------------------------------------------------------------------------
 // One 30 x 30 m tower: lobby (y 0), offices (5), security and servers (10), penthouse (15), roof (20).
 // Stairs in the north-east corner (x 9..15, z -15..-7), a glass lift in the middle (x/z -1.8..1.8).
@@ -2322,10 +2358,10 @@ const LEVELS = [
   {
     id: 'meridian-tower',
     title: 'Meridian Tower',
-    isNew: true,
     consume: true,
     floors: true,
     blurb: 'A glass tower at night: climb it floor by floor, past security, to the penthouse party. Snipers on the towers next door watch every window.',
+    reward: { title: '🔬 Reward: shrink', text: 'With 3 or more forms, hold V as a slime to grow a tiny body instead of a brute. It\'s fast, people barely notice it, and if you keep still it turns invisible.' },
     half: 50,
     stealthFail: 'The tower locked down before you got out of the lobby.',
     look: { sky: 0x0b1222, sun: 0x9db4ff, sunI: 0.7, hemiSky: 0x8fa3d9, hemiGround: 0x4a4650, hemiI: 2.3, base: 0x23262e, city: true },
@@ -2464,6 +2500,98 @@ const LEVELS = [
       B.floor(0);
     },
   },
+  {
+    id: 'blackwater-lab',
+    title: 'Blackwater Lab',
+    isNew: true,
+    consume: true,
+    blurb: 'The underground lab where the slime was made. Laser tripwires, crawl vents, and vats full of new slime growing. Shrink to slip under the lasers, or smash your way through.',
+    half: 32,
+    stealthFail: 'The lab locked down before you got past the checkpoint.',
+    look: { sky: 0x07090c, sun: 0xb8d4e8, sunI: 0.55, hemiSky: 0xa9c4d4, hemiGround: 0x2e3a33, hemiI: 2.0, base: 0x15181b, underground: true },
+    objectives: [
+      { id: 'stealth', type: 'Stealth', text: 'Get past the checkpoint into the lab without setting off a lockdown.' },
+      { id: 'files', type: 'Espionage', text: 'Download the slime research in the records room (east). Needs a keycard.' },
+      { id: 'vats', type: 'Sabotage', text: 'Smash the cloning vats in the vat room (west). Laser tripwire on the door.' },
+      { id: 'director', type: 'Assassination', text: 'Take out Dr. Halloran, who runs the programme, in the north lab.' },
+      { id: 'extract', type: 'Extraction', text: 'Ride the freight lift out (north-east corner).' },
+    ],
+    build(B) {
+      const d = B.d;
+      B.ground(-32, -32, 32, 32, 'labdark');
+      B.ground(-32, -6, -3, 18, 'lab'); B.ground(3, -6, 32, 18, 'lab'); B.ground(-32, -32, 32, -6, 'lab');
+      for (let z = 16; z > -6; z -= 3) B.prop(0, 0.02, z, 0.3, 0.02, 1.6, 0x7cff4f, { solid: false, shadow: false, glow: true });   // corridor floor lights
+
+      // --- Walls: bay | vat room, corridor, records | north lab ---
+      labWall(B, -32, 18, 32, 18, [[-21, -20, VENT], [-1.5, 1.5, DOOR], [20, 21, VENT]]);
+      labWall(B, -3, -6, -3, 18, [[2, 5, DOOR]]);
+      labWall(B, 3, -6, 3, 18, [[-2, -1, VENT], [8, 11, DOOR]]);
+      labWall(B, -32, -6, 32, -6, [[-28, -8, 0], [-1.5, 1.5, DOOR], [14, 15, VENT]]);
+      B.glass(-28, -6, -8, -6, LAB_H, 5);                                                   // vat room looks into the north lab
+      B.vent(-20.5, 23, -20.5, 12);                                                        // bay -> vat room
+      B.vent(20.5, 23, 20.5, 12);                                                          // bay -> records
+      B.vent(2.9, -1.5, 10, -1.5);                                                         // corridor -> records
+      B.vent(14.5, -1, 14.5, -11);                                                         // records -> north lab
+
+      // --- The loading bay: where you come in ---
+      B.start('tech', 0, 29, Math.PI);
+      B.prop(-18, 1.6, 27, 4, 3.2, 9, 0xe8e4da); B.prop(-18, 1.1, 22, 3.6, 2.2, 1.2, 0x2f6fb3);       // delivery truck
+      B.prop(16, 1.6, 27, 4, 3.2, 9, 0xe8e4da); B.prop(16, 1.1, 22, 3.6, 2.2, 1.2, 0x2a2f36);
+      cratePyramid(d, -8, 26, 3); cratePyramid(d, 8, 25, 2); cratePyramid(d, 26, 21, 2);
+      for (const x of [-28, -25]) B.prop(x, 0.75, 28, 2, 1.5, 2, 0x7d848c);                          // barrels' crates
+      B.prop(4, 0.6, 20.5, 1.4, 1.2, 2.4, 0xf2c230); B.prop(4, 1.8, 21.4, 0.1, 1.6, 0.1, 0x2b2f33, { solid: false });   // forklift
+      for (let i = 0; i < 4; i++) B.person('tech', -20 + i * 12, 24 + (i % 2) * 4, { wander: [-30, 20, 30, 31] });
+      B.person('scientist', -6, 21, { route: [[-12, 21], [8, 21], [8, 27], [-12, 27]], wait: 2 });
+      B.person('labguard', 0, 25, { route: [[-24, 24], [24, 24], [24, 30], [-24, 30]], wait: 2 });
+      B.gate(0, 18, 0, 3, 'keycard');                                                       // the checkpoint
+      B.person('labguard', 2.8, 19.6, { post: true, yaw: 0 });
+      B.camera(-5, 18.6, 0.3, 0.6, 3.2);
+      B.stealthLine(15);
+
+      // --- The corridor ---
+      B.person('labguard', 0, 10, { route: [[0, 15], [0, -4]], wait: 2 });
+      B.camera(-2.6, -5.4, Math.PI * 0.95, 0.4, 3.2);
+
+      // --- West: the vat room ---
+      for (const [x, z] of [[-24, 0], [-16, 0], [-24, 9], [-16, 9]]) B.vat(x, z);
+      B.tripwire(-3, 2, -3, 5);
+      for (const [x, z] of [[-20, -3], [-11, 14]]) { B.prop(x, 0.45, z, 6, 0.9, 1.2, 0xd9d2c3); B.prop(x, 1.0, z, 1, 0.3, 0.6, 0x1c1e21, { solid: false }); }   // benches
+      B.person('scientist', -20, 4, { wander: [-28, -4, -8, 15] });
+      B.person('scientist', -12, 12, { wander: [-28, -4, -8, 15] });
+      B.person('labguard', -10, 4, { route: [[-8, -3], [-8, 15], [-28, 15], [-28, -3]], wait: 1.5 });
+      B.camera(-31, 17, Math.PI * 0.75, 0.6, 3.2);
+      B.restricted(-32, -6, -3, 18, ['scientist', 'labguard', 'chief', 'bodyguard'], 'lab staff only');
+
+      // --- East: records ---
+      for (let i = 0; i < 4; i++) { B.prop(28, 1.1, -3 + i * 3, 0.9, 2.2, 1.4, 0x1c1e21); B.prop(27.5, 1.1, -3 + i * 3, 0.04, 1.9, 1.2, 0x2cff7a, { solid: false, shadow: false, glow: true }); }
+      B.terminal(24, -1);
+      for (const [x, z] of [[10, 6], [16, 6], [10, 12], [16, 12]]) { B.prop(x, 0.4, z, 2.4, 0.8, 1.2, 0x8a6a4a); B.prop(x, 1.0, z - 0.3, 0.8, 0.4, 0.06, 0x2b3a48, { solid: false }); }
+      B.person('scientist', 12, 8, { wander: [6, 4, 26, 15] });
+      B.person('scientist', 20, 3, { wander: [6, -4, 26, 15] });
+      B.person('labguard', 18, 10, { route: [[6, 15], [26, 15], [26, -4], [6, -4]], wait: 1.5 });
+      B.camera(31, 17, -Math.PI * 0.75, 0.6, 3.2);
+      B.restricted(3, -6, 32, 18, ['scientist', 'labguard', 'chief', 'bodyguard'], 'lab staff only');
+
+      // --- North: Dr. Halloran's lab ---
+      B.tripwire(-1.5, -6, 1.5, -6);
+      for (let i = 0; i < 6; i++) { const x = -26 + i * 4; B.prop(x, 1.3, -29, 1.4, 2.6, 1.4, 0x9fe8c0, { shape: 'cyl', glow: true }); }   // specimen tanks
+      B.prop(0, 0.45, -18, 10, 0.9, 3, 0xd9d2c3); B.prop(0, 1.0, -18, 2, 0.2, 1, 0x7cff4f, { solid: false, glow: true });   // big lab table
+      for (const x of [-14, 14]) { B.prop(x, 0.45, -12, 4, 0.9, 1.6, 0xd9d2c3); }
+      for (const [x, z] of [[-24, -14], [-24, -20], [20, -14]]) B.prop(x, 1.0, z, 2, 2, 2, 0x5a5f66);       // machines
+      const chief = B.person('chief', 0, -22, { route: [[-12, -22], [-12, -14], [10, -14], [10, -24], [-6, -27]], wait: 3 });
+      B.person('bodyguard', 1, -23, { follow: chief, offset: [1.2, -1.2] });
+      B.person('bodyguard', -1, -23, { follow: chief, offset: [-1.2, -1.2] });
+      for (let i = 0; i < 3; i++) B.person('scientist', -18 + i * 16, -10, { wander: [-30, -30, 30, -8] });
+      B.person('labguard', -20, -20, { route: [[-28, -8], [28, -8], [28, -16], [-28, -16]], wait: 2 });
+      B.camera(-31, -7, -Math.PI * 0.75, 0.6, 3.2);
+      B.camera(31, -31, Math.PI * 0.25 - Math.PI, 0.6, 3.2);
+      B.restricted(-32, -32, 32, -6, ['scientist', 'labguard', 'chief', 'bodyguard'], 'lab staff only');
+      // The freight lift out.
+      B.prop(26, 0.05, -26, 6, 0.1, 6, 0x3a3f46);
+      for (const [x, z, sx, sz] of [[23, -26, 0.2, 6], [29, -26, 0.2, 6], [26, -29, 6, 0.2]]) B.prop(x, 1.7, z, sx, 3.4, sz, 0xf2c230, { solid: false });
+      B.extract(26, -26, 2.6, 'freight lift');
+    },
+  },
 ];
 
 // ===== main.js =====
@@ -2516,6 +2644,10 @@ const ROLES = {
   guest: { label: 'Party guest', items: [], shirts: [0x8e2b4f, 0x1f3b73, 0xd8b56a, 0x111111, 0x6a2f8e, 0xe7e1d4], pants: [0x111111, 0x2a2a2f, 0x5a1f2f], tie: false },
   waiter: { label: 'Waiter', items: [], shirts: [0xf4f4f2], pants: [0x111111], tie: true },
   ceo: { label: 'The CEO', items: ['keycard'], shirts: [0x2a2a2f], pants: [0x2a2a2f], tie: true, shades: true, vip: true },
+  tech: { label: 'Lab tech', items: [], shirts: [0x6c8fa8, 0x8aa0b0, 0x7d8a6a], pants: [0x2e3440, 0x3a3a3a] },
+  scientist: { label: 'Scientist', items: ['keycard'], shirts: [0xf4f4f2, 0xeef3f6], pants: [0x50555e, 0x2e3440, 0x3d3d46] },
+  labguard: { label: 'Lab security', items: ['pistol', 'keycard'], shirts: [0x2b3b2f], pants: [0x1a2219], hat: 'cap', armed: true },
+  chief: { label: 'Dr. Halloran', items: ['keycard'], shirts: [0xf4f4f2], pants: [0x1d2f5a], tie: true, shades: true, vip: true },
   harbourmaster: { label: 'The Harbourmaster', items: ['keycard'], shirts: [0x1d2f5a], pants: [0x1d2f5a], hat: 'cap', tie: true, vip: true },
 };
 const SKINS = [0xf1c7a3, 0xd9a47c, 0xa8714d, 0x7a4b2e, 0xf6d6bd, 0xc68863];
@@ -2527,12 +2659,17 @@ const slimeMax = () => 100 + 35 * player.form;
 const MAX_FORM = 6;
 // Grown bodies come in three sizes, set by how many forms went into them.
 // Bigger is stronger, and hopeless at espionage.
-const BODY_SIZES = [
-  null,
-  { name: 'Slime body', scale: 1, hp: 100, armor: 1, speed: 1, mass: 85, lift: 0 },
-  { name: 'Brute', scale: 2, hp: 320, armor: 0.55, speed: 1.12, mass: 700, lift: 300 },
-  { name: 'Giant', scale: 3, hp: 800, armor: 0.3, speed: 1.3, mass: 3000, lift: 3200 },
-];
+const BODY_SIZES = {
+  1: { name: 'Slime body', scale: 1, hp: 100, armor: 1, speed: 1, mass: 85, lift: 0 },
+  2: { name: 'Brute', scale: 2, hp: 320, armor: 0.55, speed: 1.12, mass: 700, lift: 300 },
+  3: { name: 'Giant', scale: 3, hp: 800, armor: 0.3, speed: 1.3, mass: 3000, lift: 3200 },
+  // The other way: tiny, quick, and gone the moment it keeps still (Meridian Tower's reward).
+  tiny: { name: 'Shrunk', scale: 0.42, hp: 60, armor: 1, speed: 1.75, mass: 20, lift: 0 },
+};
+const SHRINK_FORMS = 3;   // forms needed to shrink
+const HIDE_STILL = 0.6;   // seconds of keeping still before a shrunk body vanishes
+const isTiny = (h = player.host) => h?.size === 'tiny';
+const hostScale = (h) => (h?.size ? BODY_SIZES[h.size].scale : 1);
 const bodyTier = (forms) => (forms >= 6 ? 3 : forms >= 3 ? 2 : 1);
 const bigHost = () => (player.host?.size || 1) >= 2;
 const crawlSpeed = () => CRAWL_SPEED + 0.7 * player.form;
@@ -2934,6 +3071,7 @@ addEventListener('keydown', (e) => {
   if (k === 'q' || k === 'tab') swapItem();
   if (k === 'c') input.eat = true;
   if (k === 'b') input.grow = true;
+  if (k === 'v') input.shrink = true;
   if (k === 'z') toggleZoom();
   if (k === 'g') grab();
   if (k === ' ') input.aiming = true;
@@ -2943,9 +3081,10 @@ addEventListener('keyup', (e) => {
   keys.delete(k);
   if (k === 'c') input.eat = false;
   if (k === 'b') input.grow = false;
+  if (k === 'v') input.shrink = false;
   if (k === ' ' && input.aiming) { input.aiming = false; if (game.running && !game.paused) launch(); }
 });
-addEventListener('blur', () => { keys.clear(); input.eat = input.grow = false; });
+addEventListener('blur', () => { keys.clear(); input.eat = input.grow = input.shrink = false; });
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === canvas;
   if (!locked && game.running && !game.paused && !game.over && !isTouch) togglePause();
@@ -3026,7 +3165,7 @@ function setupTouch() {
   $('swapbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); swapItem(); });
   $('zoombtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); toggleZoom(); });
   $('grabbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); grab(); });
-  for (const [id, key] of [['eatbtn', 'eat'], ['bodybtn', 'grow']]) {
+  for (const [id, key] of [['eatbtn', 'eat'], ['bodybtn', 'grow'], ['shrinkbtn', 'shrink']]) {
     const b = $(id);
     b.addEventListener('pointerdown', (e) => { e.stopPropagation(); input[key] = true; });
     for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(ev, () => { input[key] = false; });
@@ -3044,7 +3183,7 @@ const game = {
 };
 const player = {
   host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0,
-  trespass: '', carry: null, consuming: null, form: 0, held: null, thrown: [], absorbed: [], absorbedLabel: '',
+  trespass: '', carry: null, consuming: null, form: 0, held: null, hidden: false, hideTold: false, thrown: [], absorbed: [], absorbedLabel: '',
   aimPerson: null, aimPoint: new THREE.Vector3(),
 };
 let people = [];
@@ -3076,7 +3215,7 @@ const glassHandles = new Set(); // windows: you can see (and be seen) through th
 
 // --- Level building -------------------------------------------------------------
 
-const GROUND_COLORS = { road: 0x3d4148, kerb: 0xb9b6ad, grass: 0x6fa857, concrete: 0xa9a79f, dirt: 0x9c7f58, plaza: 0xc9b99a };
+const GROUND_COLORS = { lab: 0x6b7378, labdark: 0x41484d, road: 0x3d4148, kerb: 0xb9b6ad, grass: 0x6fa857, concrete: 0xa9a79f, dirt: 0x9c7f58, plaza: 0xc9b99a };
 
 function fixedBox(x, y, z, sx, sy, sz, yaw = 0) {
   const body = d.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z)
@@ -3438,6 +3577,9 @@ function makeBuilder() {
     mover(o) { return addMover(o); },
     ramp(x0, z0, x1, z1, y0, y1, w, color) { addRamp(x0, z0, x1, z1, BY + y0, BY + y1, w, color); },
     water(x0, z0, x1, z1) { addWater(x0, z0, x1, z1); },
+    vent(x0, z0, x1, z1) { addVent(x0, z0, x1, z1); },
+    tripwire(x0, z0, x1, z1) { addTripwire(x0, z0, x1, z1); },
+    vat(x, z) { addVat(x, z); },
   };
 }
 
@@ -3478,6 +3620,7 @@ function buildPerimeter(half) {
   base.receiveShadow = true;
   levelGroup.add(base);
   if (look.city) { buildSkyline(half); return; }
+  if (look.underground) return;
   // Low-poly hills beyond the walls.
   const hillM = mat(look.hills ?? 0x7e9a6a);
   for (let i = 0; i < 26; i++) {
@@ -3539,12 +3682,12 @@ function loadLevel(i, menu = false) {
   game.exitOpen = false;
   $('exitMark').classList.add('hidden'); $('goalMark').classList.add('hidden');
   personByHandle.clear();
-  seeThrough.clear(); glassHandles.clear(); movers = []; panes = [];
+  seeThrough.clear(); glassHandles.clear(); camThrough.clear(); tripwires = []; vats = { total: 0, broken: 0 }; movers = []; panes = [];
   Object.assign(game, { time: 0, alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0, over: false, hostsUsed: 0, bodiesFound: 0, paused: false });
   // Rewards from earlier levels: the mutagen vial (Hollow Hill) lets the slime eat and grow; Saltmarsh Docks unlocks growing a body.
-  { const prog = loadProgress(); game.mutagen = freePlay() || !!prog['hollow-hill']; game.bodyOK = freePlay() || !!prog['saltmarsh-docks']; }
+  { const prog = loadProgress(); game.mutagen = freePlay() || !!prog['hollow-hill']; game.bodyOK = freePlay() || !!prog['saltmarsh-docks']; game.shrinkOK = freePlay() || !!prog['meridian-tower']; }
   Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, growing: null, form: 0, absorbed: [], absorbedLabel: '', shellWarned: false, puddleTold: false, zoom: false });
-  input.eat = input.grow = false;
+  input.eat = input.grow = input.shrink = false;
   slimeMesh.visible = false;
   objectives = L.objectives.map((o) => ({ ...o, done: false }));
 
@@ -3910,6 +4053,15 @@ function castSight(a, dir, maxDist) {
   _sightRay.dir = { x: dir.x, y: dir.y, z: dir.z };
   return d.world.castRay(_sightRay, maxDist, true, undefined, undefined, undefined, undefined, blocksSight);
 }
+// The camera also looks through vent grates (people can't).
+const camThrough = new Set();
+const camBlocks = (c) => blocksSight(c) && !camThrough.has(c.handle);
+function castCam(a, dir, maxDist) {
+  d.queries();
+  _sightRay.origin = { x: a.x, y: a.y, z: a.z };
+  _sightRay.dir = { x: dir.x, y: dir.y, z: dir.z };
+  return d.world.castRay(_sightRay, maxDist, true, undefined, undefined, undefined, undefined, camBlocks);
+}
 function clearLine(a, b) {
   const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
   const dist = Math.hypot(dx, dy, dz);
@@ -3961,7 +4113,7 @@ function addAlarm(n, why) {
 }
 
 function targetPoint() {
-  if (player.host) return new THREE.Vector3(player.host.pos.x, player.host.pos.y + 1.2, player.host.pos.z);
+  if (player.host) return new THREE.Vector3(player.host.pos.x, player.host.pos.y + 1.2 * hostScale(player.host), player.host.pos.z);
   if (player.slime) { const t = player.slime.body.translation(); return new THREE.Vector3(t.x, t.y, t.z); }
   return null;
 }
@@ -4070,7 +4222,7 @@ function think(p) {
   if (tp) {
     const exposed = !player.host;
     const odd = !exposed && !player.marked && hostIsOdd(p);
-    const puddled = exposed && player.slime?.puddle && p.pos.distanceTo(tp) > 2.5;
+    const puddled = (exposed && player.slime?.puddle && p.pos.distanceTo(tp) > 2.5) || player.hidden;
     if ((exposed || player.marked || odd) && !puddled && canSee(p, tp)) seeThreat(p, tp, exposed ? 'slime' : bigHost() ? 'big' : player.marked ? 'host' : 'odd');
     else if (p.state === 'combat') {
       if (game.alert) p.state = 'search';
@@ -4190,6 +4342,7 @@ function leaveHost(vel) {
   const pos = new THREE.Vector3(h.pos.x, h.pos.y + 2.0, h.pos.z).addScaledVector(fwd, 0.25);
   dropCarry(h.pos);
   dropHeld();
+  player.hidden = false;
   player.host = null;
   kill(h, 'drained');
   spawnSlime(pos, vel);
@@ -4412,6 +4565,113 @@ function openGate(g) {
   sfx.gate();
 }
 
+// --- Blackwater Lab pieces: crawl vents, laser tripwires, cloning vats ----------------------------
+
+const VENT_W = 1.0, VENT_H = 0.95;
+const VENT_MAT = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, transparent: true, opacity: 0.32, depthWrite: false, roughness: 0.6, metalness: 0.4 });
+/** A straight duct along the floor: only a slime or a shrunk body fits. Grates on top: the camera sees in, people don't. */
+function addVent(x0, z0, x1, z1) {
+  const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
+  const len = alongX ? Math.abs(x1 - x0) : Math.abs(z1 - z0);
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  for (const side of [-1, 1]) {
+    const ox = alongX ? 0 : side * (VENT_W / 2 + 0.05), oz = alongX ? side * (VENT_W / 2 + 0.05) : 0;
+    addProp(cx + ox, BY + VENT_H / 2, cz + oz, alongX ? len : 0.1, VENT_H, alongX ? 0.1 : len, 0x7d848c);
+  }
+  const sx = alongX ? len : VENT_W + 0.2, sz = alongX ? VENT_W + 0.2 : len;
+  const fb = fixedBox(cx, BY + VENT_H + 0.04, cz, sx, 0.08, sz);
+  camThrough.add(fb.col.handle);
+  const grate = box(sx, 0.08, sz, VENT_MAT, cx, BY + VENT_H + 0.04, cz);
+  grate.castShadow = false;
+  levelGroup.add(grate);
+}
+
+/** Red laser beams across a doorway. Anything bigger than a shrunk body that walks through sets them off. */
+let tripwires = [];
+const TRIP_HEIGHTS = [0.9, 1.45, 2.0];
+function addTripwire(x0, z0, x1, z1) {
+  const len = Math.hypot(x1 - x0, z1 - z0), yaw = Math.atan2(x1 - x0, z1 - z0);
+  const beamM = new THREE.MeshBasicMaterial({ color: 0xff2a3a, transparent: true, opacity: 0.85 });
+  const beams = [];
+  for (const h of TRIP_HEIGHTS) {
+    const b = new THREE.Mesh(BOX, beamM);
+    b.scale.set(0.03, 0.03, len);
+    b.position.set((x0 + x1) / 2, BY + h, (z0 + z1) / 2);
+    b.rotation.y = yaw;
+    levelGroup.add(b);
+    beams.push(b);
+  }
+  for (const [x, z] of [[x0, z0], [x1, z1]]) addProp(x, BY + 1.15, z, 0.16, 2.3, 0.16, 0x2b2f33, { solid: false });
+  tripwires.push({ x0, z0, x1, z1, y: BY, beamM, cd: 0, flashT: 0 });
+}
+function segCross(ax, az, bx, bz, w) {
+  const side = (px, pz, qx, qz, rx, rz) => (qx - px) * (rz - pz) - (qz - pz) * (rx - px);
+  return side(w.x0, w.z0, w.x1, w.z1, ax, az) * side(w.x0, w.z0, w.x1, w.z1, bx, bz) < 0
+    && side(ax, az, bx, bz, w.x0, w.z0) * side(ax, az, bx, bz, w.x1, w.z1) < 0;
+}
+function updateTripwires(dt) {
+  if (!tripwires.length) return;
+  const h = player.host;
+  for (const w of tripwires) {
+    w.cd -= dt;
+    if (w.flashT > 0) { w.flashT -= dt; w.beamM.opacity = Math.sin(game.time * 40) > 0 ? 1 : 0.2; if (w.flashT <= 0) w.beamM.opacity = 0.85; }
+    // A slime or a shrunk body slips under the lowest beam.
+    if (!h || isTiny(h) || w.cd > 0 || game.over || Math.abs(h.pos.y - w.y) > 1.5) continue;
+    if (!segCross(h.prev.x, h.prev.z, h.pos.x, h.pos.z, w)) continue;
+    w.cd = 2.5; w.flashT = 1.5;
+    player.marked = true;
+    player.seenAt = game.time;
+    game.lastKnown.copy(h.pos);
+    sfx.found();
+    toast('Tripwire!', 'The lasers saw you. Something tiny could get under them.', 2);
+    addAlarm(30, 'You walked through a laser tripwire.');
+    const guards = people.filter((q) => q.armed && q.state !== 'down' && q.state !== 'host').sort((a, b) => a.pos.distanceTo(h.pos) - b.pos.distanceTo(h.pos)).slice(0, 2);
+    for (const q of guards) { q.opts.follow = null; q.state = game.alert ? 'search' : 'investigate'; q.timer = 4; q.goal = clampGoal(h.pos.clone()); setIcon(q, '!'); }
+  }
+}
+
+/** Glass tanks with slime clones growing in them. Smash them all for the sabotage objective. */
+let vats = { total: 0, broken: 0 };
+const VAT_GLASS = new THREE.MeshStandardMaterial({ color: 0x9fe8c0, transparent: true, opacity: 0.3, roughness: 0.05, metalness: 0.2, depthWrite: false });
+const VAT_LIQUID = new THREE.MeshStandardMaterial({ color: 0x5cff6a, emissive: 0x2a9a30, emissiveIntensity: 0.9, transparent: true, opacity: 0.55, depthWrite: false });
+function addVat(x, z) {
+  const g = new THREE.Group();
+  g.position.set(x, BY, z);
+  const cyl = (r, h, m, y) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 16), m); c.position.y = y; return c; };
+  g.add(cyl(0.95, 0.35, mat(0x3a3f46), 0.17), cyl(0.95, 0.25, mat(0x3a3f46), 2.95));
+  const liquid = cyl(0.78, 2.4, VAT_LIQUID, 1.55), glass = cyl(0.82, 2.6, VAT_GLASS, 1.6);
+  const clone = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), mat(0x3fa82a, { emissive: 0x1a5a12 }));
+  clone.position.y = 1.5; clone.scale.set(1, 1.6, 1);
+  g.add(liquid, clone, glass);
+  for (const a of [0, 2.1, 4.2]) { const pipe = cyl(0.05, 1.2, mat(0x7d848c), 3.6); pipe.position.x = Math.cos(a) * 0.5; pipe.position.z = Math.sin(a) * 0.5; g.add(pipe); }
+  levelGroup.add(g);
+  vats.total++;
+  addBreakable(x, BY + 1.5, z, 1.6, 2.8, 1.6, () => {
+    liquid.visible = glass.visible = false;
+    clone.scale.set(1.4, 0.35, 1.4); clone.position.y = 0.45;
+    splat(x, z, 2.4, BY);
+    burst(new THREE.Vector3(x, BY + 1.5, z), 40, 0x7cff4f, { speed: 5, up: 3, size: 0.14, life: 1 });
+    vats.broken++;
+    if (vats.broken >= vats.total) completeObjective('vats');
+    else toast('Vat smashed', `${vats.total - vats.broken} to go.`, 1.4);
+  });
+}
+
+/** A shrunk body that keeps still fades out: nobody and nothing can see it. */
+function updateHidden(h, dt) {
+  const still = Math.hypot(h.vx || 0, h.vz || 0) < 0.25 && player.itemCD <= 0 && !input.aiming;
+  h.stillT = still ? (h.stillT || 0) + dt : 0;
+  const was = player.hidden;
+  player.hidden = h.stillT > HIDE_STILL;
+  if (player.hidden !== was) {
+    h.mesh.shirt.transparent = player.hidden;
+    h.mesh.shirt.opacity = player.hidden ? 0.18 : 1;
+    h.mesh.shirt.needsUpdate = true;
+    for (const o of h.mesh.baked) o.castShadow = !player.hidden;
+    if (player.hidden) { player.marked = false; if (!player.hideTold) { player.hideTold = true; toast('Invisible', 'Keep still and nobody can see you. Move and you fade back in.', 2); } }
+  }
+}
+
 /** A brute's or a giant's fist: walls, doors, glass, crates and people. */
 function punch(h) {
   const BS = BODY_SIZES[h.size], sc = BS.scale;
@@ -4595,7 +4855,7 @@ function updateCamera(dt) {
   const want = _camWant.copy(camPivot).addScaledVector(right, shoulder);
   // Don't let walls get between the camera and the slime.
   _camDir.copy(camFwd).negate();
-  const hit = castSight(want, _camDir, dist + 0.3);
+  const hit = castCam(want, _camDir, dist + 0.3);
   const dd = hit ? Math.max(0.6, hit.timeOfImpact - 0.3) : dist;
   // Pull in at once when a wall gets in the way, ease back out after.
   camDist = dd < camDist ? dd : camDist + (dd - camDist) * Math.min(1, dt * 5);
@@ -4744,7 +5004,9 @@ function tick(dt) {
     const want = input.aiming || player.itemCD > 0 ? view.yaw : (Math.hypot(h.vx, h.vz) > 0.3 ? Math.atan2(h.vx, h.vz) : null);
     if (want !== null) h.yaw += clamp(angDiff(h.yaw, want), -12 * dt, 12 * dt);
     if (h.size === 3) giantStep(h, dt);
+    if (isTiny(h)) updateHidden(h, dt);
   }
+  updateTripwires(dt);
   updateHeld(dt);
 
   updateTrespass();
@@ -4993,6 +5255,7 @@ function objectiveDetail(o) {
   if (o.id === 'files' && terminal.progress > 0) return ` Downloading ${Math.round(terminal.progress * 100)}%.`;
   if (o.id === 'relay' && relay) return ` Standing: ${Math.round(relay.integrity * 100)}% (needs 40%).`;
   if (o.id === 'power' && power) return ` ${power.broken}/${power.total} wrecked.`;
+  if (o.id === 'vats') return ` ${vats.broken}/${vats.total} smashed.`;
   if (o.id === 'deliver') { const pk = pickups[0]; if (pk && player.carry === pk) return ' You have it.'; if (pk && pk.dropped) return ' Dropped: it\'s where your last host fell.'; }
   if (o.id === 'snipers') { const n = people.filter((q) => q.role.sniper && q.state !== 'down' && q !== player.host).length; return ` ${n} still up.`; }
   if (o.id === 'extract' && !restDone()) return ' Finish the rest first.';
@@ -5079,7 +5342,7 @@ function updateCams() {
     if (!camWorks(c)) continue;
     if ((c.coneT = c.coneT + 1) % 3 === 0 && Math.abs(c.x - camPivot.x) + Math.abs(c.z - camPivot.z) < 60) updateCamCone(c);
     const exposed = tp && !player.host;
-    const threat = tp && (exposed || player.marked || hostIsOdd(null)) && !(exposed && player.slime?.puddle);
+    const threat = tp && (exposed || player.marked || hostIsOdd(null)) && !(exposed && player.slime?.puddle) && !player.hidden;
     if (threat && camSees(c, tp)) {
       c.sus = Math.min(1.2, c.sus + 0.1 / (exposed || player.marked ? 0.5 : 1.0));
       c.yaw += clamp(angDiff(c.yaw, Math.atan2(tp.x - c.x, tp.z - c.z)), -0.3, 0.3);
@@ -5168,13 +5431,14 @@ function zoneAt(x, z, y = 0) {
 function updateTrespass() {
   const h = player.host;
   const r = h ? zoneAt(h.pos.x, h.pos.z, h.pos.y) : null;
-  player.trespass = r && !h.roles.some((id) => r.allow.has(id)) ? `No-go zone: ${r.label}` : '';
+  player.trespass = r && !isTiny(h) && !h.roles.some((id) => r.allow.has(id)) ? `No-go zone: ${r.label}` : '';
 }
 /** Is the current host doing something a guard would notice? (p = the guard, or null for a camera) */
 function hostIsOdd(p) {
   const h = player.host;
   if (!h) return false;
   if (h.size >= 2) return true; // there's no hiding something that size
+  if (isTiny(h)) return !!(p && p.pos.distanceTo(h.pos) < 3); // too small to notice unless it's at your feet
   if (player.trespass || player.carry) return true;
   if (player.consuming && input.eat) return true; // a person folding in on themselves
   return !!((h.merged || h.role.shell) && p && p.pos.distanceTo(h.pos) < 7); // up close, a merged host looks wrong
@@ -5482,10 +5746,12 @@ function hop() {
 /** Form III: grow your own body out of slime, unseen. It drops you back two forms. */
 function updateGrow(dt) {
   const s = player.slime;
-  const want = input.grow && s && s.landed && game.level.consume && game.bodyOK && player.form >= 1 && !game.over;
+  const shrinking = input.shrink && game.shrinkOK && player.form >= SHRINK_FORMS;
+  const want = (input.grow || shrinking) && s && s.landed && game.level.consume && game.bodyOK && player.form >= 1 && !game.over;
   let g = player.growing;
+  if (input.shrink && !g && s && s.landed && game.shrinkOK && player.form < SHRINK_FORMS && !player.shrinkWarned) { player.shrinkWarned = true; toast('Not yet', `Shrinking takes ${SHRINK_FORMS} forms. Eat more hosts first.`, 1.8); }
   if (want && !g) {
-    const tier = bodyTier(player.form), BS = BODY_SIZES[tier];
+    const tier = shrinking ? 'tiny' : bodyTier(player.form), BS = BODY_SIZES[tier];
     // A giant needs the sky above it.
     const t0 = s.body.translation();
     _slimeRay.origin = { x: t0.x, y: t0.y, z: t0.z };
@@ -5500,14 +5766,14 @@ function updateGrow(dt) {
   const t = s.body.translation();
   const pt = new THREE.Vector3(t.x, 0.4, t.z);
   if ((g.checkT -= dt) <= 0) { g.checkT = 0.15; g.seenBy = watcher(pt); }
-  if (!want) { g.p -= dt * 0.5; if (g.p <= 0) player.growing = null; return; }
+  if (!(g.tier === 'tiny' ? input.shrink : input.grow) || !want) { g.p -= dt * 0.5; if (g.p <= 0) player.growing = null; return; }
   s.body.setLinvel({ x: 0, y: Math.min(0, s.body.linvel().y), z: 0 }, true);
   if (g.seenBy) return;
-  g.p += dt / (GROW_TIME * (1 + (g.tier - 1) * 0.5));
+  g.p += dt / (g.tier === 'tiny' ? GROW_TIME * 0.7 : GROW_TIME * (1 + (g.tier - 1) * 0.5));
   if (Math.random() < 0.6) burst(new THREE.Vector3(t.x, 0.2 + g.p * 1.4, t.z), 2, 0x7cff4f, { speed: 1, up: 2, size: 0.12 });
   if (g.p < 1) return;
   player.growing = null;
-  input.grow = false;
+  input.grow = input.shrink = false;
   const spent = player.form;
   player.form = 0;
   const p = spawnPerson('shell', t.x, t.z, { yaw: view.yaw, y: Math.max(0, t.y - SLIME_R), size: g.tier });
@@ -5515,9 +5781,10 @@ function updateGrow(dt) {
   enterHost(p, true);
   burst(new THREE.Vector3(t.x, 1, t.z), 30, 0x7cff4f, { speed: 3, up: 3, size: 0.12 });
   sfx.infect();
-  if (g.tier === 1) toast('Your own body', `It took all ${spent === 1 ? 'your form' : `${spent} forms`}. Up close, it doesn't look quite right.`, 3);
+  if (g.tier === 'tiny') toast('Shrunk', `${spent} forms went into it. Tiny and fast, people barely notice it, and if you keep still you vanish. ${isTouch ? '' : ''}`, 3.6);
+  else if (g.tier === 1) toast('Your own body', `It took all ${spent === 1 ? 'your form' : `${spent} forms`}. Up close, it doesn't look quite right.`, 3);
   else toast(`A ${BODY_SIZES[g.tier].name.toLowerCase()}`, `${spent} forms went into it. F smashes, G picks things up and throws them. Everyone who sees it panics.`, 3.6);
-  if (g.tier >= 2) { shake = Math.max(shake, 0.4 * g.tier); loudAct(new THREE.Vector3(t.x, t.y, t.z), 12 * g.tier, 10); }
+  if (g.tier !== 'tiny' && g.tier >= 2) { shake = Math.max(shake, 0.4 * g.tier); loudAct(new THREE.Vector3(t.x, t.y, t.z), 12 * g.tier, 10); }
 }
 
 // --- Win / lose --------------------------------------------------------------------------------
@@ -5610,28 +5877,31 @@ function updateHud(dt) {
   const count = (i) => (i === 'charges' ? ` ×${player.charges}` : i === 'flares' ? ` ×${player.flares}` : '');
   const items = h ? h.items.map((i) => (i === act && usable(h).length > 1 ? `<b>${ITEMS[i].label}${count(i)}</b>` : ITEMS[i].label + count(i))).join(' + ') : '';
   $('hostItems').innerHTML = h ? (items ? `Holding: ${items}${usable(h).length > 1 ? ' <span class="dim">(Q to swap)</span>' : ''}` : 'Empty-handed') : 'Stay out of sight. They\'ll stamp on you.';
-  const warn = !h ? '' : h.size >= 2 ? 'Too big to hide: everyone who sees you panics.' : player.trespass ? `⚠ ${player.trespass}` : player.carry ? `Carrying ${player.carry.label}. Guards will notice it.` : h.merged ? 'Merged: up close, guards can tell something\'s wrong.' : '';
+  const warn = !h ? '' : h.size >= 2 ? 'Too big to hide: everyone who sees you panics.' : isTiny(h) ? '' : player.trespass ? `⚠ ${player.trespass}` : player.carry ? `Carrying ${player.carry.label}. Guards will notice it.` : h.merged ? 'Merged: up close, guards can tell something\'s wrong.' : '';
   $('warnRow').textContent = warn;
   $('warnRow').classList.toggle('hidden', !warn);
   const cons = game.level.consume;
   const canEat = !!(h && cons && !h.role.shell);
   const canGrow = !!(!h && player.slime && cons && game.bodyOK && player.form >= 1);
+  const canShrink = canGrow && game.shrinkOK && player.form >= SHRINK_FORMS;
   const hold = player.consuming || player.growing;
   let hint = '';
   if (hold) {
-    const what = player.consuming ? 'Eating' : 'Growing a body';
-    const held = player.consuming ? input.eat : input.grow;
+    const what = player.consuming ? 'Eating' : player.growing.tier === 'tiny' ? 'Shrinking' : 'Growing a body';
+    const held = player.consuming ? input.eat : player.growing.tier === 'tiny' ? input.shrink : input.grow;
     const msg = !held ? 'Let go: it\'s healing over' : hold.seenBy ? '<b class="warn">Someone can see you. Get out of sight.</b>' : `${what}… keep holding`;
     hint = `<div class="pbar"><i style="width:${Math.round(clamp(hold.p, 0, 1) * 100)}%"></i></div>${msg}`;
   } else if (canEat) hint = isTouch ? 'Hold EAT, unseen, to eat this host and grow' : `Hold <kbd>C</kbd> where nobody can see you to eat this ${h.role.label.replace(/^The /, '').toLowerCase()}: your slime grows a form`;
-  else if (canGrow) { const nm = BODY_SIZES[bodyTier(player.form)].name.toLowerCase(); hint = isTouch ? `Hold BODY, unseen, to grow a ${nm} (uses every form)` : `Hold <kbd>B</kbd> where nobody can see you to grow a ${nm === 'slime body' ? 'body' : nm} (uses all ${player.form} form${player.form > 1 ? 's' : ''})`; }
+  else if (canGrow) { const nm = BODY_SIZES[bodyTier(player.form)].name.toLowerCase(); hint = isTouch ? `Hold BODY, unseen, to grow a ${nm}${canShrink ? ', or SHRINK' : ''} (uses every form)` : `Hold <kbd>B</kbd> where nobody can see you to grow a ${nm === 'slime body' ? 'body' : nm}${canShrink ? ', or <kbd>V</kbd> to shrink' : ''} (uses all ${player.form} form${player.form > 1 ? 's' : ''})`; }
+  else if (h && isTiny(h)) hint = player.hidden ? 'Invisible. Move and you fade back in.' : 'Keep still to vanish';
   else if (h && h.size >= 2) hint = isTouch ? '' : `<kbd>F</kbd> smash walls, doors and people · <kbd>G</kbd> ${player.held ? 'throw' : 'pick up'}`;
   else if (!h && canHop()) hint = `${isTouch ? 'LAUNCH' : 'Aim and jump'} to hop${player.form >= 2 ? ' · keep still to puddle' : ''}`;
   $('consumeHint').classList.toggle('hidden', !hint);
   $('consumeHint').innerHTML = hint;
   $('eatbtn').classList.toggle('hidden', !canEat);
   $('bodybtn').classList.toggle('hidden', !canGrow);
-  const powers = ['hop', 'puddle'].slice(0, player.form).concat(game.bodyOK ? [`body: ${BODY_SIZES[bodyTier(player.form)].name.toLowerCase()}`] : []).join(', ');
+  $('shrinkbtn').classList.toggle('hidden', !canShrink);
+  const powers = ['hop', 'puddle'].slice(0, player.form).concat(game.bodyOK ? [`body: ${BODY_SIZES[bodyTier(player.form)].name.toLowerCase()}`] : []).concat(game.shrinkOK && player.form >= SHRINK_FORMS ? ['shrink'] : []).join(', ');
   $('formRow').classList.toggle('hidden', !player.form);
   $('formRow').textContent = player.form ? `Slime form ${FORM_NAMES[player.form]} (${powers})${player.absorbed.length ? ` · absorbed: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}` : ''}` : '';
   $('swapbtn').classList.toggle('hidden', usable(h).length < 2);
