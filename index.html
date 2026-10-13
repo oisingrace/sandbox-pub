@@ -103,6 +103,11 @@
     <div class="grid" id="grid-experiments"></div>
     <p class="empty" id="empty-experiments" hidden></p>
   </section>
+  <section class="shelf">
+    <h2>Other people's games</h2>
+    <div class="grid" id="grid-others"></div>
+    <p class="empty" id="empty-others" hidden></p>
+  </section>
   <section id="notes" hidden>
     <h2>Patch notes</h2>
     <div id="noteList"></div>
@@ -121,20 +126,22 @@
 
 <script>
 /*
- * Drop any .html file into the /games or /experiments folder and it shows up
+ * Drop any .html file into the /games, /experiments or /others folder and it shows up
  * here automatically, under the matching heading. Nothing in this file needs
  * to change when you add one.
  *
- * The lists come from games.json and experiments.json (written by the GitHub
+ * The lists come from games.json, experiments.json and others.json (written by the GitHub
  * Action on every push). The card title is the file's own <title>, falling
  * back to the file name.
  *
- * Card pictures come from screenshots/<games|experiments>/<name>.jpg, e.g.
+ * Card pictures come from screenshots/<games|experiments|others>/<name>.jpg, e.g.
  * screenshots/games/smash-lot.jpg. A game without one gets an emoji instead.
  */
 const SECTIONS = [
   { key: 'games', dir: 'games/', list: 'games.json', countAs: '/game/' },
   { key: 'experiments', dir: 'experiments/', list: 'experiments.json', countAs: '/experiment/' },
+  // Games made by other people. Counted as games so moved ones keep their stats.
+  { key: 'others', dir: 'others/', list: 'others.json', countAs: '/game/' },
 ];
 const EMOJIS = ['🕹️','👾','🎲','🧩','🚀','🐍','🏓','🎯','🃏','🌀','⭐','🔥'];
 
@@ -159,14 +166,14 @@ async function loadList(section) {
   const res = await fetch(section.list, { cache: 'no-cache' });
   if (!res.ok) {
     if (section.key === 'games') throw new Error(section.list + ' not found');
-    return [];  // no experiments yet
+    return [];  // nothing in this section yet
   }
   return (await res.json()).map(file => {
     const name = file.replace(/\.html?$/i, '');
     return {
       file, section, src: section.dir + encodeURIComponent(file),
       shot: 'screenshots/' + section.key + '/' + encodeURIComponent(name) + '.jpg',
-      // Games keep their short links (#smash-lot); experiments get #experiments/<name>.
+      // Games keep their short links (#smash-lot); the others get #experiments/<name>, #others/<name>.
       slug: section.key === 'games' ? name : section.key + '/' + name,
       name: prettyName(file),
     };
@@ -294,7 +301,9 @@ function countGame(g, tries = 20) {
 
 function route() {
   const slug = decodeURIComponent(location.hash.slice(1));
-  const g = games.find(g => g.slug === slug);
+  // Old links still work after a game moves section (#star-scrap -> #others/star-scrap).
+  const g = games.find(g => g.slug === slug)
+    || (slug && !slug.includes('/') && games.find(g => g.slug.endsWith('/' + slug)));
   if (g) {
     const src = g.src;
     if (frame.getAttribute('src') !== src) frame.src = src;

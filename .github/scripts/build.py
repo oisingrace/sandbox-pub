@@ -1,9 +1,10 @@
-"""Writes games.json, experiments.json and patchnotes.json for the site.
+"""Writes games.json, experiments.json, others.json and patchnotes.json for the site.
 
 games.json       - every .html file in games/
 experiments.json - every .html file in experiments/
+others.json      - every .html file in others/ (games made by other people)
 sitemap.xml      - the home page and every game/experiment page, for search engines
-patchnotes.json  - one entry per commit that touched games/ or experiments/, newest first:
+patchnotes.json  - one entry per commit that touched games/, experiments/ or others/, newest first:
                   when it happened, which games were added/updated/removed,
                   and the commit message as the note (GitHub's default
                   "Add files via upload"-style messages are left out).
@@ -27,6 +28,8 @@ from xml.sax.saxutils import escape
 ROOT = Path(__file__).resolve().parents[2]
 GAMES = ROOT / "games"
 EXPERIMENTS = ROOT / "experiments"
+OTHERS = ROOT / "others"
+FOLDERS = (GAMES, EXPERIMENTS, OTHERS)
 
 DEFAULT_MESSAGE = re.compile(
     r"^(Add files via upload|(Create|Update|Delete|Rename|Add) \S+)$", re.I)
@@ -41,7 +44,7 @@ VERIFICATION = re.compile(r"^google[0-9a-f]+\.html$", re.I)
 
 
 def is_game(path):
-    return (path.startswith(("games/", "experiments/")) and path.count("/") == 1
+    return (path.startswith(("games/", "experiments/", "others/")) and path.count("/") == 1
             and path.lower().endswith((".html", ".htm"))
             and not VERIFICATION.match(path.split("/", 1)[1]))
 
@@ -60,9 +63,9 @@ def note_from(message):
 
 
 def own_notes():
-    """Games and experiments that carry their own patch notes: file name -> versions (newest first)."""
+    """Games that carry their own patch notes: file name -> versions (newest first)."""
     out = {}
-    for p in [*GAMES.glob("*.htm*"), *EXPERIMENTS.glob("*.htm*")]:
+    for p in [p for d in FOLDERS for p in d.glob("*.htm*")]:
         m = OWN_NOTES.search(p.read_text(encoding="utf-8", errors="ignore"))
         if not m:
             continue
@@ -79,7 +82,7 @@ def own_entries(own):
     entries = []
     for file, versions in own.items():
         n = len(versions)
-        path = next((f"{d.name}/{file}" for d in (GAMES, EXPERIMENTS) if (d / file).is_file()), file)
+        path = next((f"{d.name}/{file}" for d in FOLDERS if (d / file).is_file()), file)
         released = subprocess.run(["git", "log", "-1", "--format=%cI", "--", path],
                                   cwd=ROOT, capture_output=True, text=True).stdout.strip()
         for i, v in enumerate(versions):
@@ -108,7 +111,7 @@ def patch_notes():
     own = own_notes()
     log = subprocess.run(
         ["git", "log", "--no-renames", "--name-status",
-         "--format=%x1e%cI%x1f%B%x1f", "--", "games/", "experiments/"],
+         "--format=%x1e%cI%x1f%B%x1f", "--", "games/", "experiments/", "others/"],
         cwd=ROOT, capture_output=True, text=True, check=True).stdout
     notes = []
     for record in log.split("\x1e")[1:]:
@@ -150,7 +153,7 @@ def last_changed(*paths):
 def sitemap():
     base = site_url()
     pages = [("", last_changed("."))]
-    for folder in (GAMES, EXPERIMENTS):
+    for folder in FOLDERS:
         for name in html_files(folder):
             path = f"{folder.name}/{name}"
             pages.append((path, last_changed(path)))
@@ -167,4 +170,5 @@ def sitemap():
 (ROOT / "sitemap.xml").write_text(sitemap())
 (ROOT / "games.json").write_text(json.dumps(html_files(GAMES), indent=2))
 (ROOT / "experiments.json").write_text(json.dumps(html_files(EXPERIMENTS), indent=2))
+(ROOT / "others.json").write_text(json.dumps(html_files(OTHERS), indent=2))
 (ROOT / "patchnotes.json").write_text(json.dumps(patch_notes(), indent=2))
