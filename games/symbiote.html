@@ -97,6 +97,7 @@
     .card { width: min(620px, 100%); margin: auto; }
     /* The menu sits over a live view of the level from the sky. */
     #menu.screen { background: linear-gradient(90deg, rgba(4,10,6,0.94) 0%, rgba(4,10,6,0.82) 34%, rgba(4,10,6,0.25) 58%, rgba(4,10,6,0) 72%); justify-content: flex-start; padding: 28px clamp(16px, 5vw, 64px); }
+    #skills.screen { background: rgba(4, 10, 6, 0.95); }
     #menu .card { width: min(500px, 100%); margin: auto 0; }
     #menu .tag { display: inline-block; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--slime); opacity: 0.8; margin-top: 2px; }
     #menu .controls { font-size: 12px; margin-top: 8px; }
@@ -147,6 +148,23 @@
     .stats div { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 10px; text-align: center; font-size: 12px; color: var(--dim); }
     .stats b { display: block; font-size: 20px; color: var(--fg); font-family: "Russo One", sans-serif; }
 
+    #skillbtn { position: fixed; top: 14px; right: 240px; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(124,255,79,0.3); background: var(--bg); color: var(--dim); font: 700 12px system-ui; letter-spacing: 0.05em; cursor: pointer; }
+    #skillbtn.on { color: #0b1a06; background: var(--slime); animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(124,255,79,0.25); } }
+    .card.wide { max-width: 860px; width: 100%; }
+    #skillTree { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 12px 0; }
+    #skillTree .branch h3 { margin: 0 0 6px; font-family: "Russo One", sans-serif; color: var(--slime); font-size: 15px; }
+    .skill { display: block; width: 100%; text-align: left; margin-bottom: 8px; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: var(--fg); font: inherit; cursor: default; }
+    .skill b { display: block; font-size: 14px; }
+    .skill span { display: block; font-size: 12px; color: var(--dim); margin: 2px 0 4px; line-height: 1.35; }
+    .skill em { font-style: normal; font-size: 11px; font-weight: 700; color: var(--dim); }
+    .skill.owned { border-color: rgba(124,255,79,0.6); background: rgba(124,255,79,0.12); }
+    .skill.owned em { color: var(--slime); }
+    .skill.buy { border-color: rgba(255,201,60,0.7); cursor: pointer; }
+    .skill.buy em { color: var(--warn); }
+    .skill.buy:hover { background: rgba(255,201,60,0.1); }
+    .skill.locked, .skill.gated { opacity: 0.5; }
+    @media (max-width: 640px) { #skillTree { grid-template-columns: 1fr; } #skillbtn { right: 60px; top: 84px; } }
     #pausebtn { position: fixed; top: 14px; right: 196px; width: 36px; height: 36px; border-radius: 10px; border: 0; background: var(--bg); color: var(--fg); font-size: 16px; cursor: pointer; }
 
     /* Touch controls */
@@ -172,6 +190,30 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.14", "date": "2026-10-13", "title": "A bigger, harder Blackwater Lab",
+      "notes": [
+        "Blackwater Lab is about twice the size. You now start in a service tunnel and have to get through a decontamination airlock whose laser doors blink on and off, or crawl the duct beside it.",
+        "New east wing: the security office, with a monitor wall and gun lockers. The head of security works here and carries a red keycard.",
+        "New west wing: the generator room, behind a keycard door or a crawl hole.",
+        "Each wing has a fuse box. Wreck both and the lab blacks out: cameras, lasers and sentry guns all go dead.",
+        "New far north wing: containment, behind a red keycard door (or a vent from the north lab). Failed clones sit in cells along the hall.",
+        "New objective: steal Sample Zero from the vault at the end of containment and carry it to the freight lift, which has moved to the west end of containment.",
+        "Sentry guns on the ceilings: they shoot the slime, anyone already marked, anyone in a big body, and anyone carrying Sample Zero. Shoot or smash them, or cut the power.",
+        "Laser grids that sweep back and forth: one in the main corridor, two in the containment hall and one in the vault. They catch you even if you stand still.",
+        "More guards and cameras throughout, red lockdown lights that spin, steam vents, pipes and hazard stripes."
+      ] },
+    { "version": "0.13", "date": "2026-10-13", "title": "Skill tree and a harder game",
+      "notes": [
+        "Skill tree: every person you eat gives you a skill point. Press T (SKILLS on phones) to spend it. There are three branches: Slime (Hop, Long launch, Thick skin), Stealth (Puddle, Quick eater, Shrink, Ghost) and Strength (Grow a body, Brute, Giant).",
+        "Skills reset at the start of each level, so you build them up again by eating people. Grow a body still needs Saltmarsh Docks finished, and Shrink still needs Meridian Tower.",
+        "Hopping from the ground, puddling, growing a body, brute, giant, shrinking and turning invisible are now skills you have to learn first.",
+        "Harder: a hop costs 10 health.",
+        "Harder: a puddle still dries out, just at half speed.",
+        "Harder: brutes and giants slowly fall apart, giants faster. The giant is also weaker (600 health and less armour).",
+        "Harder: shrunk bodies don't turn invisible with someone right next to them.",
+        "Harder: every lockdown lasts longer than the last one, and afterwards the guards stay jumpier.",
+        "Shrink now needs 2 people eaten instead of 3."
+      ] },
     { "version": "0.12", "date": "2026-10-12", "title": "Blackwater Lab and shrink",
       "notes": [
         "New level 4: Blackwater Lab, the underground lab where the slime was made. Get past the checkpoint, download the slime research, smash the cloning vats, take out Dr. Halloran, and ride the freight lift out.",
@@ -317,6 +359,7 @@
       <div class="bar"><i id="alarmBar"></i></div>
       <div class="note" id="alarmNote"></div>
     </div>
+    <button id="skillbtn" class="hidden">SKILLS</button>
     <button id="pausebtn" title="Pause (P)">❚❚</button>
     <div id="crosshair"></div>
     <div id="exitMark" class="mark hidden"><div class="arrow">▲</div><div class="lbl">EXIT</div><div class="dist">0 m</div></div>
@@ -364,13 +407,22 @@
         <b>Swap item</b><span><kbd>Q</kbd> when your host holds more than one</span>
         <b>Zoom</b><span><kbd>Z</kbd> with a sniper rifle</span>
         <b>Consume</b><span>Hold <kbd>C</kbd> where nobody can see you, on levels that allow it: eat your host and your slime grows a form.</span>
-        <b>Forms</b><span>Eat hosts (hold <kbd>C</kbd>) to grow up to six forms. II: hop as a slime. III: keep still to become a puddle. Hold <kbd>B</kbd> as a slime to grow your own body: it uses every form, and 3+ makes a brute, 6 a giant.</span>
-        <b>Shrink</b><span>After Meridian Tower: with 3+ forms, hold <kbd>V</kbd> as a slime instead of <kbd>B</kbd> to become tiny and fast. People only notice you right at their feet, and if you keep still you turn invisible.</span>
+        <b>Skill tree</b><span>Eat hosts (hold <kbd>C</kbd>, unseen) to earn skill points, and spend them with <kbd>T</kbd>: Slime (hop, long launch, thick skin), Stealth (puddle, quick eater, shrink, ghost) and Strength (grow a body, brute, giant). Skills reset each level.</span>
+        <b>Bodies</b><span>Hold <kbd>B</kbd> as a slime to grow a body (3+ eaten: brute, 6: giant), or <kbd>V</kbd> to shrink. Both use up everyone you've eaten since the last one.</span>
         <b>Big bodies</b><span><kbd>F</kbd> smashes walls, doors and people, <kbd>G</kbd> picks things up and throws them. Everyone panics on sight, they can't use keycards or lifts, and a giant won't fit indoors.</span>
         <b>Other</b><span><kbd>R</kbd> restart, <kbd>P</kbd> or <kbd>Esc</kbd> pause</span>
         <b class="t">Touch</b><span class="t">Left stick moves, drag the right side to look, hold LAUNCH to aim and let go to jump. ITEM uses what your host is holding, SWAP changes item, hold EAT to consume your host where the level allows it, hold BODY to grow a body.</span>
       </div>
       </details>
+    </div>
+  </div>
+
+  <div id="skills" class="screen hidden">
+    <div class="card wide">
+      <h2>Skill tree</h2>
+      <p id="skillPts"></p>
+      <div id="skillTree"></div>
+      <div class="btns"><button class="btn primary" id="skillsClose">Back to the game</button></div>
     </div>
   </div>
 
@@ -1893,6 +1945,16 @@ function labWall(B, x0, z0, x1, z1, gaps = []) {
   seg(a, hi, 0, LAB_H);
 }
 
+/** Two pipes running along the top of a wall. */
+function pipes(B, x0, z0, x1, z1) {
+  const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0), l = alongX ? Math.abs(x1 - x0) : Math.abs(z1 - z0);
+  for (const [y, c, w] of [[3.05, 0x7d848c, 0.22], [2.75, 0x3a6f4a, 0.16]]) B.prop((x0 + x1) / 2, y, (z0 + z1) / 2, alongX ? l : w, w, alongX ? w : l, c, { solid: false });
+}
+/** Yellow and black stripes on the floor across a doorway. */
+function hazard(B, x, z, axis) {
+  for (let i = -3; i <= 3; i++) B.prop(axis === 'x' ? x + i * 0.6 : x, 0.015, axis === 'x' ? z : z + i * 0.6, axis === 'x' ? 0.3 : 0.6, 0.02, axis === 'x' ? 0.6 : 0.3, i % 2 ? 0x16171a : 0xf2c230, { solid: false, shadow: false });
+}
+
 // --- Meridian Tower --------------------------------------------------------------------------------
 // One 30 x 30 m tower: lobby (y 0), offices (5), security and servers (10), penthouse (15), roof (20).
 // Stairs in the north-east corner (x 9..15, z -15..-7), a glass lift in the middle (x/z -1.8..1.8).
@@ -2505,20 +2567,25 @@ const LEVELS = [
     title: 'Blackwater Lab',
     isNew: true,
     consume: true,
-    blurb: 'The underground lab where the slime was made. Laser tripwires, crawl vents, and vats full of new slime growing. Shrink to slip under the lasers, or smash your way through.',
-    half: 32,
+    blurb: 'The underground lab where the slime was made. Get through the decontamination airlock, past laser grids and sentry guns, and steal Sample Zero from the containment wing. Shrink to slip under the lasers, cut the power, or smash your way through.',
+    half: 46,
     stealthFail: 'The lab locked down before you got past the checkpoint.',
+    blackout: 'The lab\'s cameras, lasers and sentry guns are all dead.',
     look: { sky: 0x07090c, sun: 0xb8d4e8, sunI: 0.55, hemiSky: 0xa9c4d4, hemiGround: 0x2e3a33, hemiI: 2.0, base: 0x15181b, underground: true },
     objectives: [
-      { id: 'stealth', type: 'Stealth', text: 'Get past the checkpoint into the lab without setting off a lockdown.' },
+      { id: 'stealth', type: 'Stealth', text: 'Get through the airlock and past the checkpoint without setting off a lockdown.' },
       { id: 'files', type: 'Espionage', text: 'Download the slime research in the records room (east). Needs a keycard.' },
       { id: 'vats', type: 'Sabotage', text: 'Smash the cloning vats in the vat room (west). Laser tripwire on the door.' },
       { id: 'director', type: 'Assassination', text: 'Take out Dr. Halloran, who runs the programme, in the north lab.' },
-      { id: 'extract', type: 'Extraction', text: 'Ride the freight lift out (north-east corner).' },
+      { id: 'deliver', type: 'Smuggling', text: 'Steal Sample Zero from the vault in the containment wing (far north, red keycard door) and take it to the freight lift.' },
+      { id: 'extract', type: 'Extraction', text: 'Ride the freight lift out (west end of containment).' },
     ],
     build(B) {
       const d = B.d;
-      B.ground(-32, -32, 32, 32, 'labdark');
+      B.ground(-46, -46, 46, 46, 'labdark');
+      B.ground(-6, 32, 6, 46, 'lab'); B.ground(32, -6, 46, 18, 'lab'); B.ground(-46, -6, -32, 18, 'labdark'); B.ground(-32, -46, 32, -32, 'lab');
+      // Solid rock around the rooms.
+      for (const [x0, z0, x1, z1] of [[-46, 32, -6, 46], [6, 32, 46, 46], [-46, 18, -32, 32], [32, 18, 46, 32], [-46, -46, -32, -6], [32, -46, 46, -6]]) B.prop((x0 + x1) / 2, 1.7, (z0 + z1) / 2, x1 - x0, 3.4, z1 - z0, 0x1b1f22);
       B.ground(-32, -6, -3, 18, 'lab'); B.ground(3, -6, 32, 18, 'lab'); B.ground(-32, -32, 32, -6, 'lab');
       for (let z = 16; z > -6; z -= 3) B.prop(0, 0.02, z, 0.3, 0.02, 1.6, 0x7cff4f, { solid: false, shadow: false, glow: true });   // corridor floor lights
 
@@ -2532,17 +2599,47 @@ const LEVELS = [
       B.vent(20.5, 23, 20.5, 12);                                                          // bay -> records
       B.vent(2.9, -1.5, 10, -1.5);                                                         // corridor -> records
       B.vent(14.5, -1, 14.5, -11);                                                         // records -> north lab
+      labWall(B, -32, -32, -32, 32, [[2, 4.6, DOOR], [12, 13, VENT]]);                    // vat room | generator room
+      labWall(B, 32, -32, 32, 32, [[4, 6.6, DOOR]]);                                       // records | security office
+      labWall(B, -32, -32, 32, -32, [[-2, 2, 0], [-30, -29, VENT]]);                      // north lab | containment
+      labWall(B, -32, 32, 32, 32, [[-4, 4, 3.0]]);                                         // bay | service tunnel
+      B.vent(-29.5, -29, -29.5, -35);                                                      // north lab -> containment
+      pipes(B, -31.7, 22, -31.7, 31); pipes(B, 31.7, 22, 31.7, 31); pipes(B, -2.7, -5, -2.7, 17); pipes(B, -31.7, -30, -31.7, -8);
+      for (const [x, z] of [[0, 18.6], [0, -6.6], [-3.6, 3.5], [3.6, 9.5], [-31.4, 3.3], [31.4, 5.3]]) hazard(B, x, z, Math.abs(x) > 3 ? 'z' : 'x');
+
+      // --- South: the service tunnel and the decontamination airlock (where you come in) ---
+      labWall(B, -6, 38, 6, 38, [[-1.3, 1.3, DOOR], [4.6, 5.6, VENT]]);
+      labWall(B, -6, 35, 6, 35, [[-1.3, 1.3, DOOR], [4.6, 5.6, VENT]]);
+      B.vent(5.1, 39.5, 5.1, 33.5);                                                         // a crawl duct past the airlock
+      B.tripwire(-1.3, 38, 1.3, 38, { period: 3.2, duty: 0.55 });                          // blinking laser doors: time them
+      B.tripwire(-1.3, 35, 1.3, 35, { period: 3.2, duty: 0.55, phase: 0.5 });
+      for (const x of [-3.5, 3.5]) { B.steam(x, 36.5); B.prop(x, 3.2, 36.5, 0.5, 0.2, 0.5, 0x9aa3ad, { solid: false }); }
+      B.prop(0, 0.02, 36.5, 5, 0.04, 2.4, 0x7cff4f, { solid: false, shadow: false, glow: true });     // decon floor grid
+      for (let z = 45; z > 39; z -= 2) B.prop(0, 0.02, z, 0.3, 0.02, 1.2, 0xf2c230, { solid: false, shadow: false });
+      pipes(B, -5.8, 39, -5.8, 45.5); pipes(B, 5.8, 39, 5.8, 45.5);
+      B.prop(-3.6, 0.7, 44, 1.6, 1.4, 2.6, 0x2f6fb3); B.prop(-3.6, 1.6, 43.4, 1.4, 0.4, 0.8, 0x1c1e21, { solid: false });   // electric cart
+      cratePyramid(d, 4, 44.5, 2);
+      B.start('tech', 0, 43, Math.PI);
+      B.person('tech', -2, 41, { wander: [-5, 39.5, 3.5, 45] });
+      B.person('labguard', 4.2, 39.4, { post: true, yaw: -Math.PI / 2 });
+      B.camera(-5.5, 39.4, Math.PI * 0.85, 0.5, 3.0);
+      B.camera(5.5, 33.4, -Math.PI * 0.85, 0.5, 3.0);
+      B.alarmLight(0, 37.9);
 
       // --- The loading bay: where you come in ---
-      B.start('tech', 0, 29, Math.PI);
       B.prop(-18, 1.6, 27, 4, 3.2, 9, 0xe8e4da); B.prop(-18, 1.1, 22, 3.6, 2.2, 1.2, 0x2f6fb3);       // delivery truck
       B.prop(16, 1.6, 27, 4, 3.2, 9, 0xe8e4da); B.prop(16, 1.1, 22, 3.6, 2.2, 1.2, 0x2a2f36);
       cratePyramid(d, -8, 26, 3); cratePyramid(d, 8, 25, 2); cratePyramid(d, 26, 21, 2);
       for (const x of [-28, -25]) B.prop(x, 0.75, 28, 2, 1.5, 2, 0x7d848c);                          // barrels' crates
+      B.person('tech', 0, 28, { wander: [-20, 22, 20, 31] });
       B.prop(4, 0.6, 20.5, 1.4, 1.2, 2.4, 0xf2c230); B.prop(4, 1.8, 21.4, 0.1, 1.6, 0.1, 0x2b2f33, { solid: false });   // forklift
       for (let i = 0; i < 4; i++) B.person('tech', -20 + i * 12, 24 + (i % 2) * 4, { wander: [-30, 20, 30, 31] });
       B.person('scientist', -6, 21, { route: [[-12, 21], [8, 21], [8, 27], [-12, 27]], wait: 2 });
       B.person('labguard', 0, 25, { route: [[-24, 24], [24, 24], [24, 30], [-24, 30]], wait: 2 });
+      B.person('labguard', -12, 30, { route: [[-28, 30], [-6, 30], [-6, 20], [-28, 20]], wait: 2.5 });
+      B.camera(31, 31, -Math.PI * 0.75, 0.6, 3.2);
+      B.alarmLight(-3.4, 18.4); B.alarmLight(3.4, 18.4);
+      for (let i = 0; i < 4; i++) B.prop(-30.8, 1.0, 21 + i * 1.2, 0.8, 2.0, 1.0, 0x55606a);   // lockers
       B.gate(0, 18, 0, 3, 'keycard');                                                       // the checkpoint
       B.person('labguard', 2.8, 19.6, { post: true, yaw: 0 });
       B.camera(-5, 18.6, 0.3, 0.6, 3.2);
@@ -2551,6 +2648,7 @@ const LEVELS = [
       // --- The corridor ---
       B.person('labguard', 0, 10, { route: [[0, 15], [0, -4]], wait: 2 });
       B.camera(-2.6, -5.4, Math.PI * 0.95, 0.4, 3.2);
+      B.tripwire(-3, 8, 3, 8, { sweep: [0, 4.5], speed: 0.11 });                          // a laser grid sweeping up and down the corridor
 
       // --- West: the vat room ---
       for (const [x, z] of [[-24, 0], [-16, 0], [-24, 9], [-16, 9]]) B.vat(x, z);
@@ -2559,8 +2657,11 @@ const LEVELS = [
       B.person('scientist', -20, 4, { wander: [-28, -4, -8, 15] });
       B.person('scientist', -12, 12, { wander: [-28, -4, -8, 15] });
       B.person('labguard', -10, 4, { route: [[-8, -3], [-8, 15], [-28, 15], [-28, -3]], wait: 1.5 });
+      B.person('labguard', -20, 4.5, { route: [[-28, 4.5], [-12, 4.5]], wait: 3 });
+      B.turret(-30.5, -4.5, Math.PI * 0.25, 0.8);
+      B.alarmLight(-20, 17.6);
       B.camera(-31, 17, Math.PI * 0.75, 0.6, 3.2);
-      B.restricted(-32, -6, -3, 18, ['scientist', 'labguard', 'chief', 'bodyguard'], 'lab staff only');
+      B.restricted(-32, -6, -3, 18, ['scientist', 'labguard', 'warden', 'chief', 'bodyguard'], 'lab staff only');
 
       // --- East: records ---
       for (let i = 0; i < 4; i++) { B.prop(28, 1.1, -3 + i * 3, 0.9, 2.2, 1.4, 0x1c1e21); B.prop(27.5, 1.1, -3 + i * 3, 0.04, 1.9, 1.2, 0x2cff7a, { solid: false, shadow: false, glow: true }); }
@@ -2569,8 +2670,35 @@ const LEVELS = [
       B.person('scientist', 12, 8, { wander: [6, 4, 26, 15] });
       B.person('scientist', 20, 3, { wander: [6, -4, 26, 15] });
       B.person('labguard', 18, 10, { route: [[6, 15], [26, 15], [26, -4], [6, -4]], wait: 1.5 });
+      B.person('scientist', 24, 12, { wander: [6, 4, 26, 15] });
+      B.turret(30.5, -4.5, -Math.PI * 0.25, 0.8);
+
+      // --- East: the security office (the head of security carries a red keycard) ---
+      labWall(B, 32, -6, 46, -6); labWall(B, 32, 18, 46, 18);
+      for (let i = 0; i < 5; i++) { B.prop(45.6, 2.0, -2 + i * 2.6, 0.12, 1.4, 2.2, 0x0a2a14); B.prop(45.5, 2.0, -2 + i * 2.6, 0.04, 1.2, 2.0, 0x2cff7a, { solid: false, shadow: false, glow: true }); }   // monitor wall
+      B.prop(41, 0.45, 3, 1.4, 0.9, 8, 0x3a3f46); for (const z of [0, 3, 6]) B.prop(41.3, 1.1, z, 0.5, 0.4, 0.6, 0x1c1e21, { solid: false });   // the console desk
+      for (let i = 0; i < 5; i++) B.prop(35 + i * 1.2, 1.0, 17.3, 1.0, 2.0, 0.8, 0x2b3b2f);                      // gun lockers
+      B.fusebox(45.6, 14, -Math.PI / 2);
+      B.person('warden', 39, 6, { route: [[36, 0], [43, 0], [43, 14], [36, 14]], wait: 3 });
+      B.person('labguard', 36, 10, { route: [[34, 16], [44, 16], [44, -4], [34, -4]], wait: 2 });
+      B.person('labguard', 38, -3, { post: true, yaw: Math.PI / 2 });
+      B.camera(45.5, 17.5, -Math.PI * 0.8, 0.5, 3.2);
+      B.turret(45, -5, -Math.PI * 0.3, 0.6);
+      B.alarmLight(39, 17.6);
+      B.restricted(32, -6, 46, 18, ['labguard', 'warden', 'chief', 'bodyguard'], 'security staff only');
+
+      // --- West: the generator room (keycard door from the vat room, or the crawl hole) ---
+      labWall(B, -46, -6, -32, -6); labWall(B, -46, 18, -32, 18);
+      B.gate(-32, 3.3, Math.PI / 2, 2.6, 'keycard');
+      for (const [x, z] of [[-42, 0], [-42, 8], [-37, 14]]) { B.prop(x, 1.3, z, 3, 2.6, 3, 0x5a5f66); B.prop(x, 2.75, z, 1.4, 0.3, 1.4, 0x3a3f46, { shape: 'cyl' }); B.steam(x + 1.8, z); }   // generators
+      B.prop(-45.6, 1.6, 12, 0.3, 3.2, 8, 0x3a3f46);
+      B.fusebox(-45.6, 4, Math.PI / 2);
+      B.person('tech', -38, 4, { wander: [-44, -4, -34, 16] });
+      B.person('labguard', -38, 10, { route: [[-34, -3], [-34, 16], [-44, 16], [-44, -3]], wait: 2 });
+      B.camera(-45.5, -5.5, Math.PI * 0.25, 0.5, 3.2);
+      B.restricted(-46, -6, -32, 18, ['tech', 'labguard', 'warden'], 'maintenance only');
       B.camera(31, 17, -Math.PI * 0.75, 0.6, 3.2);
-      B.restricted(3, -6, 32, 18, ['scientist', 'labguard', 'chief', 'bodyguard'], 'lab staff only');
+      B.restricted(3, -6, 32, 18, ['scientist', 'labguard', 'warden', 'chief', 'bodyguard'], 'lab staff only');
 
       // --- North: Dr. Halloran's lab ---
       B.tripwire(-1.5, -6, 1.5, -6);
@@ -2585,11 +2713,47 @@ const LEVELS = [
       B.person('labguard', -20, -20, { route: [[-28, -8], [28, -8], [28, -16], [-28, -16]], wait: 2 });
       B.camera(-31, -7, -Math.PI * 0.75, 0.6, 3.2);
       B.camera(31, -31, Math.PI * 0.25 - Math.PI, 0.6, 3.2);
-      B.restricted(-32, -32, 32, -6, ['scientist', 'labguard', 'chief', 'bodyguard'], 'lab staff only');
-      // The freight lift out.
-      B.prop(26, 0.05, -26, 6, 0.1, 6, 0x3a3f46);
-      for (const [x, z, sx, sz] of [[23, -26, 0.2, 6], [29, -26, 0.2, 6], [26, -29, 6, 0.2]]) B.prop(x, 1.7, z, sx, 3.4, sz, 0xf2c230, { solid: false });
-      B.extract(26, -26, 2.6, 'freight lift');
+      B.restricted(-32, -32, 32, -6, ['scientist', 'labguard', 'warden', 'chief', 'bodyguard'], 'lab staff only');
+      B.person('labguard', 20, -28, { route: [[28, -30], [28, -10], [8, -10], [8, -30]], wait: 2 });
+      B.turret(-31, -31, Math.PI * 0.25, 0.7);
+      B.turret(31, -9, -Math.PI * 0.75, 0.7);
+      B.alarmLight(-10, -6.6); B.alarmLight(10, -6.6);
+
+      // --- Far north: the containment wing, behind the red keycard door ---
+      B.gate(0, -32, 0, 4, 'redcard');
+      hazard(B, 0, -31.4, 'x'); hazard(B, 0, -32.6, 'x');
+      B.glass(-32, -42, 18, -42, LAB_H, 10);                                                // cell fronts
+      for (let x = -27; x <= 13; x += 5) labWall(B, x, -46, x, -42);
+      for (let x = -29.5; x <= 15.5; x += 5) {
+        const k = (x + 29.5) / 5;
+        B.prop(x, 0.3, -44.5, 0.9 + (k % 3) * 0.25, 0.6, 0.9, 0x3fa82a, { shape: 'cyl', glow: true });          // failed clones, slumped in their cells
+        B.prop(x + 1.2, 0.25, -45.3, 1.6, 0.5, 0.9, 0xd9d2c3);                                                   // bunk
+      }
+      // The vault: Sample Zero on a pedestal, behind a sweeping laser grid.
+      labWall(B, 18, -46, 18, -32, [[-40.5, -37.5, DOOR]]);
+      B.tripwire(18, -40.5, 18, -37.5, { period: 2.6, duty: 0.6 });
+      B.tripwire(24, -45.5, 24, -32.5, { sweep: [4.5, 0], speed: 0.13 });
+      B.prop(28, 0.45, -42, 1.2, 0.9, 1.2, 0x3a3f46);
+      B.pickup('sample', 'Sample Zero', 28, 1.15, -42, 0x5cff6a);
+      for (const z of [-45, -35]) B.prop(31, 1.3, z, 1.4, 2.6, 1.4, 0x9fe8c0, { shape: 'cyl', glow: true });
+      B.camera(31.5, -45.5, -Math.PI * 0.25, 0.5, 3.2);
+      // The hall: two sweeping grids, sentry guns, guards.
+      B.tripwire(-6, -42, -6, -32, { sweep: [7, 0], speed: 0.07 });
+      B.tripwire(8, -42, 8, -32, { sweep: [5, 0], speed: 0.09, phase: 0.5 });
+      B.turret(-16, -32.6, Math.PI, 1.1);
+      B.turret(12, -32.6, Math.PI, 1.1);
+      B.person('labguard', -10, -37, { route: [[-24, -37], [16, -37]], wait: 2 });
+      B.person('labguard', 10, -40, { route: [[14, -34], [-24, -34], [-24, -40], [14, -40]], wait: 2 });
+      B.person('scientist', 0, -38, { wander: [-24, -41, 16, -33] });
+      B.camera(-31.5, -33, Math.PI * 0.6, 0.5, 3.2);
+      B.alarmLight(-20, -32.4); B.alarmLight(8, -32.4); B.alarmLight(24, -32.4);
+      pipes(B, -31.7, -45, -31.7, -33);
+      B.restricted(-32, -46, 32, -32, ['labguard', 'warden', 'chief', 'bodyguard'], 'containment: security only');
+      // The freight lift out, at the west end.
+      B.prop(-27.5, 0.05, -38, 6, 0.1, 6, 0x3a3f46);
+      for (const [x, z, sx, sz] of [[-30.5, -38, 0.2, 6], [-27.5, -41, 6, 0.2]]) B.prop(x, 1.7, z, sx, 3.4, sz, 0xf2c230, { solid: false });
+      B.dropoff('sample', -27.5, -38, 1.8, 'freight lift');
+      B.extract(-27.5, -38, 2.6, 'freight lift');
     },
   },
 ];
@@ -2620,6 +2784,7 @@ const ITEMS = {
   fists: { label: 'Huge fists', use: 'smash' },
   charges: { label: 'Charges', use: 'throw' },
   keycard: { label: 'Keycard' },
+  redcard: { label: 'Red keycard' },
   flares: { label: 'Flares', use: 'flare' },
   pass: { label: 'Dock pass' },
   rifle: { label: 'Sniper rifle', use: 'snipe' },
@@ -2646,8 +2811,9 @@ const ROLES = {
   ceo: { label: 'The CEO', items: ['keycard'], shirts: [0x2a2a2f], pants: [0x2a2a2f], tie: true, shades: true, vip: true },
   tech: { label: 'Lab tech', items: [], shirts: [0x6c8fa8, 0x8aa0b0, 0x7d8a6a], pants: [0x2e3440, 0x3a3a3a] },
   scientist: { label: 'Scientist', items: ['keycard'], shirts: [0xf4f4f2, 0xeef3f6], pants: [0x50555e, 0x2e3440, 0x3d3d46] },
+  warden: { label: 'Head of security', items: ['pistol', 'keycard', 'redcard'], shirts: [0x1a2219], pants: [0x111611], hat: 'cap', shades: true, armed: true },
   labguard: { label: 'Lab security', items: ['pistol', 'keycard'], shirts: [0x2b3b2f], pants: [0x1a2219], hat: 'cap', armed: true },
-  chief: { label: 'Dr. Halloran', items: ['keycard'], shirts: [0xf4f4f2], pants: [0x1d2f5a], tie: true, shades: true, vip: true },
+  chief: { label: 'Dr. Halloran', items: ['keycard', 'redcard'], shirts: [0xf4f4f2], pants: [0x1d2f5a], tie: true, shades: true, vip: true },
   harbourmaster: { label: 'The Harbourmaster', items: ['keycard'], shirts: [0x1d2f5a], pants: [0x1d2f5a], hat: 'cap', tie: true, vip: true },
 };
 const SKINS = [0xf1c7a3, 0xd9a47c, 0xa8714d, 0x7a4b2e, 0xf6d6bd, 0xc68863];
@@ -2662,23 +2828,75 @@ const MAX_FORM = 6;
 const BODY_SIZES = {
   1: { name: 'Slime body', scale: 1, hp: 100, armor: 1, speed: 1, mass: 85, lift: 0 },
   2: { name: 'Brute', scale: 2, hp: 320, armor: 0.55, speed: 1.12, mass: 700, lift: 300 },
-  3: { name: 'Giant', scale: 3, hp: 800, armor: 0.3, speed: 1.3, mass: 3000, lift: 3200 },
+  3: { name: 'Giant', scale: 3, hp: 600, armor: 0.4, speed: 1.3, mass: 3000, lift: 3200 },
   // The other way: tiny, quick, and gone the moment it keeps still (Meridian Tower's reward).
   tiny: { name: 'Shrunk', scale: 0.42, hp: 60, armor: 1, speed: 1.75, mass: 20, lift: 0 },
 };
-const SHRINK_FORMS = 3;   // forms needed to shrink
+const SHRINK_FORMS = 2;   // people eaten (since the last body) needed to shrink
 const HIDE_STILL = 0.6;   // seconds of keeping still before a shrunk body vanishes
 const isTiny = (h = player.host) => h?.size === 'tiny';
 const hostScale = (h) => (h?.size ? BODY_SIZES[h.size].scale : 1);
-const bodyTier = (forms) => (forms >= 6 ? 3 : forms >= 3 ? 2 : 1);
+// How big a body comes out: what you've eaten since the last one, and how far up the Strength branch you are.
+const bodyTier = (forms) => (forms >= 6 && hasSkill('giant') ? 3 : forms >= 3 && hasSkill('brute') ? 2 : 1);
+// Grown brutes and giants don't hold together for long (health lost per second).
+const BODY_DECAY = { 2: 3, 3: 6 };
+
+// --- The skill tree: every person you eat is a point to spend (T, or the SKILLS button) ---
+// Test runs can start every level with all skills learned.
+function testSkills() { try { return localStorage.getItem('symbiote-test-allskills') === '1' ? SKILLS.map((k) => k.id) : []; } catch { return []; } }
+const SKILL_BRANCHES = ['Slime', 'Stealth', 'Strength'];
+const SKILLS = [
+  { id: 'hop', branch: 0, name: 'Hop', text: 'Jump from the ground as a slime, like launching from a host. Costs a little health.' },
+  { id: 'reach', branch: 0, need: 'hop', name: 'Long launch', text: 'Launch and hop a third further.' },
+  { id: 'skin', branch: 0, need: 'reach', name: 'Thick skin', text: 'As a slime: half damage from stamps and bullets, and you dry out slower.' },
+  { id: 'puddle', branch: 1, name: 'Puddle', text: 'Keep still as a slime and you flatten out: nobody spots you from more than 2.5 m. You still dry out, just slower.' },
+  { id: 'gulp', branch: 1, need: 'puddle', name: 'Quick eater', text: 'Eat a host in 2.5 seconds instead of 4, and make less noise doing it.' },
+  { id: 'shrink', branch: 1, need: 'gulp', gate: 'shrinkOK', gateText: 'Finish Meridian Tower', name: 'Shrink', text: 'With 2+ eaten, a slime can grow a tiny, fast body people barely notice.' },
+  { id: 'ghost', branch: 1, need: 'shrink', name: 'Ghost', text: 'A shrunk body that keeps still turns invisible, unless someone is right beside it.' },
+  { id: 'body', branch: 2, gate: 'bodyOK', gateText: 'Finish Saltmarsh Docks', name: 'Grow a body', text: 'A slime can grow a body of your own. It uses up everyone you\'ve eaten since the last one.' },
+  { id: 'brute', branch: 2, need: 'body', name: 'Brute', text: 'With 3+ eaten, the body comes out a brute: smashes walls, throws things. It falls apart after a while.' },
+  { id: 'giant', branch: 2, need: 'brute', name: 'Giant', text: 'With 6 eaten, the body comes out a giant. Everyone panics, and it falls apart faster.' },
+];
+const hasSkill = (id) => !!player.skills?.has(id);
+function skillState(sk) {
+  if (hasSkill(sk.id)) return 'owned';
+  if (sk.gate && !game[sk.gate]) return 'gated';
+  if (sk.need && !hasSkill(sk.need)) return 'locked';
+  return player.points > 0 ? 'buy' : 'open';
+}
+function buySkill(id) {
+  const sk = SKILLS.find((k) => k.id === id);
+  if (!sk || skillState(sk) !== 'buy') return;
+  player.points--;
+  player.skills.add(id);
+  sfx.infect();
+  renderSkills();
+}
+function renderSkills() {
+  $('skillPts').textContent = `${player.points} point${player.points === 1 ? '' : 's'} to spend · you get one for every person you eat`;
+  $('skillTree').innerHTML = SKILL_BRANCHES.map((b, bi) => `<div class="branch"><h3>${b}</h3>${SKILLS.filter((k) => k.branch === bi).map((k) => {
+    const st = skillState(k);
+    const tag = st === 'owned' ? '✓ Yours' : st === 'gated' ? `🔒 ${k.gateText}` : st === 'locked' ? `Needs ${SKILLS.find((q) => q.id === k.need).name}` : st === 'buy' ? 'Tap to learn' : 'Eat someone for a point';
+    return `<button class="skill ${st}" data-id="${k.id}"><b>${k.name}</b><span>${k.text}</span><em>${tag}</em></button>`;
+  }).join('')}</div>`).join('');
+  for (const b of $('skillTree').querySelectorAll('.skill')) b.onclick = () => buySkill(b.dataset.id);
+}
+function toggleSkills(open = !game.skillsOpen) {
+  if (!game.running || game.over || (game.paused && !game.skillsOpen)) return;
+  game.skillsOpen = open;
+  game.paused = open;
+  $('skills').classList.toggle('hidden', !open);
+  if (open) { renderSkills(); setSiren(false); input.aiming = false; input.eat = input.grow = input.shrink = false; if (document.pointerLockElement) document.exitPointerLock(); }
+  else if (game.alert) setSiren(true);
+}
 const bigHost = () => (player.host?.size || 1) >= 2;
 const crawlSpeed = () => CRAWL_SPEED + 0.7 * player.form;
-const launchRange = () => LAUNCH_RANGE + 2.5 * player.form;
+const launchRange = () => (LAUNCH_RANGE + 2.5 * player.form) * (hasSkill('reach') ? 1.35 : 1);
 const SLIME_DRAIN = 4;      // health per second out of a host: about 25 seconds, so people are the real danger
 const CRAWL_SPEED = 4.6;    // m/s, faster than anyone can walk, a little slower than a sprint
 const EAT_TIME = 4;         // seconds of holding C, unseen, to eat your host
 const GROW_TIME = 3;        // seconds of holding B, unseen, to grow a body (form III)
-const HOP_COST = 6;         // slime health per hop (form I)
+const HOP_COST = 10;        // slime health per hop (form I)
 const SLIME_FALL = 18.5;    // m/s at impact: a drop of about 17 m is the end of the slime
 const STOMP_DMG = 34;       // three stamps and the slime is paste
 const STOMP_WINDUP = 0.35;  // foot in the air: they can't be entered until it comes down
@@ -3064,6 +3282,8 @@ addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   keys.add(k);
   if (!game.running) return;
+  if (k === 't' && game.level.consume) { toggleSkills(); return; }
+  if (game.skillsOpen && (k === 'escape' || k === 'p')) { toggleSkills(false); return; }
   if (k === 'escape' || k === 'p') { if (!locked || k === 'p') togglePause(); return; }
   if (game.paused) return;
   if (k === 'r') restart();
@@ -3183,7 +3403,7 @@ const game = {
 };
 const player = {
   host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0,
-  trespass: '', carry: null, consuming: null, form: 0, held: null, hidden: false, hideTold: false, thrown: [], absorbed: [], absorbedLabel: '',
+  trespass: '', carry: null, consuming: null, form: 0, points: 0, skills: new Set(testSkills()), held: null, hidden: false, hideTold: false, thrown: [], absorbed: [], absorbedLabel: '',
   aimPerson: null, aimPoint: new THREE.Vector3(),
 };
 let people = [];
@@ -3571,14 +3791,17 @@ function makeBuilder() {
     camera(x, z, yaw, sweep = 0.8, h = 4.2) { addCamera(x, z, yaw, sweep, BY + h, BY); },
     fusebox(x, z, yaw = 0) { addFusebox(x, z, yaw); },
     restricted(x0, z0, x1, z1, allow, label) { restricted.push({ x0, z0, x1, z1, y0: BY - 0.5, y1: BY + 4, allow: new Set(allow), label }); },
-    pickup(id, label, x, y, z) { addPickup(id, label, x, BY + y, z); },
+    pickup(id, label, x, y, z, color) { addPickup(id, label, x, BY + y, z, color); },
     dropoff(id, x, z, r, label) { addDropoff(id, x, z, r, label); },
     glass(x0, z0, x1, z1, h = 3.6, panes = 1) { addGlass(x0, z0, x1, z1, h, panes); },
     mover(o) { return addMover(o); },
     ramp(x0, z0, x1, z1, y0, y1, w, color) { addRamp(x0, z0, x1, z1, BY + y0, BY + y1, w, color); },
     water(x0, z0, x1, z1) { addWater(x0, z0, x1, z1); },
     vent(x0, z0, x1, z1) { addVent(x0, z0, x1, z1); },
-    tripwire(x0, z0, x1, z1) { addTripwire(x0, z0, x1, z1); },
+    tripwire(x0, z0, x1, z1, o) { addTripwire(x0, z0, x1, z1, o); },
+    turret(x, z, yaw, sweep, h) { addTurret(x, z, yaw, sweep, h); },
+    steam(x, z) { steams.push({ x, y: BY, z, t: Math.random() * 4 }); },
+    alarmLight(x, z, h = 3.1) { addAlarmLight(x, BY + h, z); },
     vat(x, z) { addVat(x, z); },
   };
 }
@@ -3682,8 +3905,8 @@ function loadLevel(i, menu = false) {
   game.exitOpen = false;
   $('exitMark').classList.add('hidden'); $('goalMark').classList.add('hidden');
   personByHandle.clear();
-  seeThrough.clear(); glassHandles.clear(); camThrough.clear(); tripwires = []; vats = { total: 0, broken: 0 }; movers = []; panes = [];
-  Object.assign(game, { time: 0, alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0, over: false, hostsUsed: 0, bodiesFound: 0, paused: false });
+  seeThrough.clear(); glassHandles.clear(); camThrough.clear(); tripwires = []; turrets = []; steams = []; alarmLights = []; vats = { total: 0, broken: 0 }; movers = []; panes = [];
+  Object.assign(game, { skillsOpen: false, lockdowns: 0, time: 0, alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0, over: false, hostsUsed: 0, bodiesFound: 0, paused: false });
   // Rewards from earlier levels: the mutagen vial (Hollow Hill) lets the slime eat and grow; Saltmarsh Docks unlocks growing a body.
   { const prog = loadProgress(); game.mutagen = freePlay() || !!prog['hollow-hill']; game.bodyOK = freePlay() || !!prog['saltmarsh-docks']; game.shrinkOK = freePlay() || !!prog['meridian-tower']; }
   Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, growing: null, form: 0, absorbed: [], absorbedLabel: '', shellWarned: false, puddleTold: false, zoom: false });
@@ -4105,7 +4328,8 @@ function addAlarm(n, why) {
   if (game.alarm >= 100 && !game.alert) {
     if (pending('stealth')) { lose('Stealth failed', `${why || 'You were seen.'} ${game.level.stealthFail || 'It locked down before you got inside.'}`); return; }
     game.alert = true;
-    game.alertT = 25;
+    game.lockdowns++;
+    game.alertT = 25 + 12 * (game.lockdowns - 1); // each lockdown lasts longer than the one before
     toast('LOCKDOWN', 'Guards are hunting you. Jump into someone out of sight to lose them.', 3);
     setSiren(true);
     for (const q of people) if (q.armed && q.state !== 'down' && q.state !== 'host') { q.opts.follow = null; q.state = 'search'; q.goal = clampGoal(game.lastKnown.clone()); }
@@ -4131,7 +4355,7 @@ function stompLand(p) {
   if (!s) return;
   const t = s.body.translation();
   if (Math.hypot(t.x - foot.x, t.z - foot.z) > 0.95 || t.y > 0.9) return;
-  player.health -= STOMP_DMG * (1 - 0.15 * Math.min(4, player.form));
+  player.health -= STOMP_DMG * (1 - 0.1 * Math.min(4, player.form)) * (hasSkill('skin') ? 0.5 : 1);
   shake = Math.max(shake, 0.35);
   splat(t.x, t.z, 0.5, t.y - SLIME_R);
   sfx.splat();
@@ -4402,7 +4626,7 @@ function rayFrom(origin, dir, maxDist, exclude) {
 
 function fireGun(shooter, aim, spread, dmgPerson, slimeDmg = 25, range = 70) {
   const fwd = new THREE.Vector3(Math.sin(shooter.yaw), 0, Math.cos(shooter.yaw));
-  const origin = new THREE.Vector3(shooter.pos.x, shooter.pos.y + 1.35, shooter.pos.z).addScaledVector(fwd, 0.5);
+  const origin = shooter.origin ? shooter.origin.clone() : new THREE.Vector3(shooter.pos.x, shooter.pos.y + 1.35, shooter.pos.z).addScaledVector(fwd, 0.5);
   const dir = aim.clone().sub(origin).normalize();
   dir.x += rand(-spread, spread); dir.y += rand(-spread, spread) * 0.5; dir.z += rand(-spread, spread);
   dir.normalize();
@@ -4418,7 +4642,7 @@ function fireGun(shooter, aim, spread, dmgPerson, slimeDmg = 25, range = 70) {
     burst(end, 6, 0xb33a3a, { speed: 2, up: 2, size: 0.07, life: 0.4 });
     damagePerson(hit.person, dmgPerson, shooter.pos);
   } else if (hit.slime) {
-    player.health -= slimeDmg;
+    player.health -= slimeDmg * (hasSkill('skin') ? 0.5 : 1);
     burst(end, 10, 0x7cff4f, { speed: 3, up: 2, size: 0.08 });
   } else if (hit.entity) {
     d.damageEntity(hit.entity, 6, end, dir);
@@ -4589,7 +4813,7 @@ function addVent(x0, z0, x1, z1) {
 /** Red laser beams across a doorway. Anything bigger than a shrunk body that walks through sets them off. */
 let tripwires = [];
 const TRIP_HEIGHTS = [0.9, 1.45, 2.0];
-function addTripwire(x0, z0, x1, z1) {
+function addTripwire(x0, z0, x1, z1, o = {}) {
   const len = Math.hypot(x1 - x0, z1 - z0), yaw = Math.atan2(x1 - x0, z1 - z0);
   const beamM = new THREE.MeshBasicMaterial({ color: 0xff2a3a, transparent: true, opacity: 0.85 });
   const beams = [];
@@ -4601,23 +4825,44 @@ function addTripwire(x0, z0, x1, z1) {
     levelGroup.add(b);
     beams.push(b);
   }
-  for (const [x, z] of [[x0, z0], [x1, z1]]) addProp(x, BY + 1.15, z, 0.16, 2.3, 0.16, 0x2b2f33, { solid: false });
-  tripwires.push({ x0, z0, x1, z1, y: BY, beamM, cd: 0, flashT: 0 });
+  // A sweeping grid moves on emitter rails; a fixed one gets posts at each end.
+  if (o.sweep) {
+    const [dx, dz] = o.sweep;
+    for (const [x, z] of [[x0, z0], [x1, z1]]) addProp(x, BY + 0.05, z, Math.abs(dx) * 2 + 0.2, 0.1, Math.abs(dz) * 2 + 0.2, 0x2b2f33, { solid: false });
+  } else for (const [x, z] of [[x0, z0], [x1, z1]]) addProp(x, BY + 1.15, z, 0.16, 2.3, 0.16, 0x2b2f33, { solid: false });
+  tripwires.push({ bx0: x0, bz0: z0, bx1: x1, bz1: z1, x0, z0, x1, z1, y: BY, beams, beamM, cd: 0, flashT: 0, on: true,
+    period: o.period || 0, duty: o.duty ?? 0.5, sweep: o.sweep || null, speed: o.speed || 0.5, phase: o.phase || 0 });
 }
 function segCross(ax, az, bx, bz, w) {
   const side = (px, pz, qx, qz, rx, rz) => (qx - px) * (rz - pz) - (qz - pz) * (rx - px);
   return side(w.x0, w.z0, w.x1, w.z1, ax, az) * side(w.x0, w.z0, w.x1, w.z1, bx, bz) < 0
     && side(ax, az, bx, bz, w.x0, w.z0) * side(ax, az, bx, bz, w.x1, w.z1) < 0;
 }
+function segDist(px, pz, w) {
+  const ex = w.x1 - w.x0, ez = w.z1 - w.z0;
+  const t = clamp(((px - w.x0) * ex + (pz - w.z0) * ez) / (ex * ex + ez * ez || 1), 0, 1);
+  return Math.hypot(px - (w.x0 + ex * t), pz - (w.z0 + ez * t));
+}
 function updateTripwires(dt) {
   if (!tripwires.length) return;
   const h = player.host;
+  const powered = !power || power.on;
   for (const w of tripwires) {
     w.cd -= dt;
+    // Blinking grids switch on and off; sweeping ones slide back and forth. A blackout kills them all.
+    const on = powered && (!w.period || ((game.time / w.period + w.phase) % 1) < w.duty);
+    if (on !== w.on) { w.on = on; for (const b of w.beams) b.visible = on; }
+    if (w.sweep) {
+      const k = Math.sin(game.time * w.speed * TAU + w.phase * TAU);
+      const ox = w.sweep[0] * k, oz = w.sweep[1] * k;
+      w.x0 = w.bx0 + ox; w.x1 = w.bx1 + ox; w.z0 = w.bz0 + oz; w.z1 = w.bz1 + oz;
+      for (const b of w.beams) b.position.set((w.x0 + w.x1) / 2, b.position.y, (w.z0 + w.z1) / 2);
+    }
+    if (!on) continue;
     if (w.flashT > 0) { w.flashT -= dt; w.beamM.opacity = Math.sin(game.time * 40) > 0 ? 1 : 0.2; if (w.flashT <= 0) w.beamM.opacity = 0.85; }
     // A slime or a shrunk body slips under the lowest beam.
     if (!h || isTiny(h) || w.cd > 0 || game.over || Math.abs(h.pos.y - w.y) > 1.5) continue;
-    if (!segCross(h.prev.x, h.prev.z, h.pos.x, h.pos.z, w)) continue;
+    if (!segCross(h.prev.x, h.prev.z, h.pos.x, h.pos.z, w) && !(w.sweep && segDist(h.pos.x, h.pos.z, w) < 0.3)) continue;
     w.cd = 2.5; w.flashT = 1.5;
     player.marked = true;
     player.seenAt = game.time;
@@ -4628,6 +4873,82 @@ function updateTripwires(dt) {
     const guards = people.filter((q) => q.armed && q.state !== 'down' && q.state !== 'host').sort((a, b) => a.pos.distanceTo(h.pos) - b.pos.distanceTo(h.pos)).slice(0, 2);
     for (const q of guards) { q.opts.follow = null; q.state = game.alert ? 'search' : 'investigate'; q.timer = 4; q.goal = clampGoal(h.pos.clone()); setIcon(q, '!'); }
   }
+}
+
+/** Ceiling sentry guns: they sweep like cameras and open fire on the slime, or on anyone already marked. */
+let turrets = [];
+const TURRET_RANGE = 16, TURRET_FOV = 0.9;
+function addTurret(x, z, base, sweep = 0.7, h = 3.0) {
+  const head = new THREE.Group();
+  head.position.set(x, BY + h, z);
+  head.add(box(0.55, 0.4, 0.55, mat(0x2b2f33), 0, 0, 0));
+  head.add(box(0.12, 0.12, 0.8, mat(0x16171a), 0, -0.05, 0.6));
+  const eye = box(0.14, 0.1, 0.04, new THREE.MeshBasicMaterial({ color: 0xff3344 }), 0, 0.12, 0.29);
+  head.add(eye);
+  levelGroup.add(head);
+  addProp(x, BY + h + 0.5, z, 0.12, 1, 0.12, 0x5a5f66, { shape: 'cyl' });
+  const t = { x, y: BY, z, h: BY + h, base, sweep, yaw: base, phase: Math.random() * TAU, alive: true, head, eye, lock: 0, fireAt: 0, warned: false };
+  t.b = addBreakable(x, BY + h, z, 0.6, 0.45, 0.6, () => { t.alive = false; t.head.rotation.x = 0.8; t.eye.material.color.setHex(0x222222); toast('Sentry gun wrecked', '', 1.2); });
+  turrets.push(t);
+}
+const _tEye = new THREE.Vector3();
+function updateTurrets(dt) {
+  if (!turrets.length || game.over) return;
+  const tp = targetPoint();
+  const powered = !power || power.on;
+  for (const t of turrets) {
+    if (!t.alive || !powered) { if (t.alive) t.eye.material.color.setHex(0x222222); continue; }
+    const exposed = tp && !player.host;
+    const threat = tp && (exposed ? !player.slime?.puddle : player.marked || !!player.carry || player.host.size >= 2) && !player.hidden;
+    let sees = false;
+    if (threat) {
+      const dx = tp.x - t.x, dz = tp.z - t.z, dist = Math.hypot(dx, dz);
+      const want = Math.atan2(dx, dz);
+      if (dist < TURRET_RANGE && Math.abs(angDiff(t.yaw, want)) < TURRET_FOV / 2 + (t.lock > 0 ? 1 : 0)) {
+        _tEye.set(t.x + Math.sin(want) * 0.7, t.h - 0.1, t.z + Math.cos(want) * 0.7);
+        sees = clearLine(_tEye, tp);
+      }
+      if (sees) t.yaw += clamp(angDiff(t.yaw, want), -dt * 3, dt * 3);
+    }
+    t.lock = sees ? t.lock + dt : Math.max(0, t.lock - dt);
+    if (!sees && t.lock <= 0) t.yaw = t.base + Math.sin(game.time * 0.5 + t.phase) * t.sweep;
+    t.head.rotation.y = t.yaw;
+    t.eye.material.color.setHex(sees ? (Math.sin(game.time * 30) > 0 ? 0xff3344 : 0xffd23c) : 0xff3344);
+    // A short wind-up, then a burst every 0.45 s.
+    if (sees && t.lock > 0.6 && game.time > t.fireAt) {
+      t.fireAt = game.time + 0.45;
+      if (!t.warned) { t.warned = true; toast('Sentry gun!', 'Shoot it, smash it, or kill the power.', 1.6); }
+      const origin = new THREE.Vector3(t.x + Math.sin(t.yaw) * 1.05, t.h - 0.05, t.z + Math.cos(t.yaw) * 1.05);
+      fireGun({ origin, pos: origin, yaw: t.yaw, col: null }, new THREE.Vector3(tp.x, tp.y, tp.z), 0.05, 14, 14, TURRET_RANGE + 4);
+      player.seenAt = game.time;
+      game.lastKnown.copy(tp);
+      addAlarm(4, 'A sentry gun is shooting at you.');
+    }
+  }
+}
+
+/** Steam vents (just for show) and red lights that spin during a lockdown. */
+let steams = [], alarmLights = [];
+function updateLabFx(dt) {
+  for (const s of steams) {
+    s.t -= dt;
+    if (s.t < 0) { s.t = rand(2.5, 5); burst(new THREE.Vector3(s.x, s.y + 0.1, s.z), 14, 0xdfe8ee, { speed: 0.6, up: 3.2, size: 0.22, life: 1.4, grav: -0.5 }); }
+  }
+  for (const l of alarmLights) {
+    l.lamp.material.color.setHex(game.alert ? (Math.sin(game.time * 8) > 0 ? 0xff2030 : 0x5a0a10) : 0x3a1a1c);
+    l.beam.visible = game.alert;
+    if (game.alert) l.beam.rotation.y = game.time * 5;
+  }
+}
+const ALARM_BEAM_M = new THREE.MeshBasicMaterial({ color: 0xff2030, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
+function addAlarmLight(x, y, z) {
+  const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.3, 10), new THREE.MeshBasicMaterial({ color: 0x3a1a1c }));
+  lamp.position.set(x, y, z);
+  const beam = new THREE.Mesh(new THREE.ConeGeometry(1.4, 4.5, 12, 1, true).rotateZ(Math.PI / 2).translate(2.3, 0, 0), ALARM_BEAM_M);
+  beam.position.set(x, y, z);
+  beam.visible = false;
+  levelGroup.add(lamp, beam);
+  alarmLights.push({ lamp, beam });
 }
 
 /** Glass tanks with slime clones growing in them. Smash them all for the sabotage objective. */
@@ -4659,7 +4980,8 @@ function addVat(x, z) {
 
 /** A shrunk body that keeps still fades out: nobody and nothing can see it. */
 function updateHidden(h, dt) {
-  const still = Math.hypot(h.vx || 0, h.vz || 0) < 0.25 && player.itemCD <= 0 && !input.aiming;
+  const near = people.some((q) => q !== h && q.state !== 'down' && Math.hypot(q.pos.x - h.pos.x, q.pos.z - h.pos.z) < 2.5 && Math.abs(q.pos.y - h.pos.y) < 2);
+  const still = hasSkill('ghost') && !near && Math.hypot(h.vx || 0, h.vz || 0) < 0.25 && player.itemCD <= 0 && !input.aiming;
   h.stillT = still ? (h.stillT || 0) + dt : 0;
   const was = player.hidden;
   player.hidden = h.stillT > HIDE_STILL;
@@ -5005,8 +5327,16 @@ function tick(dt) {
     if (want !== null) h.yaw += clamp(angDiff(h.yaw, want), -12 * dt, 12 * dt);
     if (h.size === 3) giantStep(h, dt);
     if (isTiny(h)) updateHidden(h, dt);
+    // Brutes and giants come apart.
+    if (BODY_DECAY[h.size]) {
+      h.hp -= BODY_DECAY[h.size] * dt;
+      if (h.hp < h.maxHp * 0.3 && !h.decayWarned) { h.decayWarned = true; toast('Falling apart', 'This body won\'t hold together much longer.', 2); }
+      if (h.hp <= 0) damagePerson(h, 1, h.pos);
+    }
   }
   updateTripwires(dt);
+  updateTurrets(dt);
+  updateLabFx(dt);
   updateHeld(dt);
 
   updateTrespass();
@@ -5058,9 +5388,9 @@ function tick(dt) {
     const still = player.slime.landed && Math.hypot(v.x, v.z) < 0.5 && !(mv.x || mv.z) && !player.growing;
     player.slime.stillT = still ? (player.slime.stillT || 0) + dt : 0;
     const wasPuddle = player.slime.puddle;
-    player.slime.puddle = player.form >= 2 && game.level.consume && player.slime.stillT > 0.7;
-    if (player.slime.puddle && !wasPuddle && !player.puddleTold) { player.puddleTold = true; toast('Puddle', 'Nobody notices you unless they\'re right on top of you.', 1.8); }
-    if (!player.slime.puddle) player.health -= SLIME_DRAIN * dt;
+    player.slime.puddle = hasSkill('puddle') && player.slime.stillT > 0.7;
+    if (player.slime.puddle && !wasPuddle && !player.puddleTold) { player.puddleTold = true; toast('Puddle', 'Nobody notices you unless they\'re right on top of you. You still dry out, just slower.', 1.8); }
+    player.health -= SLIME_DRAIN * dt * (player.slime.puddle ? 0.5 : 1) * (hasSkill('skin') ? 0.7 : 1);
     player.slime.dried = player.health <= SLIME_DRAIN * dt * 2;
     // On the ground, or resting on top of something.
     player.slime.restT = Math.abs(v.y) < 0.3 ? (player.slime.restT || 0) + dt : 0;
@@ -5076,7 +5406,7 @@ function tick(dt) {
       // On a slope, run along it rather than into it.
       const ny = slopeN ? -(slopeN.x * nx + slopeN.z * nz) / slopeN.y : Math.min(v.y, 0.5);
       sb.setLinvel({ x: nx, y: ny, z: nz }, true);
-      if (!player.slime.landed) { player.slime.landed = true; if (!player.slime.hopped) toast('Missed!', `Crawl into someone who hasn't seen you.${player.form >= 1 && game.level.consume ? ' Or hop.' : ''}`, 1.6); }
+      if (!player.slime.landed) { player.slime.landed = true; if (!player.slime.hopped) toast('Missed!', `Crawl into someone who hasn't seen you.${hasSkill('hop') ? ' Or hop.' : ''}`, 1.6); }
     }
     // A little help reaching someone who walked a step since you jumped.
     const tg = player.slime.target;
@@ -5118,7 +5448,7 @@ function tick(dt) {
   for (const g of gates) {
     if (g.open) { g.lift = Math.min(1, g.lift + dt * 1.5); g.panel.position.y = -g.lift * 2.6; continue; }
     const near = h && Math.abs(h.pos.y - g.y) < 2 && Math.hypot(h.pos.x - g.x, h.pos.z - g.z) < 3;
-    const ok = hasItem(h, g.need);
+    const ok = hasItem(h, g.need) || (g.need === 'keycard' && hasItem(h, 'redcard'));
     const needLabel = ITEMS[g.need].label.toLowerCase();
     if (near && ok) openGate(g);
     else if (near && !g.warned) {
@@ -5138,7 +5468,7 @@ function tick(dt) {
     if (game.time - player.seenAt > 2) game.alertT -= dt;
     if (game.alertT <= 0) {
       game.alert = false;
-      game.alarm = 55;
+      game.alarm = Math.min(85, 45 + 12 * game.lockdowns); // and they stay jumpier
       player.marked = false;
       setSiren(false);
       toast('They lost you', 'Lockdown over.', 2);
@@ -5416,7 +5746,7 @@ function addFusebox(x, z, yaw) {
       for (const c of cams) { c.cone.visible = false; c.led.material.color.setHex(0x222222); }
       for (const l of powerLights) l.material.color.setHex(0x3a3f46);
       completeObjective('power');
-      setTimeout(() => toast('Blackout', 'Every camera on the docks is dead.', 2.2), 900);
+      setTimeout(() => toast('Blackout', game.level.blackout || 'Every camera on the docks is dead.', 2.2), 900);
     } else toast('Fuse box wrecked', `${power.total - power.broken} to go.`, 1.4);
   });
 }
@@ -5450,11 +5780,17 @@ function oddReason() {
 }
 
 /** Things you can pick up by walking over them, and where to take them. */
-function addPickup(id, label, x, y, z) {
+function addPickup(id, label, x, y, z, color) {
   const g = new THREE.Group();
-  g.add(box(0.5, 0.36, 0.12, mat(0x8a5a2a, { emissive: 0xffb020, emissiveIntensity: 0.6 }), 0, 0, 0));
-  g.add(box(0.2, 0.06, 0.04, mat(0x1c1e21), 0, 0.21, 0));
-  g.add(box(0.06, 0.06, 0.13, mat(0xd8b56a), 0.12, 0.05, 0));
+  if (color) {
+    // A glowing canister.
+    const cyl = (r, h, m, yy) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 12), m); c.position.y = yy; return c; };
+    g.add(cyl(0.14, 0.34, mat(color, { emissive: color, emissiveIntensity: 0.9 }), 0), cyl(0.16, 0.06, mat(0x3a3f46), 0.2), cyl(0.16, 0.06, mat(0x3a3f46), -0.2));
+  } else {
+    g.add(box(0.5, 0.36, 0.12, mat(0x8a5a2a, { emissive: 0xffb020, emissiveIntensity: 0.6 }), 0, 0, 0));
+    g.add(box(0.2, 0.06, 0.04, mat(0x1c1e21), 0, 0.21, 0));
+    g.add(box(0.06, 0.06, 0.13, mat(0xd8b56a), 0.12, 0.05, 0));
+  }
   g.position.set(x, y, z);
   levelGroup.add(g);
   const ring = zoneRing(1.1, 0xffd23c);
@@ -5689,17 +6025,17 @@ function updateConsume(dt) {
     if (c.p <= 0) player.consuming = null;
     return;
   }
-  if ((c.noiseT -= dt) <= 0) { c.noiseT = 1.3; eatNoise(h.pos); noise(0.5, { freq: 260, vol: 0.25 }); }
+  if ((c.noiseT -= dt) <= 0) { c.noiseT = hasSkill('gulp') ? 2.6 : 1.3; eatNoise(h.pos); noise(0.5, { freq: 260, vol: 0.25 }); }
   if (c.seenBy) return; // someone's watching: nothing happens but suspicion
-  c.p += dt / EAT_TIME;
+  c.p += dt / (hasSkill('gulp') ? 2.5 : EAT_TIME);
   if (Math.random() < 0.5) burst(pt, 2, 0x7cff4f, { speed: 1.5, up: 2, size: 0.1 });
   if (c.p < 1) return;
   player.consuming = null;
   input.eat = false;
   player.absorbed = [...new Set(h.items)];
   player.absorbedLabel = h.role.label.replace(/^The /, '');
-  const was = player.form;
   player.form = Math.min(MAX_FORM, player.form + 1);
+  player.points++;
   const pos = new THREE.Vector3(h.pos.x, h.pos.y + 0.8, h.pos.z);
   dropCarry(h.pos);
   player.host = null;
@@ -5711,8 +6047,7 @@ function updateConsume(dt) {
   shake = Math.max(shake, 0.4);
   sfx.splat();
   loudAct(pos, 14, 8);
-  const gained = player.form > was ? formGain(player.form) : 'Already as strong as it gets.';
-  toast(`Slime form ${FORM_NAMES[player.form]}`, `${gained}${player.absorbed.length ? ` Next host also gets: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}.` : ''}`, 3.6);
+  toast('Skill point!', `${isTouch ? 'Tap SKILLS' : 'Press T'} to spend it on the skill tree.${player.absorbed.length ? ` Next host also gets: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}.` : ''}`, 3.2);
 }
 
 const FORM_NAMES = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
@@ -5724,7 +6059,7 @@ function formGain(f) {
   if (f === 6 && body) return 'A body grown now is a GIANT: it walks through walls and stamps on people. It\'s too big for most doors.';
   return 'Stronger, faster, and it launches further.';
 }
-const canHop = () => !!(player.slime && game.level.consume && player.form >= 1 && player.slime.landed && game.time - (player.slime.hopAt ?? -9) > 0.5);
+const canHop = () => !!(player.slime && hasSkill('hop') && player.slime.landed && game.time - (player.slime.hopAt ?? -9) > 0.5);
 
 /** Form I and up: jump from the ground, as a slime. */
 function hop() {
@@ -5746,10 +6081,10 @@ function hop() {
 /** Form III: grow your own body out of slime, unseen. It drops you back two forms. */
 function updateGrow(dt) {
   const s = player.slime;
-  const shrinking = input.shrink && game.shrinkOK && player.form >= SHRINK_FORMS;
-  const want = (input.grow || shrinking) && s && s.landed && game.level.consume && game.bodyOK && player.form >= 1 && !game.over;
+  const shrinking = input.shrink && hasSkill('shrink') && player.form >= SHRINK_FORMS;
+  const want = ((input.grow && hasSkill('body')) || shrinking) && s && s.landed && player.form >= 1 && !game.over;
   let g = player.growing;
-  if (input.shrink && !g && s && s.landed && game.shrinkOK && player.form < SHRINK_FORMS && !player.shrinkWarned) { player.shrinkWarned = true; toast('Not yet', `Shrinking takes ${SHRINK_FORMS} forms. Eat more hosts first.`, 1.8); }
+  if (input.shrink && !g && s && s.landed && hasSkill('shrink') && player.form < SHRINK_FORMS && !player.shrinkWarned) { player.shrinkWarned = true; toast('Not yet', `Shrinking takes ${SHRINK_FORMS} people eaten. Eat more hosts first.`, 1.8); }
   if (want && !g) {
     const tier = shrinking ? 'tiny' : bodyTier(player.form), BS = BODY_SIZES[tier];
     // A giant needs the sky above it.
@@ -5781,9 +6116,10 @@ function updateGrow(dt) {
   enterHost(p, true);
   burst(new THREE.Vector3(t.x, 1, t.z), 30, 0x7cff4f, { speed: 3, up: 3, size: 0.12 });
   sfx.infect();
-  if (g.tier === 'tiny') toast('Shrunk', `${spent} forms went into it. Tiny and fast, people barely notice it, and if you keep still you vanish. ${isTouch ? '' : ''}`, 3.6);
-  else if (g.tier === 1) toast('Your own body', `It took all ${spent === 1 ? 'your form' : `${spent} forms`}. Up close, it doesn't look quite right.`, 3);
-  else toast(`A ${BODY_SIZES[g.tier].name.toLowerCase()}`, `${spent} forms went into it. F smashes, G picks things up and throws them. Everyone who sees it panics.`, 3.6);
+  const ate = `Everyone you'd eaten (${spent}) went into it.`;
+  if (g.tier === 'tiny') toast('Shrunk', `${ate} Tiny and fast, and people barely notice it.${hasSkill('ghost') ? ' Keep still and you vanish.' : ''}`, 3.6);
+  else if (g.tier === 1) toast('Your own body', `${ate} Up close, it doesn't look quite right.`, 3);
+  else toast(`A ${BODY_SIZES[g.tier].name.toLowerCase()}`, `${ate} F smashes, G picks things up and throws them. Everyone panics, and it falls apart after a while.`, 3.6);
   if (g.tier !== 'tiny' && g.tier >= 2) { shake = Math.max(shake, 0.4 * g.tier); loudAct(new THREE.Vector3(t.x, t.y, t.z), 12 * g.tier, 10); }
 }
 
@@ -5882,8 +6218,8 @@ function updateHud(dt) {
   $('warnRow').classList.toggle('hidden', !warn);
   const cons = game.level.consume;
   const canEat = !!(h && cons && !h.role.shell);
-  const canGrow = !!(!h && player.slime && cons && game.bodyOK && player.form >= 1);
-  const canShrink = canGrow && game.shrinkOK && player.form >= SHRINK_FORMS;
+  const canGrow = !!(!h && player.slime && hasSkill('body') && player.form >= 1);
+  const canShrink = !!(!h && player.slime && hasSkill('shrink') && player.form >= SHRINK_FORMS);
   const hold = player.consuming || player.growing;
   let hint = '';
   if (hold) {
@@ -5892,18 +6228,23 @@ function updateHud(dt) {
     const msg = !held ? 'Let go: it\'s healing over' : hold.seenBy ? '<b class="warn">Someone can see you. Get out of sight.</b>' : `${what}… keep holding`;
     hint = `<div class="pbar"><i style="width:${Math.round(clamp(hold.p, 0, 1) * 100)}%"></i></div>${msg}`;
   } else if (canEat) hint = isTouch ? 'Hold EAT, unseen, to eat this host and grow' : `Hold <kbd>C</kbd> where nobody can see you to eat this ${h.role.label.replace(/^The /, '').toLowerCase()}: your slime grows a form`;
-  else if (canGrow) { const nm = BODY_SIZES[bodyTier(player.form)].name.toLowerCase(); hint = isTouch ? `Hold BODY, unseen, to grow a ${nm}${canShrink ? ', or SHRINK' : ''} (uses every form)` : `Hold <kbd>B</kbd> where nobody can see you to grow a ${nm === 'slime body' ? 'body' : nm}${canShrink ? ', or <kbd>V</kbd> to shrink' : ''} (uses all ${player.form} form${player.form > 1 ? 's' : ''})`; }
-  else if (h && isTiny(h)) hint = player.hidden ? 'Invisible. Move and you fade back in.' : 'Keep still to vanish';
+  else if (canShrink && !canGrow) hint = isTouch ? 'Hold SHRINK, unseen, to grow a tiny body' : 'Hold <kbd>V</kbd> where nobody can see you to shrink';
+  else if (canGrow) { const nm = BODY_SIZES[bodyTier(player.form)].name.toLowerCase(); hint = isTouch ? `Hold BODY, unseen, to grow a ${nm}${canShrink ? ', or SHRINK' : ''} (uses every form)` : `Hold <kbd>B</kbd> where nobody can see you to grow a ${nm === 'slime body' ? 'body' : nm}${canShrink ? ', or <kbd>V</kbd> to shrink' : ''} (uses all ${player.form} eaten)`; }
+  else if (h && isTiny(h)) hint = !hasSkill('ghost') ? '' : player.hidden ? 'Invisible. Move and you fade back in.' : 'Keep still to vanish (not right next to people)';
   else if (h && h.size >= 2) hint = isTouch ? '' : `<kbd>F</kbd> smash walls, doors and people · <kbd>G</kbd> ${player.held ? 'throw' : 'pick up'}`;
-  else if (!h && canHop()) hint = `${isTouch ? 'LAUNCH' : 'Aim and jump'} to hop${player.form >= 2 ? ' · keep still to puddle' : ''}`;
+  else if (!h && canHop()) hint = `${isTouch ? 'LAUNCH' : 'Aim and jump'} to hop${hasSkill('puddle') ? ' · keep still to puddle' : ''}`;
   $('consumeHint').classList.toggle('hidden', !hint);
   $('consumeHint').innerHTML = hint;
   $('eatbtn').classList.toggle('hidden', !canEat);
   $('bodybtn').classList.toggle('hidden', !canGrow);
   $('shrinkbtn').classList.toggle('hidden', !canShrink);
-  const powers = ['hop', 'puddle'].slice(0, player.form).concat(game.bodyOK ? [`body: ${BODY_SIZES[bodyTier(player.form)].name.toLowerCase()}`] : []).concat(game.shrinkOK && player.form >= SHRINK_FORMS ? ['shrink'] : []).join(', ');
-  $('formRow').classList.toggle('hidden', !player.form);
-  $('formRow').textContent = player.form ? `Slime form ${FORM_NAMES[player.form]} (${powers})${player.absorbed.length ? ` · absorbed: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}` : ''}` : '';
+  const owned = SKILLS.filter((k) => hasSkill(k.id)).map((k) => k.name.toLowerCase());
+  const showForm = player.form || player.points || owned.length;
+  $('formRow').classList.toggle('hidden', !showForm);
+  $('formRow').textContent = showForm ? `Eaten ${player.form}${owned.length ? ` · ${owned.join(', ')}` : ''}${player.points ? ` · ${player.points} skill point${player.points > 1 ? 's' : ''} (${isTouch ? 'SKILLS' : 'T'})` : ''}${player.absorbed.length ? ` · absorbed: ${player.absorbed.map((i) => ITEMS[i].label).join(' + ')}` : ''}` : '';
+  $('skillbtn').classList.toggle('hidden', !game.level.consume);
+  $('skillbtn').textContent = player.points ? `SKILLS ${player.points}` : 'SKILLS';
+  $('skillbtn').classList.toggle('on', player.points > 0);
   $('swapbtn').classList.toggle('hidden', usable(h).length < 2);
   $('zoombtn').classList.toggle('hidden', activeItem(h) !== 'rifle');
   $('grabbtn').classList.toggle('hidden', !(h && h.size >= 2));
@@ -6013,7 +6354,9 @@ function togglePause() {
 }
 $('playBtn').onclick = () => { if (!levelUnlocked(menuLevel)) return; audio(); loadLevel(menuLevel); };
 $('freePlay').onchange = (e) => { try { localStorage.setItem('symbiote-freeplay', e.target.checked ? '1' : '0'); } catch { /* private mode */ } buildMenu(); };
-$('pausebtn').onclick = () => togglePause();
+$('pausebtn').onclick = () => (game.skillsOpen ? toggleSkills(false) : togglePause());
+$('skillbtn').onclick = (e) => { e.stopPropagation(); toggleSkills(); };
+$('skillsClose').onclick = () => toggleSkills(false);
 $('resumeBtn').onclick = () => togglePause();
 $('restartBtn').onclick = () => restart();
 $('menuBtn').onclick = () => toMenu();
@@ -6111,6 +6454,7 @@ window.__symbiote = {
   tickOnce: () => tick(TICK),
   openExit: () => openExit(),
   spawn: (role, x, z, opts = {}) => spawnPerson(role, x, z, opts),
+  buySkill: (id) => { player.points = Math.max(player.points, 1); buySkill(id); }, learn: (...ids) => { for (const id of ids) player.skills.add(id); }, skills: () => [...player.skills], toggleSkills, addAlarm, completeObjective, turrets: () => turrets, tripwires: () => tripwires,
   walls: () => walls, grab: () => grab(), held: () => player.held, win: () => win(), launch: () => launch(), movers: () => movers, liftAt: () => { const m = movers[0]; return m && Math.abs(m.y - (player.host?.pos.y ?? -9)) < 0.05 && m.waitT > 1.5; },
   watcher: (x, y, z) => !!watcher(new THREE.Vector3(x, y, z)), hop: () => launch(),
   consume: () => consume(), swapItem: () => swapItem(), cams: () => cams, breakables: () => breakables, pickups: () => pickups, power: () => power, objective, breakIt, explodeAt: (x, y, z) => explodeAt(new THREE.Vector3(x, y, z)), relay: () => relay,
