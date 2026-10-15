@@ -211,6 +211,10 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.16.1", "date": "2026-10-15", "title": "Skills reset properly",
+      "notes": [
+        "Fix: skills and unspent skill points now reset when you die, restart or start another level. Before, they carried over by mistake."
+      ] },
     { "version": "0.16", "date": "2026-10-15", "title": "The State House",
       "notes": [
         "New level 5: The State House, a government building built in rings. Get past the lobby, then work your way in through the offices and the security ring to the situation room at the centre. Each ring's door is on a different side, and the last one needs a red keycard, which only the secret service carry.",
@@ -4148,7 +4152,7 @@ function loadLevel(i, menu = false) {
   Object.assign(game, { skillsOpen: false, lockdowns: 0, time: 0, alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0, over: false, hostsUsed: 0, bodiesFound: 0, paused: false });
   // Rewards from earlier levels: the mutagen vial (Hollow Hill) lets the slime eat and grow; Saltmarsh Docks unlocks growing a body.
   { const prog = loadProgress(); game.mutagen = freePlay() || !!prog['hollow-hill']; game.bodyOK = freePlay() || !!prog['saltmarsh-docks']; game.shrinkOK = freePlay() || !!prog['meridian-tower']; game.labOK = freePlay() || !!prog['blackwater-lab']; }
-  Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, growing: null, form: 0, boostT: 0, boostCD: 0, boomUsed: false, absorbed: [], absorbedLabel: '', shellWarned: false, puddleTold: false, zoom: false });
+  Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, growing: null, form: 0, points: 0, skills: new Set(testSkills()), boostT: 0, boostCD: 0, boomUsed: false, absorbed: [], absorbedLabel: '', shellWarned: false, puddleTold: false, zoom: false });
   input.eat = input.grow = input.shrink = false;
   slimeMesh.visible = false;
   objectives = L.objectives.map((o) => ({ ...o, done: false }));
