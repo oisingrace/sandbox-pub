@@ -144,6 +144,21 @@
     .controls { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; color: var(--dim); margin-top: 18px; }
     .controls b { color: var(--fg); font-weight: 600; }
     kbd { display: inline-block; min-width: 20px; padding: 0 5px; border-radius: 4px; background: rgba(255,255,255,0.14); font: 600 11px/18px ui-monospace, monospace; text-align: center; color: var(--fg); }
+    .lb { margin: 4px 0 10px; }
+    .lb-send { display: flex; gap: 8px; margin-bottom: 8px; }
+    .lb-send input { flex: 1; min-width: 0; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); border-radius: 10px; color: var(--fg); padding: 10px 12px; font: inherit; }
+    .lb-msg { font-size: 13px; color: var(--dim); min-height: 1.2em; margin-bottom: 6px; }
+    .lb-list { list-style: none; margin: 0; padding: 0; counter-reset: lb; max-height: 46vh; overflow-y: auto; }
+    .lb-list li { counter-increment: lb; display: grid; grid-template-columns: 2.2em 1fr auto auto; gap: 10px; align-items: baseline; padding: 6px 8px; border-radius: 8px; font-size: 14px; }
+    .lb-list li:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    .lb-list li::before { content: counter(lb); color: var(--dim); font-family: "Russo One", sans-serif; }
+    .lb-list li.me { outline: 1px solid #7cff4f; }
+    .lb-list .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lb-list .s { font-family: "Russo One", sans-serif; color: #7cff4f; }
+    .lb-list .t { color: var(--dim); font-size: 12px; }
+    .lb-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
+    .lb-tabs button { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15); color: var(--fg); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+    .lb-tabs button.on { background: #7cff4f; color: #0b1a0d; border-color: #7cff4f; }
     .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
     .stats div { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 10px; text-align: center; font-size: 12px; color: var(--dim); }
     .stats b { display: block; font-size: 20px; color: var(--fg); font-family: "Russo One", sans-serif; }
@@ -190,6 +205,12 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.15", "date": "2026-10-15", "title": "Leaderboard",
+      "notes": [
+        "Online leaderboard: finish a level and your score shows on the win screen. Type a name and press Post score to put it on the shared board for that level.",
+        "Leaderboard button on the menu: see the top 20 for each level.",
+        "Score: faster runs score higher, a run with no lockdown gets a 1500 bonus, and each lockdown, each body found and a high peak alarm cost points."
+      ] },
     { "version": "0.14", "date": "2026-10-13", "title": "A bigger, harder Blackwater Lab",
       "notes": [
         "Blackwater Lab is about twice the size. You now start in a service tunnel and have to get through a decontamination airlock whose laser doors blink on and off, or crawl the duct beside it.",
@@ -397,7 +418,7 @@
       <p>You are a slime that lives inside people. Launch yourself out of one body and into the next. Hit someone and they're yours. Miss, and you're a puddle on the floor, and everyone wants to stamp on you. The body you leave behind dies too.</p>
       <div id="levelList"></div>
       <label class="free"><input type="checkbox" id="freePlay"> Free play: every level and power unlocked</label>
-      <div class="btns"><button class="btn primary" id="playBtn">Play</button></div>
+      <div class="btns"><button class="btn primary" id="playBtn">Play</button><button class="btn" id="boardBtn">Leaderboard</button></div>
       <details class="ctl"><summary>Controls</summary>
       <div class="controls">
         <b>Look</b><span>Arrow keys <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>, or the mouse (click to capture it)</span>
@@ -443,11 +464,26 @@
       <p id="endText"></p>
       <div id="endReward" class="reward-box hidden"></div>
       <div class="stats" id="endStats"></div>
+      <div id="endBoard" class="lb hidden">
+        <div class="lb-send" id="lbSend"><input id="lbName" maxlength="16" placeholder="Your name" autocomplete="nickname"><button class="btn primary" id="lbSubmit">Post score</button></div>
+        <div class="lb-msg" id="lbMsg"></div>
+        <ol class="lb-list" id="lbList"></ol>
+      </div>
       <div class="btns">
         <button class="btn primary hidden" id="nextBtn">Next</button>
         <button class="btn" id="retryBtn">Play again</button>
         <button class="btn" id="endMenuBtn">Menu</button>
       </div>
+    </div>
+  </div>
+
+  <div id="board" class="screen hidden">
+    <div class="card">
+      <h2>Leaderboard</h2>
+      <div class="lb-tabs" id="boardTabs"></div>
+      <div class="lb-msg" id="boardMsg"></div>
+      <ol class="lb-list" id="boardList"></ol>
+      <div class="btns"><button class="btn primary" id="boardClose">Back</button></div>
     </div>
   </div>
 
@@ -3277,6 +3313,7 @@ let mouseHeld = false;
 const canvas = renderer.domElement;
 
 addEventListener('keydown', (e) => {
+  if (e.target instanceof HTMLInputElement && e.target.type !== 'checkbox') return; // typing a name
   if (e.key.startsWith('Arrow') || e.key === ' ' || e.key === 'Tab') e.preventDefault();
   if (e.repeat) return;
   const k = e.key.toLowerCase();
@@ -6138,6 +6175,60 @@ function endScreen() {
   showScreen('end');
 }
 
+// --- Leaderboard: scores are shared through a Supabase table (see the thread for the setup) ------------
+const LB = { url: 'https://xbhrixanexusfsdglkmw.supabase.co', key: 'sb_publishable_r4YEeEJFZKdoAMfl_lSeQA_f6VI-qVp' };   // the Supabase project URL and its public anon key
+try { Object.assign(LB, JSON.parse(localStorage.getItem('symbiote-test-lb') || '{}')); } catch { /* private mode */ }
+const lbOn = () => !!(LB.url && LB.key);
+/** Faster, quieter runs score higher. */
+function runScore() {
+  return Math.max(0, Math.round(10000 - game.time * 10 - game.lockdowns * 1000 - game.bodiesFound * 150 - game.peakAlarm * 5 + (game.lockdowns ? 0 : 1500)));
+}
+// New-style publishable keys go in apikey only; old anon keys are JWTs and go in Authorization too.
+const lbHeaders = () => (LB.key.startsWith('eyJ') ? { apikey: LB.key, Authorization: `Bearer ${LB.key}` } : { apikey: LB.key });
+async function lbFetch(level) {
+  const r = await fetch(`${LB.url}/rest/v1/symbiote_scores?level=eq.${encodeURIComponent(level)}&select=name,score,time_s,created_at&order=score.desc,time_s.asc&limit=20`, { headers: lbHeaders() });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+async function lbPost(row) {
+  const r = await fetch(`${LB.url}/rest/v1/symbiote_scores`, { method: 'POST', headers: { ...lbHeaders(), 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(row) });
+  if (!r.ok) throw new Error(r.status);
+}
+const escHtml = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+function lbRender(list, rows, mine) {
+  list.innerHTML = rows.map((r) => `<li class="${mine && r.name === mine.name && r.score === mine.score ? 'me' : ''}"><span class="n">${escHtml(r.name)}</span><span class="s">${r.score}</span><span class="t">${fmtTime(r.time_s)}</span></li>`).join('');
+}
+async function lbShow(level, list, msg, mine) {
+  list.innerHTML = '';
+  if (!lbOn()) { msg.textContent = 'The online leaderboard isn\'t switched on yet.'; return; }
+  msg.textContent = 'Loading scores…';
+  try { const rows = await lbFetch(level); lbRender(list, rows, mine); msg.textContent = rows.length ? '' : 'No scores yet. Be the first.'; }
+  catch { msg.textContent = 'Couldn\'t reach the leaderboard. Check your connection.'; }
+}
+function lbEnd() {
+  const L = game.level, score = runScore(), time = Math.round(game.time * 10) / 10;
+  $('endBoard').classList.remove('hidden');
+  $('lbSend').classList.toggle('hidden', !lbOn());
+  $('lbSubmit').disabled = false;
+  try { $('lbName').value = localStorage.getItem('symbiote-name') || ''; } catch { /* private mode */ }
+  lbShow(L.id, $('lbList'), $('lbMsg'));
+  $('lbSubmit').onclick = async () => {
+    const name = $('lbName').value.trim().slice(0, 16);
+    if (!name) { $('lbMsg').textContent = 'Type a name first.'; $('lbName').focus(); return; }
+    try { localStorage.setItem('symbiote-name', name); } catch { /* private mode */ }
+    $('lbSubmit').disabled = true;
+    $('lbMsg').textContent = 'Posting…';
+    try { await lbPost({ level: L.id, name, score, time_s: Math.max(5.1, time) }); $('lbSend').classList.add('hidden'); await lbShow(L.id, $('lbList'), $('lbMsg'), { name, score }); $('lbMsg').textContent = 'Score posted!'; }
+    catch { $('lbSubmit').disabled = false; $('lbMsg').textContent = 'Couldn\'t post the score. Try again.'; }
+  };
+}
+function openBoard(i) {
+  $('boardTabs').innerHTML = LEVELS.map((L, k) => `<button data-k="${k}" class="${k === i ? 'on' : ''}">${escHtml(L.title)}</button>`).join('');
+  for (const b of $('boardTabs').children) b.onclick = () => openBoard(+b.dataset.k);
+  $('board').classList.remove('hidden');
+  lbShow(LEVELS[i].id, $('boardList'), $('boardMsg'));
+}
+
 function win() {
   if (game.over) return;
   game.over = true;
@@ -6160,8 +6251,9 @@ function win() {
     const reward = !prev && L.reward;
     $('endReward').classList.toggle('hidden', !reward);
     if (reward) $('endReward').innerHTML = `<b>${L.reward.title}</b>${L.reward.text}`;
-    $('endStats').innerHTML = `<div><b>${fmtTime(game.time)}</b>time</div><div><b>${game.hostsUsed}</b>hosts used</div><div><b>${Math.round(game.peakAlarm)}%</b>peak alarm</div>`;
+    $('endStats').innerHTML = `<div><b>${runScore()}</b>score</div><div><b>${fmtTime(game.time)}</b>time</div><div><b>${Math.round(game.peakAlarm)}%</b>peak alarm</div>`;
     endScreen();
+    lbEnd();
   }, 900);
 }
 
@@ -6172,7 +6264,7 @@ function lose(title, text) {
   setSiren(false);
   sfx.lose();
   $('nextBtn').classList.add('hidden');
-  $('endReward').classList.add('hidden');
+  $('endReward').classList.add('hidden'); $('endBoard').classList.add('hidden');
   if (player.slime) { const t = player.slime.body.translation(); splat(t.x, t.z, 0.9, t.y - SLIME_R); slimeMesh.visible = false; }
   setTimeout(() => {
     $('endTitle').textContent = title;
@@ -6352,6 +6444,8 @@ function togglePause() {
   if (game.paused) { setSiren(false); input.aiming = false; if (document.pointerLockElement) document.exitPointerLock(); }
   else if (game.alert) setSiren(true);
 }
+$('boardBtn').onclick = () => openBoard(menuLevel);
+$('boardClose').onclick = () => $('board').classList.add('hidden');
 $('playBtn').onclick = () => { if (!levelUnlocked(menuLevel)) return; audio(); loadLevel(menuLevel); };
 $('freePlay').onchange = (e) => { try { localStorage.setItem('symbiote-freeplay', e.target.checked ? '1' : '0'); } catch { /* private mode */ } buildMenu(); };
 $('pausebtn').onclick = () => (game.skillsOpen ? toggleSkills(false) : togglePause());
