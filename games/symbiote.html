@@ -58,6 +58,8 @@
     #hostItems b { color: var(--slime); }
     #zoombtn { right: 128px; bottom: 164px; width: 56px; height: 40px; border: 2px solid rgba(255,80,80,0.6); background: rgba(0,0,0,0.3); color: #ffb0b0; font-size: 11px; }
     #shrinkbtn { right: 26px; bottom: 196px; width: 70px; height: 50px; border: 2px solid rgba(160,220,255,0.8); background: rgba(20,60,90,0.5); color: #bfe6ff; }
+    #boostbtn { left: 22px; bottom: 160px; width: 64px; height: 44px; border: 2px solid rgba(124,255,79,0.7); background: rgba(0,0,0,0.3); color: var(--slime); font-size: 12px; }
+    #boombtn { left: 94px; bottom: 160px; width: 64px; height: 44px; border: 2px solid rgba(255,120,60,0.8); background: rgba(90,30,10,0.5); color: #ffb08a; font-size: 12px; }
     #grabbtn { right: 128px; bottom: 164px; width: 56px; height: 40px; border: 2px solid rgba(124,255,79,0.7); background: rgba(0,0,0,0.3); color: var(--slime); font-size: 11px; }
     .reward-box { margin: 10px 0 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(124,255,79,0.45); background: rgba(124,255,79,0.08); font-size: 14px; line-height: 1.4; }
     .reward-box b { display: block; color: var(--slime); margin-bottom: 3px; }
@@ -155,7 +157,10 @@
     .lb-list li.me { outline: 1px solid #7cff4f; }
     .lb-list .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .lb-list .s { font-family: "Russo One", sans-serif; color: #7cff4f; }
-    .lb-list .t { color: var(--dim); font-size: 12px; }
+    .lb-list .t { font-family: "Russo One", sans-serif; font-size: 13px; min-width: 4.2em; text-align: right; }
+    .lb-head { display: grid; grid-template-columns: 2.2em 1fr auto 4.2em; gap: 10px; padding: 0 8px 4px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+    .lb-head span:last-child { text-align: right; }
+    .lb-sort { margin: 0 0 6px; }
     .lb-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
     .lb-tabs button { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15); color: var(--fg); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
     .lb-tabs button.on { background: #7cff4f; color: #0b1a0d; border-color: #7cff4f; }
@@ -166,8 +171,8 @@
     #skillbtn { position: fixed; top: 14px; right: 240px; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(124,255,79,0.3); background: var(--bg); color: var(--dim); font: 700 12px system-ui; letter-spacing: 0.05em; cursor: pointer; }
     #skillbtn.on { color: #0b1a06; background: var(--slime); animation: pulse 1.2s ease-in-out infinite; }
     @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(124,255,79,0.25); } }
-    .card.wide { max-width: 860px; width: 100%; }
-    #skillTree { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 12px 0; }
+    .card.wide { max-width: 1040px; width: 100%; }
+    #skillTree { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 12px 0; }
     #skillTree .branch h3 { margin: 0 0 6px; font-family: "Russo One", sans-serif; color: var(--slime); font-size: 15px; }
     .skill { display: block; width: 100%; text-align: left; margin-bottom: 8px; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: var(--fg); font: inherit; cursor: default; }
     .skill b { display: block; font-size: 14px; }
@@ -179,6 +184,7 @@
     .skill.buy em { color: var(--warn); }
     .skill.buy:hover { background: rgba(255,201,60,0.1); }
     .skill.locked, .skill.gated { opacity: 0.5; }
+    @media (max-width: 900px) { #skillTree { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 640px) { #skillTree { grid-template-columns: 1fr; } #skillbtn { right: 60px; top: 84px; } }
     #pausebtn { position: fixed; top: 14px; right: 196px; width: 36px; height: 36px; border-radius: 10px; border: 0; background: var(--bg); color: var(--fg); font-size: 16px; cursor: pointer; }
 
@@ -205,6 +211,22 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.16", "date": "2026-10-15", "title": "The State House",
+      "notes": [
+        "New level 5: The State House, a government building built in rings. Get past the lobby, then work your way in through the offices and the security ring to the situation room at the centre. Each ring's door is on a different side, and the last one needs a red keycard, which only the secret service carry.",
+        "The security ring has sweeping laser grids, sentry guns and secret service agents.",
+        "Last stand: download the state secrets, then take the lift to the roof and hold it for 90 seconds. Wave after wave of guards come up the stair huts in the corners, and the waves get bigger. Then the getaway helicopter flies in to the helipad.",
+        "Finishing Blackwater Lab now unlocks a new Mutation branch on the skill tree.",
+        "Speed boost (X, or BOOST on phones): 5 seconds of top speed as a host or a slime. Anyone close by notices a host doing it. It recharges in 20 seconds.",
+        "Self destruct (K, or BOOM on phones): blows up your host and throws the slime clear. It costs 3 eaten and works once a level.",
+        "Blackwater Lab now has a ceiling, and its walls are taller to meet it.",
+        "Lockdown lights are a bit less glaring."
+      ] },
+    { "version": "0.15.1", "date": "2026-10-15", "title": "Leaderboard times",
+      "notes": [
+        "The leaderboard now has a Fastest tab that ranks runs by time, as well as Top score.",
+        "Times are shown to a tenth of a second, in their own column with headings, on the leaderboard and the win screen."
+      ] },
     { "version": "0.15", "date": "2026-10-15", "title": "Leaderboard",
       "notes": [
         "Online leaderboard: finish a level and your score shows on the win screen. Type a name and press Post score to put it on the shared board for that level.",
@@ -408,6 +430,8 @@
     <button id="bodybtn" class="tbtn hidden">BODY</button>
     <button id="grabbtn" class="tbtn hidden">GRAB</button>
     <button id="shrinkbtn" class="tbtn hidden">SHRINK</button>
+    <button id="boostbtn" class="tbtn hidden">BOOST</button>
+    <button id="boombtn" class="tbtn hidden">BOOM</button>
     <button id="launchbtn" class="tbtn">LAUNCH</button>
   </div>
 
@@ -429,6 +453,7 @@
         <b>Zoom</b><span><kbd>Z</kbd> with a sniper rifle</span>
         <b>Consume</b><span>Hold <kbd>C</kbd> where nobody can see you, on levels that allow it: eat your host and your slime grows a form.</span>
         <b>Skill tree</b><span>Eat hosts (hold <kbd>C</kbd>, unseen) to earn skill points, and spend them with <kbd>T</kbd>: Slime (hop, long launch, thick skin), Stealth (puddle, quick eater, shrink, ghost) and Strength (grow a body, brute, giant). Skills reset each level.</span>
+        <b>Mutations</b><span>After Blackwater Lab: <kbd>X</kbd> speed boost, <kbd>K</kbd> self destruct (blows up your host, costs 3 eaten, once a level).</span>
         <b>Bodies</b><span>Hold <kbd>B</kbd> as a slime to grow a body (3+ eaten: brute, 6: giant), or <kbd>V</kbd> to shrink. Both use up everyone you've eaten since the last one.</span>
         <b>Big bodies</b><span><kbd>F</kbd> smashes walls, doors and people, <kbd>G</kbd> picks things up and throws them. Everyone panics on sight, they can't use keycards or lifts, and a giant won't fit indoors.</span>
         <b>Other</b><span><kbd>R</kbd> restart, <kbd>P</kbd> or <kbd>Esc</kbd> pause</span>
@@ -466,7 +491,9 @@
       <div class="stats" id="endStats"></div>
       <div id="endBoard" class="lb hidden">
         <div class="lb-send" id="lbSend"><input id="lbName" maxlength="16" placeholder="Your name" autocomplete="nickname"><button class="btn primary" id="lbSubmit">Post score</button></div>
+        <div class="lb-tabs lb-sort" id="lbSort"></div>
         <div class="lb-msg" id="lbMsg"></div>
+        <div class="lb-head"><span></span><span>Name</span><span>Score</span><span>Time</span></div>
         <ol class="lb-list" id="lbList"></ol>
       </div>
       <div class="btns">
@@ -481,7 +508,9 @@
     <div class="card">
       <h2>Leaderboard</h2>
       <div class="lb-tabs" id="boardTabs"></div>
+      <div class="lb-tabs lb-sort" id="boardSort"></div>
       <div class="lb-msg" id="boardMsg"></div>
+      <div class="lb-head"><span></span><span>Name</span><span>Score</span><span>Time</span></div>
       <ol class="lb-list" id="boardList"></ol>
       <div class="btns"><button class="btn primary" id="boardClose">Back</button></div>
     </div>
@@ -1959,7 +1988,7 @@ function waterTower(d, x, z) {
 // director (the assassination target), bodyguard (pistol).
 
 // --- Blackwater Lab --------------------------------------------------------------------------------
-const LAB_H = 3.4, LAB_C = 0xc9cfd2;
+const LAB_H = 4.2, LAB_C = 0xc9cfd2;
 const DOOR = 2.6, VENT = 0.95;   // gap kinds: a doorway with a lintel above, a crawl hole at the floor
 /** A lab wall from (x0,z0) to (x1,z1) with gaps [a0, a1, h]: open below h (0 = no wall at all, for glass). */
 function labWall(B, x0, z0, x1, z1, gaps = []) {
@@ -1991,6 +2020,22 @@ function hazard(B, x, z, axis) {
   for (let i = -3; i <= 3; i++) B.prop(axis === 'x' ? x + i * 0.6 : x, 0.015, axis === 'x' ? z : z + i * 0.6, axis === 'x' ? 0.3 : 0.6, 0.02, axis === 'x' ? 0.6 : 0.3, i % 2 ? 0x16171a : 0xf2c230, { solid: false, shadow: false });
 }
 
+/** A government building wall: tall, pale stone, with doorway gaps [a0, a1, h]. */
+const GOV_H = 5, DOORH = 2.9;
+function govWall(B, x0, z0, x1, z1, gaps = [], color = 0xe6e0d4) {
+  const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
+  const lo = alongX ? Math.min(x0, x1) : Math.min(z0, z1), hi = alongX ? Math.max(x0, x1) : Math.max(z0, z1);
+  const c = alongX ? z0 : x0;
+  const seg = (a0, a1, y0, y1) => {
+    const l = a1 - a0, h = y1 - y0, m = (a0 + a1) / 2;
+    if (l < 0.05 || h < 0.05) return;
+    B.prop(alongX ? m : c, y0 + h / 2, alongX ? c : m, alongX ? l + 0.4 : 0.4, h, alongX ? 0.4 : l + 0.4, color);
+  };
+  let a = lo;
+  for (const [g0, g1, h] of [...gaps].sort((p, q) => p[0] - q[0])) { seg(a, g0 - 0.2, 0, GOV_H); if (h) seg(g0, g1, h, GOV_H); a = g1 + 0.2; }
+  seg(a, hi, 0, GOV_H);
+}
+
 // --- Meridian Tower --------------------------------------------------------------------------------
 // One 30 x 30 m tower: lobby (y 0), offices (5), security and servers (10), penthouse (15), roof (20).
 // Stairs in the north-east corner (x 9..15, z -15..-7), a glass lift in the middle (x/z -1.8..1.8).
@@ -2000,9 +2045,9 @@ const STAIR = { x0: 9, x1: 15, z0: -15, z1: -7 };
 const SHAFT = 1.85;
 
 /** A floor slab with holes cut out of it (each hole [x0, z0, x1, z1]). */
-function slab(B, holes, color = 0x8f8c84) {
-  const xs = [...new Set([-T, T, ...holes.flatMap((h) => [h[0], h[2]])])].sort((a, b) => a - b);
-  const zs = [...new Set([-T, T, ...holes.flatMap((h) => [h[1], h[3]])])].sort((a, b) => a - b);
+function slab(B, holes, color = 0x8f8c84, H = T) {
+  const xs = [...new Set([-H, H, ...holes.flatMap((h) => [h[0], h[2]])])].sort((a, b) => a - b);
+  const zs = [...new Set([-H, H, ...holes.flatMap((h) => [h[1], h[3]])])].sort((a, b) => a - b);
   for (let j = 0; j < zs.length - 1; j++) {
     let run = null;
     const flush = () => { if (run) B.prop((run[0] + run[1]) / 2, -0.2, (zs[j] + zs[j + 1]) / 2, run[1] - run[0], 0.4, zs[j + 1] - zs[j], color); run = null; };
@@ -2459,7 +2504,7 @@ const LEVELS = [
     consume: true,
     floors: true,
     blurb: 'A glass tower at night: climb it floor by floor, past security, to the penthouse party. Snipers on the towers next door watch every window.',
-    reward: { title: '🔬 Reward: shrink', text: 'With 3 or more forms, hold V as a slime to grow a tiny body instead of a brute. It\'s fast, people barely notice it, and if you keep still it turns invisible.' },
+    reward: { title: '🔬 Reward: shrink', text: 'Shrink is now on the skill tree: with 2 or more eaten, hold V as a slime to grow a tiny body instead of a brute. It\'s fast, people barely notice it, and with Ghost it turns invisible when still.' },
     half: 50,
     stealthFail: 'The tower locked down before you got out of the lobby.',
     look: { sky: 0x0b1222, sun: 0x9db4ff, sunI: 0.7, hemiSky: 0x8fa3d9, hemiGround: 0x4a4650, hemiI: 2.3, base: 0x23262e, city: true },
@@ -2601,7 +2646,7 @@ const LEVELS = [
   {
     id: 'blackwater-lab',
     title: 'Blackwater Lab',
-    isNew: true,
+    reward: { title: '⚡ Reward: mutations', text: 'A new Mutation branch on the skill tree: Speed boost (X) and Self destruct (K), which blows up your host and throws you clear.' },
     consume: true,
     blurb: 'The underground lab where the slime was made. Get through the decontamination airlock, past laser grids and sentry guns, and steal Sample Zero from the containment wing. Shrink to slip under the lasers, cut the power, or smash your way through.',
     half: 46,
@@ -2620,8 +2665,11 @@ const LEVELS = [
       const d = B.d;
       B.ground(-46, -46, 46, 46, 'labdark');
       B.ground(-6, 32, 6, 46, 'lab'); B.ground(32, -6, 46, 18, 'lab'); B.ground(-46, -6, -32, 18, 'labdark'); B.ground(-32, -46, 32, -32, 'lab');
+      // The ceiling (it doesn't cast a shadow, so the lab stays lit), with light panels under it.
+      B.prop(0, LAB_H + 0.2, 0, 92, 0.4, 92, 0xaab3bc, { shadow: false });
+      for (let x = -40; x <= 40; x += 8) for (let z = -40; z <= 40; z += 8) B.prop(x, LAB_H - 0.03, z, 2.6, 0.05, 0.5, 0xdff4ff, { solid: false, shadow: false, glow: true });
       // Solid rock around the rooms.
-      for (const [x0, z0, x1, z1] of [[-46, 32, -6, 46], [6, 32, 46, 46], [-46, 18, -32, 32], [32, 18, 46, 32], [-46, -46, -32, -6], [32, -46, 46, -6]]) B.prop((x0 + x1) / 2, 1.7, (z0 + z1) / 2, x1 - x0, 3.4, z1 - z0, 0x1b1f22);
+      for (const [x0, z0, x1, z1] of [[-46, 32, -6, 46], [6, 32, 46, 46], [-46, 18, -32, 32], [32, 18, 46, 32], [-46, -46, -32, -6], [32, -46, 46, -6]]) B.prop((x0 + x1) / 2, LAB_H / 2, (z0 + z1) / 2, x1 - x0, LAB_H, z1 - z0, 0x1b1f22);
       B.ground(-32, -6, -3, 18, 'lab'); B.ground(3, -6, 32, 18, 'lab'); B.ground(-32, -32, 32, -6, 'lab');
       for (let z = 16; z > -6; z -= 3) B.prop(0, 0.02, z, 0.3, 0.02, 1.6, 0x7cff4f, { solid: false, shadow: false, glow: true });   // corridor floor lights
 
@@ -2792,6 +2840,149 @@ const LEVELS = [
       B.extract(-27.5, -38, 2.6, 'freight lift');
     },
   },
+  {
+    id: 'state-house',
+    title: 'The State House',
+    isNew: true,
+    consume: true,
+    floors: true,
+    blurb: 'A government building built in rings. Work your way in, ring by ring, to the situation room at the centre. Then take the lift to the roof and hold it against wave after wave of guards until the getaway helicopter comes.',
+    half: 44,
+    stealthFail: 'The State House locked down before you got past the lobby.',
+    look: { sky: 0xe9b98a, sun: 0xffd2a0, sunI: 1.8, hemiSky: 0xffe2c4, hemiGround: 0x6b5a4a, hemiI: 1.2, base: 0x8f9a7a, hills: 0x7a8a62 },
+    objectives: [
+      { id: 'stealth', type: 'Stealth', text: 'Get past the lobby into the offices without setting off a lockdown.' },
+      { id: 'files', type: 'Infiltration', text: 'Reach the centre: download the state secrets in the situation room. Each ring\'s door is on a different side; the last one needs a red keycard.' },
+      { id: 'hold', type: 'Last stand', text: 'Take the lift up to the roof and hold it until the getaway helicopter comes.' },
+      { id: 'extract', type: 'Extraction', text: 'Get into the helicopter.' },
+    ],
+    build(B) {
+      const d = B.d;
+      const R1 = 24, R2 = 17, R3 = 10, R4 = 4;
+      // --- Outside: lawns, the road, the fence ---
+      B.ground(-44, -44, 44, 44, 'grass');
+      B.ground(-44, 36, 44, 44, 'road'); B.ground(-44, 34.5, 44, 36, 'kerb');
+      B.ground(-26, -26, 26, 26, 'concrete');
+      B.ground(-4, 26, 4, 34.5, 'plaza'); B.ground(-26, 26, 26, 30, 'plaza');
+      for (let x = -40; x < 44; x += 7) B.prop(x, 0.02, 40, 3, 0.02, 0.25, 0xf2efe6, { solid: false, shadow: false });
+      car(B, -18, 38, Math.PI / 2, 0x16171a); car(B, -10, 38, Math.PI / 2, 0x16171a); car(B, 20, 42, -Math.PI / 2, 0xe8e4da);
+      for (const [x0, x1] of [[-44, -4], [4, 44]]) B.prop((x0 + x1) / 2, 0.9, 32, x1 - x0, 1.8, 0.2, 0x2b2f33);      // the railings
+      for (const x of [-44, 44]) B.prop(x, 0.9, -6, 0.2, 1.8, 76, 0x2b2f33);
+      B.prop(0, 0.9, -44, 88, 1.8, 0.2, 0x2b2f33);
+      for (const x of [-5.5, 5.5]) { B.prop(x, 1.3, 32, 1.6, 2.6, 1.6, 0xe6e0d4); B.prop(x, 2.75, 32, 1.9, 0.3, 1.9, 0x8f8c84); }   // gate booths
+      for (const x of [-12, 12]) { B.prop(x, 4, 28, 0.15, 8, 0.15, 0xd9d2c3, { shape: 'cyl' }); B.prop(x + 0.8, 7.2, 28, 1.6, 1.0, 0.04, 0x1f3b73, { solid: false }); }   // flags
+      for (const x of [-20, 20]) { B.prop(x, 0.2, 29, 5, 0.4, 2.2, 0x6c737b); B.prop(x, 0.5, 29, 4.6, 0.3, 1.8, 0x3f7a3a, { solid: false }); }
+      for (const [x, z] of [[-34, 10], [34, 10], [-34, -20], [34, -20], [-30, 0], [30, 0]]) plant(B, x, z);
+      B.start('civilian', 0, 39, Math.PI);
+      B.person('guard', -4.2, 33, { post: true, yaw: Math.PI });
+      B.person('guard', 4.2, 33, { post: true, yaw: Math.PI });
+      for (let i = 0; i < 7; i++) B.person('civilian', -24 + i * 8, 27 + (i % 3) * 3, { wander: [-30, 25.5, 30, 31] });
+      B.person('office', -6, 37, { wander: [-30, 33, 30, 35] });
+      B.person('guard', 30, 0, { route: [[30, 28], [30, -30], [-30, -30], [-30, 28]], wait: 2 });
+      B.camera(-26, 26, Math.PI * 0.8, 0.6, 4.2);
+
+      // --- The building: four rings, each door on a different side ---
+      govWall(B, -R1, R1, R1, R1, [[-3, 3, DOORH]]);                                       // front: the public entrance
+      govWall(B, -R1, -R1, R1, -R1); govWall(B, -R1, -R1, -R1, R1); govWall(B, R1, -R1, R1, R1);
+      for (let x = -21; x <= 21; x += 6) if (Math.abs(x) > 4) B.prop(x, 2.5, R1 + 0.6, 0.9, 5, 0.9, 0xf2ede2, { shape: 'cyl' });   // columns
+      B.prop(0, 5.4, R1 + 1.4, 12, 0.8, 3, 0xe6e0d4); B.prop(0, 5.3, R1 + 2.95, 9, 0.5, 0.05, 0xd8b56a, { solid: false, glow: true });   // portico
+      govWall(B, -R2, R2, R2, R2); govWall(B, -R2, -R2, R2, -R2, [[-1.3, 1.3, DOORH]]); govWall(B, -R2, -R2, -R2, R2); govWall(B, R2, -R2, R2, R2);
+      govWall(B, -R3, R3, R3, R3); govWall(B, -R3, -R3, R3, -R3); govWall(B, -R3, -R3, -R3, R3); govWall(B, R3, -R3, R3, R3, [[-1.3, 1.3, DOORH]]);
+      govWall(B, -R4, R4, R4, R4, [], 0x2b3a5a); govWall(B, -R4, -R4, R4, -R4, [], 0x2b3a5a); govWall(B, -R4, -R4, -R4, R4, [[-1.3, 1.3, DOORH]], 0x2b3a5a); govWall(B, R4, -R4, R4, R4, [], 0x2b3a5a);
+      B.gate(0, -R2, 0, 2.6, 'keycard');
+      B.gate(R3, 0, Math.PI / 2, 2.6, 'keycard');
+      B.gate(-R4, 0, Math.PI / 2, 2.6, 'redcard');
+      B.ground(-R1, -R1, R1, R1, 'marble');
+      for (let x = -21; x <= 21; x += 6) for (let z = -21; z <= 21; z += 6) if (Math.max(Math.abs(x), Math.abs(z)) > R4) B.prop(x, 4.75, z, 2.4, 0.06, 0.5, 0xfff1d6, { solid: false, shadow: false, glow: true });
+
+      // Ring 1: the public lobby. The way on is round the back (north).
+      B.prop(-8, 0.55, 20.5, 6, 1.1, 1.2, 0xd9d2c3); B.prop(-8, 1.12, 20.5, 6.2, 0.06, 1.4, 0x5a3b26, { solid: false });   // reception
+      for (const x of [-2, 2]) { B.prop(x, 1.2, 22.5, 0.2, 2.4, 1.0, 0x9a9da3, { solid: false }); }                         // metal detector
+      B.prop(0, 2.45, 22.5, 4.2, 0.2, 1.0, 0x9a9da3, { solid: false });
+      B.prop(0, 3.2, R2 + 0.2, 8, 1.6, 0.05, 0x1f3b73, { solid: false }); B.prop(0, 3.2, R2 + 0.24, 2, 1, 0.04, 0xd8b56a, { solid: false, glow: true });   // seal
+      for (const x of [-20, 20]) { bench(B, x, 20.5, 0); plant(B, x, 23); }
+      for (const [x, z] of [[-20.5, 0], [20.5, 0], [0, -20.5]]) { B.prop(x, 2.4, z, x ? 0.05 : 3, 2.2, x ? 3 : 0.05, 0x7a5a3a, { solid: false }); }   // portraits
+      for (let i = 0; i < 5; i++) B.person('civilian', -16 + i * 8, 19 + (i % 2) * 3, { wander: [-23, 17.6, 23, 23.4] });
+      B.person('office', -8, 19.4, { post: true, yaw: 0 });
+      B.person('guard', 0, 20.5, { route: [[-20.5, 20.5], [-20.5, -20.5], [20.5, -20.5], [20.5, 20.5]], wait: 2 });
+      B.person('guard', 20.5, -10, { route: [[20.5, -20.5], [-20.5, -20.5]], wait: 3 });
+      B.person('office', -20.5, -6, { wander: [-23.4, -23.4, -17.6, 17.6] });
+      B.person('office', 6, -20.5, { wander: [-17, -23.4, 17, -17.6] });
+      B.camera(-23.5, 23.5, Math.PI * 0.75, 0.6, 4.2);
+      B.camera(23.5, -23.5, -Math.PI * 0.25, 0.6, 4.2);
+      B.stealthInside(-R2, -R2, R2, R2);
+
+      // Ring 2: offices. The way on is the east side.
+      for (const z of [12.2, 14.8]) for (const x of [-12, -7, -2, 3, 8, 13]) desk(B, x, z, z < 13 ? 0 : Math.PI);
+      for (const z of [-12.2, -14.8]) for (const x of [-12, -7, 7, 12]) desk(B, x, z, z > -13 ? Math.PI : 0);
+      for (const x of [-12.2, -14.8]) for (const z of [-6, 0, 6]) desk(B, x, z, x > -13 ? -Math.PI / 2 : Math.PI / 2);
+      for (const [x, z] of [[15.5, 9], [15.5, -9], [-15.5, 15.5], [15.5, 15.5]]) plant(B, x, z);
+      B.prop(13.5, 0.6, -2, 0.5, 1.2, 0.5, 0x9fd4ee, { solid: false });                                    // water cooler
+      for (let i = 0; i < 8; i++) B.person('office', -12 + (i % 4) * 8, i < 4 ? 13.5 : -13.5, { wander: i < 4 ? [-16.4, 10.6, 16.4, 16.4] : [-16.4, -16.4, 16.4, -10.6] });
+      B.person('office', -13.5, 2, { wander: [-16.4, -10, -10.6, 10] });
+      B.person('office', 13.5, 4, { wander: [10.6, -10, 16.4, 10] });
+      B.person('guard', 13.5, 13.5, { route: [[13.5, 13.5], [-13.5, 13.5], [-13.5, -13.5], [13.5, -13.5]], wait: 1.5 });
+      B.person('guard', -13.5, -13.5, { route: [[-13.5, -13.5], [13.5, -13.5], [13.5, 13.5], [-13.5, 13.5]], wait: 1.5 });
+      B.person('guard', 1.6, -15.6, { post: true, yaw: 0 });
+      B.camera(16.5, 16.5, -Math.PI * 0.75, 0.6, 4.2);
+      B.camera(-16.5, -16.5, Math.PI * 0.25, 0.6, 4.2);
+      B.camera(16.5, -16.5, -Math.PI * 0.25, 0.6, 4.2);
+      B.restricted(-R2, -R2, R2, R2, ['office', 'guard', 'agent'], 'staff only');
+
+      // Ring 3: security. Lasers sweep the north and south halls; the way in is the west side.
+      B.tripwire(R3 + 0.6, -1.3, R3 + 0.6, 1.3, { period: 3, duty: 0.6 });
+      B.tripwire(0, 4.2, 0, 9.8, { sweep: [7, 0], speed: 0.08 });
+      B.tripwire(0, -9.8, 0, -4.2, { sweep: [7, 0], speed: 0.1, phase: 0.5 });
+      for (const [x, z] of [[8, 8], [-8, 8], [-8, -8], [8, -8]]) B.prop(x, 0.5, z, 1.2, 1.0, 1.2, 0x3a3f46);  // lockers
+      for (let i = 0; i < 4; i++) B.prop(-9.6, 2.2, -2.4 + i * 1.6, 0.06, 1.0, 1.4, 0x8fd4ff, { solid: false, shadow: false, glow: true });   // monitors
+      B.person('agent', 7, 7, { route: [[7, 7], [-7, 7], [-7, -7], [7, -7]], wait: 2 });
+      B.person('agent', -7, -7, { route: [[-7, -7], [7, -7], [7, 7], [-7, 7]], wait: 2 });
+      B.person('agent', -7, 1.8, { post: true, yaw: Math.PI / 2 });
+      B.person('guard', 7, -1.5, { post: true, yaw: -Math.PI / 2 });
+      B.turret(9.4, 9.4, -Math.PI * 0.75, 0.8, 4.3);
+      B.turret(-9.4, -9.4, Math.PI * 0.25, 0.8, 4.3);
+      B.camera(-9.5, 9.5, Math.PI * 0.75, 0.5, 4.2);
+      B.restricted(-R3, -R3, R3, R3, ['agent'], 'secret service only');
+      for (const x of [-R3 - 0.6, R3 + 0.6]) hazard(B, x, 0, 'z');
+
+      // The centre: the situation room, and the lift to the roof.
+      B.prop(-1.2, 0.4, 1.2, 2.6, 0.8, 1.6, 0x3a2f2a); B.prop(-1.2, 0.82, 1.2, 2.4, 0.04, 1.4, 0x1f3b73, { solid: false, glow: true });   // the table
+      B.prop(0, 2.6, 3.8, 6, 1.8, 0.1, 0x1c1e21, { solid: false }); for (let i = 0; i < 3; i++) B.prop(-2 + i * 2, 2.6, 3.72, 1.8, 1.4, 0.04, [0xff6b6b, 0x8fd4ff, 0x7cff4f][i], { solid: false, shadow: false, glow: true });
+      B.terminal(-2.2, -2.8);
+      B.mover({ x: 2.1, z: -2.1, sx: 3.0, sz: 3.0, stops: [0, 5], speed: 1.8, wait: 4, doors: true, color: 0xc9d2da });
+      B.alarmLight(-3.5, 3.5, 3.6); B.alarmLight(3.5, 3.5, 3.6);
+
+      // --- The roof ---
+      B.floor(5);
+      slab(B, [[0.6, -3.6, 3.6, -0.6]], 0x8a8780, R1);
+      for (const [cx, cz, sx, sz] of [[0, -R1 + 0.15, 2 * R1, 0.3], [0, R1 - 0.15, 2 * R1, 0.3], [-R1 + 0.15, 0, 0.3, 2 * R1], [R1 - 0.15, 0, 0.3, 2 * R1]]) B.prop(cx, 0.55, cz, sx, 1.1, sz, 0xe6e0d4);
+      for (const [x, z] of [[0.45, -2.1], [3.75, -2.1]]) B.prop(x, 0.5, z, 0.3, 1.0, 3.3, 0xf2c230, { solid: false });   // lift rails
+      // Stair huts in the corners: the guards come up through these.
+      for (const [x, z] of [[20, 20], [-20, 20], [20, -20], [-20, -20]]) {
+        B.prop(x, 1.6, z, 4, 3.2, 4, 0xd9d2c3); B.prop(x, 3.3, z, 4.4, 0.2, 4.4, 0x8f8c84);
+        B.prop(x - Math.sign(x) * 2.02, 1.2, z - Math.sign(z) * 0.6, 0.06, 2.2, 1.4, 0x3a2f2a, { solid: false });
+      }
+      // The helipad.
+      B.prop(0, 0.05, -14, 10, 0.1, 10, 0x3a3f46); B.prop(0, 0.11, -14, 4.6, 0.02, 0.8, 0xf2efe6, { solid: false, shadow: false });
+      for (const dx of [-1.9, 1.9]) B.prop(dx, 0.11, -14, 0.8, 0.02, 4.4, 0xf2efe6, { solid: false, shadow: false });
+      for (let a = 0; a < 8; a++) B.prop(Math.cos(a * Math.PI / 4) * 4.6, 0.15, -14 + Math.sin(a * Math.PI / 4) * 4.6, 0.25, 0.1, 0.25, 0xf2c230, { solid: false, shadow: false, glow: true });
+      B.extract(0, -14, 3, 'helicopter');
+      // Cover.
+      for (const [x, z] of [[9, 8], [-9, 8], [12, -4], [-12, -4], [0, 12]]) B.prop(x, 0.8, z, 2.4, 1.6, 2.4, 0x7d848c);   // air units
+      for (const [x, z, w] of [[-6, 3, 3], [7, 2, 3], [-14, 14, 4], [14, 14, 4]]) B.prop(x, 0.45, z, w, 0.9, 0.8, 0x9c8a62);   // sandbags
+      for (const [x, z] of [[-6, -6], [6, -22]]) B.glass(x - 2, z, x + 2, z, 0.6);
+      B.prop(-16, 6, 0, 0.3, 12, 0.3, 0x9a9da3, { shape: 'cyl' }); B.prop(-16, 12.2, 0, 0.35, 0.35, 0.35, 0xff3344, { solid: false, shadow: false, glow: true });
+      B.prop(16, 4, 4, 0.15, 8, 0.15, 0xd9d2c3, { shape: 'cyl' }); B.prop(16.8, 7.2, 4, 1.6, 1.0, 0.04, 0x1f3b73, { solid: false });
+      for (const [x, z] of [[-22, 0], [22, -8], [0, 22]]) B.alarmLight(x, z, 0.9);
+      B.person('guard', 10, 16, { route: [[14, 18], [-14, 18], [-14, -4], [14, -4]], wait: 2 });
+      B.hold({
+        after: 'files', time: 90, every: 13, base: 2, grow: 1, cap: 11, pad: [0, -14],
+        roles: ['guard', 'guard', 'agent', 'agent', 'agent', 'agent', 'agent'],
+        spawns: [[17.6, 17.6, -2.36], [-17.6, 17.6, 2.36], [17.6, -17.6, -0.79], [-17.6, -17.6, 0.79]], land: 7,
+      });
+      B.floor(0);
+    },
+  },
 ];
 
 // ===== main.js =====
@@ -2831,6 +3022,7 @@ const ROLES = {
   builder: { label: 'Builder', items: ['hammer'], shirts: [0xff8a1e], pants: [0x3b4a63], hat: 'hard' },
   demo: { label: 'Demolition worker', items: ['charges'], shirts: [0xff8a1e], pants: [0x3b4a63], hat: 'hard', pack: true },
   guard: { label: 'Guard', items: ['pistol', 'keycard'], shirts: [0x23324f], pants: [0x1a1f2b], hat: 'cap', armed: true },
+  agent: { label: 'Secret service', items: ['pistol', 'keycard', 'redcard'], shirts: [0x16171a], pants: [0x16171a], tie: true, shades: true, armed: true },
   bodyguard: { label: 'Bodyguard', items: ['pistol'], shirts: [0x16171a], pants: [0x16171a], shades: true, armed: true },
   director: { label: 'The Director', items: ['keycard'], shirts: [0xf4f4f2], pants: [0x50555e], tie: true, vip: true },
   fisher: { label: 'Fisher', items: [], shirts: [0x3d6fa8, 0x7a2f2f, 0x4c8c3a, 0xe7e1d4], pants: [0x2d3a52, 0x3a3a3a, 0x4a3b2e] },
@@ -2880,7 +3072,7 @@ const BODY_DECAY = { 2: 3, 3: 6 };
 // --- The skill tree: every person you eat is a point to spend (T, or the SKILLS button) ---
 // Test runs can start every level with all skills learned.
 function testSkills() { try { return localStorage.getItem('symbiote-test-allskills') === '1' ? SKILLS.map((k) => k.id) : []; } catch { return []; } }
-const SKILL_BRANCHES = ['Slime', 'Stealth', 'Strength'];
+const SKILL_BRANCHES = ['Slime', 'Stealth', 'Strength', 'Mutation'];
 const SKILLS = [
   { id: 'hop', branch: 0, name: 'Hop', text: 'Jump from the ground as a slime, like launching from a host. Costs a little health.' },
   { id: 'reach', branch: 0, need: 'hop', name: 'Long launch', text: 'Launch and hop a third further.' },
@@ -2892,7 +3084,10 @@ const SKILLS = [
   { id: 'body', branch: 2, gate: 'bodyOK', gateText: 'Finish Saltmarsh Docks', name: 'Grow a body', text: 'A slime can grow a body of your own. It uses up everyone you\'ve eaten since the last one.' },
   { id: 'brute', branch: 2, need: 'body', name: 'Brute', text: 'With 3+ eaten, the body comes out a brute: smashes walls, throws things. It falls apart after a while.' },
   { id: 'giant', branch: 2, need: 'brute', name: 'Giant', text: 'With 6 eaten, the body comes out a giant. Everyone panics, and it falls apart faster.' },
+  { id: 'boost', branch: 3, gate: 'labOK', gateText: 'Finish Blackwater Lab', name: 'Speed boost', text: 'Press X (BOOST) for 5 seconds of top speed, as a host or a slime. Anyone watching a host do it will notice. Recharges in 20 s.' },
+  { id: 'boom', branch: 3, need: 'boost', gate: 'labOK', gateText: 'Finish Blackwater Lab', name: 'Self destruct', text: 'In a host, press K (BOOM) to blow it up and fly out. Costs 3 eaten, once a level.' },
 ];
+const BOOST_T = 5, BOOST_CD = 20, BOOST_MUL = 1.7, BOOM_COST = 3;
 const hasSkill = (id) => !!player.skills?.has(id);
 function skillState(sk) {
   if (hasSkill(sk.id)) return 'owned';
@@ -3331,6 +3526,8 @@ addEventListener('keydown', (e) => {
   if (k === 'v') input.shrink = true;
   if (k === 'z') toggleZoom();
   if (k === 'g') grab();
+  if (k === 'x') speedBoost();
+  if (k === 'k') selfDestruct();
   if (k === ' ') input.aiming = true;
 });
 addEventListener('keyup', (e) => {
@@ -3422,6 +3619,8 @@ function setupTouch() {
   $('swapbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); swapItem(); });
   $('zoombtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); toggleZoom(); });
   $('grabbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); grab(); });
+  $('boostbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); speedBoost(); });
+  $('boombtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); selfDestruct(); });
   for (const [id, key] of [['eatbtn', 'eat'], ['bodybtn', 'grow'], ['shrinkbtn', 'shrink']]) {
     const b = $(id);
     b.addEventListener('pointerdown', (e) => { e.stopPropagation(); input[key] = true; });
@@ -3454,6 +3653,7 @@ let relay = null;
 let director = null;
 let stealthZ = 0;
 let stealthY = null; // tower: stealth is done once you're up off the ground floor
+let stealthBox = null; // [x0, z0, x1, z1]: stealth is done once you're inside it
 let BY = 0;          // the builder's current floor height (B.floor)
 let breakables = [];
 const breakByHandle = new Map();
@@ -3472,7 +3672,7 @@ const glassHandles = new Set(); // windows: you can see (and be seen) through th
 
 // --- Level building -------------------------------------------------------------
 
-const GROUND_COLORS = { lab: 0x6b7378, labdark: 0x41484d, road: 0x3d4148, kerb: 0xb9b6ad, grass: 0x6fa857, concrete: 0xa9a79f, dirt: 0x9c7f58, plaza: 0xc9b99a };
+const GROUND_COLORS = { marble: 0xd9d3c6, lab: 0x6b7378, labdark: 0x41484d, road: 0x3d4148, kerb: 0xb9b6ad, grass: 0x6fa857, concrete: 0xa9a79f, dirt: 0x9c7f58, plaza: 0xc9b99a };
 
 function fixedBox(x, y, z, sx, sy, sz, yaw = 0) {
   const body = d.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z)
@@ -3824,6 +4024,8 @@ function makeBuilder() {
       relay = { name, list, integrity: 1, checkT: 0 };
     },
     stealthLine(z) { stealthZ = z; },
+    stealthInside(x0, z0, x1, z1) { stealthBox = [x0, z0, x1, z1]; },
+    hold(o) { hold = { ...o, y: BY + (o.y ?? 0), t: 0, waveT: 0, wave: 0, on: false, heli: null, arrived: false, spawned: [] }; },
     stealthFloor(y) { stealthY = y; },
     camera(x, z, yaw, sweep = 0.8, h = 4.2) { addCamera(x, z, yaw, sweep, BY + h, BY); },
     fusebox(x, z, yaw = 0) { addFusebox(x, z, yaw); },
@@ -3945,15 +4147,15 @@ function loadLevel(i, menu = false) {
   seeThrough.clear(); glassHandles.clear(); camThrough.clear(); tripwires = []; turrets = []; steams = []; alarmLights = []; vats = { total: 0, broken: 0 }; movers = []; panes = [];
   Object.assign(game, { skillsOpen: false, lockdowns: 0, time: 0, alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0, over: false, hostsUsed: 0, bodiesFound: 0, paused: false });
   // Rewards from earlier levels: the mutagen vial (Hollow Hill) lets the slime eat and grow; Saltmarsh Docks unlocks growing a body.
-  { const prog = loadProgress(); game.mutagen = freePlay() || !!prog['hollow-hill']; game.bodyOK = freePlay() || !!prog['saltmarsh-docks']; game.shrinkOK = freePlay() || !!prog['meridian-tower']; }
-  Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, growing: null, form: 0, absorbed: [], absorbedLabel: '', shellWarned: false, puddleTold: false, zoom: false });
+  { const prog = loadProgress(); game.mutagen = freePlay() || !!prog['hollow-hill']; game.bodyOK = freePlay() || !!prog['saltmarsh-docks']; game.shrinkOK = freePlay() || !!prog['meridian-tower']; game.labOK = freePlay() || !!prog['blackwater-lab']; }
+  Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, growing: null, form: 0, boostT: 0, boostCD: 0, boomUsed: false, absorbed: [], absorbedLabel: '', shellWarned: false, puddleTold: false, zoom: false });
   input.eat = input.grow = input.shrink = false;
   slimeMesh.visible = false;
   objectives = L.objectives.map((o) => ({ ...o, done: false }));
 
   buildPerimeter(L.half);
   propBatches = new Map();
-  stealthY = null; BY = 0;
+  stealthY = null; stealthBox = null; BY = 0; hold = null;
   L.build(makeBuilder());
   BY = 0;
   flushProps();
@@ -4705,7 +4907,114 @@ function damagePerson(p, dmg, from) {
   else if (!p.armed && p.state !== 'flee') flee(p, from);
 }
 
-function explodeAt(pos, R = 7) {
+/** Last stand: hold the roof against waves of guards until the getaway helicopter lands. */
+let hold = null;
+const _heliAt = new THREE.Vector3();
+function buildHeli() {
+  const g = new THREE.Group();
+  const bodyM = mat(0x1d2f5a), darkM = mat(0x2b2f33);
+  g.add(box(2.4, 1.8, 4.2, bodyM, 0, 1.3, 0));
+  g.add(box(2.0, 1.2, 0.2, mat(0x8fd4ff, { emissive: 0x2a5a7a }), 0, 1.6, -2.1));
+  g.add(box(0.5, 0.5, 6, bodyM, 0, 1.5, 5));
+  g.add(box(0.1, 1.4, 1.0, bodyM, 0, 2.1, 7.8));
+  for (const x of [-1, 1]) g.add(box(0.12, 0.12, 4.4, darkM, x, 0.1, 0));
+  const rotor = new THREE.Group();
+  rotor.position.set(0, 2.6, 0);
+  rotor.add(box(0.3, 0.08, 11, darkM), box(11, 0.08, 0.3, darkM));
+  g.add(rotor, box(0.2, 0.5, 0.2, darkM, 0, 2.4, 0));
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3344 }));
+  lamp.position.set(0, 0.35, 0);
+  g.add(lamp);
+  levelGroup.add(g);
+  return { g, rotor, lamp };
+}
+function updateHold(dt) {
+  if (!hold || game.over) return;
+  const at = player.host?.pos ?? (player.slime ? player.slime.body.translation() : null);
+  const onRoof = !!at && at.y > hold.y - 1;
+  if (!hold.on) {
+    if (!(pending('hold') && !pending(hold.after) && onRoof)) return;
+    hold.on = true;
+    hold.waveT = 2;
+    toast('Hold the roof', `They know you're up here. Stay alive for ${hold.time} seconds until the helicopter comes.`, 3.5);
+    if (!game.alert) { game.alert = true; game.lockdowns++; setSiren(true); }
+  }
+  // Up here everyone knows where you are, whoever you're riding.
+  if (onRoof) { player.marked = true; player.seenAt = game.time; game.lastKnown.set(at.x, at.y, at.z); }
+  if (hold.t < hold.time) {
+    game.alert = true;
+    game.alertT = Math.max(game.alertT, 30);
+    game.alarm = 100;
+    if (onRoof) { hold.t += dt; hold.leftWarned = false; }
+    else if (!hold.leftWarned) { hold.leftWarned = true; toast('Get back up', 'The clock only runs while you hold the roof.', 2); }
+    hold.waveT -= dt;
+    const alive = hold.spawned.filter((q) => q.state !== 'down' && q !== player.host).length;
+    if (hold.waveT <= 0 && hold.t < hold.time - 6) {
+      hold.waveT = hold.every;
+      const n = Math.min(hold.base + hold.wave * hold.grow, hold.cap - alive);
+      const role = hold.roles[Math.min(hold.wave, hold.roles.length - 1)];
+      for (let i = 0; i < n; i++) {
+        const [x, z, yaw] = hold.spawns[(hold.wave + i) % hold.spawns.length];
+        const q = spawnPerson(role, x + rand(-0.6, 0.6), z + rand(-0.6, 0.6), { y: hold.y, yaw });
+        q.state = 'search'; q.timer = 1; q.goal = clampGoal(game.lastKnown.clone()); q.goal.y = hold.y; setIcon(q, '!');
+        hold.spawned.push(q);
+      }
+      hold.wave++;
+      if (n > 0) toast(`Wave ${hold.wave}`, `${n} more coming up the stairs.`, 1.6);
+    }
+    if (hold.t >= hold.time) {
+      hold.heli = buildHeli();
+      hold.heliT = 0;
+      sfx.objective();
+      toast('Helicopter!', 'It\'s coming in to land. Hang on.', 2.5);
+    }
+  }
+  const H = hold.heli;
+  if (H) {
+    hold.heliT += dt;
+    const k = Math.min(1, hold.heliT / hold.land);
+    const e = 1 - (1 - k) ** 3;
+    H.g.position.set(hold.pad[0] + (1 - e) * 40, hold.y + (1 - e) * 35, hold.pad[1] - (1 - e) * 30);
+    H.g.rotation.y = hold.padYaw ?? 0;
+    H.rotor.rotation.y += dt * 25;
+    H.lamp.material.color.setHex(Math.sin(game.time * 6) > 0 ? 0xff3344 : 0x330a0d);
+    if (k >= 1 && !hold.arrived) { hold.arrived = true; completeObjective('hold'); toast('Get in!', 'Into the helicopter, now.', 2.5); }
+  }
+}
+
+/** Mutation skills: a burst of speed, and blowing up your own host. */
+function speedBoost() {
+  if (!game.running || game.paused || game.over || !hasSkill('boost')) return;
+  if (player.boostCD > 0) { toast('Not yet', `Speed boost recharges in ${Math.ceil(player.boostCD)} s.`, 1.2); return; }
+  player.boostT = BOOST_T;
+  player.boostCD = BOOST_CD;
+  sfx.launch();
+  toast('Speed boost', '', 0.8);
+}
+function selfDestruct() {
+  if (!game.running || game.paused || game.over || !hasSkill('boom')) return;
+  const h = player.host;
+  if (player.boomUsed) { toast('Used up', 'Self destruct works once a level.', 1.4); return; }
+  if (!h) { toast('No host', 'Self destruct needs a host to blow up.', 1.4); return; }
+  if (player.form < BOOM_COST) { toast('Not yet', `Self destruct costs ${BOOM_COST} eaten. You have ${player.form}.`, 1.6); return; }
+  player.boomUsed = true;
+  player.form -= BOOM_COST;
+  const pos = h.pos.clone();
+  leaveHost(new THREE.Vector3(Math.sin(view.yaw) * 4, 9, Math.cos(view.yaw) * 4));
+  explodeAt(pos, 8, true);
+  addAlarm(40, 'Someone blew up.');
+  game.lastKnown.copy(pos);
+}
+function updateBoost(dt) {
+  if (player.boostT > 0) {
+    player.boostT -= dt;
+    const at = player.host?.pos ?? player.slime?.body.translation();
+    if (at && Math.random() < dt * 30) burst(new THREE.Vector3(at.x, at.y + 0.3, at.z), 1, 0x7cff4f, { speed: 0.5, up: 0.5, size: 0.08, life: 0.4 });
+  }
+  if (player.boostCD > 0) player.boostCD -= dt;
+}
+
+function explodeAt(pos, R = 7, spareSlime = false) {
   d.blast({ x: pos.x, y: pos.y, z: pos.z }, R + 1);
   breakNear(pos, 5);
   boomFx(pos);
@@ -4714,7 +5023,7 @@ function explodeAt(pos, R = 7) {
     const dist = Math.hypot(q.pos.x - pos.x, q.pos.z - pos.z);
     if (dist < R) damagePerson(q, 190 * (1 - dist / R), pos);
   }
-  if (player.slime) {
+  if (player.slime && !spareSlime) {
     const t = player.slime.body.translation();
     const dist = Math.hypot(t.x - pos.x, t.z - pos.z);
     if (dist < R) player.health -= 60 * (1 - dist / R);
@@ -4977,11 +5286,11 @@ function updateLabFx(dt) {
     if (game.alert) l.beam.rotation.y = game.time * 5;
   }
 }
-const ALARM_BEAM_M = new THREE.MeshBasicMaterial({ color: 0xff2030, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
+const ALARM_BEAM_M = new THREE.MeshBasicMaterial({ color: 0xff2030, transparent: true, opacity: 0.13, depthWrite: false, side: THREE.DoubleSide });
 function addAlarmLight(x, y, z) {
   const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.3, 10), new THREE.MeshBasicMaterial({ color: 0x3a1a1c }));
   lamp.position.set(x, y, z);
-  const beam = new THREE.Mesh(new THREE.ConeGeometry(1.4, 4.5, 12, 1, true).rotateZ(Math.PI / 2).translate(2.3, 0, 0), ALARM_BEAM_M);
+  const beam = new THREE.Mesh(new THREE.ConeGeometry(0.9, 3.2, 12, 1, true).rotateZ(Math.PI / 2).translate(1.65, 0, 0), ALARM_BEAM_M);
   beam.position.set(x, y, z);
   beam.visible = false;
   levelGroup.add(lamp, beam);
@@ -5353,7 +5662,7 @@ function tick(dt) {
     h.prevYaw = h.yaw; h.stride = 1;
     const run = keys.has('shift') ? 1.5 : 1;
     const frozen = player.consuming && input.eat ? 0 : 1;
-    const sp = HUMAN.speed * run * frozen * (h.size ? BODY_SIZES[h.size].speed : 1);
+    const sp = HUMAN.speed * run * frozen * (h.size ? BODY_SIZES[h.size].speed : 1) * (player.boostT > 0 ? BOOST_MUL : 1);
     const tx = mv.x * sp, tz = mv.z * sp;
     const a = Math.min(1, dt * (tx || tz ? 12 : 16));
     h.vx = (h.vx || 0) + (tx - (h.vx || 0)) * a;
@@ -5372,6 +5681,8 @@ function tick(dt) {
     }
   }
   updateTripwires(dt);
+  updateBoost(dt);
+  updateHold(dt);
   updateTurrets(dt);
   updateLabFx(dt);
   updateHeld(dt);
@@ -5438,7 +5749,7 @@ function tick(dt) {
     const grounded = (t.y < SLIME_R + 0.2 && v.y < 1) || player.slime.restT > 0.2 || (under && under.normal.y > 0.6 && v.y < 3.5);
     if (grounded && game.time - player.slime.born > 0.3) {
       const ka = Math.min(1, dt * (mv.x || mv.z ? 14 : 18));
-      const cs = crawlSpeed();
+      const cs = crawlSpeed() * (player.boostT > 0 ? BOOST_MUL : 1);
       const nx = v.x + (mv.x * cs - v.x) * ka, nz = v.z + (mv.z * cs - v.z) * ka;
       // On a slope, run along it rather than into it.
       const ny = slopeN ? -(slopeN.x * nx + slopeN.z * nz) / slopeN.y : Math.min(v.y, 0.5);
@@ -5587,7 +5898,7 @@ function remainingText() {
 function updateObjectives(dt) {
   if (game.over) return;
   const at = player.host?.pos ?? (player.slime ? player.slime.body.translation() : null);
-  if (at && pending('stealth') && (stealthY !== null ? at.y > stealthY - 0.6 : at.z < stealthZ - 1.5)) completeObjective('stealth');
+  if (at && pending('stealth') && (stealthBox ? at.x > stealthBox[0] && at.z > stealthBox[1] && at.x < stealthBox[2] && at.z < stealthBox[3] : stealthY !== null ? at.y > stealthY - 0.6 : at.z < stealthZ - 1.5)) completeObjective('stealth');
   if (relay && pending('relay')) {
     relay.checkT -= dt;
     if (relay.checkT <= 0) {
@@ -5623,6 +5934,7 @@ function objectiveDetail(o) {
   if (o.id === 'relay' && relay) return ` Standing: ${Math.round(relay.integrity * 100)}% (needs 40%).`;
   if (o.id === 'power' && power) return ` ${power.broken}/${power.total} wrecked.`;
   if (o.id === 'vats') return ` ${vats.broken}/${vats.total} smashed.`;
+  if (o.id === 'hold' && hold?.on) return hold.t >= hold.time ? ' The helicopter is coming in!' : ` ${Math.ceil(hold.time - hold.t)} s until the helicopter.`;
   if (o.id === 'deliver') { const pk = pickups[0]; if (pk && player.carry === pk) return ' You have it.'; if (pk && pk.dropped) return ' Dropped: it\'s where your last host fell.'; }
   if (o.id === 'snipers') { const n = people.filter((q) => q.role.sniper && q.state !== 'down' && q !== player.host).length; return ` ${n} still up.`; }
   if (o.id === 'extract' && !restDone()) return ' Finish the rest first.';
@@ -5807,6 +6119,7 @@ function hostIsOdd(p) {
   if (h.size >= 2) return true; // there's no hiding something that size
   if (isTiny(h)) return !!(p && p.pos.distanceTo(h.pos) < 3); // too small to notice unless it's at your feet
   if (player.trespass || player.carry) return true;
+  if (player.boostT > 0 && p && p.pos.distanceTo(h.pos) < 14) return true; // nobody runs like that
   if (player.consuming && input.eat) return true; // a person folding in on themselves
   return !!((h.merged || h.role.shell) && p && p.pos.distanceTo(h.pos) < 7); // up close, a merged host looks wrong
 }
@@ -6185,9 +6498,12 @@ function runScore() {
 }
 // New-style publishable keys go in apikey only; old anon keys are JWTs and go in Authorization too.
 const lbHeaders = () => (LB.key.startsWith('eyJ') ? { apikey: LB.key, Authorization: `Bearer ${LB.key}` } : { apikey: LB.key });
+let lbSort = 'score';   // 'score': top scores, 'time': fastest runs
+const fmtTime10 = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 async function lbFetch(level) {
-  const r = await fetch(`${LB.url}/rest/v1/symbiote_scores?level=eq.${encodeURIComponent(level)}&select=name,score,time_s,created_at&order=score.desc,time_s.asc&limit=20`, { headers: lbHeaders() });
-  if (!r.ok) throw new Error(r.status);
+  const order = lbSort === 'time' ? 'time_s.asc,score.desc' : 'score.desc,time_s.asc';
+  const r = await fetch(`${LB.url}/rest/v1/symbiote_scores?level=eq.${encodeURIComponent(level)}&select=name,score,time_s,created_at&order=${order}&limit=20`, { headers: lbHeaders() });
+  if (!r.ok) { let why = ''; try { why = (await r.json()).message || ''; } catch { /* not json */ } throw new Error(`${r.status}${why ? ': ' + why : ''}`); }
   return r.json();
 }
 async function lbPost(row) {
@@ -6196,14 +6512,19 @@ async function lbPost(row) {
 }
 const escHtml = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 function lbRender(list, rows, mine) {
-  list.innerHTML = rows.map((r) => `<li class="${mine && r.name === mine.name && r.score === mine.score ? 'me' : ''}"><span class="n">${escHtml(r.name)}</span><span class="s">${r.score}</span><span class="t">${fmtTime(r.time_s)}</span></li>`).join('');
+  list.innerHTML = rows.map((r) => `<li class="${mine && r.name === mine.name && r.score === mine.score ? 'me' : ''}"><span class="n">${escHtml(r.name)}</span><span class="s">${r.score}</span><span class="t">${fmtTime10(r.time_s)}</span></li>`).join('');
+}
+/** The Top score / Fastest switch above a list. */
+function lbSortBar(bar, redraw) {
+  bar.innerHTML = `<button data-s="score" class="${lbSort === 'score' ? 'on' : ''}">Top score</button><button data-s="time" class="${lbSort === 'time' ? 'on' : ''}">Fastest</button>`;
+  for (const b of bar.children) b.onclick = () => { lbSort = b.dataset.s; lbSortBar(bar, redraw); redraw(); };
 }
 async function lbShow(level, list, msg, mine) {
   list.innerHTML = '';
   if (!lbOn()) { msg.textContent = 'The online leaderboard isn\'t switched on yet.'; return; }
   msg.textContent = 'Loading scores…';
   try { const rows = await lbFetch(level); lbRender(list, rows, mine); msg.textContent = rows.length ? '' : 'No scores yet. Be the first.'; }
-  catch { msg.textContent = 'Couldn\'t reach the leaderboard. Check your connection.'; }
+  catch (err) { msg.textContent = `Couldn't reach the leaderboard (${String(err.message || err).slice(0, 120)}).`; }
 }
 function lbEnd() {
   const L = game.level, score = runScore(), time = Math.round(game.time * 10) / 10;
@@ -6211,6 +6532,8 @@ function lbEnd() {
   $('lbSend').classList.toggle('hidden', !lbOn());
   $('lbSubmit').disabled = false;
   try { $('lbName').value = localStorage.getItem('symbiote-name') || ''; } catch { /* private mode */ }
+  lbSortBar($('lbSort'), () => lbShow(L.id, $('lbList'), $('lbMsg'), L.lbMine));
+  L.lbMine = null;
   lbShow(L.id, $('lbList'), $('lbMsg'));
   $('lbSubmit').onclick = async () => {
     const name = $('lbName').value.trim().slice(0, 16);
@@ -6218,7 +6541,7 @@ function lbEnd() {
     try { localStorage.setItem('symbiote-name', name); } catch { /* private mode */ }
     $('lbSubmit').disabled = true;
     $('lbMsg').textContent = 'Posting…';
-    try { await lbPost({ level: L.id, name, score, time_s: Math.max(5.1, time) }); $('lbSend').classList.add('hidden'); await lbShow(L.id, $('lbList'), $('lbMsg'), { name, score }); $('lbMsg').textContent = 'Score posted!'; }
+    try { await lbPost({ level: L.id, name, score, time_s: Math.max(5.1, time) }); $('lbSend').classList.add('hidden'); L.lbMine = { name, score }; await lbShow(L.id, $('lbList'), $('lbMsg'), L.lbMine); $('lbMsg').textContent = 'Score posted!'; }
     catch { $('lbSubmit').disabled = false; $('lbMsg').textContent = 'Couldn\'t post the score. Try again.'; }
   };
 }
@@ -6226,6 +6549,7 @@ function openBoard(i) {
   $('boardTabs').innerHTML = LEVELS.map((L, k) => `<button data-k="${k}" class="${k === i ? 'on' : ''}">${escHtml(L.title)}</button>`).join('');
   for (const b of $('boardTabs').children) b.onclick = () => openBoard(+b.dataset.k);
   $('board').classList.remove('hidden');
+  lbSortBar($('boardSort'), () => lbShow(LEVELS[i].id, $('boardList'), $('boardMsg')));
   lbShow(LEVELS[i].id, $('boardList'), $('boardMsg'));
 }
 
@@ -6251,7 +6575,7 @@ function win() {
     const reward = !prev && L.reward;
     $('endReward').classList.toggle('hidden', !reward);
     if (reward) $('endReward').innerHTML = `<b>${L.reward.title}</b>${L.reward.text}`;
-    $('endStats').innerHTML = `<div><b>${runScore()}</b>score</div><div><b>${fmtTime(game.time)}</b>time</div><div><b>${Math.round(game.peakAlarm)}%</b>peak alarm</div>`;
+    $('endStats').innerHTML = `<div><b>${runScore()}</b>score</div><div><b>${fmtTime10(game.time)}</b>time</div><div><b>${Math.round(game.peakAlarm)}%</b>peak alarm</div>`;
     endScreen();
     lbEnd();
   }, 900);
@@ -6330,6 +6654,9 @@ function updateHud(dt) {
   $('eatbtn').classList.toggle('hidden', !canEat);
   $('bodybtn').classList.toggle('hidden', !canGrow);
   $('shrinkbtn').classList.toggle('hidden', !canShrink);
+  $('boostbtn').classList.toggle('hidden', !hasSkill('boost'));
+  $('boostbtn').textContent = player.boostT > 0 ? 'FAST' : player.boostCD > 0 ? `${Math.ceil(player.boostCD)}s` : 'BOOST';
+  $('boombtn').classList.toggle('hidden', !(hasSkill('boom') && h && !player.boomUsed && player.form >= BOOM_COST));
   const owned = SKILLS.filter((k) => hasSkill(k.id)).map((k) => k.name.toLowerCase());
   const showForm = player.form || player.points || owned.length;
   $('formRow').classList.toggle('hidden', !showForm);
@@ -6548,7 +6875,7 @@ window.__symbiote = {
   tickOnce: () => tick(TICK),
   openExit: () => openExit(),
   spawn: (role, x, z, opts = {}) => spawnPerson(role, x, z, opts),
-  buySkill: (id) => { player.points = Math.max(player.points, 1); buySkill(id); }, learn: (...ids) => { for (const id of ids) player.skills.add(id); }, skills: () => [...player.skills], toggleSkills, addAlarm, completeObjective, turrets: () => turrets, tripwires: () => tripwires,
+  buySkill: (id) => { player.points = Math.max(player.points, 1); buySkill(id); }, learn: (...ids) => { for (const id of ids) player.skills.add(id); }, skills: () => [...player.skills], toggleSkills, addAlarm, completeObjective, turrets: () => turrets, tripwires: () => tripwires, hold: () => hold, speedBoost, selfDestruct,
   walls: () => walls, grab: () => grab(), held: () => player.held, win: () => win(), launch: () => launch(), movers: () => movers, liftAt: () => { const m = movers[0]; return m && Math.abs(m.y - (player.host?.pos.y ?? -9)) < 0.05 && m.waitT > 1.5; },
   watcher: (x, y, z) => !!watcher(new THREE.Vector3(x, y, z)), hop: () => launch(),
   consume: () => consume(), swapItem: () => swapItem(), cams: () => cams, breakables: () => breakables, pickups: () => pickups, power: () => power, objective, breakIt, explodeAt: (x, y, z) => explodeAt(new THREE.Vector3(x, y, z)), relay: () => relay,
