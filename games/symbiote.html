@@ -60,6 +60,29 @@
     #shrinkbtn { right: 26px; bottom: 196px; width: 70px; height: 50px; border: 2px solid rgba(160,220,255,0.8); background: rgba(20,60,90,0.5); color: #bfe6ff; }
     #boostbtn { left: 22px; bottom: 160px; width: 64px; height: 44px; border: 2px solid rgba(124,255,79,0.7); background: rgba(0,0,0,0.3); color: var(--slime); font-size: 12px; }
     #boombtn { left: 94px; bottom: 160px; width: 64px; height: 44px; border: 2px solid rgba(255,120,60,0.8); background: rgba(90,30,10,0.5); color: #ffb08a; font-size: 12px; }
+    #propbtn { left: 166px; bottom: 160px; width: 64px; height: 44px; border: 2px solid rgba(216,181,106,0.85); background: rgba(60,45,20,0.5); color: #f2dca8; font-size: 12px; }
+    #propbtn.on { background: #d8b56a; color: #241a08; }
+    #achToast { position: fixed; left: 50%; top: 12px; transform: translate(-50%, -140%); transition: transform 0.35s; z-index: 40; pointer-events: none; background: rgba(20,16,6,0.92); border: 1px solid #d8b56a; border-radius: 12px; padding: 8px 16px; text-align: center; max-width: 90vw; box-shadow: 0 6px 24px rgba(0,0,0,0.5); }
+    #achToast.on { transform: translate(-50%, 0); }
+    body.touch #achToast { top: 6px; padding: 5px 10px; max-width: 72vw; }
+    body.touch #achToast b { font-size: 13px; }
+    body.touch #achToast span { font-size: 11px; }
+    #achToast b { display: block; font-family: "Russo One", sans-serif; color: #f2c230; font-size: 16px; }
+    #achToast span { font-size: 13px; color: var(--fg); }
+    #achToast em { color: var(--slime); font-style: normal; }
+    .ach-list { list-style: none; margin: 8px 0 12px; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-height: 38vh; overflow-y: auto; }
+    .ach-list li { display: flex; gap: 8px; padding: 7px 9px; border-radius: 9px; background: rgba(255,255,255,0.04); font-size: 12px; color: var(--dim); opacity: 0.7; }
+    .ach-list li.got { opacity: 1; background: rgba(242,194,48,0.1); color: var(--fg); }
+    .ach-list i { font-style: normal; font-size: 16px; }
+    .ach-list b { display: block; font-size: 13px; color: var(--fg); }
+    .ach-list em { display: block; font-style: normal; color: var(--slime); font-size: 11px; margin-top: 2px; }
+    .style-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+    .style-list .style { display: flex; align-items: center; gap: 7px; padding: 6px 11px 6px 6px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
+    .style-list .style i { width: 22px; height: 22px; border-radius: 50%; display: block; }
+    .style-list .style.on { border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,0.35); }
+    .style-list .style.locked { opacity: 0.45; cursor: default; font-size: 11px; }
+    .coll-h { font-family: "Russo One", sans-serif; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); margin-top: 10px; }
+    @media (max-width: 640px) { .ach-list { grid-template-columns: 1fr; } }
     #grabbtn { right: 128px; bottom: 164px; width: 56px; height: 40px; border: 2px solid rgba(124,255,79,0.7); background: rgba(0,0,0,0.3); color: var(--slime); font-size: 11px; }
     .reward-box { margin: 10px 0 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(124,255,79,0.45); background: rgba(124,255,79,0.08); font-size: 14px; line-height: 1.4; }
     .reward-box b { display: block; color: var(--slime); margin-bottom: 3px; }
@@ -211,6 +234,15 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "0.17", "date": "2026-10-19", "title": "The Grand Museum",
+      "notes": [
+        "New level 6: The Grand Museum, a black-tie gala at night. Mingle past the bouncers, take out the art collector Victor Crane at the party in the Grand Hall, then get into the staff wing, through the lasers in the vault, and steal the Comet Diamond. Get it to the getaway van at the loading dock.",
+        "The museum has a Grand Hall with a dinosaur skeleton and statues, an east gallery of paintings and vases, an Egyptian wing, a security office (with the fuse box that kills every camera and laser), and the curator, who carries the red keycard for the vault.",
+        "New power, Disguise: finishing the State House puts it on the skill tree (Mutation). As a slime, press H (PROP on phones) to grow into a prop that fits in: a crate, barrel or bin, or in the museum a statue, vase, plinth or pot plant. Press again for a different one. Keep still and nobody looks twice; you crawl slowly, and people notice a prop that moves.",
+        "Achievements: 13 to earn, like First bite, Ghost (no lockdown), Speedrunner (under 3 minutes), Kaboom (3 people in one self destruct) and Hide and seek (let someone walk right past your disguise). A banner pops up when you earn one.",
+        "Slime colours: 8 new colours to unlock with achievements, from Toxic and Ocean to Gold and Rainbow. Pick one on the new Collection screen in the menu, which also lists your achievements.",
+        "Fix: the game could freeze when a guard died from a long fall, for example off the State House roof."
+      ] },
     { "version": "0.16.1", "date": "2026-10-15", "title": "Skills reset properly",
       "notes": [
         "Fix: skills and unspent skill points now reset when you die, restart or start another level. Before, they carried over by mistake."
@@ -436,6 +468,7 @@
     <button id="shrinkbtn" class="tbtn hidden">SHRINK</button>
     <button id="boostbtn" class="tbtn hidden">BOOST</button>
     <button id="boombtn" class="tbtn hidden">BOOM</button>
+    <button id="propbtn" class="tbtn hidden">PROP</button>
     <button id="launchbtn" class="tbtn">LAUNCH</button>
   </div>
 
@@ -446,7 +479,7 @@
       <p>You are a slime that lives inside people. Launch yourself out of one body and into the next. Hit someone and they're yours. Miss, and you're a puddle on the floor, and everyone wants to stamp on you. The body you leave behind dies too.</p>
       <div id="levelList"></div>
       <label class="free"><input type="checkbox" id="freePlay"> Free play: every level and power unlocked</label>
-      <div class="btns"><button class="btn primary" id="playBtn">Play</button><button class="btn" id="boardBtn">Leaderboard</button></div>
+      <div class="btns"><button class="btn primary" id="playBtn">Play</button><button class="btn" id="boardBtn">Leaderboard</button><button class="btn" id="collBtn">Collection</button></div>
       <details class="ctl"><summary>Controls</summary>
       <div class="controls">
         <b>Look</b><span>Arrow keys <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>, or the mouse (click to capture it)</span>
@@ -457,7 +490,7 @@
         <b>Zoom</b><span><kbd>Z</kbd> with a sniper rifle</span>
         <b>Consume</b><span>Hold <kbd>C</kbd> where nobody can see you, on levels that allow it: eat your host and your slime grows a form.</span>
         <b>Skill tree</b><span>Eat hosts (hold <kbd>C</kbd>, unseen) to earn skill points, and spend them with <kbd>T</kbd>: Slime (hop, long launch, thick skin), Stealth (puddle, quick eater, shrink, ghost) and Strength (grow a body, brute, giant). Skills reset each level.</span>
-        <b>Mutations</b><span>After Blackwater Lab: <kbd>X</kbd> speed boost, <kbd>K</kbd> self destruct (blows up your host, costs 3 eaten, once a level).</span>
+        <b>Mutations</b><span>After Blackwater Lab: <kbd>X</kbd> speed boost, <kbd>K</kbd> self destruct (blows up your host, costs 3 eaten, once a level). After the State House: <kbd>H</kbd> disguise as a prop.</span>
         <b>Bodies</b><span>Hold <kbd>B</kbd> as a slime to grow a body (3+ eaten: brute, 6: giant), or <kbd>V</kbd> to shrink. Both use up everyone you've eaten since the last one.</span>
         <b>Big bodies</b><span><kbd>F</kbd> smashes walls, doors and people, <kbd>G</kbd> picks things up and throws them. Everyone panics on sight, they can't use keycards or lifts, and a giant won't fit indoors.</span>
         <b>Other</b><span><kbd>R</kbd> restart, <kbd>P</kbd> or <kbd>Esc</kbd> pause</span>
@@ -519,6 +552,19 @@
       <div class="btns"><button class="btn primary" id="boardClose">Back</button></div>
     </div>
   </div>
+
+  <div id="coll" class="screen hidden">
+    <div class="card">
+      <h2>Collection</h2>
+      <div class="coll-h">Slime colour</div>
+      <div class="style-list" id="styleList"></div>
+      <div class="coll-h" id="achCount">Achievements</div>
+      <ul class="ach-list" id="achList"></ul>
+      <div class="btns"><button class="btn primary" id="collClose">Back</button></div>
+    </div>
+  </div>
+
+  <div id="achToast"></div>
 
   <div id="loading" class="screen"><div class="card"><h2>Growing slime…</h2></div></div>
 
@@ -2847,12 +2893,12 @@ const LEVELS = [
   {
     id: 'state-house',
     title: 'The State House',
-    isNew: true,
     consume: true,
     floors: true,
     blurb: 'A government building built in rings. Work your way in, ring by ring, to the situation room at the centre. Then take the lift to the roof and hold it against wave after wave of guards until the getaway helicopter comes.',
     half: 44,
     stealthFail: 'The State House locked down before you got past the lobby.',
+    reward: { title: '🗿 Reward: disguise', text: 'Disguise is now on the skill tree (Mutation): as a slime, press H to grow into a prop that fits in, like a crate, a vase or a statue. Keep still and nobody looks twice.' },
     look: { sky: 0xe9b98a, sun: 0xffd2a0, sunI: 1.8, hemiSky: 0xffe2c4, hemiGround: 0x6b5a4a, hemiI: 1.2, base: 0x8f9a7a, hills: 0x7a8a62 },
     objectives: [
       { id: 'stealth', type: 'Stealth', text: 'Get past the lobby into the offices without setting off a lockdown.' },
@@ -2987,6 +3033,184 @@ const LEVELS = [
       B.floor(0);
     },
   },
+  {
+    id: 'grand-museum',
+    title: 'The Grand Museum',
+    isNew: true,
+    consume: true,
+    blurb: 'A black-tie gala at the city museum, at night. Mingle past the bouncers, take out the art collector Victor Crane, then get into the staff wing, past the lasers in the vault, and steal the Comet Diamond. Out here, a statue or a vase that keeps still fits right in.',
+    half: 40,
+    stealthFail: 'The museum locked down before you got into the gala.',
+    blackout: 'The museum\'s cameras and lasers are all dead.',
+    props: ['statue', 'vase', 'plinth', 'plant'],
+    look: { sky: 0x0d1428, sun: 0xa8b8ff, sunI: 0.75, hemiSky: 0xbfc8e8, hemiGround: 0x5a4e44, hemiI: 2.1, base: 0x22262c, city: true },
+    objectives: [
+      { id: 'stealth', type: 'Stealth', text: 'Get into the gala, past the foyer, without setting off a lockdown.' },
+      { id: 'director', type: 'Assassination', text: 'Take out Victor Crane, the collector who is buying the diamond tonight. He\'s at the party in the Grand Hall.' },
+      { id: 'deliver', type: 'Heist', text: 'Steal the Comet Diamond from the vault in the staff wing (red keycard door: the curator has one) and put it in the getaway van at the loading dock.' },
+      { id: 'extract', type: 'Extraction', text: 'Escape in the getaway van (loading dock, east end of the staff corridor).' },
+    ],
+    build(B) {
+      const W = 0xe9e2d0, BONE = 0xe8dcc0, GOLD = 0xd8b56a;
+      // --- Outside: the street, the red carpet, the press ---
+      B.ground(-40, -40, 40, 40, 'concrete');
+      B.ground(-40, 34, 40, 40, 'road'); B.ground(-40, 33, 40, 34, 'kerb');
+      B.ground(-30, -30, 30, 30, 'marble');
+      for (let x = -36; x < 40; x += 7) B.prop(x, 0.02, 37, 3, 0.02, 0.25, 0xf2efe6, { solid: false, shadow: false });
+      B.prop(0, 0.02, 31.5, 3, 0.03, 4, 0x9a1f2a, { solid: false, shadow: false });                                  // red carpet
+      for (const x of [-2, 2]) for (const z of [30.6, 32.4]) B.prop(x, 0.5, z, 0.12, 1.0, 0.12, GOLD, { shape: 'cyl', solid: false });   // rope posts
+      for (const x of [-2, 2]) B.prop(x, 0.85, 31.5, 0.05, 0.05, 1.8, 0x9a1f2a, { solid: false, shadow: false });
+      for (const x of [-36, -28, 24, 32]) car(B, x, 38.5, Math.PI / 2, x < 0 ? 0x16171a : 0xe8e4da);
+      for (const z of [30.5]) { B.prop(-35, 0.6, z, 10, 1.2, 0.2, 0x2b2f33); B.prop(35, 0.6, z, 10, 1.2, 0.2, 0x2b2f33); }   // railings: the only way in is the front door
+      for (let x = -27; x <= 27; x += 6) if (Math.abs(x) > 4) B.prop(x, 2.5, 30.6, 0.9, 5, 0.9, 0xf2ede2, { shape: 'cyl' });   // columns
+      B.prop(0, 5.5, 31.2, 60.6, 1, 2.2, 0xe6e0d4); B.prop(0, 5.4, 32.33, 16, 0.5, 0.05, GOLD, { solid: false, glow: true });   // portico, gold lettering
+      for (const x of [-9, 9]) B.prop(x, 4.8, 30.32, 2.2, 3.2, 0.05, 0x7a1f3a, { solid: false });                      // gala banners
+      B.start('guest', 0, 36, Math.PI);
+      B.person('security', -3, 30.5, { post: true, yaw: Math.PI });
+      B.person('security', 3, 30.5, { post: true, yaw: Math.PI });
+      for (let i = 0; i < 5; i++) B.person('civilian', -22 + i * 11, 32 + (i % 2), { wander: [-28, 31, 28, 33] });   // the press
+      for (let i = 0; i < 4; i++) B.person('guest', -6 + i * 4, 34, { wander: [-10, 33, 10, 36] });
+      B.camera(-29.5, 30.3, Math.PI * 0.85, 0.5, 4.6);
+
+      // --- The building: walls, the ceiling, lights ---
+      govWall(B, -30, 30, 30, 30, [[-3, 3, DOORH]], W);
+      govWall(B, -30, -30, 30, -30, [], W);
+      govWall(B, -30, -30, -30, 30, [], W);
+      govWall(B, 30, -30, 30, 30, [[-17, -13, DOORH]], W);                               // loading dock door off the staff corridor
+      govWall(B, -30, 18, 30, 18, [[-3, 3, DOORH]], W);                                   // foyer | grand hall
+      govWall(B, -12, -12, -12, 18, [[2, 5.5, DOORH]], W);                               // west gallery
+      govWall(B, 12, -12, 12, 18, [[2, 5.5, DOORH]], W);                                 // east gallery
+      govWall(B, -30, -12, 30, -12, [[-1.3, 1.3, DOORH], [19.5, 20.5, VENT]], W);        // the staff wing, behind the grand hall
+      govWall(B, -30, -18, 30, -18, [[-19, -16.4, DOORH], [-1.3, 1.3, DOORH], [16, 18.6, DOORH]], W);
+      govWall(B, -10, -30, -10, -18, [], W); govWall(B, 10, -30, 10, -18, [], W);
+      B.ground(-30, -18, 30, -12, 'lab'); B.ground(-30, -30, -10, -18, 'lab'); B.ground(10, -30, 30, -18, 'plaza');
+      B.prop(0, GOV_H + 0.2, 0, 60.4, 0.4, 60.4, 0xd8d2c6, { shadow: false });
+      for (let x = -26; x <= 26; x += 6.5) for (let z = -26; z <= 26; z += 6.5) B.prop(x, GOV_H - 0.03, z, 1.6, 0.05, 1.6, 0xfff1d6, { solid: false, shadow: false, glow: true });
+      B.ground(12, -12, 30, 18, 'wood'); B.ground(-30, -12, -12, 18, 'plaza');
+      // Wall colours: deep red in the paintings gallery, sandstone in the Egyptian wing.
+      const panel = (x0, z0, x1, z1, c) => { const ax = Math.abs(x1 - x0) > Math.abs(z1 - z0); B.prop((x0 + x1) / 2, 2.1, (z0 + z1) / 2, ax ? Math.abs(x1 - x0) : 0.03, 4.2, ax ? 0.03 : Math.abs(z1 - z0), c, { solid: false, shadow: false }); };
+      const RED = 0x6e2430, SAND = 0xc9a46a;
+      panel(29.79, -11.8, 29.79, 17.8, RED); panel(12.2, -11.8, 29.8, -11.79, RED); panel(12.2, 17.79, 29.8, 17.79, RED);
+      panel(12.21, -11.8, 12.21, 1.8, RED); panel(12.21, 5.7, 12.21, 17.8, RED);
+      panel(-29.79, -11.8, -29.79, 17.8, SAND); panel(-29.8, -11.79, -12.2, -11.79, SAND); panel(-29.8, 17.79, -12.2, 17.79, SAND);
+      panel(-12.21, -11.8, -12.21, 1.8, SAND); panel(-12.21, 5.7, -12.21, 17.8, SAND);
+      panel(-11.79, -11.8, -11.79, 1.8, 0x2b3a5a); panel(-11.79, 5.7, -11.79, 17.8, 0x2b3a5a); panel(11.79, -11.8, 11.79, 1.8, 0x2b3a5a); panel(11.79, 5.7, 11.79, 17.8, 0x2b3a5a);   // the grand hall: navy
+      panel(-11.8, -11.79, -1.5, -11.79, 0x2b3a5a); panel(1.5, -11.79, 11.8, -11.79, 0x2b3a5a);
+      for (const x of [-27, 27]) for (const z of [-3, 9]) B.prop(x, 0.03, z, 3, 0.03, 8, 0x7a1f3a, { solid: false, shadow: false });   // gallery rugs
+
+      // --- The foyer: tickets, the cloakroom, the gift shop ---
+      B.prop(-12, 0.55, 24, 7, 1.1, 1.2, 0xd9d2c3); B.prop(-12, 1.12, 24, 7.2, 0.06, 1.4, 0x5a3b26, { solid: false });
+      B.prop(12, 0.55, 24, 6, 1.1, 1.2, 0x5a3b26); for (let i = 0; i < 6; i++) B.prop(9.5 + i, 1.6, 26.4, 0.2, 1.2, 0.5, [0x111111, 0x7a1f3a, 0x1f3b73][i % 3], { solid: false });   // coat racks
+      for (const x of [22, 26]) B.prop(x, 0.7, 21, 2.4, 1.4, 1.0, 0x8a6a4a);                                           // gift shop shelves
+      for (const x of [-26, -20, 20, 26]) plant(B, x, 28.5);
+      B.prop(0, 3.6, 18.25, 6, 1.0, 0.05, 0x7a1f3a, { solid: false }); B.prop(0, 3.6, 18.29, 4, 0.4, 0.04, GOLD, { solid: false, glow: true });   // "Gala" sign over the hall door
+      for (let i = 0; i < 6; i++) B.person('guest', -20 + i * 8, 21 + (i % 3) * 2.5, { wander: [-28, 19.5, 28, 28.5] });
+      B.person('waiter', 6, 22, { wander: [-20, 19.5, 20, 28] });
+      B.person('office', -12, 25.3, { post: true, yaw: Math.PI });
+      B.person('museumguard', 0, 20, { route: [[-26, 20], [26, 20], [26, 27], [-26, 27]], wait: 2 });
+      B.camera(29.5, 29.5, -Math.PI * 0.75, 0.6, 4.6);
+      B.stealthLine(18);
+
+      // --- The Grand Hall: the dinosaur, the statues, the party ---
+      B.prop(0, 0.2, 3, 12, 0.4, 3.4, 0x6c737b);                                                                       // the plinth
+      for (const [x, z] of [[-1.6, 2.2], [-1.6, 3.8], [1.8, 2.2], [1.8, 3.8]]) B.prop(x, 1.4, z, 0.35, 2.2, 0.35, BONE, { shape: 'cyl' });   // legs
+      for (let i = 0; i < 16; i++) { const x = -6.5 + i * 0.85, y = 2.8 + Math.sin(i / 15 * Math.PI) * 0.9 - (i > 12 ? (i - 12) * 0.25 : 0); B.prop(x, y, 3, 0.6, 0.35, 0.35, BONE, { solid: false }); if (i > 3 && i < 12) B.prop(x, y - 0.6, 3, 0.12, 1.0, 1.4, BONE, { solid: false, tilt: 0.2 }); }   // spine and ribs
+      B.prop(7.3, 3.4, 3, 1.6, 0.9, 0.8, BONE, { solid: false }); B.prop(7.6, 3.0, 3, 1.2, 0.25, 0.7, BONE, { solid: false });   // the skull
+      for (const s of [-1, 1]) B.prop(4.4, 2.8, 3 + s * 0.3, 0.12, 0.8, 0.12, BONE, { solid: false, tilt: 0.6 });
+      for (const [x, z] of [[-10, 14], [-10, -9], [10, 14], [10, -9], [-6, -10], [6, -10]]) {                      // statues on plinths
+        B.prop(x, 0.5, z, 1.1, 1.0, 1.1, 0xbab5a6); B.prop(x, 1.6, z, 0.55, 1.4, 0.55, 0xd8d4c8, { shape: 'cyl', solid: false }); B.prop(x, 2.5, z, 0.4, 0.4, 0.4, 0xd8d4c8, { solid: false });
+      }
+      B.prop(0, 0.55, 14.5, 6, 1.1, 1, 0x3a2f2a); for (let i = 0; i < 7; i++) B.prop(-2.4 + i * 0.8, 1.3, 14.5, 0.12, 0.35, 0.12, [0xd8b56a, 0x9fd4ee, 0x7a1f3a][i % 3], { solid: false, shape: 'cyl' });   // the champagne bar
+      for (const [x, z] of [[-6, 10], [6, 10], [-6, -4], [6, -4]]) { B.prop(x, 0.5, z, 1.2, 0.06, 1.2, 0xf2efe8, { shape: 'cyl' }); B.prop(x, 0.25, z, 0.15, 0.5, 0.15, 0x3a3f46, { shape: 'cyl', solid: false }); }   // cocktail tables
+      const crane = B.person('collector', 0, 9, { route: [[-8, 9], [8, 9], [8, -6], [-8, -6]], wait: 4 });
+      B.person('bodyguard', 1, 8, { follow: crane, offset: [1.2, -1.2] });
+      B.person('bodyguard', -1, 8, { follow: crane, offset: [-1.2, -1.2] });
+      for (let i = 0; i < 9; i++) B.person('guest', -9 + (i % 3) * 9, -6 + Math.floor(i / 3) * 8, { wander: [-11, -11, 11, 17] });
+      for (let i = 0; i < 2; i++) B.person('waiter', -4 + i * 8, 12, { wander: [-11, -11, 11, 17] });
+      B.person('museumguard', -10.5, 0, { route: [[-10.5, -10.5], [10.5, -10.5], [10.5, 16.5], [-10.5, 16.5]], wait: 2 });
+      B.person('museumguard', 2.4, -10.8, { post: true, yaw: Math.PI });
+      B.camera(-11.5, 17.5, Math.PI * 0.75, 0.6, 4.6);
+      B.camera(11.5, -11.5, -Math.PI * 0.25, 0.6, 4.6);
+
+      // --- East gallery: paintings and vases ---
+      const art = [0x2d5fa8, 0xc8342b, 0xe0a526, 0x3f7a3a, 0x6a2f8e, 0xd96a3a];
+      for (let i = 0; i < 6; i++) {
+        const z = -8 + i * 4.4;
+        B.prop(29.72, 2.4, z, 0.08, 1.9, 2.8, 0xb08a3a, { solid: false }); B.prop(29.67, 2.4, z, 0.04, 1.6, 2.5, art[i], { solid: false, shadow: false });
+        B.prop(29, 0.02, z, 1.2, 0.02, 2.8, 0xfff1d6, { solid: false, shadow: false, glow: true });
+      }
+      for (let i = 0; i < 3; i++) { const x = 16 + i * 4.5; B.prop(x, 2.4, -11.72, 2.8, 1.9, 0.08, 0xb08a3a, { solid: false }); B.prop(x, 2.4, -11.67, 2.5, 1.6, 0.04, art[(i + 2) % 6], { solid: false, shadow: false }); }
+      [[17, 0], [17, 8], [23, 0], [23, 8], [17, -6], [23, -6]].forEach(([x, z], i) => { B.prop(x, 0.5, z, 0.9, 1.0, 0.9, 0xf2efe8); B.prop(x, 1.35, z, 0.55, 0.7, 0.55, [0x2d5fa8, 0x3a6f4a, 0xb5603a][i % 3], { shape: 'cyl', solid: false }); });   // vases
+      for (const z of [4, 13]) bench(B, 20, z, 0);
+      B.glass(14, 15, 18, 15, 2, 1); B.prop(16, 0.45, 16, 3.6, 0.9, 1.6, 0x3a2f2a); B.prop(16, 1.1, 16, 0.4, 0.4, 0.4, GOLD, { solid: false, glow: true });   // the golden egg, in its case
+      for (let i = 0; i < 4; i++) B.person('guest', 16 + (i % 2) * 7, -4 + i * 5, { wander: [13, -11, 29, 17] });
+      B.person('museumguard', 26, -10, { route: [[26, -10], [26, 16], [14, 16], [14, -10]], wait: 2 });
+      B.camera(29.5, 17.5, -Math.PI * 0.75, 0.6, 4.6);
+      B.tripwire(14.5, 14.2, 17.5, 14.2, { period: 3, duty: 0.5 });
+
+      // --- West gallery: the Egyptian wing ---
+      for (const [x, z] of [[-21, 10], [-21, -2]]) { B.prop(x, 0.55, z, 2.4, 1.1, 1.1, GOLD); B.prop(x, 1.2, z, 2.2, 0.2, 0.9, 0x2b6fa8, { solid: false }); }   // sarcophagi
+      for (const [x, z] of [[-27, 15], [-27, -9], [-15, 15], [-15, -9]]) B.prop(x, 2, z, 0.8, 4, 0.8, 0xc9b99a);         // obelisks
+      B.prop(-21, 1.0, 4, 3.4, 2, 3.4, 0xc9b99a, { tilt: 0 }); B.prop(-21, 2.4, 4, 2, 0.8, 2, 0xd8c8a0, { solid: false });   // the pyramid model
+      for (const [x, z] of [[-27, 3], [-27, 9]]) B.prop(x, 0.6, z, 0.8, 1.2, 0.8, 0xd8c8a0, { shape: 'cyl' });                // jars
+      for (let i = 0; i < 4; i++) B.prop(-29.72, 2.4, -6 + i * 6, 0.08, 1.4, 3.4, [0xb5603a, 0x2b6fa8, GOLD, 0x3f7a3a][i], { solid: false, shadow: false });   // wall paintings
+      B.prop(-15.5, 0.5, 3.5, 1.2, 1.0, 1.2, 0x3a2f2a); B.prop(-15.5, 1.3, 3.5, 0.45, 0.6, 0.35, GOLD, { solid: false, glow: true });   // the golden mask
+      B.tripwire(-16.6, 2.4, -14.4, 2.4, { period: 2.4, duty: 0.6 }); B.tripwire(-16.6, 4.6, -14.4, 4.6, { period: 2.4, duty: 0.6, phase: 0.5 });
+      for (let i = 0; i < 4; i++) B.person('guest', -26 + (i % 2) * 8, -6 + i * 5, { wander: [-29, -11, -13, 17] });
+      B.person('museumguard', -14, -10, { route: [[-14, -10], [-28, -10], [-28, 16], [-14, 16]], wait: 2 });
+      B.camera(-29.5, -11.5, Math.PI * 0.25, 0.6, 4.6);
+
+      // --- The staff wing: corridor, security office, the vault, the curator ---
+      B.gate(0, -12, 0, 2.6, 'keycard');
+      hazard(B, 0, -12.6, 'x');
+      B.vent(20, -9.5, 20, -15);                                                                                     // east gallery -> staff corridor
+      B.restricted(-30, -30, 30, -12, ['museumguard', 'curator', 'security'], 'staff only');
+      B.restricted(30, -30, 40, -6, ['museumguard', 'curator', 'security'], 'staff only');
+      for (const x of [-24, -8, 8, 24]) B.prop(x, 0.6, -17.4, 1.6, 1.2, 0.6, 0x5a5f66);                               // crates of new exhibits
+      B.person('museumguard', -20, -15, { route: [[-28, -15], [28, -15]], wait: 2 });
+      B.camera(-29.5, -12.5, Math.PI * 0.6, 0.5, 4.6);
+      B.camera(29.5, -17.5, -Math.PI * 0.35, 0.5, 4.6);
+      B.tripwire(10, -17.6, 10, -12.4, { period: 3.2, duty: 0.5, phase: 0.3 });
+      // Security office (west): monitors, and the fuse box for the whole museum.
+      for (let i = 0; i < 5; i++) B.prop(-29.6, 2.2, -27 + i * 2, 0.06, 1.2, 1.8, 0x8fd4ff, { solid: false, shadow: false, glow: true });
+      B.prop(-26, 0.45, -24, 1.2, 0.9, 7, 0x3a3f46);
+      for (let i = 0; i < 4; i++) B.prop(-14 + i * 1.1, 1.0, -29.4, 1.0, 2.0, 0.7, 0x23304a);                       // lockers
+      B.fusebox(-10.4, -27, -Math.PI / 2);
+      B.person('museumguard', -20, -24, { route: [[-28, -20], [-12, -20], [-12, -28], [-28, -28]], wait: 2.5 });
+      B.person('museumguard', -24, -26, { post: true, yaw: -Math.PI / 2 });
+      B.camera(-10.5, -18.5, -Math.PI * 0.75, 0.5, 4.6);
+      // Curator's office (east): bookshelves, the desk, the curator (red keycard).
+      for (let i = 0; i < 4; i++) B.prop(13 + i * 3, 1.3, -29.5, 2.6, 2.6, 0.5, 0x5a3b26);
+      desk(B, 20, -24, 0); B.prop(26, 0.4, -22, 2.2, 0.8, 1.0, 0x7a1f3a);
+      plant(B, 28.5, -28.5);
+      B.person('curator', 20, -23, { route: [[20, -23], [14, -27], [24, -27], [22, -15], [-4, -15], [20, -15]], wait: 3 });
+      B.person('museumguard', 14, -20, { post: true, yaw: 0 });
+      // The vault: lasers, cameras, the Comet Diamond on its pedestal.
+      B.gate(0, -18, 0, 2.6, 'redcard');
+      hazard(B, 0, -17.4, 'x');
+      B.tripwire(-1.3, -19, 1.3, -19, { period: 2.8, duty: 0.55 });
+      B.tripwire(-9.6, -22, 9.6, -22, { sweep: [0, -5], speed: 0.1 });
+      B.tripwire(-5, -29.6, -5, -18.4, { sweep: [10, 0], speed: 0.08, phase: 0.4 });
+      B.prop(0, 0.5, -26, 1.2, 1.0, 1.2, 0x2b2f33); B.prop(0, 1.02, -26, 1.0, 0.04, 1.0, 0x9fd4ff, { solid: false, shadow: false, glow: true });
+      B.pickup('diamond', 'The Comet Diamond', 0, 1.35, -26, 0x9fe8ff);
+      for (const x of [-7, 7]) { B.glass(x - 1, -27, x + 1, -27, 1.6, 1); B.prop(x, 0.45, -28, 2, 0.9, 1.6, 0x2b2f33); B.prop(x, 1.0, -28, 0.3, 0.3, 0.3, x < 0 ? 0xff3c4f : 0x3cff8a, { solid: false, glow: true }); }   // other gems
+      B.camera(-9.5, -29.5, Math.PI * 0.25, 0.5, 4.6);
+      B.camera(9.5, -29.5, -Math.PI * 0.25, 0.5, 4.6);
+      B.alarmLight(-6, -18.6, 4.2); B.alarmLight(6, -18.6, 4.2);
+      B.restricted(-10, -30, 10, -18, ['curator', 'museumguard'], 'the vault');
+      // The loading dock, and the getaway van.
+      B.gate(30, -15, Math.PI / 2, 4, 'keycard');
+      B.ground(30, -30, 40, -6, 'road');
+      for (const z of [-28, -10]) B.prop(35, 0.02, z, 8, 0.02, 0.3, 0xf2c230, { solid: false, shadow: false });
+      B.prop(36, 1.3, -21, 2.2, 2.2, 5, 0x3a3f46);
+      B.prop(36, 1.75, -23.45, 2, 0.8, 0.06, 0x2b3a48, { solid: false, shadow: false });
+      for (const dz of [-1.6, 1.6]) for (const dx of [-1.05, 1.05]) B.prop(36 + dx, 0.38, -21 + dz, 0.3, 0.75, 0.75, 0x1c1e21, { solid: false, shadow: false });
+      B.prop(35, 0.6, -6, 10, 1.2, 0.2, 0x2b2f33); B.prop(35, 0.6, -30, 10, 1.2, 0.2, 0x2b2f33);
+      B.dropoff('diamond', 36, -16.5, 1.5, 'getaway van');
+      B.extract(36, -16.5, 2.4, 'getaway van');
+      B.alarmLight(30.6, -12.5, 4.2);
+    },
+  },
 ];
 
 // ===== main.js =====
@@ -3045,6 +3269,9 @@ const ROLES = {
   scientist: { label: 'Scientist', items: ['keycard'], shirts: [0xf4f4f2, 0xeef3f6], pants: [0x50555e, 0x2e3440, 0x3d3d46] },
   warden: { label: 'Head of security', items: ['pistol', 'keycard', 'redcard'], shirts: [0x1a2219], pants: [0x111611], hat: 'cap', shades: true, armed: true },
   labguard: { label: 'Lab security', items: ['pistol', 'keycard'], shirts: [0x2b3b2f], pants: [0x1a2219], hat: 'cap', armed: true },
+  collector: { label: 'Victor Crane', items: ['keycard'], shirts: [0x111111], pants: [0x111111], tie: true, shades: true, vip: true },
+  curator: { label: 'The curator', items: ['keycard', 'redcard'], shirts: [0x6b3a2a], pants: [0x2a2a2f], tie: true },
+  museumguard: { label: 'Museum security', items: ['pistol', 'keycard'], shirts: [0x23304a], pants: [0x161b26], hat: 'cap', armed: true },
   chief: { label: 'Dr. Halloran', items: ['keycard', 'redcard'], shirts: [0xf4f4f2], pants: [0x1d2f5a], tie: true, shades: true, vip: true },
   harbourmaster: { label: 'The Harbourmaster', items: ['keycard'], shirts: [0x1d2f5a], pants: [0x1d2f5a], hat: 'cap', tie: true, vip: true },
 };
@@ -3090,6 +3317,7 @@ const SKILLS = [
   { id: 'giant', branch: 2, need: 'brute', name: 'Giant', text: 'With 6 eaten, the body comes out a giant. Everyone panics, and it falls apart faster.' },
   { id: 'boost', branch: 3, gate: 'labOK', gateText: 'Finish Blackwater Lab', name: 'Speed boost', text: 'Press X (BOOST) for 5 seconds of top speed, as a host or a slime. Anyone watching a host do it will notice. Recharges in 20 s.' },
   { id: 'boom', branch: 3, need: 'boost', gate: 'labOK', gateText: 'Finish Blackwater Lab', name: 'Self destruct', text: 'In a host, press K (BOOM) to blow it up and fly out. Costs 3 eaten, once a level.' },
+  { id: 'prop', branch: 3, gate: 'stateOK', gateText: 'Finish The State House', name: 'Disguise', text: 'As a slime, press H (PROP) to grow into a prop that fits in: a crate, a vase, a statue. Press again for a different one. Keep still and nobody looks twice, but you crawl slowly and people notice a prop that moves.' },
 ];
 const BOOST_T = 5, BOOST_CD = 20, BOOST_MUL = 1.7, BOOM_COST = 3;
 const hasSkill = (id) => !!player.skills?.has(id);
@@ -3193,6 +3421,91 @@ function box(w, h, dd, m, x = 0, y = 0, z = 0) {
 
 const GOO_MAT = new THREE.MeshStandardMaterial({ color: 0x7cff4f, emissive: 0x3cbf1a, emissiveIntensity: 0.6, roughness: 0.25, metalness: 0.1, flatShading: true });
 const GOO_GEO = new THREE.IcosahedronGeometry(1, 1);
+
+// --- Achievements, and the slime colours they unlock (kept between visits) ---
+const ACHS = [
+  { id: 'firstbite', name: 'First bite', text: 'Eat someone.' },
+  { id: 'ghost', name: 'Ghost', text: 'Finish a level without a lockdown.' },
+  { id: 'speed', name: 'Speedrunner', text: 'Finish a level in under 3 minutes.' },
+  { id: 'glutton', name: 'Glutton', text: 'Eat 6 people in one level.' },
+  { id: 'giant', name: 'Big and clever', text: 'Grow a giant.' },
+  { id: 'small', name: 'Small wonder', text: 'Shrink into a tiny body.' },
+  { id: 'kaboom', name: 'Kaboom', text: 'Take out 3 people with one self destruct.' },
+  { id: 'hideseek', name: 'Hide and seek', text: 'Let someone walk right past you while you\'re disguised as a prop.' },
+  { id: 'snatcher', name: 'Body snatcher', text: 'Use 15 hosts in one level.' },
+  { id: 'laststand', name: 'Last stand', text: 'Hold the State House roof until the helicopter comes.' },
+  { id: 'artthief', name: 'Art thief', text: 'Steal the Comet Diamond from the Grand Museum.' },
+  { id: 'chaos', name: 'Agent of chaos', text: 'Finish every level.' },
+  { id: 'collector', name: 'Collector', text: 'Earn 10 achievements.' },
+];
+const STYLES = [
+  { id: 'classic', name: 'Classic', hex: 0x7cff4f },
+  { id: 'toxic', name: 'Toxic', hex: 0xd4ff3c, ach: 'firstbite' },
+  { id: 'midnight', name: 'Midnight', hex: 0x7a5cff, ach: 'ghost' },
+  { id: 'ocean', name: 'Ocean', hex: 0x3cc8ff, ach: 'speed' },
+  { id: 'blood', name: 'Blood', hex: 0xff3c4f, ach: 'glutton' },
+  { id: 'magma', name: 'Magma', hex: 0xff8a1e, ach: 'kaboom' },
+  { id: 'pink', name: 'Bubblegum', hex: 0xff7ad9, ach: 'hideseek' },
+  { id: 'gold', name: 'Gold', hex: 0xffd23c, ach: 'chaos' },
+  { id: 'rainbow', name: 'Rainbow', hex: 0xff4fd8, ach: 'collector', rainbow: true },
+];
+function loadAchs() { try { return JSON.parse(localStorage.getItem('symbiote-ach') || '{}') || {}; } catch { return {}; } }
+const achs = loadAchs();
+let achQueue = [], achT = 0;
+function unlockAch(id) {
+  if (achs[id] || !ACHS.some((a) => a.id === id)) return;
+  achs[id] = Date.now();
+  try { localStorage.setItem('symbiote-ach', JSON.stringify(achs)); } catch { /* private mode */ }
+  achQueue.push(id);
+  if (Object.keys(achs).length >= 10) unlockAch('collector');
+}
+// One banner at a time, at the top of the screen.
+function updateAchToast(dt) {
+  achT -= dt;
+  if (achT > 0) return;
+  const el = $('achToast');
+  if (!achQueue.length) { el.classList.remove('on'); return; }
+  const id = achQueue.shift(), a = ACHS.find((q) => q.id === id);
+  const st = STYLES.find((s) => s.ach === a.id);
+  el.innerHTML = `<b>🏆 ${a.name}</b><span>${a.text}${st ? ` · <em>New slime colour: ${st.name}</em>` : ''}</span>`;
+  el.classList.add('on');
+  sfx.infect();
+  achT = 3.2;
+}
+const styleOpen = (s) => !s.ach || !!achs[s.ach];
+let gooStyle = STYLES[0];
+try { const s = STYLES.find((q) => q.id === localStorage.getItem('symbiote-style')); if (s && styleOpen(s)) gooStyle = s; } catch { /* private mode */ }
+function setStyle(id) {
+  const s = STYLES.find((q) => q.id === id);
+  if (!s || !styleOpen(s)) return;
+  gooStyle = s;
+  try { localStorage.setItem('symbiote-style', id); } catch { /* private mode */ }
+  applyGoo();
+  renderCollection();
+}
+const _gc = new THREE.Color();
+/** The slime's colour right now (rainbow cycles). */
+function goo() { return gooStyle.rainbow ? _gc.setHSL((performance.now() / 5000) % 1, 1, 0.58).getHex() : gooStyle.hex; }
+function applyGoo() {
+  const c = goo();
+  GOO_MAT.color.setHex(c);
+  GOO_MAT.emissive.setHex(c).multiplyScalar(0.48);
+  slimeLight.color.setHex(c); hoverRing.material.color.setHex(c); landRing.material.color.setHex(c);
+}
+function renderCollection() {
+  const got = Object.keys(achs).length;
+  $('achCount').textContent = `${got} of ${ACHS.length} achievements`;
+  $('achList').innerHTML = ACHS.map((a) => {
+    const st = STYLES.find((s) => s.ach === a.id);
+    return `<li class="${achs[a.id] ? 'got' : ''}"><i>${achs[a.id] ? '🏆' : '🔒'}</i><span><b>${a.name}</b>${a.text}${st ? `<em>Unlocks ${st.name}</em>` : ''}</span></li>`;
+  }).join('');
+  $('styleList').innerHTML = STYLES.map((s) => {
+    const open = styleOpen(s);
+    const sw = s.rainbow ? 'linear-gradient(90deg,#ff4f4f,#ffd23c,#7cff4f,#3cc8ff,#7a5cff,#ff7ad9)' : `#${s.hex.toString(16).padStart(6, '0')}`;
+    return `<button class="style ${open ? '' : 'locked'} ${s === gooStyle ? 'on' : ''}" data-id="${s.id}" ${open ? '' : 'disabled'}><i style="background:${sw}"></i>${open ? s.name : `🔒 ${ACHS.find((a) => a.id === s.ach).name}`}</button>`;
+  }).join('');
+  for (const b of $('styleList').querySelectorAll('.style')) b.onclick = () => setStyle(b.dataset.id);
+}
 
 function buildPerson(role) {
   const g = new THREE.Group();
@@ -3448,7 +3761,7 @@ function updateParts(dt) {
 const SPLAT_GEO = new THREE.CircleGeometry(1, 18).rotateX(-Math.PI / 2);
 const splats = [];
 function splat(x, z, r = 0.6, y = 0) {
-  const m = new THREE.Mesh(SPLAT_GEO, new THREE.MeshBasicMaterial({ color: 0x5fd33a, transparent: true, opacity: 0.75, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  const m = new THREE.Mesh(SPLAT_GEO, new THREE.MeshBasicMaterial({ color: goo(), transparent: true, opacity: 0.75, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
   m.position.set(x, y + 0.03, z);
   m.scale.setScalar(r * rand(0.8, 1.2));
   scene.add(m);
@@ -3532,6 +3845,7 @@ addEventListener('keydown', (e) => {
   if (k === 'g') grab();
   if (k === 'x') speedBoost();
   if (k === 'k') selfDestruct();
+  if (k === 'h') toggleProp();
   if (k === ' ') input.aiming = true;
 });
 addEventListener('keyup', (e) => {
@@ -3625,6 +3939,7 @@ function setupTouch() {
   $('grabbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); grab(); });
   $('boostbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); speedBoost(); });
   $('boombtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); selfDestruct(); });
+  $('propbtn').addEventListener('pointerdown', (e) => { e.stopPropagation(); toggleProp(); });
   for (const [id, key] of [['eatbtn', 'eat'], ['bodybtn', 'grow'], ['shrinkbtn', 'shrink']]) {
     const b = $(id);
     b.addEventListener('pointerdown', (e) => { e.stopPropagation(); input[key] = true; });
@@ -3676,7 +3991,7 @@ const glassHandles = new Set(); // windows: you can see (and be seen) through th
 
 // --- Level building -------------------------------------------------------------
 
-const GROUND_COLORS = { marble: 0xd9d3c6, lab: 0x6b7378, labdark: 0x41484d, road: 0x3d4148, kerb: 0xb9b6ad, grass: 0x6fa857, concrete: 0xa9a79f, dirt: 0x9c7f58, plaza: 0xc9b99a };
+const GROUND_COLORS = { wood: 0x8a5a36, marble: 0xd9d3c6, lab: 0x6b7378, labdark: 0x41484d, road: 0x3d4148, kerb: 0xb9b6ad, grass: 0x6fa857, concrete: 0xa9a79f, dirt: 0x9c7f58, plaza: 0xc9b99a };
 
 function fixedBox(x, y, z, sx, sy, sz, yaw = 0) {
   const body = d.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z)
@@ -4149,10 +4464,10 @@ function loadLevel(i, menu = false) {
   $('exitMark').classList.add('hidden'); $('goalMark').classList.add('hidden');
   personByHandle.clear();
   seeThrough.clear(); glassHandles.clear(); camThrough.clear(); tripwires = []; turrets = []; steams = []; alarmLights = []; vats = { total: 0, broken: 0 }; movers = []; panes = [];
-  Object.assign(game, { skillsOpen: false, lockdowns: 0, time: 0, alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0, over: false, hostsUsed: 0, bodiesFound: 0, paused: false });
+  Object.assign(game, { skillsOpen: false, lockdowns: 0, time: 0, alarm: 0, alert: false, alertT: 0, lastAlarmAt: -99, peakAlarm: 0, over: false, hostsUsed: 0, bodiesFound: 0, eaten: 0, paused: false });
   // Rewards from earlier levels: the mutagen vial (Hollow Hill) lets the slime eat and grow; Saltmarsh Docks unlocks growing a body.
-  { const prog = loadProgress(); game.mutagen = freePlay() || !!prog['hollow-hill']; game.bodyOK = freePlay() || !!prog['saltmarsh-docks']; game.shrinkOK = freePlay() || !!prog['meridian-tower']; game.labOK = freePlay() || !!prog['blackwater-lab']; }
-  Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, growing: null, form: 0, points: 0, skills: new Set(testSkills()), boostT: 0, boostCD: 0, boomUsed: false, absorbed: [], absorbedLabel: '', shellWarned: false, puddleTold: false, zoom: false });
+  { const prog = loadProgress(); game.mutagen = freePlay() || !!prog['hollow-hill']; game.bodyOK = freePlay() || !!prog['saltmarsh-docks']; game.shrinkOK = freePlay() || !!prog['meridian-tower']; game.labOK = freePlay() || !!prog['blackwater-lab']; game.stateOK = freePlay() || !!prog['state-house']; }
+  Object.assign(player, { host: null, slime: null, health: 100, marked: false, seenAt: -99, itemCD: 0, charges: 0, flares: 0, active: 0, aimPerson: null, trespass: '', carry: null, consuming: null, growing: null, form: 0, points: 0, skills: new Set(testSkills()), boostT: 0, boostCD: 0, boomUsed: false, absorbed: [], absorbedLabel: '', shellWarned: false, puddleTold: false, propTold: false, zoom: false });
   input.eat = input.grow = input.shrink = false;
   slimeMesh.visible = false;
   objectives = L.objectives.map((o) => ({ ...o, done: false }));
@@ -4253,6 +4568,7 @@ function moveChar(p, vx, vz, dt) {
     if (p.vy < -FALL_HURT) hardLanding(p, p.vy);
     p.vy = 0;
   }
+  if (!p.rb) return; // the fall killed them
   const half = game.level.half - 0.6;
   p.pos.x = clamp(p.pos.x, -half, half);
   p.pos.z = clamp(p.pos.z, -half, half);
@@ -4368,7 +4684,7 @@ function syncPersonMesh(p, dt) {
     const t = game.time * 6 + p.id;
     const gs = p.merged ? 0.32 : 0.2;
     if (!(player.consuming && player.consuming.h === p)) m.goo.scale.set(gs + Math.sin(t) * 0.02, gs + Math.cos(t * 1.3) * 0.02, gs);
-    m.eyeMat.emissive.setHex(0x7cff4f);
+    m.eyeMat.emissive.setHex(goo());
     m.eyeMat.emissiveIntensity = 1.5;
     m.shirt.emissive.setHex(0x2a7a12);
     m.shirt.emissiveIntensity = 0.15 + 0.1 * Math.sin(game.time * 4);
@@ -4602,7 +4918,7 @@ function stompLand(p) {
   shake = Math.max(shake, 0.35);
   splat(t.x, t.z, 0.5, t.y - SLIME_R);
   sfx.splat();
-  burst(new THREE.Vector3(t.x, 0.2, t.z), 12, 0x7cff4f, { speed: 3, up: 1.5, size: 0.08 });
+  burst(new THREE.Vector3(t.x, 0.2, t.z), 12, goo(), { speed: 3, up: 1.5, size: 0.08 });
   // Squirts out from under the foot.
   s.body.setLinvel({ x: fwd.x * 3, y: 2.5, z: fwd.z * 3 }, true);
 }
@@ -4752,6 +5068,61 @@ scene.add(slimeMesh);
 const slimeLight = new THREE.PointLight(0x7cff4f, 0, 6, 2);
 scene.add(slimeLight);
 
+// Disguise: the slime grows into a prop that belongs where it is.
+const disguise = new THREE.Group();
+disguise.visible = false;
+scene.add(disguise);
+const PROP_KINDS = {
+  crate(g) { const b = box(0.85, 0.75, 0.85, mat(0x9a6b3c)); b.position.y = 0.375; g.add(b); for (const y of [0.12, 0.63]) { const s = box(0.88, 0.07, 0.88, mat(0x6e4a26)); s.position.y = y; g.add(s); } },
+  barrel(g) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.95, 14), mat(0x2f6fb0)); b.position.y = 0.475; g.add(b); for (const y of [0.2, 0.75]) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.375, 0.375, 0.05, 14), mat(0x555a60)); r.position.y = y; g.add(r); } },
+  bin(g) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.25, 0.85, 12), mat(0x3d6b45)); b.position.y = 0.425; g.add(b); const l = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.07, 12), mat(0x2c5034)); l.position.y = 0.88; g.add(l); },
+  vase(g) {
+    const pts = [[0.001, 0], [0.2, 0.02], [0.32, 0.3], [0.3, 0.6], [0.16, 0.85], [0.14, 0.98], [0.2, 1.08]].map(([x, y]) => new THREE.Vector2(x, y));
+    const v = new THREE.Mesh(new THREE.LatheGeometry(pts, 16), mat(0x2d5fa8, { side: THREE.DoubleSide })); g.add(v);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.315, 0.315, 0.08, 16), mat(0xe8d38a)); band.position.y = 0.42; g.add(band);
+  },
+  statue(g) {
+    const stone = 0xd8d4c8;
+    const base = box(0.7, 0.35, 0.7, mat(0xbab5a6)); base.position.y = 0.175; g.add(base);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 0.85, 10), mat(stone)); body.position.y = 0.78; g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), mat(stone)); head.position.y = 1.33; g.add(head);
+    const arm = box(0.12, 0.5, 0.12, mat(stone)); arm.position.set(0.25, 1.05, 0); arm.rotation.z = -0.7; g.add(arm);
+  },
+  plinth(g) {
+    const p = box(0.55, 0.95, 0.55, mat(0xf2efe8)); p.position.y = 0.475; g.add(p);
+    const bust = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), mat(0x8a6a3a, { metalness: 0.6, roughness: 0.4 })); bust.position.y = 1.12; g.add(bust);
+    const sh = box(0.34, 0.12, 0.2, mat(0x8a6a3a)); sh.position.y = 0.99; g.add(sh);
+  },
+  plant(g) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.2, 0.45, 12), mat(0xb5603a)); p.position.y = 0.225; g.add(p); for (let i = 0; i < 6; i++) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.22, 7, 6), mat(0x3f8a3a)); l.position.set(Math.cos(i) * 0.15, 0.6 + (i % 3) * 0.15, Math.sin(i) * 0.15); g.add(l); } },
+};
+const propCache = {};
+function setProp(kind) {
+  const s = player.slime;
+  if (!s) return;
+  s.prop = kind;
+  s.stillT = 0;
+  disguise.visible = !!kind;
+  slimeMesh.visible = !kind;
+  if (!kind) { player.hidden = false; return; }
+  for (const c of disguise.children) c.visible = false;
+  if (!propCache[kind]) { const g = new THREE.Group(); PROP_KINDS[kind](g); g.traverse((o) => { o.castShadow = o.receiveShadow = true; }); propCache[kind] = g; disguise.add(g); }
+  propCache[kind].visible = true;
+  disguise.rotation.y = Math.round(view.yaw / (Math.PI / 2)) * (Math.PI / 2);
+}
+function toggleProp() {
+  if (!game.running || game.paused || game.over || !hasSkill('prop')) return;
+  const s = player.slime;
+  if (!s) { toast('Slime only', 'You can only turn into a prop as a slime.', 1.4); return; }
+  const kinds = game.level.props || ['crate', 'barrel', 'bin'];
+  const t = s.body.translation();
+  sfx.splat();
+  burst(new THREE.Vector3(t.x, t.y, t.z), 16, goo(), { speed: 2, up: 2, size: 0.09 });
+  const i = s.prop ? kinds.indexOf(s.prop) + 1 : 0;
+  // Press again for the next prop; after the last one you're a slime again.
+  setProp(i < kinds.length ? kinds[i] : null);
+  if (s.prop && !player.propTold) { player.propTold = true; toast(`A ${s.prop}`, 'Keep still and nobody looks twice. Press again for a different prop.', 2.2); }
+}
+
 function spawnSlime(pos, vel) {
   const body = d.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(pos.x, pos.y, pos.z)
     .setLinvel(vel.x, vel.y, vel.z).setCcdEnabled(true).setAngularDamping(3));
@@ -4766,6 +5137,7 @@ function removeSlime() {
   d.queryDirty = true;
   player.slime = null;
   slimeMesh.visible = false;
+  disguise.visible = false;
 }
 
 function enterHost(p, quiet = false) {
@@ -4792,9 +5164,10 @@ function enterHost(p, quiet = false) {
   p.opts.follow = null;
   setIcon(p, null);
   game.hostsUsed++;
+  if (game.hostsUsed >= 15) unlockAch('snatcher');
   if (!quiet) {
     sfx.infect();
-    burst(new THREE.Vector3(p.pos.x, 1.4, p.pos.z), 22, 0x7cff4f, { speed: 3, up: 3, size: 0.1 });
+    burst(new THREE.Vector3(p.pos.x, 1.4, p.pos.z), 22, goo(), { speed: 3, up: 3, size: 0.1 });
     if (t) splat(t.x, t.z, 0.4, p.pos.y);
     const items = p.items.map((i) => ITEMS[i].label).join(' + ');
     toast(p.label, items ? `Holding: ${items}` : 'Empty-handed', 1.8);
@@ -4813,7 +5186,7 @@ function leaveHost(vel) {
   player.host = null;
   kill(h, 'drained');
   spawnSlime(pos, vel);
-  burst(pos, 14, 0x7cff4f, { speed: 2, up: 2, size: 0.09 });
+  burst(pos, 14, goo(), { speed: 2, up: 2, size: 0.09 });
 }
 
 /** Velocity that flings the slime from S to land at T (34°, or steeper if T is higher). */
@@ -4886,7 +5259,7 @@ function fireGun(shooter, aim, spread, dmgPerson, slimeDmg = 25, range = 70) {
     damagePerson(hit.person, dmgPerson, shooter.pos);
   } else if (hit.slime) {
     player.health -= slimeDmg * (hasSkill('skin') ? 0.5 : 1);
-    burst(end, 10, 0x7cff4f, { speed: 3, up: 2, size: 0.08 });
+    burst(end, 10, goo(), { speed: 3, up: 2, size: 0.08 });
   } else if (hit.entity) {
     d.damageEntity(hit.entity, 6, end, dir);
     burst(end, 4, 0xd8d0c2, { speed: 2, up: 2, size: 0.06, life: 0.4 });
@@ -4982,7 +5355,7 @@ function updateHold(dt) {
     H.g.rotation.y = hold.padYaw ?? 0;
     H.rotor.rotation.y += dt * 25;
     H.lamp.material.color.setHex(Math.sin(game.time * 6) > 0 ? 0xff3344 : 0x330a0d);
-    if (k >= 1 && !hold.arrived) { hold.arrived = true; completeObjective('hold'); toast('Get in!', 'Into the helicopter, now.', 2.5); }
+    if (k >= 1 && !hold.arrived) { hold.arrived = true; unlockAch('laststand'); completeObjective('hold'); toast('Get in!', 'Into the helicopter, now.', 2.5); }
   }
 }
 
@@ -5005,7 +5378,9 @@ function selfDestruct() {
   player.form -= BOOM_COST;
   const pos = h.pos.clone();
   leaveHost(new THREE.Vector3(Math.sin(view.yaw) * 4, 9, Math.cos(view.yaw) * 4));
+  const downBefore = people.filter((q) => q.state === 'down').length;
   explodeAt(pos, 8, true);
+  if (people.filter((q) => q.state === 'down').length - downBefore >= 3) unlockAch('kaboom');
   addAlarm(40, 'Someone blew up.');
   game.lastKnown.copy(pos);
 }
@@ -5013,7 +5388,7 @@ function updateBoost(dt) {
   if (player.boostT > 0) {
     player.boostT -= dt;
     const at = player.host?.pos ?? player.slime?.body.translation();
-    if (at && Math.random() < dt * 30) burst(new THREE.Vector3(at.x, at.y + 0.3, at.z), 1, 0x7cff4f, { speed: 0.5, up: 0.5, size: 0.08, life: 0.4 });
+    if (at && Math.random() < dt * 30) burst(new THREE.Vector3(at.x, at.y + 0.3, at.z), 1, goo(), { speed: 0.5, up: 0.5, size: 0.08, life: 0.4 });
   }
   if (player.boostCD > 0) player.boostCD -= dt;
 }
@@ -5321,7 +5696,7 @@ function addVat(x, z) {
     liquid.visible = glass.visible = false;
     clone.scale.set(1.4, 0.35, 1.4); clone.position.y = 0.45;
     splat(x, z, 2.4, BY);
-    burst(new THREE.Vector3(x, BY + 1.5, z), 40, 0x7cff4f, { speed: 5, up: 3, size: 0.14, life: 1 });
+    burst(new THREE.Vector3(x, BY + 1.5, z), 40, goo(), { speed: 5, up: 3, size: 0.14, life: 1 });
     vats.broken++;
     if (vats.broken >= vats.total) completeObjective('vats');
     else toast('Vat smashed', `${vats.total - vats.broken} to go.`, 1.4);
@@ -5740,9 +6115,12 @@ function tick(dt) {
     const still = player.slime.landed && Math.hypot(v.x, v.z) < 0.5 && !(mv.x || mv.z) && !player.growing;
     player.slime.stillT = still ? (player.slime.stillT || 0) + dt : 0;
     const wasPuddle = player.slime.puddle;
-    player.slime.puddle = hasSkill('puddle') && player.slime.stillT > 0.7;
+    player.slime.puddle = hasSkill('puddle') && player.slime.stillT > 0.7 && !player.slime.prop;
+    // Disguised as a prop: keep still and nobody gives you a second look.
+    player.hidden = !!player.slime.prop && player.slime.stillT > 0.25;
+    if (player.hidden && !achs.hideseek && people.some((p) => p.state !== 'down' && p.state !== 'host' && Math.hypot(p.pos.x - t.x, p.pos.z - t.z) < 2.5)) unlockAch('hideseek');
     if (player.slime.puddle && !wasPuddle && !player.puddleTold) { player.puddleTold = true; toast('Puddle', 'Nobody notices you unless they\'re right on top of you. You still dry out, just slower.', 1.8); }
-    player.health -= SLIME_DRAIN * dt * (player.slime.puddle ? 0.5 : 1) * (hasSkill('skin') ? 0.7 : 1);
+    player.health -= SLIME_DRAIN * dt * (player.slime.puddle || player.slime.prop ? 0.5 : 1) * (hasSkill('skin') ? 0.7 : 1);
     player.slime.dried = player.health <= SLIME_DRAIN * dt * 2;
     // On the ground, or resting on top of something.
     player.slime.restT = Math.abs(v.y) < 0.3 ? (player.slime.restT || 0) + dt : 0;
@@ -5753,7 +6131,7 @@ function tick(dt) {
     const grounded = (t.y < SLIME_R + 0.2 && v.y < 1) || player.slime.restT > 0.2 || (under && under.normal.y > 0.6 && v.y < 3.5);
     if (grounded && game.time - player.slime.born > 0.3) {
       const ka = Math.min(1, dt * (mv.x || mv.z ? 14 : 18));
-      const cs = crawlSpeed() * (player.boostT > 0 ? BOOST_MUL : 1);
+      const cs = crawlSpeed() * (player.boostT > 0 ? BOOST_MUL : 1) * (player.slime.prop ? 0.35 : 1);
       const nx = v.x + (mv.x * cs - v.x) * ka, nz = v.z + (mv.z * cs - v.z) * ka;
       // On a slope, run along it rather than into it.
       const ny = slopeN ? -(slopeN.x * nx + slopeN.z * nz) / slopeN.y : Math.min(v.y, 0.5);
@@ -6136,7 +6514,11 @@ function oddReason() {
 /** Things you can pick up by walking over them, and where to take them. */
 function addPickup(id, label, x, y, z, color) {
   const g = new THREE.Group();
-  if (color) {
+  if (id === 'diamond') {
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.2, 0), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.8, roughness: 0.05, metalness: 0.3, flatShading: true }));
+    gem.scale.y = 1.3;
+    g.add(gem);
+  } else if (color) {
     // A glowing canister.
     const cyl = (r, h, m, yy) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 12), m); c.position.y = yy; return c; };
     g.add(cyl(0.14, 0.34, mat(color, { emissive: color, emissiveIntensity: 0.9 }), 0), cyl(0.16, 0.06, mat(0x3a3f46), 0.2), cyl(0.16, 0.06, mat(0x3a3f46), -0.2));
@@ -6382,7 +6764,7 @@ function updateConsume(dt) {
   if ((c.noiseT -= dt) <= 0) { c.noiseT = hasSkill('gulp') ? 2.6 : 1.3; eatNoise(h.pos); noise(0.5, { freq: 260, vol: 0.25 }); }
   if (c.seenBy) return; // someone's watching: nothing happens but suspicion
   c.p += dt / (hasSkill('gulp') ? 2.5 : EAT_TIME);
-  if (Math.random() < 0.5) burst(pt, 2, 0x7cff4f, { speed: 1.5, up: 2, size: 0.1 });
+  if (Math.random() < 0.5) burst(pt, 2, goo(), { speed: 1.5, up: 2, size: 0.1 });
   if (c.p < 1) return;
   player.consuming = null;
   input.eat = false;
@@ -6390,13 +6772,16 @@ function updateConsume(dt) {
   player.absorbedLabel = h.role.label.replace(/^The /, '');
   player.form = Math.min(MAX_FORM, player.form + 1);
   player.points++;
+  game.eaten++;
+  unlockAch('firstbite');
+  if (game.eaten >= 6) unlockAch('glutton');
   const pos = new THREE.Vector3(h.pos.x, h.pos.y + 0.8, h.pos.z);
   dropCarry(h.pos);
   player.host = null;
   kill(h, 'eaten');
   spawnSlime(pos, new THREE.Vector3(rand(-1, 1), 3, rand(-1, 1)));
   player.health = slimeMax();
-  burst(pos, 40, 0x7cff4f, { speed: 5, up: 5, size: 0.14, life: 1 });
+  burst(pos, 40, goo(), { speed: 5, up: 5, size: 0.14, life: 1 });
   splat(h.pos.x, h.pos.z, 1.3, h.pos.y);
   shake = Math.max(shake, 0.4);
   sfx.splat();
@@ -6425,11 +6810,12 @@ function hop() {
   s.hopped = true;
   s.born = game.time;
   s.hopAt = game.time;
+  if (s.prop) setProp(null);
   s.target = player.aimPerson;
   s.stillT = 0;
   player.health -= HOP_COST;
   sfx.launch();
-  burst(S, 8, 0x7cff4f, { speed: 2, up: 1, size: 0.08 });
+  burst(S, 8, goo(), { speed: 2, up: 1, size: 0.08 });
 }
 
 /** Form III: grow your own body out of slime, unseen. It drops you back two forms. */
@@ -6459,7 +6845,7 @@ function updateGrow(dt) {
   s.body.setLinvel({ x: 0, y: Math.min(0, s.body.linvel().y), z: 0 }, true);
   if (g.seenBy) return;
   g.p += dt / (g.tier === 'tiny' ? GROW_TIME * 0.7 : GROW_TIME * (1 + (g.tier - 1) * 0.5));
-  if (Math.random() < 0.6) burst(new THREE.Vector3(t.x, 0.2 + g.p * 1.4, t.z), 2, 0x7cff4f, { speed: 1, up: 2, size: 0.12 });
+  if (Math.random() < 0.6) burst(new THREE.Vector3(t.x, 0.2 + g.p * 1.4, t.z), 2, goo(), { speed: 1, up: 2, size: 0.12 });
   if (g.p < 1) return;
   player.growing = null;
   input.grow = input.shrink = false;
@@ -6468,9 +6854,11 @@ function updateGrow(dt) {
   const p = spawnPerson('shell', t.x, t.z, { yaw: view.yaw, y: Math.max(0, t.y - SLIME_R), size: g.tier });
   p.prevYaw = p.yaw;
   enterHost(p, true);
-  burst(new THREE.Vector3(t.x, 1, t.z), 30, 0x7cff4f, { speed: 3, up: 3, size: 0.12 });
+  burst(new THREE.Vector3(t.x, 1, t.z), 30, goo(), { speed: 3, up: 3, size: 0.12 });
   sfx.infect();
   const ate = `Everyone you'd eaten (${spent}) went into it.`;
+  if (g.tier === 'tiny') unlockAch('small');
+  if (g.tier === 3) unlockAch('giant');
   if (g.tier === 'tiny') toast('Shrunk', `${ate} Tiny and fast, and people barely notice it.${hasSkill('ghost') ? ' Keep still and you vanish.' : ''}`, 3.6);
   else if (g.tier === 1) toast('Your own body', `${ate} Up close, it doesn't look quite right.`, 3);
   else toast(`A ${BODY_SIZES[g.tier].name.toLowerCase()}`, `${ate} F smashes, G picks things up and throws them. Everyone panics, and it falls apart after a while.`, 3.6);
@@ -6569,6 +6957,10 @@ function win() {
   const best = !prev || game.time < prev.time;
   if (best) prog[L.id] = { time: game.time, alarm: Math.round(game.peakAlarm) };
   saveProgress(prog);
+  if (!game.lockdowns) unlockAch('ghost');
+  if (game.time < 180) unlockAch('speed');
+  if (L.id === 'grand-museum') unlockAch('artthief');
+  if (LEVELS.every((q) => prog[q.id])) unlockAch('chaos');
   const li = LEVELS.indexOf(L), next = LEVELS[li + 1];
   const unlockedNow = next && !prev && !freePlay();
   $('nextBtn').classList.toggle('hidden', !next);
@@ -6627,12 +7019,13 @@ function updateHud(dt) {
   $('alarm').classList.toggle('alert', game.alert);
   $('alarmNote').textContent = game.alert ? `Hunting you · ${Math.ceil(game.alertT)}s` : pending('stealth') ? 'Stealth: a lockdown now fails the mission' : power && !power.on ? 'Power out: cameras are dead' : '';
   const h = player.host;
-  $('hostcard').classList.toggle('exposed', !h);
-  $('hostLabel').textContent = h ? h.label : 'Out in the open';
+  const prop = !h && player.slime?.prop;
+  $('hostcard').classList.toggle('exposed', !h && !player.hidden);
+  $('hostLabel').textContent = h ? h.label : prop ? `Disguised as a ${prop}` : 'Out in the open';
   const act = activeItem(h);
   const count = (i) => (i === 'charges' ? ` ×${player.charges}` : i === 'flares' ? ` ×${player.flares}` : '');
   const items = h ? h.items.map((i) => (i === act && usable(h).length > 1 ? `<b>${ITEMS[i].label}${count(i)}</b>` : ITEMS[i].label + count(i))).join(' + ') : '';
-  $('hostItems').innerHTML = h ? (items ? `Holding: ${items}${usable(h).length > 1 ? ' <span class="dim">(Q to swap)</span>' : ''}` : 'Empty-handed') : 'Stay out of sight. They\'ll stamp on you.';
+  $('hostItems').innerHTML = h ? (items ? `Holding: ${items}${usable(h).length > 1 ? ' <span class="dim">(Q to swap)</span>' : ''}` : 'Empty-handed') : prop ? (player.hidden ? 'Keep still and nobody looks twice.' : 'Moving: people can tell.') : 'Stay out of sight. They\'ll stamp on you.';
   const warn = !h ? '' : h.size >= 2 ? 'Too big to hide: everyone who sees you panics.' : isTiny(h) ? '' : player.trespass ? `⚠ ${player.trespass}` : player.carry ? `Carrying ${player.carry.label}. Guards will notice it.` : h.merged ? 'Merged: up close, guards can tell something\'s wrong.' : '';
   $('warnRow').textContent = warn;
   $('warnRow').classList.toggle('hidden', !warn);
@@ -6652,6 +7045,7 @@ function updateHud(dt) {
   else if (canGrow) { const nm = BODY_SIZES[bodyTier(player.form)].name.toLowerCase(); hint = isTouch ? `Hold BODY, unseen, to grow a ${nm}${canShrink ? ', or SHRINK' : ''} (uses every form)` : `Hold <kbd>B</kbd> where nobody can see you to grow a ${nm === 'slime body' ? 'body' : nm}${canShrink ? ', or <kbd>V</kbd> to shrink' : ''} (uses all ${player.form} eaten)`; }
   else if (h && isTiny(h)) hint = !hasSkill('ghost') ? '' : player.hidden ? 'Invisible. Move and you fade back in.' : 'Keep still to vanish (not right next to people)';
   else if (h && h.size >= 2) hint = isTouch ? '' : `<kbd>F</kbd> smash walls, doors and people · <kbd>G</kbd> ${player.held ? 'throw' : 'pick up'}`;
+  else if (!h && player.slime?.prop) hint = player.hidden ? `Disguised as a ${player.slime.prop}. Nobody looks twice.` : `Keep still. People notice a ${player.slime.prop} that moves.${isTouch ? '' : ' <kbd>H</kbd> to change.'}`;
   else if (!h && canHop()) hint = `${isTouch ? 'LAUNCH' : 'Aim and jump'} to hop${hasSkill('puddle') ? ' · keep still to puddle' : ''}`;
   $('consumeHint').classList.toggle('hidden', !hint);
   $('consumeHint').innerHTML = hint;
@@ -6661,6 +7055,8 @@ function updateHud(dt) {
   $('boostbtn').classList.toggle('hidden', !hasSkill('boost'));
   $('boostbtn').textContent = player.boostT > 0 ? 'FAST' : player.boostCD > 0 ? `${Math.ceil(player.boostCD)}s` : 'BOOST';
   $('boombtn').classList.toggle('hidden', !(hasSkill('boom') && h && !player.boomUsed && player.form >= BOOM_COST));
+  $('propbtn').classList.toggle('hidden', !(hasSkill('prop') && player.slime));
+  $('propbtn').classList.toggle('on', !!player.slime?.prop);
   const owned = SKILLS.filter((k) => hasSkill(k.id)).map((k) => k.name.toLowerCase());
   const showForm = player.form || player.points || owned.length;
   $('formRow').classList.toggle('hidden', !showForm);
@@ -6777,6 +7173,8 @@ function togglePause() {
 }
 $('boardBtn').onclick = () => openBoard(menuLevel);
 $('boardClose').onclick = () => $('board').classList.add('hidden');
+$('collBtn').onclick = () => { renderCollection(); $('coll').classList.remove('hidden'); };
+$('collClose').onclick = () => $('coll').classList.add('hidden');
 $('playBtn').onclick = () => { if (!levelUnlocked(menuLevel)) return; audio(); loadLevel(menuLevel); };
 $('freePlay').onchange = (e) => { try { localStorage.setItem('symbiote-freeplay', e.target.checked ? '1' : '0'); } catch { /* private mode */ } buildMenu(); };
 $('pausebtn').onclick = () => (game.skillsOpen ? toggleSkills(false) : togglePause());
@@ -6806,6 +7204,8 @@ function frame(now) {
       slowT = 0; slowN = 0;
     }
   }
+  updateAchToast(dt);
+  applyGoo();
   if (game.running && !game.paused) {
     acc += dt;
     let steps = 0;
@@ -6818,6 +7218,11 @@ function frame(now) {
       const t = _slimeDraw.lerpVectors(player.slime.prev, player.slime.now, alpha);
       const v = player.slime.body.linvel();
       slimeMesh.position.copy(t);
+      if (player.slime.prop) {
+        const mv = Math.hypot(v.x, v.z);
+        disguise.position.set(t.x, t.y - SLIME_R - 0.02, t.z);
+        disguise.rotation.z = Math.sin(game.time * 12) * Math.min(0.08, mv * 0.05);
+      }
       const sp = Math.min(1, Math.hypot(v.x, v.y, v.z) / 14);
       const wob = Math.sin(game.time * 14) * 0.1;
       const dying = (0.6 + 0.4 * clamp(player.health / slimeMax(), 0, 1)) * (1 + 0.28 * player.form);
@@ -6826,8 +7231,8 @@ function frame(now) {
       const fl = player.slime.flat;
       slimeMesh.scale.set((1 + wob - sp * 0.2) * dying * (1 + fl * 0.45), (1 - wob + sp * 0.35) * dying * (player.slime.landed ? 0.6 : 1) * (1 - fl * 0.55) * (1 + gr * 5), (1 + wob - sp * 0.2) * dying * (1 + fl * 0.45));
       slimeLight.position.set(t.x, t.y + 0.5, t.z);
-      slimeLight.intensity = 2 * (1 - fl * 0.8);
-      if (Math.random() < 0.3) burst(new THREE.Vector3(t.x, t.y, t.z), 1, 0x7cff4f, { speed: 0.4, up: 0.5, size: 0.06, life: 0.5 });
+      slimeLight.intensity = player.slime.prop ? 0 : 2 * (1 - fl * 0.8);
+      if (Math.random() < 0.3) burst(new THREE.Vector3(t.x, t.y, t.z), 1, goo(), { speed: 0.4, up: 0.5, size: 0.06, life: 0.5 });
     } else slimeLight.intensity = 0;
     updateCamera(dt);
     updateAim();
