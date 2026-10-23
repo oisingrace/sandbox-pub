@@ -260,6 +260,11 @@
   </style>
   <script type="application/json" id="patch-notes">
   [
+    { "version": "1.0.1", "date": "2026-10-23", "title": "Stuck slime fix",
+      "notes": [
+        "Fix: on every level the slime could get wedged into the ground and stuck for good, usually when crawling along a wall or next to cars, benches and other props. It now slides along walls instead of grinding into the floor, and pops back up if anything presses it into the ground."
+      ]
+    },
     { "version": "1.0", "date": "2026-10-21", "title": "Symbiote 1.0: out of beta",
       "notes": [
         "Three new levels. Level 7, Iron Rock Prison: arrive on the ferry as a lawyer, get past intake, and break Specimen Two out of solitary through a two-tier cell block, a yard with sniper towers and a laundry tunnel. Level 8, The Aurora: a cruise liner at sunset with deadly sea all round; take out the arms dealer Lazlo Varga in the casino, topple the radar mast and leave in a lifeboat with the captain's briefcase. Level 9, Redline Launch Site, the finale: a desert rocket base where you steal the launch codes, take out General Vance, then hold the gantry while the abort runs, before the countdown hits zero.",
@@ -7007,9 +7012,10 @@ function toggleProp() {
 }
 
 function spawnSlime(pos, vel) {
+  // No rolling: a spinning ball dragged along a wall gets screwed down into the floor and wedged there for good.
   const body = d.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(pos.x, pos.y, pos.z)
-    .setLinvel(vel.x, vel.y, vel.z).setCcdEnabled(true).setAngularDamping(3));
-  const col = d.world.createCollider(RAPIER.ColliderDesc.ball(SLIME_R).setMass(5).setRestitution(0.05).setFriction(1.5), body);
+    .setLinvel(vel.x, vel.y, vel.z).setCcdEnabled(true).lockRotations());
+  const col = d.world.createCollider(RAPIER.ColliderDesc.ball(SLIME_R).setMass(5).setRestitution(0.05).setFriction(0.2).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min), body);
   d.queryDirty = true;
   player.slime = { body, col, born: game.time, lastVy: vel.y, landed: false, prev: new THREE.Vector3(pos.x, pos.y, pos.z), now: new THREE.Vector3(pos.x, pos.y, pos.z) };
   slimeMesh.visible = true;
@@ -8069,6 +8075,8 @@ function tick(dt) {
       sb.setLinvel({ x: nx, y: ny, z: nz }, true);
       if (!player.slime.landed) { player.slime.landed = true; player.slime.bounced = false; if (!player.slime.hopped) toast('Missed!', `Crawl into someone who hasn't seen you.${hasSkill('hop') ? ' Or hop.' : ''}`, 1.6); }
     }
+    // Safety net: pressed down into the ground (by a crowd, or anything else), pop back up on top of it.
+    if (t.y < SLIME_R - 0.08 && t.y > -0.25 && !inWater(t.x, t.z)) { sb.setTranslation({ x: t.x, y: SLIME_R + 0.02, z: t.z }, true); d.queryDirty = true; }
     // A little help reaching someone who walked a step since you jumped.
     const tg = player.slime.target;
     if (tg && tg.state !== 'down' && !player.slime.landed) {
@@ -9331,7 +9339,7 @@ window.__symbiote = {
   watcher: (x, y, z) => !!watcher(new THREE.Vector3(x, y, z)), hop: () => launch(),
   consume: () => consume(), swapItem: () => swapItem(), cams: () => cams, breakables: () => breakables, pickups: () => pickups, power: () => power, objective, breakIt, explodeAt: (x, y, z) => explodeAt(new THREE.Vector3(x, y, z)), relay: () => relay,
   lookAt: (x, y, z) => { const o = camera.position; view.yaw = Math.atan2(x - o.x, z - o.z); view.pitch = Math.atan2(-(y - o.y), Math.hypot(x - o.x, z - o.z)); },
-  zones: () => zones, kill: (p) => kill(p, 'test'), dropoffs: () => dropoffs, ctrl: () => ctrl,
+  zones: () => zones, kill: (p) => kill(p, 'test'), dropoffs: () => dropoffs, ctrl: () => ctrl, castDown: (x, y, z) => { d.queries(); const r = new RAPIER.Ray({ x, y, z }, { x: 0, y: -1, z: 0 }); const h = d.world.castRay(r, 30, true); return h ? { y: y - h.timeOfImpact } : null; },
 };
 </script>
 </body>
