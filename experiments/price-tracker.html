@@ -10,6 +10,7 @@
     "notes": [
       "Items on the watch list get their prices checked automatically every day.",
       "Shows when each link was last checked, and a warning when a shop blocks the check or the price can't be found.",
+      "Prices from other currencies are converted to euros with the European Central Bank's daily rates, and the delivery cost is shown when the shop lists one.",
       "Tracking by hand still works for anything else."
     ] },
   { "version": "1.0", "date": "2026-11-07", "title": "First release",
@@ -318,6 +319,7 @@ function normalise(s) {
   return {
     version: 1,
     currency: CURRENCIES.includes(s.currency) ? s.currency : guessCurrency(),
+    currencyChosen: !!s.currencyChosen,
     items: s.items.filter(i => i && i.id && i.name).map(i => ({
       id: String(i.id), name: String(i.name), notes: String(i.notes || ''),
       target: num(i.target), created: i.created || today(),
@@ -365,6 +367,10 @@ function money(v, compact) {
     } catch { fmtCache[k] = { format: n => n.toFixed(2) }; }
   }
   return fmtCache[k].format(v);
+}
+function origMoney(o) {
+  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: o.currency }).format(o.price); }
+  catch { return o.price + ' ' + o.currency; }
 }
 function curSymbol() {
   try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: state.currency, currencyDisplay: 'narrowSymbol' }).formatToParts(0).find(p => p.type === 'currency').value; }
@@ -456,6 +462,7 @@ async function loadAuto() {
     if (!res.ok) return;
     const data = await res.json();
     autoUpdated = data.updated || null;
+    if (data.currency && CURRENCIES.includes(data.currency) && !state.currencyChosen) { state.currency = data.currency; fmtCache = {}; }
     autoItems = Object.entries(data.items || {}).map(([id, it]) => {
       const links = Object.entries(it.links || {});
       const checked = links.map(([, l]) => l.checked).filter(Boolean).sort().pop() || null;
@@ -463,7 +470,8 @@ async function loadAuto() {
         id: 'auto:' + id, auto: true, name: String(it.name || id), notes: String(it.notes || ''),
         target: num(it.target), created: it.added || today(), checked,
         retailers: links.map(([lid, l], k) => ({ id: lid, name: String(l.name || 'Shop'), url: safeUrl(l.url), slot: k,
-          checked: l.checked || null, error: l.error || '', inStock: l.inStock })),
+          checked: l.checked || null, error: l.error || '', inStock: l.inStock,
+          shipping: num(l.shipping), shippingText: l.shippingText || '', original: l.original || null })),
         prices: links.flatMap(([lid, l]) => (l.prices || []).filter(p => Array.isArray(p) && isDate(p[0]) && num(p[1]) != null)
           .map(([d, v]) => ({ id: lid + d, retailerId: lid, date: d, price: num(v) }))),
       };
@@ -655,13 +663,14 @@ function renderItem(item) {
         <div class="panel-head"><h2>Retailers</h2><span class="spacer"></span>${item.auto ? '' : '<button class="small" id="addRetailer">+ Add</button>'}</div>
         ${item.retailers.length ? `
         <div class="table-scroll"><table>
-          <thead><tr><th>Store</th><th class="r">Now</th><th class="r">Low</th><th class="r">High</th><th></th></tr></thead>
+          <thead><tr><th>Store</th><th class="r">Now</th>${item.auto ? '<th class="r">Delivery</th>' : ''}<th class="r">Low</th><th class="r">High</th><th></th></tr></thead>
           <tbody>
           ${s.rows.map(x => `
             <tr>
               <td><span class="rname"><span class="dotkey" style="background:${color(x.r.slot)}"></span>${x.r.url ? `<a href="${esc(x.r.url)}" target="_blank" rel="noopener noreferrer" title="Open product page">${esc(x.r.name)} ↗</a>` : esc(x.r.name)}</span>${best && x === best && item.retailers.length > 1 ? '<span class="best-tag">Best</span>' : ''}
                 <div class="hint">${x.r.checked ? 'Checked ' + ago(x.r.checked) : x.updated ? 'Checked ' + ago(x.updated) : 'Not checked yet'}${x.r.inStock === false ? ' · out of stock' : ''}</div>${x.r.error ? `<div class="hint" style="color:var(--bad-text)">⚠ ${esc(x.r.error)}</div>` : ''}</td>
-              <td class="r">${money(x.current)}</td>
+              <td class="r">${money(x.current)}${x.r.original && x.r.original.currency !== state.currency ? `<div class="hint">${esc(origMoney(x.r.original))}</div>` : ''}</td>
+              ${item.auto ? `<td class="r">${x.r.shipping == null ? '<span class="muted">—</span>' : x.r.shipping === 0 ? 'Free' : money(x.r.shipping)}</td>` : ''}
               <td class="r">${money(x.low)}</td>
               <td class="r">${money(x.high)}</td>
               <td class="r">${item.auto ? '' : `<button class="ghost small" data-remove-retailer="${esc(x.r.id)}" aria-label="Remove ${esc(x.r.name)}">✕</button>`}</td>
@@ -960,7 +969,7 @@ const settingsDialog = document.getElementById('settingsDialog');
 const currencySelect = document.getElementById('currencySelect');
 currencySelect.innerHTML = CURRENCIES.map(c => `<option value="${c}">${c}</option>`).join('');
 function openSettings() { currencySelect.value = state.currency; settingsDialog.showModal(); }
-currencySelect.addEventListener('change', () => { state.currency = currencySelect.value; fmtCache = {}; save(); render(); });
+currencySelect.addEventListener('change', () => { state.currency = currencySelect.value; state.currencyChosen = true; fmtCache = {}; save(); render(); });
 document.getElementById('exportBtn').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');

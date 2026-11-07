@@ -25,4 +25,7 @@ first group is the price.
 
 `.github/scripts/check_prices.py` visits every link, reads the price and saves it to
 `history.json` (only when it changes, plus when each link was last checked and any error).
+Prices in other currencies are converted to euros with the European Central Bank's daily rates,
+and the delivery cost is saved when the page shows one.
+
 The Price Tracker page (`experiments/price-tracker.html`) shows that history.

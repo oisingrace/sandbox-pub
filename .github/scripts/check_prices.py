@@ -14,6 +14,9 @@ How a price is found on a product page, in order:
 If plain HTTP fails or finds nothing, and Playwright is installed, the page is loaded
 in a headless browser and checked again (for shops that build the page with JavaScript).
 
+Every price is converted to euros with the European Central Bank's daily reference
+rates, and the delivery cost is recorded when the page shows one.
+
 A new price is only stored when it changes, so the history stays small; every link
 also records when it was last checked and the last error, if any.
 """
@@ -43,6 +46,12 @@ HEADERS = {
     "Accept-Language": "en-GB,en;q=0.9,en-US;q=0.8",
 }
 DELAY = 2.0  # seconds between requests to the same shop
+BASE = "EUR"  # everything is stored in this currency
+ECB_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+SYMBOLS = {"€": "EUR", "£": "GBP", "US$": "USD", "$": "USD", "CHF": "CHF", "kr": "SEK", "zł": "PLN"}
+DOMAIN_CURRENCY = {"co.uk": "GBP", "com": "USD", "ca": "CAD", "com.au": "AUD", "co.jp": "JPY",
+                   "ch": "CHF", "se": "SEK", "pl": "PLN", "in": "INR"}
+EURO_TLDS = {"ie", "de", "fr", "it", "es", "nl", "be", "at", "fi", "pt", "gr", "sk", "si", "ee", "lv", "lt", "lu"}
 
 
 # ---------- Small helpers ----------
@@ -91,6 +100,47 @@ def parse_price(value):
     except ValueError:
         return None
     return n if n > 0 else None
+
+
+def currency_from_text(text):
+    for sym, code in SYMBOLS.items():
+        if text and sym in text:
+            return code
+    m = re.search(r"\b(EUR|GBP|USD|CHF|SEK|PLN|CAD|AUD|JPY)\b", text or "")
+    return m.group(1) if m else None
+
+
+def currency_from_domain(url):
+    host = urlparse(url).hostname or ""
+    for tld, code in DOMAIN_CURRENCY.items():
+        if host.endswith("." + tld):
+            return code
+    return BASE if host.rsplit(".", 1)[-1] in EURO_TLDS else None
+
+
+def fetch_rates():
+    """{currency: units per 1 EUR} from the ECB, or None."""
+    try:
+        req = urllib.request.Request(ECB_URL, headers={"User-Agent": "price-tracker"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            xml = r.read().decode("utf-8", "replace")
+    except Exception as e:  # noqa: BLE001
+        print(f"Couldn't get exchange rates ({type(e).__name__})")
+        return None
+    rates = {c: float(v) for c, v in re.findall(r"currency=['\"](\w{3})['\"]\s+rate=['\"]([\d.]+)['\"]", xml)}
+    day = re.search(r"time=['\"](\d{4}-\d{2}-\d{2})['\"]", xml)
+    if not rates:
+        return None
+    rates[BASE] = 1.0
+    return {"date": day.group(1) if day else None, "rates": rates}
+
+
+def to_base(amount, currency, rates):
+    if amount is None:
+        return None
+    currency = (currency or BASE).upper()
+    rate = rates.get(currency) if rates else (1.0 if currency == BASE else None)
+    return round(amount / rate, 2) if rate else None
 
 
 # ---------- Extraction ----------
@@ -169,8 +219,19 @@ def _offer_prices(offers):
             out.extend(_offer_prices(o["offers"]))
             continue
         if price is not None:
-            out.append((price, cur, stock))
+            out.append((price, cur, stock, _shipping(o.get("shippingDetails"))))
     return out
+
+
+def _shipping(details):
+    for d in details if isinstance(details, list) else [details]:
+        rate = d.get("shippingRate") if isinstance(d, dict) else None
+        if isinstance(rate, dict) and rate.get("value") is not None:
+            try:
+                return float(rate["value"])
+            except (TypeError, ValueError):
+                pass
+    return None
 
 
 def from_json_ld(page):
@@ -194,8 +255,11 @@ def from_json_ld(page):
     if not found:
         return None
     in_stock = [f for f in found if f[2] is not False]
-    price, cur, stock = min(in_stock or found, key=lambda f: f[0])
-    return {"price": price, "currency": cur, "inStock": stock, "via": "structured data"}
+    price, cur, stock, ship = min(in_stock or found, key=lambda f: f[0])
+    out = {"price": price, "currency": cur, "inStock": stock, "via": "structured data"}
+    if ship is not None:
+        out["shipping"], out["shippingText"] = ship, "Free" if ship == 0 else ""
+    return out
 
 
 def from_meta(page):
@@ -229,14 +293,24 @@ def from_amazon(page):
     ):
         m = re.search(pattern, page, re.S)
         if m and parse_price(m.group(1)):
-            return {"price": parse_price(m.group(1)), "via": "Amazon page"}
+            out = {"price": parse_price(m.group(1)), "currency": currency_from_text(m.group(1)), "via": "Amazon page"}
+            d = re.search(r'data-csa-c-delivery-price="([^"]*)"', page)
+            if d:
+                text = html.unescape(d.group(1)).strip()
+                if re.search(r"free|gratis|kostenlos", text, re.I):
+                    out["shipping"], out["shippingText"] = 0.0, "Free"
+                elif parse_price(text):
+                    out["shipping"], out["shippingText"] = parse_price(text), text
+                    out["shippingCurrency"] = currency_from_text(text)
+            return out
     return None
 
 
 BLOCKED = re.compile(
     r"captcha|are you a robot|robot check|unusual traffic|access denied|"
     r"request unsuccessful|pardon our interruption|verify you are (a )?human|"
-    r"enable javascript and cookies|attention required", re.I)
+    r"enable javascript and cookies|attention required|"
+    r"automated access to amazon data|api-services-support@amazon", re.I)
 
 
 def extract(page, url, pattern=None):
@@ -246,11 +320,13 @@ def extract(page, url, pattern=None):
         m = re.search(pattern, page, re.S)
         if m and parse_price(m.group(1) if m.groups() else m.group(0)):
             result = {"price": parse_price(m.group(1) if m.groups() else m.group(0)), "via": "custom pattern"}
+    if not result and "amazon." in (urlparse(url).hostname or ""):
+        result = from_amazon(page)
     result = result or from_json_ld(page)
     meta, title = from_meta(page)
     result = result or meta
-    if not result and "amazon." in (urlparse(url).hostname or ""):
-        result = from_amazon(page)
+    if result and not result.get("currency"):
+        result["currency"] = currency_from_domain(url)
     return result, title
 
 
@@ -297,6 +373,11 @@ def check(url, pattern=None):
         _, page = fetch_http(url)
     except urllib.error.HTTPError as e:
         error = f"The shop refused the request (HTTP {e.code})"
+        try:
+            if BLOCKED.search(e.read(200000).decode("utf-8", "replace")):
+                error = "The shop blocked the automated check"
+        except Exception:  # noqa: BLE001
+            pass
     except Exception as e:  # noqa: BLE001
         error = f"Couldn't load the page ({type(e).__name__})"
 
@@ -304,7 +385,7 @@ def check(url, pattern=None):
         result, title = extract(page, url, pattern)
         if result:
             return {**result, "title": title}
-        error = ("The shop showed a robot check instead of the page" if BLOCKED.search(page[:200000])
+        error = ("The shop blocked the automated check" if BLOCKED.search(page[:200000])
                  else "Couldn't find a price on the page")
 
     try:
@@ -317,7 +398,7 @@ def check(url, pattern=None):
         if result:
             return {**result, "title": title, "via": result["via"] + " (browser)"}
         if BLOCKED.search(rendered[:200000]):
-            error = "The shop showed a robot check instead of the page"
+            error = "The shop blocked the automated check"
     return {"error": error}
 
 
@@ -356,6 +437,9 @@ def main():
     out_items = {}
     last_hit = {}
     checked = found = 0
+    fx = None if args.new_only and not watch.get("items") else fetch_rates()
+    fx = fx or history.get("fx")  # fall back to the last rates we had
+    rates = fx["rates"] if fx else None
 
     for item in watch.get("items", []):
         name = str(item.get("name", "")).strip()
@@ -382,9 +466,20 @@ def main():
             if "error" in res:
                 rec["error"] = res["error"]
                 print(f"  ✗ {name} @ {link['name']}: {res['error']}")
+            elif to_base(res["price"], res.get("currency"), rates) is None:
+                rec["error"] = f"No exchange rate for {res.get('currency')}"
+                print(f"  ✗ {name} @ {link['name']}: {rec['error']}")
             else:
                 found += 1
                 rec.pop("error", None)
+                rec["original"] = {"price": res["price"], "currency": (res.get("currency") or BASE).upper()}
+                if res.get("shipping") is not None:
+                    rec["shipping"] = to_base(res["shipping"], res.get("shippingCurrency") or res.get("currency"), rates)
+                    rec["shippingText"] = res.get("shippingText") or ""
+                else:
+                    rec.pop("shipping", None)
+                    rec.pop("shippingText", None)
+                res = {**res, "price": to_base(res["price"], res.get("currency"), rates), "currency": BASE}
                 rec["lastSuccess"] = rec["checked"]
                 for k in ("currency", "inStock", "title", "via"):
                     if res.get(k) not in (None, ""):
@@ -407,7 +502,7 @@ def main():
         }
 
     history = {"updated": now.isoformat(timespec="seconds") if checked else history.get("updated"),
-               "items": out_items}
+               "currency": BASE, "fx": fx, "items": out_items}
     HISTORY.parent.mkdir(parents=True, exist_ok=True)
     HISTORY.write_text(json.dumps(history, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"Checked {checked} link(s), found {found} price(s).")
