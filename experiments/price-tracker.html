@@ -6,6 +6,12 @@
 <title>Price Tracker</title>
 <script type="application/json" id="patch-notes">
 [
+  { "version": "1.1", "date": "2026-11-07", "title": "Automatic price checks",
+    "notes": [
+      "Items on the watch list get their prices checked automatically every day.",
+      "Shows when each link was last checked, and a warning when a shop blocks the check or the price can't be found.",
+      "Tracking by hand still works for anything else."
+    ] },
   { "version": "1.0", "date": "2026-11-07", "title": "First release",
     "notes": [
       "Track items across any number of retailers and log prices over time.",
@@ -370,6 +376,7 @@ const monthFmt = new Intl.DateTimeFormat(undefined, { month: 'short' });
 const monthYearFmt = new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' });
 function fmtDate(d) { return dateFmt.format(new Date(toTime(d))); }
 function ago(d) {
+  d = String(d).slice(0, 10);
   const days = Math.round((toTime(today()) - toTime(d)) / DAY);
   if (days <= 0) return 'today';
   if (days === 1) return 'yesterday';
@@ -439,6 +446,32 @@ function bestOverTime(item, groups) {
   return out;
 }
 
+/* ---------- Automatically checked items (prices/history.json, written by the daily check) ---------- */
+let autoItems = [];
+let autoUpdated = null;
+function allItems() { return autoItems.concat(state.items); }
+async function loadAuto() {
+  try {
+    const res = await fetch('../prices/history.json', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    autoUpdated = data.updated || null;
+    autoItems = Object.entries(data.items || {}).map(([id, it]) => {
+      const links = Object.entries(it.links || {});
+      const checked = links.map(([, l]) => l.checked).filter(Boolean).sort().pop() || null;
+      return {
+        id: 'auto:' + id, auto: true, name: String(it.name || id), notes: String(it.notes || ''),
+        target: num(it.target), created: it.added || today(), checked,
+        retailers: links.map(([lid, l], k) => ({ id: lid, name: String(l.name || 'Shop'), url: safeUrl(l.url), slot: k,
+          checked: l.checked || null, error: l.error || '', inStock: l.inStock })),
+        prices: links.flatMap(([lid, l]) => (l.prices || []).filter(p => Array.isArray(p) && isDate(p[0]) && num(p[1]) != null)
+          .map(([d, v]) => ({ id: lid + d, retailerId: lid, date: d, price: num(v) }))),
+      };
+    });
+    render();
+  } catch (e) { /* opened outside the site, or no checks yet */ }
+}
+
 /* ---------- Routing (in-page, no hash so it plays nicely inside the site's player) ---------- */
 let view = { name: 'list', id: null };
 let listQuery = '';
@@ -450,7 +483,7 @@ function go(name, id) { view = { name, id }; render(); window.scrollTo(0, 0); }
 const app = document.getElementById('app');
 function render() {
   if (view.name === 'item') {
-    const item = state.items.find(i => i.id === view.id);
+    const item = allItems().find(i => i.id === view.id);
     if (item) return renderItem(item);
     view = { name: 'list', id: null };
   }
@@ -459,7 +492,7 @@ function render() {
 
 function renderList() {
   const q = listQuery.trim().toLowerCase();
-  let items = state.items.map(i => ({ i, s: stats(i) }))
+  let items = allItems().map(i => ({ i, s: stats(i) }))
     .filter(({ i }) => !q || i.name.toLowerCase().includes(q) || i.notes.toLowerCase().includes(q) || i.retailers.some(r => r.name.toLowerCase().includes(q)));
   const sorters = {
     recent: (a, b) => (b.s.lastUpdate || b.i.created).localeCompare(a.s.lastUpdate || a.i.created),
@@ -469,20 +502,20 @@ function renderList() {
   };
   items.sort(sorters[listSort] || sorters.recent);
 
-  const atTarget = state.items.filter(i => { const s = stats(i); return i.target != null && s.best && s.best.current <= i.target; }).length;
+  const atTarget = allItems().filter(i => { const s = stats(i); return i.target != null && s.best && s.best.current <= i.target; }).length;
 
   app.innerHTML = `
     <header class="top">
       <div class="titlebar">
         <div style="flex:1 1 auto">
           <h1>Price Tracker</h1>
-          <p class="sub">${state.items.length ? `${state.items.length} item${state.items.length === 1 ? '' : 's'} tracked${atTarget ? ` · <span style="color:var(--good-text)">✓ ${atTarget} at target price</span>` : ''}` : 'Watch prices across retailers and buy at the right time.'}</p>
+          <p class="sub">${allItems().length ? `${allItems().length} item${allItems().length === 1 ? '' : 's'} tracked${autoUpdated ? ` · prices checked ${ago(autoUpdated)}` : ''}${atTarget ? ` · <span style="color:var(--good-text)">✓ ${atTarget} at target price</span>` : ''}` : 'Watch prices across retailers and buy at the right time.'}</p>
         </div>
         <button class="ghost" id="settingsOpen" aria-label="Settings and backup">⚙ Settings</button>
-        <button class="primary" id="addItem">+ Track item</button>
+        <button id="addItem">+ Track manually</button>
       </div>
     </header>
-    ${state.items.length ? `
+    ${allItems().length ? `
     <div class="toolbar">
       <input type="search" id="q" placeholder="Search items or retailers" value="${esc(listQuery)}" aria-label="Search">
       <select id="sort" aria-label="Sort">
@@ -497,9 +530,9 @@ function renderList() {
     <div class="empty-state" style="margin-top:20px">
       <div style="font-size:2.2rem">🏷️</div>
       <h2>Nothing tracked yet</h2>
-      <p>Add something you want to buy, list the shops that sell it, and log what each one charges whenever you check. The history builds up over time so you can spot real deals.</p>
+      <p>Items on your watch list (<code>prices/watchlist.json</code>) show up here with their prices checked every day. You can also track something by hand and log prices yourself.</p>
       <div class="row" style="justify-content:center">
-        <button class="primary" id="addItem2">+ Track your first item</button>
+        <button class="primary" id="addItem2">+ Track an item manually</button>
         <button id="demo2">Try with demo data</button>
       </div>
     </div>`}
@@ -533,6 +566,8 @@ function cardHtml({ i, s }) {
   if (i.target != null && best && best.current <= i.target) badges.push(`<span class="badge good">✓ At target</span>`);
   if (best && s.allLow != null && best.current <= s.allLow && s.count > 1) badges.push(`<span class="badge good">★ All-time low</span>`);
   if (i.target != null && !(best && best.current <= i.target)) badges.push(`<span class="badge">Target ${money(i.target)}</span>`);
+  if (i.auto) badges.push(`<span class="badge">↻ Checked daily</span>`);
+  if (i.auto && i.retailers.some(r => r.error)) badges.push(`<span class="badge">⚠ ${i.retailers.filter(r => r.error).length} link${i.retailers.filter(r => r.error).length === 1 ? '' : 's'} failing</span>`);
   return `
     <button class="card" data-id="${esc(i.id)}" aria-label="${esc(i.name)}">
       <div class="name">${esc(i.name)}</div>
@@ -542,7 +577,7 @@ function cardHtml({ i, s }) {
       ` : `<div class="price muted" style="font-size:1.1rem;font-weight:500">No prices yet</div><div class="where">${i.retailers.length} retailer${i.retailers.length === 1 ? '' : 's'}</div>`}
       ${sparkHtml(s.bestSeries, i.target)}
       ${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}
-      <div class="meta">${best ? deltaHtml(best.current, s.first, 'since start') : '<span></span>'}<span>${s.lastUpdate ? 'Updated ' + ago(s.lastUpdate) : ''}</span></div>
+      <div class="meta">${best ? deltaHtml(best.current, s.first, 'since start') : '<span></span>'}<span>${i.auto && i.checked ? 'Checked ' + ago(i.checked) : s.lastUpdate ? 'Updated ' + ago(s.lastUpdate) : ''}</span></div>
     </button>`;
 }
 
@@ -576,17 +611,17 @@ function renderItem(item) {
         <h1>${esc(item.name)}</h1>
         ${item.notes ? `<p class="notes-text">${esc(item.notes)}</p>` : ''}
       </div>
-      <div class="row">
+      ${item.auto ? `<div class="hint" style="text-align:right">↻ Prices checked automatically every day${item.checked ? '<br>Last check ' + ago(item.checked) : ''}</div>` : `<div class="row">
         <button id="editItem">Edit</button>
         <button class="danger" id="deleteItem">Delete</button>
-      </div>
+      </div>`}
     </div>
 
     <div class="stats">
       <div class="stat"><div class="k">Best price now</div><div class="v num">${best ? money(best.current) : '—'}</div><div class="s">${best ? 'at ' + esc(best.r.name) : 'Log a price to start'}</div></div>
       <div class="stat"><div class="k">Lowest ever</div><div class="v num">${money(s.allLow)}</div><div class="s">${best && s.allLow != null ? (best.current <= s.allLow ? '<span style="color:var(--good-text)">★ That’s now</span>' : money(best.current - s.allLow) + ' above') : ''}</div></div>
       <div class="stat"><div class="k">Since you started</div><div class="v num">${best && s.first != null ? (best.current > s.first ? '+' : best.current < s.first ? '−' : '') + money(Math.abs(best.current - s.first)) : '—'}</div><div class="s">${best ? deltaHtml(best.current, s.first, '') : ''}</div></div>
-      <div class="stat"><div class="k">Target price</div><div class="v num">${item.target != null ? money(item.target) : '—'}</div><div class="s">${item.target == null ? '<button class="small" id="setTarget">Set a target</button>' : best ? (best.current <= item.target ? '<span style="color:var(--good-text)">✓ Reached — good time to buy</span>' : money(best.current - item.target) + ' to go') : ''}</div></div>
+      <div class="stat"><div class="k">Target price</div><div class="v num">${item.target != null ? money(item.target) : '—'}</div><div class="s">${item.target == null ? (item.auto ? 'Not set' : '<button class="small" id="setTarget">Set a target</button>') : best ? (best.current <= item.target ? '<span style="color:var(--good-text)">✓ Reached — good time to buy</span>' : money(best.current - item.target) + ' to go') : ''}</div></div>
     </div>
 
     <section class="panel">
@@ -600,8 +635,8 @@ function renderItem(item) {
       <div class="legend" id="legend"></div>
     </section>
 
-    <div class="two-col">
-      <section class="panel">
+    <div class="${item.auto ? '' : 'two-col'}">
+      ${item.auto ? '' : `<section class="panel">
         <div class="panel-head"><h2>Log prices</h2></div>
         ${item.retailers.length ? `
         <form id="logForm">
@@ -614,10 +649,10 @@ function renderItem(item) {
           </div>
           <div class="row"><button class="primary" type="submit">Save prices</button><span class="hint">Leave a box empty to skip that store. Saving again for the same day replaces it.</span></div>
         </form>` : `<p class="muted">Add a retailer first, then log what it charges.</p>`}
-      </section>
+      </section>`}
 
       <section class="panel">
-        <div class="panel-head"><h2>Retailers</h2><span class="spacer"></span><button class="small" id="addRetailer">+ Add</button></div>
+        <div class="panel-head"><h2>Retailers</h2><span class="spacer"></span>${item.auto ? '' : '<button class="small" id="addRetailer">+ Add</button>'}</div>
         ${item.retailers.length ? `
         <div class="table-scroll"><table>
           <thead><tr><th>Store</th><th class="r">Now</th><th class="r">Low</th><th class="r">High</th><th></th></tr></thead>
@@ -625,11 +660,11 @@ function renderItem(item) {
           ${s.rows.map(x => `
             <tr>
               <td><span class="rname"><span class="dotkey" style="background:${color(x.r.slot)}"></span>${x.r.url ? `<a href="${esc(x.r.url)}" target="_blank" rel="noopener noreferrer" title="Open product page">${esc(x.r.name)} ↗</a>` : esc(x.r.name)}</span>${best && x === best && item.retailers.length > 1 ? '<span class="best-tag">Best</span>' : ''}
-                <div class="hint">${x.updated ? 'Checked ' + ago(x.updated) : 'Not checked yet'}</div></td>
+                <div class="hint">${x.r.checked ? 'Checked ' + ago(x.r.checked) : x.updated ? 'Checked ' + ago(x.updated) : 'Not checked yet'}${x.r.inStock === false ? ' · out of stock' : ''}</div>${x.r.error ? `<div class="hint" style="color:var(--bad-text)">⚠ ${esc(x.r.error)}</div>` : ''}</td>
               <td class="r">${money(x.current)}</td>
               <td class="r">${money(x.low)}</td>
               <td class="r">${money(x.high)}</td>
-              <td class="r"><button class="ghost small" data-remove-retailer="${esc(x.r.id)}" aria-label="Remove ${esc(x.r.name)}">✕</button></td>
+              <td class="r">${item.auto ? '' : `<button class="ghost small" data-remove-retailer="${esc(x.r.id)}" aria-label="Remove ${esc(x.r.name)}">✕</button>`}</td>
             </tr>`).join('')}
           </tbody>
         </table></div>` : `<p class="muted">No retailers yet.</p>`}
@@ -637,7 +672,7 @@ function renderItem(item) {
     </div>
 
     <section class="panel">
-      <div class="panel-head"><h2>All entries</h2><span class="spacer"></span><span class="hint">${s.count} price${s.count === 1 ? '' : 's'} logged${highest != null ? ' · range ' + money(s.allLow) + ' – ' + money(highest) : ''}</span></div>
+      <div class="panel-head"><h2>${item.auto ? 'Price changes' : 'All entries'}</h2><span class="spacer"></span><span class="hint">${s.count} price${s.count === 1 ? '' : 's'} logged${highest != null ? ' · range ' + money(s.allLow) + ' – ' + money(highest) : ''}</span></div>
       ${s.count ? `
       <div class="table-scroll" style="max-height:360px;overflow-y:auto"><table>
         <thead><tr><th>Date</th><th>Store</th><th class="r">Price</th><th class="r">Change</th><th></th></tr></thead>
@@ -699,7 +734,7 @@ function entriesHtml(item, s) {
         : `<span class="delta ${p.price < prev ? 'down' : 'up'}">${p.price < prev ? '▼' : '▲'} ${money(Math.abs(p.price - prev))}</span>`;
       return `<tr><td class="num" style="white-space:nowrap">${(p.date.slice(0, 4) === today().slice(0, 4) ? dateFmtShort : dateFmt).format(new Date(toTime(p.date)))}</td><td><span class="rname"><span class="dotkey" style="background:${color(r.slot)}"></span>${esc(r.name)}</span></td>
         <td class="r">${money(p.price)}</td><td class="r">${ch}</td>
-        <td class="r"><button class="ghost small" data-del-price="${esc(p.id)}" aria-label="Delete entry">✕</button></td></tr>`;
+        <td class="r">${item.auto ? '' : `<button class="ghost small" data-del-price="${esc(p.id)}" aria-label="Delete entry">✕</button>`}</td></tr>`;
     }).join('');
 }
 
@@ -980,6 +1015,7 @@ function addDemo() {
 }
 
 render();
+loadAuto();
 })();
 </script>
 </body>
