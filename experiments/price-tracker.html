@@ -1,0 +1,986 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Price Tracker</title>
+<script type="application/json" id="patch-notes">
+[
+  { "version": "1.0", "date": "2026-11-07", "title": "First release",
+    "notes": [
+      "Track items across any number of retailers and log prices over time.",
+      "Price history chart per item, with one line per retailer, a target-price line and hover details.",
+      "Dashboard shows the best current price, change since you started tracking, all-time lows and items at your target.",
+      "Everything is saved in your browser. Export and import a backup file to move it between devices.",
+      "Load demo data to try it out."
+    ] }
+]
+</script>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f6f5f2; --surface: #ffffff; --surface-2: #f1f0ec; --text: #1d1d1f;
+    --text-2: #52514e; --muted: #7a7974; --border: #e3e1dc; --accent: #6c4cf5;
+    --accent-ink: #ffffff; --grid: #ecebe6; --axis: #c3c2b7;
+    --good: #0ca30c; --good-text: #006300; --bad-text: #b42323; --danger: #d03b3b;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+    --shadow: 0 10px 30px rgba(0,0,0,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #141416; --surface: #1f1f23; --surface-2: #26262b; --text: #f1f1f3;
+      --text-2: #c3c2b7; --muted: #94938d; --border: #2e2e34; --accent: #9b85ff;
+      --accent-ink: #141416; --grid: #2a2a2f; --axis: #3a3a40;
+      --good: #0ca30c; --good-text: #3cc93c; --bad-text: #ff7b7b; --danger: #e66767;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+      --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+      --shadow: 0 10px 30px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #141416; --surface: #1f1f23; --surface-2: #26262b; --text: #f1f1f3;
+    --text-2: #c3c2b7; --muted: #94938d; --border: #2e2e34; --accent: #9b85ff;
+    --accent-ink: #141416; --grid: #2a2a2f; --axis: #3a3a40;
+    --good: #0ca30c; --good-text: #3cc93c; --bad-text: #ff7b7b; --danger: #e66767;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    --shadow: 0 10px 30px rgba(0,0,0,.5);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  header.top { padding: 28px 0 8px; }
+  .titlebar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+  h1 { margin: 0; font-size: 1.7rem; letter-spacing: -.01em; flex: 1 1 auto; }
+  h2 { font-size: 1.15rem; margin: 0; }
+  h3 { font-size: 1rem; margin: 0 0 10px; }
+  .sub { color: var(--muted); margin: 2px 0 0; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  button, .btn {
+    font: inherit; font-size: .92rem; cursor: pointer; border-radius: 9px;
+    padding: 7px 13px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--text); text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+  }
+  button:hover, .btn:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button.ghost { background: none; border-color: transparent; color: var(--text-2); }
+  button.ghost:hover { border-color: var(--border); }
+  button.danger { color: var(--danger); }
+  button.small { padding: 3px 9px; font-size: .82rem; }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  input, select, textarea {
+    font: inherit; color: var(--text); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; min-width: 0;
+  }
+  textarea { resize: vertical; }
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--text-2); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .spacer { flex: 1; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 18px 0 14px; }
+  .toolbar input[type=search] { flex: 1 1 220px; }
+
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); padding-bottom: 40px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px 16px 12px; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 6px;
+    transition: border-color .12s, transform .12s; color: inherit; font: inherit; width: 100%;
+    align-items: stretch; white-space: normal;
+  }
+  .card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .card .name { font-weight: 600; font-size: 1rem; line-height: 1.3; }
+  .card .price { font-size: 1.6rem; font-weight: 650; letter-spacing: -.01em; line-height: 1.15; }
+  .card .where { color: var(--text-2); font-size: .85rem; }
+  .card .meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--muted); font-size: .8rem; }
+  .card svg.spark { width: 100%; height: 44px; display: block; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; min-height: 0; }
+  .badge {
+    font-size: .76rem; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border);
+    color: var(--text-2); display: inline-flex; align-items: center; gap: 4px;
+  }
+  .badge.good { border-color: var(--good); color: var(--good-text); }
+  .delta.down { color: var(--good-text); }
+  .delta.up { color: var(--bad-text); }
+  .delta.flat { color: var(--muted); }
+
+  .empty-state {
+    text-align: center; padding: 60px 20px; border: 1px dashed var(--border); border-radius: 16px;
+    color: var(--text-2); background: var(--surface);
+  }
+  .empty-state p { max-width: 460px; margin: 8px auto 18px; }
+
+  /* Detail view */
+  .back { margin: 18px 0 6px; }
+  .detail-head { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; margin-bottom: 16px; }
+  .detail-head .titles { flex: 1 1 300px; min-width: 0; }
+  .detail-head h1 { font-size: 1.6rem; word-break: break-word; }
+  .stats { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 16px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; }
+  .stat .k { color: var(--muted); font-size: .8rem; }
+  .stat .v { font-size: 1.35rem; font-weight: 650; line-height: 1.25; }
+  .stat .s { color: var(--text-2); font-size: .8rem; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 16px; }
+  .panel-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 4px 10px; font-size: .82rem; background: var(--surface); color: var(--text-2); }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed=true] { background: var(--surface-2); color: var(--text); font-weight: 600; }
+
+  .chart-wrap { position: relative; }
+  .chart-wrap svg { display: block; width: 100%; overflow: visible; }
+  .chart-wrap .axis text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .chart-wrap .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .chart-wrap .base-line { stroke: var(--axis); stroke-width: 1; }
+  .chart-wrap .series { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .chart-wrap .dot { stroke: var(--surface); stroke-width: 2; }
+  .chart-wrap .target { stroke: var(--good); stroke-width: 1.5; stroke-dasharray: 5 4; }
+  .chart-wrap .target-label { fill: var(--good-text); font-size: 11px; }
+  .chart-wrap .direct { fill: var(--text-2); font-size: 11.5px; }
+  .chart-wrap .cross { stroke: var(--axis); stroke-width: 1; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .85rem; color: var(--text-2); margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+  .tip {
+    position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border);
+    box-shadow: var(--shadow); border-radius: 10px; padding: 8px 10px; font-size: .82rem; min-width: 150px;
+    opacity: 0; transition: opacity .08s; z-index: 2;
+  }
+  .tip.show { opacity: 1; }
+  .tip .d { color: var(--muted); margin-bottom: 4px; }
+  .tip .r { display: flex; align-items: center; gap: 8px; }
+  .tip .r .n { flex: 1; color: var(--text-2); }
+  .tip .r .p { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .chart-empty { color: var(--muted); padding: 40px 0; text-align: center; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th { text-align: left; font-weight: 600; color: var(--muted); font-size: .78rem; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .table-scroll { overflow-x: auto; }
+  .rname { display: inline-flex; align-items: center; gap: 8px; font-weight: 550; }
+  .rname a { color: inherit; }
+  .dotkey { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+  .best-tag { font-size: .72rem; color: var(--good-text); border: 1px solid var(--good); border-radius: 999px; padding: 0 6px; margin-left: 4px; font-weight: 500; }
+
+  .log-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); margin: 10px 0 12px; }
+  .log-grid label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--text-2); }
+  .money { position: relative; display: flex; }
+  .money input { width: 100%; padding-left: 26px; font-variant-numeric: tabular-nums; }
+  .money .cur { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; font-size: .9rem; }
+  .muted { color: var(--muted); }
+  .notes-text { color: var(--text-2); margin: 4px 0 0; white-space: pre-line; }
+  .two-col { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 860px) { .two-col { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); } }
+  .two-col > * { min-width: 0; }
+
+  dialog {
+    border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--text);
+    padding: 20px; width: min(480px, calc(100vw - 32px)); box-shadow: var(--shadow);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+  dialog form { display: flex; flex-direction: column; gap: 12px; }
+  dialog h2 { margin-bottom: 2px; }
+  .retailer-rows { display: flex; flex-direction: column; gap: 8px; }
+  .retailer-row { display: grid; grid-template-columns: 1fr 1.4fr 32px; gap: 6px; }
+  .retailer-row button { padding: 0; justify-content: center; }
+  .hint { color: var(--muted); font-size: .8rem; margin: 0; }
+  .toast {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(20px);
+    background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 10px; font-size: .9rem;
+    opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 20; max-width: calc(100vw - 32px);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  footer { color: var(--muted); font-size: .8rem; padding: 10px 0 30px; }
+  @media (max-width: 520px) {
+    h1 { font-size: 1.4rem; }
+    .card .price { font-size: 1.4rem; }
+    .retailer-row { grid-template-columns: 1fr 32px; }
+    .retailer-row .url { grid-column: 1 / 2; }
+    .retailer-row button { grid-row: 1; grid-column: 2; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<dialog id="itemDialog">
+  <form method="dialog" id="itemForm">
+    <div>
+      <h2 id="itemDialogTitle">Track a new item</h2>
+      <p class="hint">Add the retailers you want to compare. You can add more later.</p>
+    </div>
+    <label class="field">Item name
+      <input name="name" required maxlength="120" placeholder="e.g. Noise-cancelling headphones">
+    </label>
+    <label class="field">Target price (optional)
+      <div class="money"><span class="cur" data-cur></span><input name="target" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Tell me when it's this cheap"></div>
+    </label>
+    <label class="field">Notes (optional)
+      <textarea name="notes" rows="2" maxlength="500" placeholder="Model number, colour, size…"></textarea>
+    </label>
+    <div id="retailerSection">
+      <div class="row" style="margin-bottom:6px"><strong style="font-size:.9rem">Retailers</strong><span class="spacer"></span><button type="button" class="small" id="addRetailerRow">+ Retailer</button></div>
+      <div class="retailer-rows" id="retailerRows"></div>
+      <p class="hint" style="margin-top:6px">Paste a product link and the store name fills itself in.</p>
+    </div>
+    <div class="row"><span class="spacer"></span><button value="cancel" formnovalidate class="ghost">Cancel</button><button value="ok" class="primary" id="itemSubmit">Start tracking</button></div>
+  </form>
+</dialog>
+
+<dialog id="retailerDialog">
+  <form method="dialog" id="retailerForm">
+    <h2>Add a retailer</h2>
+    <label class="field">Product link (optional)
+      <input name="url" type="url" placeholder="https://…">
+    </label>
+    <label class="field">Retailer name
+      <input name="name" required maxlength="60" placeholder="e.g. Amazon">
+    </label>
+    <div class="row"><span class="spacer"></span><button value="cancel" formnovalidate class="ghost">Cancel</button><button value="ok" class="primary">Add</button></div>
+  </form>
+</dialog>
+
+<dialog id="settingsDialog">
+  <form method="dialog" id="settingsForm">
+    <h2>Settings &amp; backup</h2>
+    <label class="field">Currency
+      <select name="currency" id="currencySelect"></select>
+    </label>
+    <div>
+      <strong style="font-size:.9rem">Backup</strong>
+      <p class="hint">Your data lives only in this browser. Export a file to keep it safe or move it to another device.</p>
+      <div class="row" style="margin-top:8px">
+        <button type="button" id="exportBtn">Export backup</button>
+        <button type="button" id="importBtn">Import backup</button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+    </div>
+    <div>
+      <strong style="font-size:.9rem">Demo</strong>
+      <div class="row" style="margin-top:8px">
+        <button type="button" id="demoBtn">Add demo items</button>
+        <button type="button" class="danger" id="wipeBtn">Delete everything</button>
+      </div>
+    </div>
+    <div class="row"><span class="spacer"></span><button value="ok" class="primary">Done</button></div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- Storage ---------- */
+const KEY = 'price-tracker:v1';
+const SERIES = 8;
+const CURRENCIES = ['USD','EUR','GBP','CAD','AUD','NZD','JPY','INR','CHF','SEK','NOK','DKK','PLN','BRL','MXN','ZAR'];
+
+function guessCurrency() {
+  const lang = (navigator.language || 'en-US').toLowerCase();
+  const map = { 'en-gb': 'GBP', 'en-ie': 'EUR', 'en-ca': 'CAD', 'en-au': 'AUD', 'en-nz': 'NZD', 'en-in': 'INR', 'ja': 'JPY', 'en-za': 'ZAR', 'pt-br': 'BRL', 'es-mx': 'MXN', 'sv': 'SEK', 'nb': 'NOK', 'da': 'DKK', 'pl': 'PLN', 'de-ch': 'CHF' };
+  if (map[lang]) return map[lang];
+  if (map[lang.split('-')[0]]) return map[lang.split('-')[0]];
+  if (/^(de|fr|es|it|nl|pt|fi|el|ga)/.test(lang)) return 'EUR';
+  return 'USD';
+}
+
+let state = load();
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && Array.isArray(s.items)) return normalise(s);
+    }
+  } catch (e) { /* storage blocked or corrupt: start fresh */ }
+  return { version: 1, currency: guessCurrency(), items: [] };
+}
+function normalise(s) {
+  return {
+    version: 1,
+    currency: CURRENCIES.includes(s.currency) ? s.currency : guessCurrency(),
+    items: s.items.filter(i => i && i.id && i.name).map(i => ({
+      id: String(i.id), name: String(i.name), notes: String(i.notes || ''),
+      target: num(i.target), created: i.created || today(),
+      retailers: (i.retailers || []).filter(r => r && r.id).map(r => ({
+        id: String(r.id), name: String(r.name || 'Retailer'), url: safeUrl(r.url), slot: Number.isInteger(r.slot) ? r.slot : 0,
+      })),
+      prices: (i.prices || []).filter(p => p && p.retailerId && isDate(p.date) && num(p.price) != null).map(p => ({
+        id: String(p.id || uid()), retailerId: String(p.retailerId), date: p.date, price: num(p.price),
+      })),
+    })),
+  };
+}
+let saveWarned = false;
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch (e) { if (!saveWarned) { saveWarned = true; toast('Couldn’t save in this browser. Export a backup to keep your data.'); } }
+}
+
+/* ---------- Helpers ---------- */
+function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
+function num(v) { if (v === '' || v == null) return null; const n = Number(v); return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null; }
+function isDate(d) { return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d); }
+function today() { const d = new Date(); return ymd(d); }
+function ymd(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function toTime(d) { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd).getTime(); }
+const DAY = 86400000;
+function safeUrl(u) { if (!u) return ''; try { const x = new URL(String(u)); return /^https?:$/.test(x.protocol) ? x.href : ''; } catch { return ''; } }
+function retailerFromUrl(u) {
+  try {
+    let h = new URL(u).hostname.replace(/^(www\d?|m|shop|store|smile)\./, '');
+    const parts = h.split('.');
+    // drop public suffixes like co.uk / com.au
+    let name = parts.length > 2 && parts[parts.length - 2].length <= 3 ? parts[parts.length - 3] : parts[parts.length - 2] || parts[0];
+    return name ? name.charAt(0).toUpperCase() + name.slice(1) : '';
+  } catch { return ''; }
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+let fmtCache = {};
+function money(v, compact) {
+  if (v == null) return '—';
+  const k = state.currency + (compact ? 'c' : '');
+  if (!fmtCache[k]) {
+    try {
+      fmtCache[k] = new Intl.NumberFormat(undefined, { style: 'currency', currency: state.currency, maximumFractionDigits: compact ? 0 : 2, minimumFractionDigits: compact ? 0 : (state.currency === 'JPY' ? 0 : 2) });
+    } catch { fmtCache[k] = { format: n => n.toFixed(2) }; }
+  }
+  return fmtCache[k].format(v);
+}
+function curSymbol() {
+  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: state.currency, currencyDisplay: 'narrowSymbol' }).formatToParts(0).find(p => p.type === 'currency').value; }
+  catch { return '$'; }
+}
+const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+const dateFmtShort = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });
+const monthFmt = new Intl.DateTimeFormat(undefined, { month: 'short' });
+const monthYearFmt = new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' });
+function fmtDate(d) { return dateFmt.format(new Date(toTime(d))); }
+function ago(d) {
+  const days = Math.round((toTime(today()) - toTime(d)) / DAY);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 30) return days + ' days ago';
+  if (days < 365) return Math.round(days / 30) + ' mo ago';
+  return Math.round(days / 365) + ' yr ago';
+}
+function pct(a, b) { return b ? (a - b) / b * 100 : 0; }
+function color(slot) { return `var(--s${(slot % SERIES) + 1})`; }
+function nextSlot(item) {
+  const used = new Set(item.retailers.map(r => r.slot));
+  for (let i = 0; i < SERIES; i++) if (!used.has(i)) return i;
+  return item.retailers.length % SERIES;
+}
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+/* ---------- Derived stats ---------- */
+function byRetailer(item) {
+  const m = new Map(item.retailers.map(r => [r.id, []]));
+  for (const p of item.prices) if (m.has(p.retailerId)) m.get(p.retailerId).push(p);
+  for (const arr of m.values()) arr.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  return m;
+}
+function stats(item) {
+  const groups = byRetailer(item);
+  const rows = item.retailers.map(r => {
+    const list = groups.get(r.id) || [];
+    const last = list[list.length - 1];
+    const prev = list[list.length - 2];
+    const vals = list.map(p => p.price);
+    return {
+      r, list, current: last ? last.price : null, updated: last ? last.date : null,
+      prev: prev ? prev.price : null,
+      low: vals.length ? Math.min(...vals) : null, high: vals.length ? Math.max(...vals) : null,
+    };
+  });
+  const priced = rows.filter(x => x.current != null);
+  const best = priced.length ? priced.reduce((a, b) => b.current < a.current ? b : a) : null;
+  const all = item.prices.filter(p => groups.has(p.retailerId));
+  const allLow = all.length ? Math.min(...all.map(p => p.price)) : null;
+  const bestSeries = bestOverTime(item, groups);
+  const first = bestSeries.length ? bestSeries[0].v : null;
+  const lastUpdate = all.length ? all.reduce((a, p) => p.date > a ? p.date : a, '0') : null;
+  return { rows, best, allLow, bestSeries, first, lastUpdate, count: all.length };
+}
+// Best (lowest) known current price across retailers on each date that has a price entry.
+function bestOverTime(item, groups) {
+  groups = groups || byRetailer(item);
+  const dates = [...new Set(item.prices.filter(p => groups.has(p.retailerId)).map(p => p.date))].sort();
+  const idx = new Map([...groups.keys()].map(k => [k, -1]));
+  const out = [];
+  for (const d of dates) {
+    let best = null;
+    for (const [rid, list] of groups) {
+      let i = idx.get(rid);
+      while (i + 1 < list.length && list[i + 1].date <= d) i++;
+      idx.set(rid, i);
+      if (i >= 0 && (best == null || list[i].price < best)) best = list[i].price;
+    }
+    if (best != null) out.push({ d, v: best });
+  }
+  return out;
+}
+
+/* ---------- Routing (in-page, no hash so it plays nicely inside the site's player) ---------- */
+let view = { name: 'list', id: null };
+let listQuery = '';
+let listSort = 'recent';
+let chartRange = 'all';
+function go(name, id) { view = { name, id }; render(); window.scrollTo(0, 0); }
+
+/* ---------- Rendering ---------- */
+const app = document.getElementById('app');
+function render() {
+  if (view.name === 'item') {
+    const item = state.items.find(i => i.id === view.id);
+    if (item) return renderItem(item);
+    view = { name: 'list', id: null };
+  }
+  renderList();
+}
+
+function renderList() {
+  const q = listQuery.trim().toLowerCase();
+  let items = state.items.map(i => ({ i, s: stats(i) }))
+    .filter(({ i }) => !q || i.name.toLowerCase().includes(q) || i.notes.toLowerCase().includes(q) || i.retailers.some(r => r.name.toLowerCase().includes(q)));
+  const sorters = {
+    recent: (a, b) => (b.s.lastUpdate || b.i.created).localeCompare(a.s.lastUpdate || a.i.created),
+    name: (a, b) => a.i.name.localeCompare(b.i.name),
+    drop: (a, b) => change(a) - change(b),
+    target: (a, b) => targetGap(a) - targetGap(b),
+  };
+  items.sort(sorters[listSort] || sorters.recent);
+
+  const atTarget = state.items.filter(i => { const s = stats(i); return i.target != null && s.best && s.best.current <= i.target; }).length;
+
+  app.innerHTML = `
+    <header class="top">
+      <div class="titlebar">
+        <div style="flex:1 1 auto">
+          <h1>Price Tracker</h1>
+          <p class="sub">${state.items.length ? `${state.items.length} item${state.items.length === 1 ? '' : 's'} tracked${atTarget ? ` · <span style="color:var(--good-text)">✓ ${atTarget} at target price</span>` : ''}` : 'Watch prices across retailers and buy at the right time.'}</p>
+        </div>
+        <button class="ghost" id="settingsOpen" aria-label="Settings and backup">⚙ Settings</button>
+        <button class="primary" id="addItem">+ Track item</button>
+      </div>
+    </header>
+    ${state.items.length ? `
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="Search items or retailers" value="${esc(listQuery)}" aria-label="Search">
+      <select id="sort" aria-label="Sort">
+        <option value="recent">Recently updated</option>
+        <option value="drop">Biggest price drop</option>
+        <option value="target">Closest to target</option>
+        <option value="name">Name</option>
+      </select>
+    </div>
+    ${items.length ? `<div class="grid">${items.map(cardHtml).join('')}</div>` : `<p class="muted">No items match “${esc(listQuery)}”.</p>`}
+    ` : `
+    <div class="empty-state" style="margin-top:20px">
+      <div style="font-size:2.2rem">🏷️</div>
+      <h2>Nothing tracked yet</h2>
+      <p>Add something you want to buy, list the shops that sell it, and log what each one charges whenever you check. The history builds up over time so you can spot real deals.</p>
+      <div class="row" style="justify-content:center">
+        <button class="primary" id="addItem2">+ Track your first item</button>
+        <button id="demo2">Try with demo data</button>
+      </div>
+    </div>`}
+    <footer>Saved in this browser only · Export a backup from Settings</footer>`;
+
+  on('#addItem', 'click', () => openItemDialog());
+  on('#addItem2', 'click', () => openItemDialog());
+  on('#demo2', 'click', () => { addDemo(); toast('Demo items added'); });
+  on('#settingsOpen', 'click', openSettings);
+  const qEl = app.querySelector('#q');
+  if (qEl) {
+    qEl.addEventListener('input', e => { listQuery = e.target.value; const pos = e.target.selectionStart; renderList(); const n = app.querySelector('#q'); n.focus(); n.setSelectionRange(pos, pos); });
+    const s = app.querySelector('#sort'); s.value = listSort;
+    s.addEventListener('change', e => { listSort = e.target.value; renderList(); });
+  }
+  app.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => go('item', c.dataset.id)));
+}
+function change({ s }) { return s.best && s.first ? pct(s.best.current, s.first) : 0; }
+function targetGap({ i, s }) { return i.target != null && s.best ? (s.best.current - i.target) / i.target : Infinity; }
+
+function deltaHtml(cur, base, label) {
+  if (cur == null || base == null || cur === base) return `<span class="delta flat">— ${label}</span>`;
+  const p = pct(cur, base);
+  const down = cur < base;
+  return `<span class="delta ${down ? 'down' : 'up'}">${down ? '▼' : '▲'} ${Math.abs(p).toFixed(Math.abs(p) < 10 ? 1 : 0)}% ${label}</span>`;
+}
+
+function cardHtml({ i, s }) {
+  const best = s.best;
+  const badges = [];
+  if (i.target != null && best && best.current <= i.target) badges.push(`<span class="badge good">✓ At target</span>`);
+  if (best && s.allLow != null && best.current <= s.allLow && s.count > 1) badges.push(`<span class="badge good">★ All-time low</span>`);
+  if (i.target != null && !(best && best.current <= i.target)) badges.push(`<span class="badge">Target ${money(i.target)}</span>`);
+  return `
+    <button class="card" data-id="${esc(i.id)}" aria-label="${esc(i.name)}">
+      <div class="name">${esc(i.name)}</div>
+      ${best ? `
+        <div class="price num">${money(best.current)}</div>
+        <div class="where">Best at ${esc(best.r.name)}${i.retailers.length > 1 ? ` · ${s.rows.filter(x => x.current != null).length} of ${i.retailers.length} priced` : ''}</div>
+      ` : `<div class="price muted" style="font-size:1.1rem;font-weight:500">No prices yet</div><div class="where">${i.retailers.length} retailer${i.retailers.length === 1 ? '' : 's'}</div>`}
+      ${sparkHtml(s.bestSeries, i.target)}
+      ${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}
+      <div class="meta">${best ? deltaHtml(best.current, s.first, 'since start') : '<span></span>'}<span>${s.lastUpdate ? 'Updated ' + ago(s.lastUpdate) : ''}</span></div>
+    </button>`;
+}
+
+function sparkHtml(series, target) {
+  if (series.length < 2) return '<svg class="spark" aria-hidden="true"></svg>';
+  const W = 240, H = 44, pad = 4;
+  const t0 = toTime(series[0].d), t1 = Math.max(toTime(series[series.length - 1].d), t0 + DAY);
+  let lo = Math.min(...series.map(p => p.v)), hi = Math.max(...series.map(p => p.v));
+  if (target != null && target >= lo * 0.85) { lo = Math.min(lo, target); hi = Math.max(hi, target); }
+  if (hi === lo) { hi += 1; lo -= 1; }
+  const x = d => pad + (toTime(d) - t0) / (t1 - t0) * (W - pad * 2);
+  const y = v => pad + (1 - (v - lo) / (hi - lo)) * (H - pad * 2);
+  let d = `M${x(series[0].d).toFixed(1)},${y(series[0].v).toFixed(1)}`;
+  for (let k = 1; k < series.length; k++) d += `H${x(series[k].d).toFixed(1)}V${y(series[k].v).toFixed(1)}`;
+  const last = series[series.length - 1];
+  const tl = target != null && target >= lo && target <= hi ? `<line x1="${pad}" x2="${W - pad}" y1="${y(target).toFixed(1)}" y2="${y(target).toFixed(1)}" stroke="var(--good)" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>` : '';
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${tl}
+    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    <circle cx="${x(last.d).toFixed(1)}" cy="${y(last.v).toFixed(1)}" r="3" fill="var(--accent)"/></svg>`;
+}
+
+function renderItem(item) {
+  const s = stats(item);
+  const best = s.best;
+  const sym = curSymbol();
+  const highest = s.rows.reduce((m, x) => x.high != null && (m == null || x.high > m) ? x.high : m, null);
+  app.innerHTML = `
+    <div class="back"><button class="ghost" id="back">← All items</button></div>
+    <div class="detail-head">
+      <div class="titles">
+        <h1>${esc(item.name)}</h1>
+        ${item.notes ? `<p class="notes-text">${esc(item.notes)}</p>` : ''}
+      </div>
+      <div class="row">
+        <button id="editItem">Edit</button>
+        <button class="danger" id="deleteItem">Delete</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="k">Best price now</div><div class="v num">${best ? money(best.current) : '—'}</div><div class="s">${best ? 'at ' + esc(best.r.name) : 'Log a price to start'}</div></div>
+      <div class="stat"><div class="k">Lowest ever</div><div class="v num">${money(s.allLow)}</div><div class="s">${best && s.allLow != null ? (best.current <= s.allLow ? '<span style="color:var(--good-text)">★ That’s now</span>' : money(best.current - s.allLow) + ' above') : ''}</div></div>
+      <div class="stat"><div class="k">Since you started</div><div class="v num">${best && s.first != null ? (best.current > s.first ? '+' : best.current < s.first ? '−' : '') + money(Math.abs(best.current - s.first)) : '—'}</div><div class="s">${best ? deltaHtml(best.current, s.first, '') : ''}</div></div>
+      <div class="stat"><div class="k">Target price</div><div class="v num">${item.target != null ? money(item.target) : '—'}</div><div class="s">${item.target == null ? '<button class="small" id="setTarget">Set a target</button>' : best ? (best.current <= item.target ? '<span style="color:var(--good-text)">✓ Reached — good time to buy</span>' : money(best.current - item.target) + ' to go') : ''}</div></div>
+    </div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Price history</h2><span class="spacer"></span>
+        <div class="seg" role="group" aria-label="Time range">
+          ${[['30', '30D'], ['90', '90D'], ['365', '1Y'], ['all', 'All']].map(([v, l]) => `<button data-range="${v}" aria-pressed="${chartRange === v}">${l}</button>`).join('')}
+        </div>
+      </div>
+      <div class="chart-wrap" id="chart"></div>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-head"><h2>Log prices</h2></div>
+        ${item.retailers.length ? `
+        <form id="logForm">
+          <label class="field" style="max-width:200px">Date checked<input type="date" name="date" value="${today()}" max="${today()}" required></label>
+          <div class="log-grid">
+            ${s.rows.map(x => `
+              <label><span class="rname"><span class="dotkey" style="background:${color(x.r.slot)}"></span>${esc(x.r.name)}</span>
+                <div class="money"><span class="cur">${esc(sym)}</span><input type="number" min="0" step="0.01" inputmode="decimal" name="p-${esc(x.r.id)}" placeholder="${x.current != null ? x.current.toFixed(2) : 'Price'}" aria-label="${esc(x.r.name)} price"></div>
+              </label>`).join('')}
+          </div>
+          <div class="row"><button class="primary" type="submit">Save prices</button><span class="hint">Leave a box empty to skip that store. Saving again for the same day replaces it.</span></div>
+        </form>` : `<p class="muted">Add a retailer first, then log what it charges.</p>`}
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Retailers</h2><span class="spacer"></span><button class="small" id="addRetailer">+ Add</button></div>
+        ${item.retailers.length ? `
+        <div class="table-scroll"><table>
+          <thead><tr><th>Store</th><th class="r">Now</th><th class="r">Low</th><th class="r">High</th><th></th></tr></thead>
+          <tbody>
+          ${s.rows.map(x => `
+            <tr>
+              <td><span class="rname"><span class="dotkey" style="background:${color(x.r.slot)}"></span>${x.r.url ? `<a href="${esc(x.r.url)}" target="_blank" rel="noopener noreferrer" title="Open product page">${esc(x.r.name)} ↗</a>` : esc(x.r.name)}</span>${best && x === best && item.retailers.length > 1 ? '<span class="best-tag">Best</span>' : ''}
+                <div class="hint">${x.updated ? 'Checked ' + ago(x.updated) : 'Not checked yet'}</div></td>
+              <td class="r">${money(x.current)}</td>
+              <td class="r">${money(x.low)}</td>
+              <td class="r">${money(x.high)}</td>
+              <td class="r"><button class="ghost small" data-remove-retailer="${esc(x.r.id)}" aria-label="Remove ${esc(x.r.name)}">✕</button></td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>` : `<p class="muted">No retailers yet.</p>`}
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-head"><h2>All entries</h2><span class="spacer"></span><span class="hint">${s.count} price${s.count === 1 ? '' : 's'} logged${highest != null ? ' · range ' + money(s.allLow) + ' – ' + money(highest) : ''}</span></div>
+      ${s.count ? `
+      <div class="table-scroll" style="max-height:360px;overflow-y:auto"><table>
+        <thead><tr><th>Date</th><th>Store</th><th class="r">Price</th><th class="r">Change</th><th></th></tr></thead>
+        <tbody>${entriesHtml(item, s)}</tbody>
+      </table></div>` : '<p class="muted">Nothing logged yet.</p>'}
+    </section>
+    <footer>Saved in this browser only · Export a backup from Settings</footer>`;
+
+  on('#back', 'click', () => go('list'));
+  on('#editItem', 'click', () => openItemDialog(item));
+  on('#setTarget', 'click', () => openItemDialog(item));
+  on('#deleteItem', 'click', () => {
+    if (!confirm(`Delete “${item.name}” and all its price history?`)) return;
+    state.items = state.items.filter(i => i !== item); save(); go('list'); toast('Item deleted');
+  });
+  on('#addRetailer', 'click', () => openRetailerDialog(item));
+  app.querySelectorAll('[data-remove-retailer]').forEach(b => b.addEventListener('click', () => {
+    const r = item.retailers.find(r => r.id === b.dataset.removeRetailer);
+    const n = item.prices.filter(p => p.retailerId === r.id).length;
+    if (!confirm(`Remove ${r.name}${n ? ` and its ${n} logged price${n === 1 ? '' : 's'}` : ''}?`)) return;
+    item.retailers = item.retailers.filter(x => x !== r);
+    item.prices = item.prices.filter(p => p.retailerId !== r.id);
+    save(); render();
+  }));
+  app.querySelectorAll('[data-del-price]').forEach(b => b.addEventListener('click', () => {
+    item.prices = item.prices.filter(p => p.id !== b.dataset.delPrice); save(); render();
+  }));
+  app.querySelectorAll('[data-range]').forEach(b => b.addEventListener('click', () => { chartRange = b.dataset.range; render(); }));
+  const form = app.querySelector('#logForm');
+  if (form) form.addEventListener('submit', e => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const date = fd.get('date');
+    if (!isDate(date)) return;
+    let n = 0;
+    for (const r of item.retailers) {
+      const v = num(fd.get('p-' + r.id));
+      if (v == null) continue;
+      item.prices = item.prices.filter(p => !(p.retailerId === r.id && p.date === date));
+      item.prices.push({ id: uid(), retailerId: r.id, date, price: v });
+      n++;
+    }
+    if (!n) { toast('Type at least one price'); return; }
+    save(); render(); toast(`Saved ${n} price${n === 1 ? '' : 's'}`);
+  });
+
+  drawChart(item, s);
+}
+
+function entriesHtml(item, s) {
+  const prevOf = new Map();
+  for (const x of s.rows) x.list.forEach((p, k) => prevOf.set(p.id, k ? x.list[k - 1].price : null));
+  const names = new Map(item.retailers.map(r => [r.id, r]));
+  return item.prices.filter(p => names.has(p.retailerId))
+    .slice().sort((a, b) => b.date.localeCompare(a.date) || names.get(a.retailerId).name.localeCompare(names.get(b.retailerId).name))
+    .map(p => {
+      const r = names.get(p.retailerId), prev = prevOf.get(p.id);
+      const ch = prev == null ? '<span class="muted">first</span>' : p.price === prev ? '<span class="delta flat">—</span>'
+        : `<span class="delta ${p.price < prev ? 'down' : 'up'}">${p.price < prev ? '▼' : '▲'} ${money(Math.abs(p.price - prev))}</span>`;
+      return `<tr><td class="num" style="white-space:nowrap">${(p.date.slice(0, 4) === today().slice(0, 4) ? dateFmtShort : dateFmt).format(new Date(toTime(p.date)))}</td><td><span class="rname"><span class="dotkey" style="background:${color(r.slot)}"></span>${esc(r.name)}</span></td>
+        <td class="r">${money(p.price)}</td><td class="r">${ch}</td>
+        <td class="r"><button class="ghost small" data-del-price="${esc(p.id)}" aria-label="Delete entry">✕</button></td></tr>`;
+    }).join('');
+}
+
+/* ---------- Chart ---------- */
+let chartObserver;
+function drawChart(item, s) {
+  const host = app.querySelector('#chart');
+  const legend = app.querySelector('#legend');
+  const series = s.rows.filter(x => x.list.length);
+  if (!series.length) { host.innerHTML = '<div class="chart-empty">Log a price or two and the history chart appears here.</div>'; legend.innerHTML = ''; return; }
+
+  legend.innerHTML = series.length > 1 ? series.map(x => `<span><i class="swatch" style="background:${color(x.r.slot)}"></i>${esc(x.r.name)}</span>`).join('')
+    + (item.target != null ? `<span><i class="swatch" style="background:repeating-linear-gradient(90deg,var(--good) 0 4px,transparent 4px 7px)"></i>Target</span>` : '') : '';
+
+  const draw = () => {
+    const W = Math.max(280, host.clientWidth);
+    const H = W < 520 ? 220 : 280;
+    const direct = series.length <= 4 && W >= 520;
+    const m = { t: 12, r: direct ? 96 : 14, b: 26, l: 0 };
+
+    const allDates = series.flatMap(x => x.list.map(p => toTime(p.date)));
+    const end = Math.max(toTime(today()), ...allDates);
+    let start = Math.min(...allDates);
+    if (chartRange !== 'all') start = end - Number(chartRange) * DAY;
+    if (end - start < 7 * DAY) start = end - 7 * DAY;
+
+    // value at time t for a retailer list (last known, or null before the first entry)
+    const valAt = (list, t) => { let v = null; for (const p of list) { if (toTime(p.date) <= t) v = p.price; else break; } return v; };
+
+    // y domain from visible values (including values carried into the window)
+    const vis = [];
+    for (const x of series) {
+      const carried = valAt(x.list, start); if (carried != null) vis.push(carried);
+      for (const p of x.list) { const t = toTime(p.date); if (t >= start && t <= end) vis.push(p.price); }
+    }
+    if (!vis.length) vis.push(...series.map(x => x.current));
+    let lo = Math.min(...vis), hi = Math.max(...vis);
+    if (item.target != null && item.target >= lo * 0.8 && item.target <= hi * 1.2) { lo = Math.min(lo, item.target); hi = Math.max(hi, item.target); }
+    const span = hi - lo || Math.max(1, hi * 0.1);
+    lo = Math.max(0, lo - span * 0.12); hi = hi + span * 0.12;
+    const ticks = niceTicks(lo, hi, H < 250 ? 4 : 5);
+    lo = Math.min(lo, ticks[0]); hi = Math.max(hi, ticks[ticks.length - 1]);
+
+    // left margin from widest tick label
+    const compact = hi >= 1000;
+    const labelW = Math.max(...ticks.map(t => money(t, compact).length)) * 6.6 + 8;
+    m.l = Math.ceil(labelW);
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const X = t => m.l + (t - start) / (end - start) * iw;
+    const Y = v => m.t + (1 - (v - lo) / (hi - lo)) * ih;
+
+    let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Price history for ${esc(item.name)}">`;
+    svg += '<g class="axis">';
+    for (const t of ticks) svg += `<line class="grid-line" x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${m.l - 8}" y="${Y(t) + 4}" text-anchor="end">${money(t, compact)}</text>`;
+    svg += `<line class="base-line" x1="${m.l}" x2="${W - m.r}" y1="${m.t + ih}" y2="${m.t + ih}"/>`;
+    for (const { t, label } of timeTicks(start, end, Math.max(2, Math.floor(iw / 90)))) {
+      svg += `<text x="${X(t)}" y="${H - 6}" text-anchor="middle">${label}</text>`;
+    }
+    svg += '</g>';
+    if (item.target != null && item.target >= lo && item.target <= hi) {
+      svg += `<line class="target" x1="${m.l}" x2="${W - m.r}" y1="${Y(item.target)}" y2="${Y(item.target)}"/>`;
+      svg += `<text class="target-label" x="${m.l + 6}" y="${Y(item.target) - 5}">Target ${money(item.target)}</text>`;
+    }
+    svg += `<defs><clipPath id="plotClip"><rect x="${m.l}" y="${m.t - 6}" width="${iw + 6}" height="${ih + 12}"/></clipPath></defs><g clip-path="url(#plotClip)">`;
+    const ends = [];
+    for (const x of series) {
+      const pts = [];
+      const carried = valAt(x.list, start);
+      if (carried != null && toTime(x.list[0].date) < start) pts.push([start, carried]);
+      for (const p of x.list) { const t = toTime(p.date); if (t >= start && t <= end) pts.push([t, p.price]); }
+      if (!pts.length) continue;
+      let d = `M${X(pts[0][0]).toFixed(1)},${Y(pts[0][1]).toFixed(1)}`;
+      for (let k = 1; k < pts.length; k++) d += `H${X(pts[k][0]).toFixed(1)}V${Y(pts[k][1]).toFixed(1)}`;
+      const lastV = pts[pts.length - 1][1];
+      d += `H${X(end).toFixed(1)}`;
+      svg += `<path class="series" d="${d}" stroke="${color(x.r.slot)}"/>`;
+      const marks = pts.filter(([t]) => t >= start && x.list.some(p => toTime(p.date) === t));
+      if (marks.length <= 60) for (const [t, v] of marks) svg += `<circle class="dot" cx="${X(t).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="4" fill="${color(x.r.slot)}"/>`;
+      ends.push({ y: Y(lastV), name: x.r.name, v: lastV });
+    }
+    svg += '</g>';
+    if (direct) {
+      ends.sort((a, b) => a.y - b.y);
+      for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 14) ends[k].y = ends[k - 1].y + 14;
+      for (const e of ends) svg += `<text class="direct" x="${W - m.r + 8}" y="${Math.min(H - m.b, e.y) + 4}">${esc(trunc(e.name, 13))}</text>`;
+    }
+    svg += `<line class="cross" id="cross" x1="0" x2="0" y1="${m.t}" y2="${m.t + ih}" visibility="hidden"/>`;
+    svg += `<rect id="hit" x="${m.l}" y="0" width="${iw}" height="${H}" fill="transparent"/>`;
+    svg += '</svg><div class="tip" id="tip"></div>';
+    host.innerHTML = svg;
+
+    // hover: snap to nearest day, list each retailer's price on that day
+    const hit = host.querySelector('#hit'), cross = host.querySelector('#cross'), tip = host.querySelector('#tip');
+    const move = ev => {
+      const rect = host.getBoundingClientRect();
+      const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
+      let t = start + (px - m.l) / iw * (end - start);
+      t = Math.max(start, Math.min(end, Math.round(t / DAY) * DAY));
+      const day = new Date(t); day.setHours(0, 0, 0, 0); t = day.getTime();
+      const cx = X(t);
+      cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.setAttribute('visibility', 'visible');
+      const rows = series.map(x => ({ x, v: valAt(x.list, t), exact: x.list.some(p => toTime(p.date) === t) }))
+        .filter(o => o.v != null).sort((a, b) => a.v - b.v);
+      tip.innerHTML = `<div class="d">${fmtDate(ymd(day))}</div>` + (rows.length ? rows.map(o =>
+        `<div class="r"><i class="dotkey" style="background:${color(o.x.r.slot)}"></i><span class="n">${esc(o.x.r.name)}</span><span class="p">${money(o.v)}</span></div>`).join('')
+        : '<div class="muted">No prices yet</div>');
+      tip.classList.add('show');
+      const tw = tip.offsetWidth;
+      let left = cx + 14; if (left + tw > W) left = cx - tw - 14;
+      tip.style.left = Math.max(0, left) + 'px'; tip.style.top = m.t + 'px';
+    };
+    const leave = () => { cross.setAttribute('visibility', 'hidden'); tip.classList.remove('show'); };
+    hit.addEventListener('mousemove', move);
+    hit.addEventListener('touchstart', move, { passive: true });
+    hit.addEventListener('touchmove', move, { passive: true });
+    hit.addEventListener('mouseleave', leave);
+    hit.addEventListener('touchend', () => setTimeout(leave, 1500));
+  };
+  draw();
+  if (chartObserver) chartObserver.disconnect();
+  let lastW = host.clientWidth;
+  chartObserver = new ResizeObserver(() => { if (Math.abs(host.clientWidth - lastW) > 4 && host.isConnected) { lastW = host.clientWidth; draw(); } });
+  chartObserver.observe(host);
+}
+function trunc(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+function niceTicks(lo, hi, count) {
+  const raw = (hi - lo) / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => s >= raw) || mag * 10;
+  const out = [];
+  for (let v = Math.floor(lo / step) * step; v <= hi + step * 0.5; v += step) out.push(Math.round(v * 100) / 100);
+  return out.length > 1 ? out : [lo, hi];
+}
+function timeTicks(start, end, max) {
+  const days = (end - start) / DAY;
+  const out = [];
+  if (days <= 62) {
+    const step = Math.max(1, Math.ceil(days / max));
+    for (let t = start; t <= end; t += step * DAY) out.push({ t, label: dateFmtShort.format(new Date(t)) });
+  } else {
+    const months = Math.ceil(days / 30.4);
+    const step = [1, 2, 3, 6, 12, 24].find(s => months / s <= max) || 36;
+    const d = new Date(start); d.setDate(1); d.setMonth(d.getMonth() + 1);
+    while (d.getMonth() % step && step <= 12) d.setMonth(d.getMonth() + 1);
+    for (; d.getTime() <= end; d.setMonth(d.getMonth() + step)) {
+      out.push({ t: d.getTime(), label: d.getMonth() === 0 || out.length === 0 ? monthYearFmt.format(d) : monthFmt.format(d) });
+    }
+  }
+  return out;
+}
+
+/* ---------- Dialogs ---------- */
+function on(sel, ev, fn) { const el = app.querySelector(sel); if (el) el.addEventListener(ev, fn); }
+
+const itemDialog = document.getElementById('itemDialog');
+const itemForm = document.getElementById('itemForm');
+const rowsHost = document.getElementById('retailerRows');
+let editing = null;
+function retailerRow(name = '', url = '') {
+  const div = document.createElement('div');
+  div.className = 'retailer-row';
+  div.innerHTML = `<input class="rn" placeholder="Store name" maxlength="60" value="${esc(name)}" aria-label="Store name">
+    <input class="url" type="url" placeholder="Product link (optional)" value="${esc(url)}" aria-label="Product link">
+    <button type="button" class="ghost" aria-label="Remove row">✕</button>`;
+  const [n, u, x] = div.children;
+  u.addEventListener('input', () => { if (!n.value || n.dataset.auto) { const g = retailerFromUrl(u.value); if (g) { n.value = g; n.dataset.auto = '1'; } } });
+  n.addEventListener('input', () => delete n.dataset.auto);
+  x.addEventListener('click', () => { div.remove(); if (!rowsHost.children.length) rowsHost.append(retailerRow()); });
+  return div;
+}
+function openItemDialog(item) {
+  editing = item || null;
+  itemForm.reset();
+  document.getElementById('itemDialogTitle').textContent = item ? 'Edit item' : 'Track a new item';
+  document.getElementById('itemSubmit').textContent = item ? 'Save' : 'Start tracking';
+  document.getElementById('retailerSection').hidden = !!item;
+  itemDialog.querySelectorAll('[data-cur]').forEach(e => e.textContent = curSymbol());
+  rowsHost.innerHTML = '';
+  if (item) {
+    itemForm.name.value = item.name; itemForm.target.value = item.target ?? ''; itemForm.notes.value = item.notes;
+  } else {
+    rowsHost.append(retailerRow(), retailerRow());
+  }
+  itemDialog.showModal();
+}
+document.getElementById('addRetailerRow').addEventListener('click', () => { const r = retailerRow(); rowsHost.append(r); r.querySelector('input').focus(); });
+itemDialog.addEventListener('close', () => {
+  if (itemDialog.returnValue !== 'ok') return;
+  const name = itemForm.name.value.trim();
+  if (!name) return;
+  const target = num(itemForm.target.value), notes = itemForm.notes.value.trim();
+  if (editing) {
+    Object.assign(editing, { name, target, notes });
+    save(); render(); toast('Saved');
+    return;
+  }
+  const item = { id: uid(), name, notes, target, created: today(), retailers: [], prices: [] };
+  for (const row of rowsHost.children) {
+    const url = safeUrl(row.querySelector('.url').value.trim());
+    const rn = row.querySelector('.rn').value.trim() || retailerFromUrl(url);
+    if (rn) item.retailers.push({ id: uid(), name: rn, url, slot: nextSlot(item) });
+  }
+  state.items.push(item); save(); go('item', item.id);
+});
+
+const retailerDialog = document.getElementById('retailerDialog');
+const retailerForm = document.getElementById('retailerForm');
+let retailerFor = null;
+function openRetailerDialog(item) {
+  retailerFor = item; retailerForm.reset(); retailerDialog.showModal();
+}
+retailerForm.url.addEventListener('input', () => { const g = retailerFromUrl(retailerForm.url.value); if (g && (!retailerForm.name.value || retailerForm.name.dataset.auto)) { retailerForm.name.value = g; retailerForm.name.dataset.auto = '1'; } });
+retailerForm.name.addEventListener('input', () => delete retailerForm.name.dataset.auto);
+retailerDialog.addEventListener('close', () => {
+  if (retailerDialog.returnValue !== 'ok' || !retailerFor) return;
+  const name = retailerForm.name.value.trim(); if (!name) return;
+  retailerFor.retailers.push({ id: uid(), name, url: safeUrl(retailerForm.url.value.trim()), slot: nextSlot(retailerFor) });
+  if (retailerFor.retailers.length > SERIES) toast('Over 8 stores: some share a colour on the chart');
+  save(); render();
+});
+
+const settingsDialog = document.getElementById('settingsDialog');
+const currencySelect = document.getElementById('currencySelect');
+currencySelect.innerHTML = CURRENCIES.map(c => `<option value="${c}">${c}</option>`).join('');
+function openSettings() { currencySelect.value = state.currency; settingsDialog.showModal(); }
+currencySelect.addEventListener('change', () => { state.currency = currencySelect.value; fmtCache = {}; save(); render(); });
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `price-tracker-${today()}.json`;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const data = normalise(JSON.parse(await f.text()));
+    const replace = state.items.length ? confirm('Replace your current items with the backup?\n\nOK = replace · Cancel = merge them in') : true;
+    if (replace) state = data;
+    else { const ids = new Set(state.items.map(i => i.id)); state.items.push(...data.items.filter(i => !ids.has(i.id))); }
+    fmtCache = {}; save(); settingsDialog.close(); go('list'); toast(`Imported ${data.items.length} item${data.items.length === 1 ? '' : 's'}`);
+  } catch { toast('That file isn’t a Price Tracker backup'); }
+});
+document.getElementById('demoBtn').addEventListener('click', () => { addDemo(); settingsDialog.close(); toast('Demo items added'); });
+document.getElementById('wipeBtn').addEventListener('click', () => {
+  if (!confirm('Delete every item and all price history? This can’t be undone.')) return;
+  state.items = []; save(); settingsDialog.close(); go('list');
+});
+
+/* ---------- Demo data ---------- */
+function addDemo() {
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const mk = (name, notes, target, base, stores, days) => {
+    const item = { id: uid(), name, notes, target, created: ymd(new Date(Date.now() - days * DAY)), retailers: [], prices: [] };
+    stores.forEach(([sn, off]) => {
+      const r = { id: uid(), name: sn, url: '', slot: nextSlot(item) };
+      item.retailers.push(r);
+      let p = base * (1 + off);
+      for (let d = days; d >= 0; d -= 3 + Math.floor(rnd() * 6)) {
+        const roll = rnd();
+        if (roll < 0.12) p = base * (0.78 + rnd() * 0.08);        // sale
+        else if (roll < 0.35) p = base * (1 + off + (rnd() - 0.5) * 0.06);
+        p = Math.round(p * (base > 50 ? 1 : 100)) / (base > 50 ? 1 : 100) - (base > 50 ? 0.01 : 0);
+        item.prices.push({ id: uid(), retailerId: r.id, date: ymd(new Date(Date.now() - d * DAY)), price: Math.max(0.5, Math.round(p * 100) / 100) });
+      }
+    });
+    return item;
+  };
+  state.items.push(
+    mk('Noise-cancelling headphones', 'Black, over-ear', 249, 329, [['Amazon', 0], ['Best Buy', 0.03], ['Walmart', 0.05]], 200),
+    mk('4K OLED TV, 55"', '', 1100, 1399, [['Costco', -0.02], ['Best Buy', 0.02], ['Target', 0.04], ['Amazon', 0]], 300),
+    mk('Espresso machine', 'Single boiler, with grinder', null, 599, [['Williams Sonoma', 0.05], ['Amazon', 0]], 120),
+    mk('Running shoes (size 10)', '', 95, 140, [['Nike', 0], ['Zappos', -0.02], ['REI', 0.01]], 90),
+    mk('Coffee beans 1kg', 'Whole bean, medium roast', 22, 26.5, [['Local roaster', 0.04], ['Amazon', -0.03]], 150),
+  );
+  save(); render();
+}
+
+render();
+})();
+</script>
+</body>
+</html>
