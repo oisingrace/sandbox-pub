@@ -1,5 +1,6 @@
 import { world, system, ItemStack, EntityComponentTypes } from "@minecraft/server";
 import * as S from "./store.js";
+import { VERSION } from "./version.js";
 import { awakenMenu, modeMenu, lodestoneMenu } from "./forms.js";
 import { isHostileTo, isFriendlyTo, isGolem } from "./relations.js";
 
@@ -16,7 +17,14 @@ const returning = new Map();      // golem id -> {g, stuck} (sentries walking ho
 const safe = (name, fn) => (...a) => {
   try { return fn(...a); } catch (e) { try { world.sendMessage(`§c[Golems] ${name} failed: ${e?.message ?? e}`); } catch { /* ignore */ } }
 };
-const on = (sig, name, fn, opts) => sig.subscribe(safe(name, fn), opts);
+// One missing/renamed API must not take the whole add-on down: failures are collected and shown on join.
+const problems = [];
+const on = (sig, name, fn, opts) => {
+  try {
+    if (!sig?.subscribe) throw new Error("this event does not exist in this game version");
+    return sig.subscribe(safe(name, fn), opts);
+  } catch (e) { problems.push(`${name}: ${e?.message ?? e}`); }
+};
 const runInterval = (fn, n) => system.runInterval(safe("interval", fn), n);
 const flag = (k) => world.getDynamicProperty(k) === true;
 const dbg = (m) => { if (flag("golem_debug")) world.sendMessage(`§7[Golems] ${m}`); };
@@ -24,7 +32,12 @@ const dimOf = (id) => world.getDimension(id);
 const fighting = (m) => ["guard", "attack", "sentry", "assassin"].includes(m);
 
 // ---------- players ----------
-on(world.afterEvents.playerSpawn, "playerSpawn", (e) => S.rememberPlayer(e.player.name));
+on(world.afterEvents.playerSpawn, "playerSpawn", (e) => {
+  S.rememberPlayer(e.player.name);
+  if (!e.initialSpawn) return;
+  e.player.sendMessage(`§a[Golems] v${VERSION} script loaded.`);
+  if (problems.length) e.player.sendMessage(`§c[Golems] ${problems.length} feature(s) disabled:\n- ${problems.join("\n- ")}`);
+});
 system.run(() => { for (const p of world.getAllPlayers()) S.rememberPlayer(p.name); }); // not allowed during early execution
 
 // ---------- inventory helpers ----------
@@ -102,7 +115,7 @@ on(world.afterEvents.playerInteractWithEntity, "statueInteract", (e) => {
   if (e.target.typeId === STATUE) statueInteract(e.target, e.player, e.itemStack);
 });
 
-system.beforeEvents.startup.subscribe((ev) => {
+on(system.beforeEvents.startup, "startup", (ev) => {
   ev.itemComponentRegistry.registerCustomComponent("golem:commander", {
     onUse(e) { system.run(() => modeMenu(e.source, (m) => commandGolems(e.source, m))); },
   });
@@ -338,13 +351,13 @@ on(world.afterEvents.playerPlaceBlock, "pumpkinPlaced", (e) => {
 
 // /scriptevent golem:debug        -> toggle chat diagnostics
 // /scriptevent golem:convert_all  -> toggle "every newly spawned vanilla iron golem near a player becomes a statue"
-system.afterEvents.scriptEventReceive.subscribe(safe("scriptEvent", (e) => {
+on(system.afterEvents.scriptEventReceive, "scriptEvent", (e) => {
   for (const [id, key, label] of [["golem:debug", "golem_debug", "debug"], ["golem:convert_all", "golem_convert_all", "convert-all"]]) {
     if (e.id !== id) continue;
     const v = !flag(key); world.setDynamicProperty(key, v);
     world.sendMessage(`§e[Golems] ${label} ${v ? "ON" : "OFF"}`);
   }
-}));
+});
 
 function toStatue(g, owner) {
   if (!g.isValid) return; // already converted via another signal

@@ -22,7 +22,7 @@ const noop = (e) => (e.startsWith("Extra") ? "" : false);
 const interact = (st, p) => world.afterEvents.playerInteractWithEntity.emit({ target: st, player: p, itemStack: p.items[0] });
 
 const alice = player("Alice"), bob = player("Bob");
-world.afterEvents.playerSpawn.emit({ player: alice }); world.afterEvents.playerSpawn.emit({ player: bob });
+world.afterEvents.playerSpawn.emit({ player: alice, initialSpawn: true }); world.afterEvents.playerSpawn.emit({ player: bob });
 
 // 1. our golem entity spawned by egg/summon becomes a statue entity
 const g0 = dim.spawnEntity("golem:golem", { x: 10.5, y: 64, z: 10.5 });

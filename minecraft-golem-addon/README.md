@@ -62,3 +62,8 @@ iron rule, decay, lodestone costs, live teams). It checks the add-on's logic, no
 - Errors in any handler now print in chat as `[Golems] <handler> failed: ...`.
 - `/scriptevent golem:debug` toggles chat diagnostics (pumpkin seen, iron golem spawned, ...).
 - `/scriptevent golem:convert_all` toggles a fallback: every newly spawned vanilla iron golem within 16 blocks of a player becomes a statue.
+
+## Is the script even running? (v0.9.1)
+On joining a world you should see `[Golems] v<version> script loaded.` in chat. If you don't, the script didn't load at all
+(check Settings > Creator > Content Log, and that the BP is active on the world). If some events don't exist in your game version,
+they're listed as `feature(s) disabled` instead of crashing the whole add-on.

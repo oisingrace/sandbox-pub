@@ -12,6 +12,7 @@ for pack, label in (("BP", "BP"), ("RP", "RP")):
     for dep in m.get("dependencies", []):
         if "uuid" in dep: dep["version"] = vt   # BP -> RP dependency must match the RP version
     json.dump(m, open(p, "w"), indent=2); open(p, "a").write("\n")
+open("BP/scripts/version.js", "w").write(f'export const VERSION = "{v}";\n')
 out = os.path.abspath(f"../golem-commanders-v{v}.mcaddon")
 for old in glob.glob("../golem-commanders*.mcaddon"): os.remove(old)
 def pack(folder):
