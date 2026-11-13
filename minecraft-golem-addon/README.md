@@ -67,3 +67,7 @@ iron rule, decay, lodestone costs, live teams). It checks the add-on's logic, no
 On joining a world you should see `[Golems] v<version> script loaded.` in chat. If you don't, the script didn't load at all
 (check Settings > Creator > Content Log, and that the BP is active on the world). If some events don't exist in your game version,
 they're listed as `feature(s) disabled` instead of crashing the whole add-on.
+
+## Right-click diagnostics (v0.9.3)
+`/scriptevent golem:debug` now also reports: statue/entity interactions, commander use, lodestone clicks, and each form's result
+(submitted / canceled + reason). Menu errors print in chat as `[Golems] <menu> menu failed: ...`.

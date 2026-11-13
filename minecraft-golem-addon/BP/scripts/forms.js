@@ -1,28 +1,37 @@
-import { system } from "@minecraft/server";
+import { system, world } from "@minecraft/server";
 import { ModalFormData, ActionFormData } from "@minecraft/server-ui";
 import { knownPlayers, teams, saveTeams, MODES } from "./store.js";
 
 // Forms fail with "UserBusy" if chat/another screen is open; retry for a few seconds.
 async function show(form, player) {
+  const debug = world.getDynamicProperty("golem_debug") === true;
   for (let i = 0; i < 20; i++) {
     const r = await form.show(player);
+    if (debug) player.sendMessage(`§7[Golems] form result: ${r.canceled ? "canceled (" + r.cancelationReason + ")" : "submitted"}`);
     if (!r.canceled || r.cancelationReason !== "UserBusy") return r;
     await new Promise((res) => system.runTimeout(res, 10));
   }
   return { canceled: true };
 }
+// Menus are async, so a thrown error would otherwise vanish silently: report it in chat.
+const guarded = (name, fn) => async (player, ...a) => {
+  try { return await fn(player, ...a); }
+  catch (e) { player.sendMessage(`§c[Golems] ${name} menu failed: ${e?.message ?? e}`); }
+};
+// ModalFormData.label() isn't in every game version; a dummy toggle occupies the same slot in formValues.
+const label = (form, text) => (typeof form.label === "function" ? form.label(text) : form.toggle(`§7${text}`, { defaultValue: false }));
 const split = (s) => (s ?? "").split(",").map((x) => x.trim()).filter(Boolean);
 
 // Reawakening menu. `data` is mutated and returned via callback.
-export async function awakenMenu(player, data, onDone) {
+async function awakenMenu_(player, data, onDone) {
   const players = knownPlayers().filter((n) => n !== data.ownerName);
   const tnames = Object.keys(teams());
   const f = new ModalFormData().title("Program Golem");
-  f.label("Hostile to (players who have joined, and teams):");
+  label(f, "Hostile to (players who have joined, and teams):");
   players.forEach((n) => f.toggle(n, { defaultValue: data.hostile.includes(n) }));
   tnames.forEach((t) => f.toggle(`Team: ${t}`, { defaultValue: data.hostile.includes(`team:${t}`) }));
   f.textField("Extra hostile usernames (comma separated)", "Steve, Alex", { defaultValue: "" });
-  f.label("Friendly to:");
+  label(f, "Friendly to:");
   tnames.forEach((t) => f.toggle(`Team: ${t}`, { defaultValue: data.friendly.includes(`team:${t}`) }));
   players.forEach((n) => f.toggle(n, { defaultValue: data.friendly.includes(n) }));
   f.textField("Extra friendly usernames (comma separated)", "Steve, Alex", { defaultValue: "" });
@@ -41,7 +50,7 @@ export async function awakenMenu(player, data, onDone) {
   onDone({ ...data, hostile, friendly });
 }
 
-export async function modeMenu(player, onPick) {
+async function modeMenu_(player, onPick) {
   const f = new ActionFormData().title("Golem Commander").body("Set mode for all your golems nearby");
   MODES.forEach((m) => f.button(m[0].toUpperCase() + m.slice(1)));
   const r = await show(f, player);
@@ -49,7 +58,7 @@ export async function modeMenu(player, onPick) {
 }
 
 // Lodestone: program every golem in radius + manage teams.
-export async function lodestoneMenu(player, onProgram) {
+async function lodestoneMenu_(player, onProgram) {
   const f = new ActionFormData().title("Lodestone").button("Program golems in range").button("Create / edit team");
   const r = await show(f, player);
   if (r.canceled) return;
@@ -64,3 +73,7 @@ export async function lodestoneMenu(player, onProgram) {
   saveTeams(t);
   player.sendMessage(`§aTeam ${rr.formValues[0]} saved.`);
 }
+
+export const awakenMenu = guarded("program", awakenMenu_);
+export const modeMenu = guarded("mode", modeMenu_);
+export const lodestoneMenu = guarded("lodestone", lodestoneMenu_);

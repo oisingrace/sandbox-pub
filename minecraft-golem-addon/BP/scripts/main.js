@@ -112,12 +112,13 @@ function statueInteract(statue, player, held) {
   }));
 }
 on(world.afterEvents.playerInteractWithEntity, "statueInteract", (e) => {
+  dbg(`interact with ${e.target.typeId}`);
   if (e.target.typeId === STATUE) statueInteract(e.target, e.player, e.itemStack);
 });
 
 on(system.beforeEvents.startup, "startup", (ev) => {
   ev.itemComponentRegistry.registerCustomComponent("golem:commander", {
-    onUse(e) { system.run(() => modeMenu(e.source, (m) => commandGolems(e.source, m))); },
+    onUse(e) { dbg("commander used"); system.run(() => modeMenu(e.source, (m) => commandGolems(e.source, m))); },
   });
 });
 
@@ -182,6 +183,7 @@ function statuesNear(player, radius) {
 // program (dead/programmed statues cost 1 iron block each, never-programmed ones are free).
 // Teams edited at the lodestone take effect immediately: lists reference teams by name.
 on(world.afterEvents.playerInteractWithBlock, "lodestone", (e) => {
+  if (e.block.typeId === "minecraft:lodestone") dbg(`lodestone clicked${e.itemStack ? " (hand not empty: ignored)" : ""}`);
   if (e.block.typeId !== "minecraft:lodestone" || e.itemStack) return; // empty hand only, so building next to it still works
   const p = e.player;
   system.run(() => lodestoneMenu(p, () => {
