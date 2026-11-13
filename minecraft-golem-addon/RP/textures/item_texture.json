@@ -3,10 +3,10 @@
   "texture_name": "atlas.items",
   "texture_data": {
     "golem_statue": {
-      "textures": "textures/entity/iron_golem/iron_golem"
+      "textures": "textures/items/golem_statue"
     },
     "golem_commander": {
-      "textures": "textures/items/stick"
+      "textures": "textures/items/golem_commander"
     }
   }
 }

@@ -16,10 +16,16 @@ Uses `@minecraft/server` 2.0.0 and `@minecraft/server-ui` 2.0.0. **Untested in-g
 - Reawakening a statue that has died once, or taking one over as a new owner, costs 1 iron block. First awakening is free.
 - **Lodestone**: program all golems in 32 blocks, and create/edit teams.
 
-## Known gaps / TODO
-1. Target tag `golem_target` is global, not per golem (a golem may attack someone only a different owner's golem is hostile to). Needs per-golem targeting.
-2. Sentry "walk home" uses crude `applyKnockback`; replace with proper navigation.
-3. Lodestone doesn't yet reprogram dead statues (iron-block cost) or handle statues in range.
-4. Placeholder textures/geometry for the statue and commander (vanilla stone/stick).
-5. Awakened statue reuses owner `tame()`; verify follow_owner works with the script-set owner.
-6. Assassin currently shares attack's AI group; needs its own tuning.
+## v0.3 changes
+- **Per-golem targeting:** the script picks each golem's target (nearest foe, golems first, assassin skips golems), tags it briefly and
+  "hits" the golem as that target so its `hurt_by_target` locks on. No more global target tag.
+- **Sentry:** home point is set when made sentry; it walks home in short steps and teleports home if stuck (Bedrock has no scripted pathfinding).
+- **Lodestone:** also reprograms statues in range. Never-died statues of yours are free; died-once or other people's cost 1 iron block each.
+- **Assassin:** own component group (faster), ignores golems.
+- **Art:** generated item icons, and dead statues use a slumped-head model.
+- Owner is re-applied with `tame()` whenever a mode is set.
+
+## Still unverified / limitations
+- Everything is untested in-game; the targeting trick (`applyDamage` as the target) is the part most likely to need tweaking.
+- Statue block is scaled to fit Bedrock's block-size limit (about 1.8 blocks tall vs the golem's 2.7).
+- Dead statues use a different model, not a different texture (needs hand-made art).
