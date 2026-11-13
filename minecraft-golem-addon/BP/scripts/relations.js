@@ -22,3 +22,9 @@ export function isHostileTo(data, entity) {
   return inList(data.hostile, who);
 }
 export const isGolem = (e) => e.typeId === "golem:golem";
+
+// Never defended against / attacked as a foe: the owner, their golems, and anyone on the friendly list (teams included).
+export function isFriendlyTo(data, entity) {
+  const who = principal(entity);
+  return !!who && (who === data.ownerName || inList(data.friendly, who));
+}

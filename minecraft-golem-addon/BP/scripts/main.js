@@ -1,7 +1,7 @@
 import { world, system, ItemStack, BlockPermutation, EntityComponentTypes } from "@minecraft/server";
 import * as S from "./store.js";
 import { awakenMenu, modeMenu, lodestoneMenu } from "./forms.js";
-import { isHostileTo, isGolem } from "./relations.js";
+import { isHostileTo, isFriendlyTo, isGolem } from "./relations.js";
 
 const GOLEM = "golem:golem";
 const DIMS = ["overworld", "nether", "the_end"];
@@ -139,7 +139,7 @@ function statuesNear(player, radius) {
   for (const r of S.allStatues()) {
     if (r.dim !== player.dimension.id.replace("minecraft:", "")) continue;
     if (Math.hypot(r.x - player.location.x, r.y - player.location.y, r.z - player.location.z) > radius) continue;
-    if (r.data.owner && r.data.owner !== player.id) continue; // only your own (or unclaimed) statues
+    if (r.data.owner && r.data.owner !== player.id && r.data.programmed) continue; // others' used statues are off limits; never-programmed ones are fair game
     const b = player.dimension.getBlock({ x: r.x, y: r.y, z: r.z });
     if (b?.typeId === "golem:statue") out.push(b);
   }
@@ -260,6 +260,21 @@ system.runInterval(() => {
   }
 }, 10);
 const dist2 = (a, b) => (a.location.x - b.location.x) ** 2 + (a.location.y - b.location.y) ** 2 + (a.location.z - b.location.z) ** 2;
+
+// ---------- guard: defend the owner against anything that hurts them ----------
+// Friendly-list members (teammates), the owner's own golems and the owner are exempt.
+world.afterEvents.entityHurt.subscribe((ev) => {
+  const victim = ev.hurtEntity;
+  if (victim.typeId !== "minecraft:player") return;
+  const attacker = ev.damageSource?.damagingEntity;
+  if (!attacker || attacker.id === victim.id) return;
+  for (const g of victim.dimension.getEntities({ type: GOLEM, location: victim.location, maxDistance: 40 })) {
+    const d = S.getGolem(g);
+    if (!d || d.owner !== victim.id || d.mode !== "guard") continue;
+    if (isFriendlyTo(d, attacker)) continue;
+    engage(g, attacker);
+  }
+});
 
 // ---------- death -> dead statue ----------
 world.afterEvents.entityDie.subscribe((ev) => {

@@ -106,6 +106,18 @@ import("./_run/store.js").then(async (S) => {
   world.afterEvents.playerInteractWithBlock.emit({ block: { typeId: "minecraft:lodestone" }, player: alice, itemStack: undefined });
   await flush();
   assert.ok(alice.msgs.at(-1).includes("reawakened"), "free first program: " + alice.msgs.at(-1));
+  H.ents.filter((e) => e.typeId === "golem:golem").forEach((e) => (e.props.g = e.props.g.replace('"guard"', '"passive"')));
+  // guard defends owner against a zombie but not a teammate
+  const guard = dim.spawnEntity("golem:golem", { x: 0, y: 64, z: 0 });
+  guard.props.g = JSON.stringify({ owner: alice.id, ownerName: "Alice", hostile: [], friendly: ["team:Red"], mode: "guard", programmed: true });
+  alice.typeId = "minecraft:player"; alice.dimension = dim; alice.location = { x: 1, y: 64, z: 0 };
+  const zombie = mkEntity("minecraft:zombie", { x: 2, y: 64, z: 0 }, dim);
+  const mate = { id: "m", typeId: "minecraft:player", name: "Mallory", addTag() { this.hit = true; }, removeTag() {} };
+  alice.id = "p-Alice";
+  world.afterEvents.entityHurt.emit({ hurtEntity: alice, damageSource: { damagingEntity: zombie } });
+  assert.ok(zombie.tags.has("golem_target"), "guard engages mob hurting owner");
+  world.afterEvents.entityHurt.emit({ hurtEntity: alice, damageSource: { damagingEntity: mate } });
+  assert.ok(!mate.hit, "teammate exempt");
   console.log("smoke test OK");
 });
 

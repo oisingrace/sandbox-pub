@@ -25,6 +25,12 @@ Uses `@minecraft/server` 2.0.0 and `@minecraft/server-ui` 2.0.0. **Untested in-g
   Lists reference teams by name, so editing a team's members updates every golem using it immediately.
 - A silk-touched statue item carries its data (dead / waxed / programmed), so break-and-replace can't dodge the iron cost.
 
+## v0.5
+- **Guard** follows its owner and attacks anything that hurts them (mobs, players, other golems) - except the owner's own golems and
+  anyone on that golem's friendly list (teams included).
+- **Golem Commander recipe:** 4 iron nuggets (shapeless, crafting table).
+- First programming is free whether done by hand or with the lodestone (also for never-programmed statues placed by someone else).
+
 ## Review fixes (v0.4)
 Statue data is sharded over 8 world properties (long property names are risky); no world access during early execution;
 form retry when the player's UI is busy; decay no longer deletes records of unloaded chunks; death uses live golem data;
