@@ -4,19 +4,46 @@
     "name": "No Bundles + World Border",
     "description": "Removes bundles, stops village iron golems, adds a customisable Overworld/Nether world border.",
     "uuid": "db0abf56-bebd-4ac6-990d-eb3c22ad56f7",
-    "version": [1, 0, 0],
-    "min_engine_version": [1, 21, 50]
+    "version": [
+      1,
+      0,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      50
+    ]
   },
   "modules": [
     {
       "type": "script",
       "language": "javascript",
       "uuid": "89b2064f-8618-4e5a-af9c-4a152434f402",
-      "version": [1, 0, 0],
+      "version": [
+        1,
+        0,
+        0
+      ],
       "entry": "scripts/main.js"
     }
   ],
   "dependencies": [
-    { "module_name": "@minecraft/server", "version": "1.15.0" }
+    {
+      "module_name": "@minecraft/server",
+      "version": "1.15.0"
+    },
+    {
+      "module_name": "@minecraft/server-ui",
+      "version": "1.2.0"
+    },
+    {
+      "uuid": "dbd0bcb1-d634-4c5f-8fa7-ffe8e291d091",
+      "version": [
+        1,
+        0,
+        0
+      ]
+    }
   ]
 }

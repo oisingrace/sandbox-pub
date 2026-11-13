@@ -6,6 +6,7 @@ import {
   EquipmentSlot,
   EntityInitializationCause,
 } from "@minecraft/server";
+import { ModalFormData } from "@minecraft/server-ui";
 
 /* ------------------------------------------------------------------ *
  *  CONFIG (saved in the world, edit in-game with /scriptevent wb:...)
@@ -13,6 +14,7 @@ import {
 const DEFAULTS = {
   noBundles: true,
   noGolems: true,
+  noEnd: false, // true = The End is disabled (portals won't open, anyone inside is sent home)
   scanRadius: 16, // how far around each player containers are scanned for bundles
   border: {
     // radius = distance from centre to the edge (so radius 3000 = 6000x6000 square)
@@ -87,9 +89,20 @@ function purgePlayer(player) {
 }
 
 // Fast loop: player inventories (covers crafting output, pickups, shift-click, creative menu)
+const WAND = "wb:settings_wand";
+function removeWand(player) {
+  const c = player.getComponent("minecraft:inventory")?.container;
+  if (!c) return;
+  for (let i = 0; i < c.size; i++) if (c.getItem(i)?.typeId === WAND) c.setItem(i, undefined);
+}
+const isCreative = (player) => world.getPlayers({ gameMode: "creative" }).some((p) => p.id === player.id);
+
 system.runInterval(() => {
-  if (!config.noBundles) return;
-  for (const p of world.getAllPlayers()) purgePlayer(p);
+  const creative = new Set(world.getPlayers({ gameMode: "creative" }).map((p) => p.id));
+  for (const p of world.getAllPlayers()) {
+    if (config.noBundles) purgePlayer(p);
+    if (!creative.has(p.id)) removeWand(p); // wand is creative-only
+  }
 }, 2);
 
 // Slow loop: dropped items, mobs/minecarts with inventories, nearby storage blocks
@@ -237,6 +250,103 @@ system.runInterval(() => {
 }, 5);
 
 /* ------------------------------------------------------------------ *
+ *  DISABLE THE END
+ * ------------------------------------------------------------------ */
+// Stop portals being opened
+world.beforeEvents.playerInteractWithBlock.subscribe((ev) => {
+  if (!config.noEnd) return;
+  if (ev.block.typeId === "minecraft:end_portal_frame" && ev.itemStack?.typeId === "minecraft:ender_eye") {
+    ev.cancel = true;
+    system.run(() => ev.player.sendMessage("§cThe End is disabled on this world."));
+  }
+});
+
+// Send anyone already in (or entering) the End back to their spawn
+system.runInterval(() => {
+  if (!config.noEnd) return;
+  for (const p of world.getAllPlayers()) {
+    if (p.dimension.id !== "minecraft:the_end" || p.hasTag("wb_bypass")) continue;
+    try {
+      const sp = p.getSpawnPoint();
+      const ow = world.getDimension("overworld");
+      if (sp && sp.dimension.id !== "minecraft:the_end") {
+        p.teleport({ x: sp.x + 0.5, y: sp.y, z: sp.z + 0.5 }, { dimension: sp.dimension });
+      } else {
+        const d = world.getDefaultSpawnLocation();
+        p.teleport({ x: d.x + 0.5, y: d.y, z: d.z + 0.5 }, { dimension: ow });
+      }
+      system.runTimeout(() => settle(p), 5);
+      p.sendMessage("§cThe End is disabled on this world.");
+    } catch (e) {}
+  }
+}, 10);
+
+/* ------------------------------------------------------------------ *
+ *  SETTINGS WAND (creative only) - right-click to open the settings menu
+ * ------------------------------------------------------------------ */
+const num = (v, fallback) => {
+  const n = Number(String(v).trim());
+  return String(v).trim() !== "" && Number.isFinite(n) ? Math.floor(n) : fallback;
+};
+
+function openSettings(player, tries = 0) {
+  const o = config.border.overworld;
+  const n = config.border.nether;
+  new ModalFormData()
+    .title("World Settings")
+    .toggle("Block bundles", config.noBundles)
+    .toggle("Block village iron golems", config.noGolems)
+    .toggle("Disable The End", config.noEnd)
+    .toggle("§lOverworld§r border enabled", o.enabled)
+    .textField("Overworld radius (blocks, centre to edge)", "3000", String(o.radius))
+    .textField("Overworld centre X", "0", String(o.centerX))
+    .textField("Overworld centre Z", "0", String(o.centerZ))
+    .toggle("Set Overworld centre to my position", false)
+    .toggle("§lNether§r border enabled", n.enabled)
+    .textField("Nether radius (blocks, centre to edge)", "375", String(n.radius))
+    .textField("Nether centre X", "0", String(n.centerX))
+    .textField("Nether centre Z", "0", String(n.centerZ))
+    .toggle("Set Nether centre to my position", false)
+    .show(player)
+    .then((res) => {
+      if (res.canceled) {
+        if (res.cancelationReason === "UserBusy" && tries < 20) system.runTimeout(() => openSettings(player, tries + 1), 10);
+        return;
+      }
+      const v = res.formValues;
+      config.noBundles = v[0];
+      config.noGolems = v[1];
+      config.noEnd = v[2];
+      o.enabled = v[3];
+      o.radius = Math.max(1, num(v[4], o.radius));
+      o.centerX = num(v[5], o.centerX);
+      o.centerZ = num(v[6], o.centerZ);
+      n.enabled = v[8];
+      n.radius = Math.max(1, num(v[9], n.radius));
+      n.centerX = num(v[10], n.centerX);
+      n.centerZ = num(v[11], n.centerZ);
+      const here = (key, b, flag) => {
+        if (!flag) return;
+        if (player.dimension.id === "minecraft:" + key) {
+          b.centerX = Math.floor(player.location.x);
+          b.centerZ = Math.floor(player.location.z);
+        } else player.sendMessage(`§eYou must be in the ${key} to centre its border on yourself.`);
+      };
+      here("overworld", o, v[7]);
+      here("nether", n, v[12]);
+      saveConfig();
+      player.sendMessage("§aSettings saved.\n" + status());
+    })
+    .catch(() => {});
+}
+
+world.afterEvents.itemUse.subscribe((ev) => {
+  if (ev.itemStack?.typeId !== WAND) return;
+  if (!isCreative(ev.source)) return;
+  system.run(() => openSettings(ev.source));
+});
+
+/* ------------------------------------------------------------------ *
  *  IN-GAME COMMANDS  (/scriptevent <id> <message>, needs cheats/op)
  * ------------------------------------------------------------------ */
 const DIMS = { overworld: "overworld", normal: "overworld", nether: "nether" };
@@ -249,6 +359,7 @@ function status() {
     `Bundles blocked: ${config.noBundles}  |  Village golems blocked: ${config.noGolems}`,
     f("Overworld border", config.border.overworld),
     f("Nether border", config.border.nether),
+    `The End disabled: ${config.noEnd}`,
   ].join("\n");
 }
 
@@ -285,6 +396,10 @@ system.afterEvents.scriptEventReceive.subscribe((ev) => {
     case "wb:golems":
       if (args[0] === undefined) return reply("§cUsage: /scriptevent wb:golems <on|off>  (on = golems blocked)");
       config.noGolems = onOff(args[0]);
+      break;
+    case "wb:end":
+      if (args[0] === undefined) return reply("§cUsage: /scriptevent wb:end <on|off>  (on = The End disabled)");
+      config.noEnd = onOff(args[0]);
       break;
     case "wb:status":
       return reply(status());
