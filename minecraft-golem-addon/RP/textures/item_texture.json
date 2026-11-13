@@ -1,0 +1,8 @@
+{
+  "resource_pack_name": "golem_commanders",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "golem_statue": { "textures": "textures/blocks/stone" },
+    "golem_commander": { "textures": "textures/items/stick" }
+  }
+}

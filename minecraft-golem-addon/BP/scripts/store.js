@@ -1,0 +1,36 @@
+// Persistent data: world dynamic properties.
+// Golem/statue data shape: { owner, ownerName, hostile:[names], friendly:[names|"team:X"],
+//   mode, home:{x,y,z,dim}, diedOnce, dead, waxed, diedAt }
+import { world } from "@minecraft/server";
+
+const read = (k, d) => { try { const v = world.getDynamicProperty(k); return v ? JSON.parse(v) : d; } catch { return d; } };
+const write = (k, v) => world.setDynamicProperty(k, JSON.stringify(v));
+
+export const MODES = ["passive", "follow", "guard", "attack", "sentry", "assassin"];
+export const SENTRY_RADIUS = 100;
+export const COMMAND_RADIUS = 32;
+export const DECAY_MS = 3600000; // 1 hour (wall clock, survives reloads)
+
+export const knownPlayers = () => read("known", []);
+export function rememberPlayer(name) {
+  const k = knownPlayers();
+  if (!k.includes(name)) { k.push(name); write("known", k); }
+}
+
+// teams: { teamName: [playerNames] }
+export const teams = () => read("teams", {});
+export const saveTeams = (t) => write("teams", t);
+
+export const newGolemData = (player) => ({
+  owner: player.id, ownerName: player.name, hostile: [], friendly: [],
+  mode: "passive", home: null, diedOnce: false, dead: false, waxed: false, diedAt: 0,
+});
+
+const bk = (b) => `s|${b.dimension.id}|${b.x},${b.y},${b.z}`;
+export const getStatue = (b) => read(bk(b), null);
+export const setStatue = (b, d) => write(bk(b), d);
+export const clearStatue = (b) => world.setDynamicProperty(bk(b), undefined);
+export const allStatueKeys = () => world.getDynamicPropertyIds().filter((k) => k.startsWith("s|"));
+
+export const getGolem = (e) => { try { const v = e.getDynamicProperty("g"); return v ? JSON.parse(v) : null; } catch { return null; } };
+export const setGolem = (e, d) => e.setDynamicProperty("g", JSON.stringify(d));

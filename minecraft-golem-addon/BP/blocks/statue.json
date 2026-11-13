@@ -1,0 +1,23 @@
+{
+  "format_version": "1.21.80",
+  "minecraft:block": {
+    "description": {
+      "identifier": "golem:statue",
+      "states": {
+        "golem:dead": [false, true],
+        "golem:waxed": [false, true]
+      },
+      "menu_category": { "category": "items" }
+    },
+    "components": {
+      "minecraft:destructible_by_mining": { "seconds_to_destroy": 3 },
+      "minecraft:destructible_by_explosion": { "explosion_resistance": 30 },
+      "minecraft:geometry": "geometry.golem_statue",
+      "minecraft:material_instances": { "*": { "texture": "golem_statue", "render_method": "opaque" } },
+      "minecraft:collision_box": { "origin": [-6, 0, -6], "size": [12, 16, 12] },
+      "minecraft:selection_box": { "origin": [-6, 0, -6], "size": [12, 16, 12] },
+      "minecraft:loot": "loot_tables/empty.json",
+      "minecraft:custom_components": ["golem:statue"]
+    }
+  }
+}

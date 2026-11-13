@@ -1,0 +1,11 @@
+{
+  "format_version": "1.21.80",
+  "minecraft:item": {
+    "description": { "identifier": "golem:statue_item", "menu_category": { "category": "items" } },
+    "components": {
+      "minecraft:max_stack_size": 1,
+      "minecraft:icon": "golem_statue",
+      "minecraft:block_placer": { "block": "golem:statue" }
+    }
+  }
+}
