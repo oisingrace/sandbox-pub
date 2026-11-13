@@ -55,9 +55,9 @@ on(world.afterEvents.playerSpawn, "playerSpawn", (e) => {
 system.run(() => { for (const p of world.getAllPlayers()) S.rememberPlayer(p.name); }); // not allowed during early execution
 
 // ---------- inventory helpers ----------
-function findIron(player) {
+function findIron(player, type = "minecraft:iron_block") {
   const c = player.getComponent("inventory").container;
-  for (let i = 0; i < c.size; i++) if (c.getItem(i)?.typeId === "minecraft:iron_block") return i;
+  for (let i = 0; i < c.size; i++) if (c.getItem(i)?.typeId === type) return i;
   return -1;
 }
 function takeOne(player, slot) {
@@ -136,15 +136,15 @@ on(world.beforeEvents.playerInteractWithEntity, "statueInteractBefore", onEntity
 
 // Commander: right-click opens the mode menu; sneak + right-click cycles the mode with no menu at all.
 const getRange = (p) => { const v = p.getDynamicProperty("cmdRange"); return typeof v === "number" ? v : S.COMMAND_RADIUS; };
-const ironCount = (p) => {
+const ironCount = (p, type = "minecraft:iron_ingot") => {
   const c = p.getComponent("inventory").container; let n = 0;
-  for (let i = 0; i < c.size; i++) { const it = c.getItem(i); if (it?.typeId === "minecraft:iron_block") n += it.amount; }
+  for (let i = 0; i < c.size; i++) { const it = c.getItem(i); if (it?.typeId === type) n += it.amount; }
   return n;
 };
 const ownedGolems = (p) => [...new Map(DIMS.flatMap((d) => dimOf(d).getEntities({ type: GOLEM })).map((g) => [g.id, g])).values()]
   .filter((g) => S.getGolem(g)?.owner === p.id);
 
-// Summon every loaded golem you own to your side. Costs SUMMON_COST iron blocks each; with too little iron only as many
+// Summon every loaded golem you own to your side. Costs SUMMON_COST iron ingots each; with too little iron only as many
 // golems as you can pay for come (closest ones first).
 function summonGolems(p) {
   const all = ownedGolems(p);
@@ -152,14 +152,14 @@ function summonGolems(p) {
   const here = p.dimension.id;
   all.sort((a, b) => (a.dimension.id === here ? 0 : 1e9) + dist2(a, p) - ((b.dimension.id === here ? 0 : 1e9) + dist2(b, p)));
   const n = Math.min(all.length, Math.floor(ironCount(p) / S.SUMMON_COST));
-  if (n === 0) return p.sendMessage(`§cSummoning costs ${S.SUMMON_COST} iron blocks per golem and you don't have enough.`);
-  for (let i = 0; i < n * S.SUMMON_COST; i++) takeOne(p, findIron(p));
+  if (n === 0) return p.sendMessage(`§cSummoning costs ${S.SUMMON_COST} iron ingots per golem and you don't have enough.`);
+  for (let i = 0; i < n * S.SUMMON_COST; i++) takeOne(p, findIron(p, "minecraft:iron_ingot"));
   all.slice(0, n).forEach((g, i) => {
     const ang = (i / n) * Math.PI * 2;
     g.teleport({ x: p.location.x + Math.cos(ang) * 2.5, y: p.location.y, z: p.location.z + Math.sin(ang) * 2.5 }, { dimension: p.dimension });
     engaged.delete(g.id); returning.delete(g.id);
   });
-  p.sendMessage(`§aSummoned ${n} of ${all.length} golem(s) for ${n * S.SUMMON_COST} iron blocks.` + (n < all.length ? ` §e${all.length - n} stayed behind (not enough iron).` : ""));
+  p.sendMessage(`§aSummoned ${n} of ${all.length} golem(s) for ${n * S.SUMMON_COST} iron ingots.` + (n < all.length ? ` §e${all.length - n} stayed behind (not enough iron).` : ""));
 }
 
 function useCommander(player) {

@@ -9,7 +9,7 @@ const write = (k, v) => world.setDynamicProperty(k, JSON.stringify(v));
 export const MODES = ["passive", "follow", "guard", "attack", "sentry", "assassin"];
 export const SENTRY_RADIUS = 100;
 export const COMMAND_RADIUS = 32;   // default commander range and lodestone range
-export const SUMMON_COST = 2;       // iron blocks per golem summoned with the commander
+export const SUMMON_COST = 2;       // iron INGOTS per golem summoned with the commander
 export const DECAY_MS = 3600000; // 1 hour (wall clock, survives reloads)
 
 export const knownPlayers = () => read("known", []);

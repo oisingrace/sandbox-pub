@@ -112,6 +112,6 @@ Mojang's bedrock-samples. Dead statues use the real vanilla model with the head 
 ## v0.10.0 - commander upgrades
 - **Crafting:** the Golem Commander is crafted with 4 iron nuggets (shapeless, any arrangement; recipe `golem:commander_recipe`).
 - **Range:** the commander menu has "Set range" (slider, 4-128 blocks, remembered per player). Modes and the sneak shortcut use it.
-- **Summon all golems:** button in the commander menu teleports every loaded golem you own to you, costing **2 iron blocks per golem**
+- **Summon all golems:** button in the commander menu teleports every loaded golem you own to you, costing **2 iron ingots per golem**
   (`SUMMON_COST` in `BP/scripts/store.js`). With too little iron only as many golems as you can pay for come, closest first.
   Golems in unloaded chunks can't be found.

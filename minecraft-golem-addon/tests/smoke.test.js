@@ -148,11 +148,11 @@ assert.ok(alice.msgs.at(-1)?.includes("set to"), "sneak-use cycles mode: " + ali
 const carol = player("Carol"); carol.id = "p-Carol"; carol.location = { x: 0, y: 64, z: 0 }; 
 const mkg = (x) => { const g = dim.spawnEntity("golem:golem", { x, y: 64, z: 0 }); g.props.g = JSON.stringify({ owner: carol.id, ownerName: "Alice", hostile: [], friendly: [], mode: "passive", programmed: true }); return g; };
 const far = [mkg(100), mkg(200), mkg(300)];
-carol.items[0] = { typeId: "minecraft:iron_block", amount: 5 }; carol.isSneaking = false;
+carol.items[0] = { typeId: "minecraft:iron_ingot", amount: 5 }; carol.isSneaking = false;
 let call = 0;
 F.next = (els) => (call++ === 0 ? { canceled: false, selection: 7 } : { canceled: true });
 system.currentTick++; commander(carol); await flush();
-assert.equal(carol.items[0].amount, 1, "2 golems x 2 iron = 4 iron blocks spent");
+assert.equal(carol.items[0].amount, 1, "2 golems x 2 iron = 4 iron ingots spent");
 assert.equal(far.filter((g) => Math.hypot(g.location.x, g.location.z) < 5).length, 2, "only 2 golems summoned (closest first)");
 assert.ok(Math.abs(far[0].location.x) < 5 && Math.abs(far[1].location.x) < 5 && far[2].location.x === 300);
 // range slider stores the value

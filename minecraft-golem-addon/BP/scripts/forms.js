@@ -53,10 +53,10 @@ async function awakenMenu_(player, data, onDone) {
 // Commander main menu. `info` = { range, owned, iron, cost }; callbacks: onMode(mode), onRange(n), onSummon().
 async function commanderMenu_(player, info, cb) {
   const f = new ActionFormData().title("Golem Commander")
-    .body(`Range: ${info.range} blocks\nYour golems: ${info.owned}\nIron blocks held: ${info.iron}\nSet the mode of your golems within range:`);
+    .body(`Range: ${info.range} blocks\nYour golems: ${info.owned}\nIron ingots held: ${info.iron}\nSet the mode of your golems within range:`);
   MODES.forEach((m) => f.button(m[0].toUpperCase() + m.slice(1)));
   f.button(`Set range (now ${info.range})`);
-  f.button(`Summon all golems to me\n(${info.cost} iron blocks each)`);
+  f.button(`Summon all golems to me\n(${info.cost} iron ingots each)`);
   const r = await show(f, player);
   if (r.canceled) return;
   if (r.selection < MODES.length) return cb.onMode(MODES[r.selection]);
