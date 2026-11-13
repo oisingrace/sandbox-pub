@@ -46,5 +46,5 @@ iron rule, decay, lodestone costs, live teams). It checks the add-on's logic, no
 - Real-game behaviour is untested: the `applyDamage`-as-target trick, `tame()` + `follow_owner`, 128px texture in the terrain atlas,
   and statue facing (if statues face away from you, swap the north/south and east/west rotations in `BP/blocks/statue.json`).
 - Statue block is scaled to fit Bedrock's block-size limit (about 1.8 blocks tall vs the golem's 2.7).
-- Dead statues use a slumped-head model, not a different texture.
+- Statue looks: new-built statues stand upright with green vines; dead ones have a slumped head and dark cracks (generated marks texture, placeholder art).
 - Sentry walk-home is stepped teleporting (no scripted pathfinding in Bedrock).

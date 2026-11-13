@@ -36,6 +36,10 @@
         "*": {
           "texture": "golem_statue",
           "render_method": "opaque"
+        },
+        "marks": {
+          "texture": "golem_statue_marks",
+          "render_method": "alpha_test"
         }
       },
       "minecraft:collision_box": {
