@@ -17,11 +17,11 @@ Uses `@minecraft/server` 2.0.0 and `@minecraft/server-ui` 2.0.0. **Untested in-g
 - **Lodestone**: program all golems in 32 blocks, and create/edit teams.
 
 ## Programming rules (v0.4)
-- Only **statues** are programmed (reawakening menu: hostile to players/teams, friendly to teams/players, plus typed usernames).
-  A living golem keeps its program until it dies; the commander only changes its *mode*.
+- Programs are set in the reawakening menu (hostile to players/teams, friendly to teams/players, plus typed usernames). A living golem
+  keeps its program until the lodestone changes it (free) or it dies; the commander only changes its *mode*.
 - First programming of a golem is free. Reawakening any statue that was programmed before (i.e. a dead golem) costs 1 iron block.
-- **Lodestone** (empty hand): programs every living golem of yours within 32 blocks and reawakens your statues in range with the
-  chosen program, costing 1 iron block each (free if that golem was never programmed). It also manages **teams**.
+- **Lodestone** (empty hand): reprograms every living golem of yours within 32 blocks for free, and reawakens statues in range with the
+  chosen program; dead (previously programmed) statues cost 1 iron block each, never-programmed ones are free. It also manages **teams**.
   Lists reference teams by name, so editing a team's members updates every golem using it immediately.
 - A silk-touched statue item carries its data (dead / waxed / programmed), so break-and-replace can't dodge the iron cost.
 

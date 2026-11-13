@@ -74,7 +74,7 @@ const realNow = Date.now; Date.now = () => realNow() + 3700000;
 decay(); assert.equal(block(10, 64, 10).typeId, "minecraft:air", "decayed after 1h");
 Date.now = realNow;
 
-// 7. lodestone: living golem reprogram costs 1 iron, statue in range gets reawakened for 1 iron each
+// 7. lodestone: living golems free, dead statue reawakened for 1 iron
 alice.location = { x: 10, y: 64, z: 10 };
 H.ents.length = 0;
 const live = dim.spawnEntity("golem:golem", { x: 10, y: 64, z: 11 });
@@ -90,7 +90,7 @@ import("./_run/store.js").then(async (S) => {
   H.players.length = 0; H.players.push(alice);
   world.afterEvents.playerInteractWithBlock.emit({ block: { typeId: "minecraft:lodestone" }, player: alice, itemStack: undefined });
   await flush();
-  assert.equal(alice.items[0].amount, 1, "2 iron spent (1 live + 1 statue): " + alice.msgs.at(-1));
+  assert.equal(alice.items[0].amount, 2, "only the dead statue costs iron: " + alice.msgs.at(-1));
   assert.ok(JSON.parse(live.props.g).hostile.includes("team:Red"), "living golem reprogrammed with team");
   assert.equal(H.ents.filter((e) => e.typeId === "golem:golem").length, 2, "statue reawakened");
   // real-time teams: membership change alters hostility without touching the golem

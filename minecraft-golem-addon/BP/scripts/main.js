@@ -148,7 +148,7 @@ function statuesNear(player, radius) {
 
 // Living golems can't be edited; only statues are programmed, and a golem stays as programmed until it
 // dies. The lodestone is the exception: it re-programs living golems and reawakens statues in range,
-// costing 1 iron block each (free the first time a golem is ever programmed).
+// Living golems are free; dead statues cost 1 iron block each (free if never programmed).
 // Teams edited at the lodestone take effect immediately: lists reference teams by name.
 world.afterEvents.playerInteractWithBlock.subscribe((e) => {
   if (e.block.typeId !== "minecraft:lodestone" || e.itemStack) return; // empty hand only, so building next to it still works
@@ -163,8 +163,7 @@ world.afterEvents.playerInteractWithBlock.subscribe((e) => {
         takeOne(p, slot); return true;
       };
       for (const g of golemsNear(p, S.COMMAND_RADIUS)) {
-        const o = S.getGolem(g);
-        if (!pay(o.programmed)) { skipped++; continue; }
+        const o = S.getGolem(g); // living golems are reprogrammed for free
         S.setGolem(g, { ...o, hostile: d.hostile, friendly: d.friendly, programmed: true }); live++;
       }
       for (const b of statuesNear(p, S.COMMAND_RADIUS)) {
