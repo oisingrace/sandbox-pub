@@ -3,16 +3,30 @@
   "minecraft:client_entity": {
     "description": {
       "identifier": "golem:golem",
-      "materials": { "default": "iron_golem" },
-      "textures": { "default": "textures/entity/iron_golem/iron_golem" },
-      "geometry": { "default": "geometry.iron_golem" },
-      "render_controllers": ["controller.render.iron_golem"],
-      "animations": {
-        "walk": "animation.iron_golem.walk",
-        "attack": "animation.iron_golem.attack_and_look_around"
+      "materials": {
+        "default": "iron_golem"
       },
-      "scripts": { "animate": ["walk", "attack"] },
-      "spawn_egg": { "base_color": "#8a8a8a", "overlay_color": "#4a7a4a" }
+      "textures": {
+        "default": "textures/entity/iron_golem/iron_golem"
+      },
+      "geometry": {
+        "default": "geometry.iron_golem"
+      },
+      "render_controllers": [
+        "controller.render.golem_commander"
+      ],
+      "animations": {
+        "walk": "animation.golem_commander.walk"
+      },
+      "scripts": {
+        "animate": [
+          "walk"
+        ]
+      },
+      "spawn_egg": {
+        "base_color": "#8a8a8a",
+        "overlay_color": "#4a7a4a"
+      }
     }
   }
 }

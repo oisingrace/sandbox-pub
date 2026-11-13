@@ -14,7 +14,7 @@
         ]
       },
       "menu_category": {
-        "category": "items"
+        "category": "none"
       },
       "traits": {
         "minecraft:placement_direction": {

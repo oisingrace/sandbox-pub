@@ -16,16 +16,29 @@ Uses `@minecraft/server` 2.0.0 and `@minecraft/server-ui` 2.0.0. **Untested in-g
 - Reawakening a statue that has died once, or taking one over as a new owner, costs 1 iron block. First awakening is free.
 - **Lodestone**: program all golems in 32 blocks, and create/edit teams.
 
-## v0.3 changes
-- **Per-golem targeting:** the script picks each golem's target (nearest foe, golems first, assassin skips golems), tags it briefly and
-  "hits" the golem as that target so its `hurt_by_target` locks on. No more global target tag.
-- **Sentry:** home point is set when made sentry; it walks home in short steps and teleports home if stuck (Bedrock has no scripted pathfinding).
-- **Lodestone:** programs awakened golems only. Statues (including dead ones) can only be programmed through the reawakening menu, which still costs an iron block if the golem has died.
-- **Assassin:** own component group (faster), ignores golems.
-- **Art:** generated item icons, and dead statues use a slumped-head model.
-- Owner is re-applied with `tame()` whenever a mode is set.
+## Programming rules (v0.4)
+- Only **statues** are programmed (reawakening menu: hostile to players/teams, friendly to teams/players, plus typed usernames).
+  A living golem keeps its program until it dies; the commander only changes its *mode*.
+- First programming of a golem is free. Reawakening any statue that was programmed before (i.e. a dead golem) costs 1 iron block.
+- **Lodestone** (empty hand): programs every living golem of yours within 32 blocks and reawakens your statues in range with the
+  chosen program, costing 1 iron block each (free if that golem was never programmed). It also manages **teams**.
+  Lists reference teams by name, so editing a team's members updates every golem using it immediately.
+- A silk-touched statue item carries its data (dead / waxed / programmed), so break-and-replace can't dodge the iron cost.
+
+## Review fixes (v0.4)
+Statue data is sharded over 8 world properties (long property names are risky); no world access during early execution;
+form retry when the player's UI is busy; decay no longer deletes records of unloaded chunks; death uses live golem data;
+cheaper AI scan (players + golems only); spectators ignored; explicit per-face UVs so the scaled statue model isn't distorted;
+own render controller + walk animation (no dependency on vanilla controllers); tameable item fixed; block hidden from creative
+menu (the statue item places it); lodestone needs an empty hand; min engine 1.21.100.
+
+## Testing without Minecraft
+`tests/run.sh` runs a smoke test against fake `@minecraft/*` modules (spawn->statue, awaken, modes, targeting tag, death,
+iron rule, decay, lodestone costs, live teams). It checks the add-on's logic, not the real game API.
 
 ## Still unverified / limitations
-- Everything is untested in-game; the targeting trick (`applyDamage` as the target) is the part most likely to need tweaking.
+- Real-game behaviour is untested: the `applyDamage`-as-target trick, `tame()` + `follow_owner`, 128px texture in the terrain atlas,
+  and statue facing (if statues face away from you, swap the north/south and east/west rotations in `BP/blocks/statue.json`).
 - Statue block is scaled to fit Bedrock's block-size limit (about 1.8 blocks tall vs the golem's 2.7).
-- Dead statues use a different model, not a different texture (needs hand-made art).
+- Dead statues use a slumped-head model, not a different texture.
+- Sentry walk-home is stepped teleporting (no scripted pathfinding in Bedrock).

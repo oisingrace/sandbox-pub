@@ -1,11 +1,22 @@
 {
   "format_version": "1.21.80",
   "minecraft:item": {
-    "description": { "identifier": "golem:commander", "menu_category": { "category": "equipment" } },
+    "description": {
+      "identifier": "golem:commander",
+      "menu_category": {
+        "category": "equipment"
+      }
+    },
     "components": {
       "minecraft:max_stack_size": 1,
-      "minecraft:icon": "golem_commander",
-      "minecraft:custom_components": ["golem:commander"]
+      "minecraft:icon": {
+        "textures": {
+          "default": "golem_commander"
+        }
+      },
+      "minecraft:custom_components": [
+        "golem:commander"
+      ]
     }
   }
 }

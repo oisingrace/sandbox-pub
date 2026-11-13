@@ -1,4 +1,7 @@
 tile.golem:statue.name=Golem Statue
 item.golem:statue_item=Golem Statue
+item.golem:statue_item.name=Golem Statue
 item.golem:commander=Golem Commander
+item.golem:commander.name=Golem Commander
 entity.golem:golem.name=Golem
+item.spawn_egg.entity.golem:golem.name=Golem Spawn Egg

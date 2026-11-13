@@ -105,8 +105,8 @@
         "is_pushable_by_piston": true
       },
       "minecraft:tameable": {
-        "probability": 0,
-        "tame_items": "golem:never"
+        "probability": 0.0,
+        "tame_items": "minecraft:bone"
       },
       "minecraft:behavior.float": {
         "priority": 0

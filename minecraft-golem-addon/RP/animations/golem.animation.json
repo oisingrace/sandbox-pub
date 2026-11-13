@@ -1,0 +1,38 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.golem_commander.walk": {
+      "loop": true,
+      "bones": {
+        "leg0": {
+          "rotation": [
+            "math.cos(query.modified_distance_moved * 13) * 40 * query.modified_move_speed * 1.5",
+            0,
+            0
+          ]
+        },
+        "leg1": {
+          "rotation": [
+            "math.cos(query.modified_distance_moved * 13) * 40 * query.modified_move_speed * -1.5",
+            0,
+            0
+          ]
+        },
+        "arm0": {
+          "rotation": [
+            "math.cos(query.modified_distance_moved * 13) * 40 * query.modified_move_speed * -1.0",
+            0,
+            0
+          ]
+        },
+        "arm1": {
+          "rotation": [
+            "math.cos(query.modified_distance_moved * 13) * 40 * query.modified_move_speed * 1.0",
+            0,
+            0
+          ]
+        }
+      }
+    }
+  }
+}
