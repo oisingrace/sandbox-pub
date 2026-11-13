@@ -1,9 +1,9 @@
 {
   "format_version": 2,
   "header": {
-    "name": "No Bundles + World Border (textures)",
+    "name": "Bundleless Borders (textures)",
     "description": "Icon for the settings wand",
-    "uuid": "dbd0bcb1-d634-4c5f-8fa7-ffe8e291d091",
+    "uuid": "3f83cdad-27a7-4866-b585-2c6b43c117dd",
     "version": [
       1,
       0,
@@ -18,7 +18,7 @@
   "modules": [
     {
       "type": "resources",
-      "uuid": "aae901ad-3777-47fd-87ae-64a6b859044b",
+      "uuid": "9f0fdc88-c1b1-4497-9bd8-992e38c38d11",
       "version": [
         1,
         0,

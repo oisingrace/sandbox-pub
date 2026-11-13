@@ -1,7 +1,7 @@
-# No Bundles + World Border (Bedrock add-on)
+# Bundleless Borders (Bedrock add-on)
 
 Behaviour pack using the Script API (`@minecraft/server` 1.15.0, Minecraft 1.21.50+).
-Install: open `NoBundlesWorldBorder.mcaddon` (or copy `NoBundlesWorldBorder_BP` and `NoBundlesWorldBorder_RP` into `development_behavior_packs` / `development_resource_packs`), add to the world. No experiments needed.
+Install: open `BundlelessBorders.mcaddon` (or copy `BundlelessBorders_BP` and `BundlelessBorders_RP` into `development_behavior_packs` / `development_resource_packs`), add to the world. No experiments needed.
 
 ## What it does
 - **Bundles**: all 17 bundle types are deleted from player inventories/offhand (so crafting one gives nothing), dropped items, chests, barrels, shulker boxes, hoppers, furnaces, droppers, dispensers, crafters, decorated pots, minecarts and mobs with inventories (scanned within 16 blocks of players).

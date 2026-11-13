@@ -1,9 +1,9 @@
 {
   "format_version": 2,
   "header": {
-    "name": "No Bundles + World Border",
-    "description": "Removes bundles, stops village iron golems, adds a customisable Overworld/Nether world border.",
-    "uuid": "db0abf56-bebd-4ac6-990d-eb3c22ad56f7",
+    "name": "Bundleless Borders",
+    "description": "No bundles, no village iron golems, optional End lock, and a customisable Overworld/Nether world border.",
+    "uuid": "b872af3c-e5d5-41b0-8d5e-6517b225b0ae",
     "version": [
       1,
       0,
@@ -19,7 +19,7 @@
     {
       "type": "script",
       "language": "javascript",
-      "uuid": "89b2064f-8618-4e5a-af9c-4a152434f402",
+      "uuid": "280ee154-b3cf-4a3b-9c82-3f1340299bf4",
       "version": [
         1,
         0,
@@ -38,7 +38,7 @@
       "version": "1.2.0"
     },
     {
-      "uuid": "dbd0bcb1-d634-4c5f-8fa7-ffe8e291d091",
+      "uuid": "3f83cdad-27a7-4866-b585-2c6b43c117dd",
       "version": [
         1,
         0,
