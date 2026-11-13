@@ -118,6 +118,16 @@ import("./_run/store.js").then(async (S) => {
   assert.ok(zombie.tags.has("golem_target"), "guard engages mob hurting owner");
   world.afterEvents.entityHurt.emit({ hurtEntity: alice, damageSource: { damagingEntity: mate } });
   assert.ok(!mate.hit, "teammate exempt");
+  // vanilla pumpkin build -> statue; village golem (no pumpkin) untouched
+  const before = world.beforeEvents.playerPlaceBlock;
+  before.emit({ itemStack: { typeId: "minecraft:carved_pumpkin" }, player: alice, block: { location: { x: 30, y: 66, z: 30 } } });
+  const built = dim.spawnEntity("minecraft:iron_golem", { x: 30.5, y: 64, z: 30.5 });
+  world.afterEvents.entitySpawn.emit({ entity: built, cause: "Spawned" });
+  assert.equal(built.isValid, false, "pumpkin-built iron golem replaced");
+  assert.equal(block(30, 64, 30).typeId, "golem:statue", "…by a statue");
+  const village = dim.spawnEntity("minecraft:iron_golem", { x: 50.5, y: 64, z: 50.5 });
+  world.afterEvents.entitySpawn.emit({ entity: village, cause: "Spawned" });
+  assert.equal(village.isValid, true, "natural golem untouched");
   console.log("smoke test OK");
 });
 

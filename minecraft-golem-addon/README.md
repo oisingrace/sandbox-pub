@@ -32,6 +32,7 @@ Uses `@minecraft/server` 2.0.0 and `@minecraft/server-ui` 2.0.0. **Untested in-g
 - **Guard** follows its owner and attacks anything that hurts them (mobs, players, other golems) - except the owner's own golems and
   anyone on that golem's friendly list (teams included).
 - **Golem Commander recipe:** 4 iron nuggets (shapeless, crafting table).
+- **Building a golem the classic way** (iron blocks + carved pumpkin) makes a statue instead of a vanilla iron golem (detected by the pumpkin placement; village golems are untouched).
 - First programming is free whether done by hand or with the lodestone (also for never-programmed statues placed by someone else).
 
 ## Review fixes (v0.4)

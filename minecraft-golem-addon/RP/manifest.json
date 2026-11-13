@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Golem Commanders v0.7.0 (RP)",
+    "name": "Golem Commanders v0.8.0 (RP)",
     "description": "Resources for Golem Commanders.",
     "uuid": "0281eb46-fda8-4e1c-91d0-6c7b660ff3bc",
     "version": [
       0,
-      7,
+      8,
       0
     ],
     "min_engine_version": [
@@ -21,7 +21,7 @@
       "uuid": "33a14f60-5117-41b5-91a1-e90a4202b4dc",
       "version": [
         0,
-        7,
+        8,
         0
       ]
     }

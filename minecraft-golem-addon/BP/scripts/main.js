@@ -309,15 +309,21 @@ system.runInterval(() => {
   }
 }, 200);
 
-// ---------- freshly spawned golems (egg / summon / spawner) become statues ----------
+// ---------- freshly spawned golems become statues ----------
+// Covers our own golem (egg / summon / spawner) and the classic build (iron blocks + carved pumpkin),
+// which would otherwise produce a plain vanilla iron golem.
 const CARD = ["south", "west", "north", "east"];
-world.afterEvents.entitySpawn.subscribe((ev) => {
-  const g = ev.entity;
-  if (!g.isValid || g.typeId !== GOLEM || ev.cause === "Loaded") return;
-  if (pendingAwake.delete(g.id) || S.getGolem(g)) return;
+const PUMPKINS = ["minecraft:carved_pumpkin", "minecraft:lit_pumpkin"];
+const pumpkinPlaced = []; // {player, tick, loc}
+world.beforeEvents.playerPlaceBlock.subscribe((e) => {
+  if (!PUMPKINS.includes(e.itemStack?.typeId)) return;
+  pumpkinPlaced.push({ player: e.player, tick: system.currentTick, loc: { ...e.block.location }, dim: e.player.dimension.id });
+  if (pumpkinPlaced.length > 8) pumpkinPlaced.shift();
+});
+
+function toStatue(g, owner) {
   const dim = g.dimension;
-  const p = dim.getPlayers({ location: g.location, closest: 1, maxDistance: 16 })[0];
-  const data = S.newGolemData(p ?? { id: "", name: "" });
+  const data = S.newGolemData(owner ?? { id: "", name: "" });
   let b = dim.getBlock(g.location);
   if (b && !b.isAir && !b.isLiquid) b = b.above();
   if (!b) return;
@@ -326,4 +332,20 @@ world.afterEvents.entitySpawn.subscribe((ev) => {
   b.setPermutation(BlockPermutation.resolve("golem:statue",
     { "golem:dead": false, "golem:waxed": false, "minecraft:cardinal_direction": CARD[Math.round(yaw / 90) % 4] }));
   S.setStatue(b, data);
+}
+
+world.afterEvents.entitySpawn.subscribe((ev) => {
+  const g = ev.entity;
+  if (!g.isValid || ev.cause === "Loaded") return;
+  if (g.typeId === "minecraft:iron_golem") {
+    // player-built: a carved pumpkin was just placed nearby (a village-spawned golem has no such placement)
+    const i = pumpkinPlaced.findIndex((p) => system.currentTick - p.tick <= 5 && p.dim === g.dimension.id &&
+      Math.hypot(p.loc.x - g.location.x, p.loc.y - g.location.y, p.loc.z - g.location.z) <= 6);
+    if (i < 0) return;
+    const [rec] = pumpkinPlaced.splice(i, 1);
+    return toStatue(g, rec.player);
+  }
+  if (g.typeId !== GOLEM) return;
+  if (pendingAwake.delete(g.id) || S.getGolem(g)) return;
+  toStatue(g, g.dimension.getPlayers({ location: g.location, closest: 1, maxDistance: 16 })[0]);
 });
