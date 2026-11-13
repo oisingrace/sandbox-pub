@@ -97,3 +97,8 @@ rejects ("Expected 1, received 2"), disabling join handling, statue/commander/lo
 - The "hit as target" trick that makes a golem lock on is now throttled (once per target, repeated only after ~10 s or if the golem lost it),
   so golems no longer flash/hurt-sound every second while an enemy is in range.
 - Fixed `fromPlayer failed ... Entity being invalid` (the golem was already converted by the spawn signal).
+
+## v0.9.8 - vanilla golem animations
+The living golem now uses the vanilla iron golem client definition (vanilla geometry `geometry.irongolem`, animations, animation
+controllers, crack textures) and the vanilla `melee_box_attack` / `move_towards_target` behaviours and component values, taken from
+Mojang's bedrock-samples. Dead statues use the real vanilla model with the head tilted forward.

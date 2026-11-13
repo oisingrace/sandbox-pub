@@ -1,17 +1,6 @@
 {
   "format_version": "1.10.0",
   "render_controllers": {
-    "controller.render.golem_commander": {
-      "geometry": "Geometry.default",
-      "materials": [
-        {
-          "*": "Material.default"
-        }
-      ],
-      "textures": [
-        "Texture.default"
-      ]
-    },
     "controller.render.golem_statue": {
       "geometry": "query.variant == 1 ? Geometry.dead : Geometry.new",
       "materials": [
