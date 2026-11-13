@@ -85,3 +85,9 @@ Right-clicks are now picked up through several event paths at once (deduplicated
 the commander via the item component and `itemUse`, the lodestone via before+after `playerInteractWithBlock`. Each shows an action-bar
 hint immediately (so you can tell the click arrived even if the menu doesn't open). **Sneak + right-click with the commander cycles the
 mode without any menu.**
+
+## v0.9.6
+Fixed the bug found with `/scriptevent golem:selftest`: every event subscription passed an empty second argument, which the game
+rejects ("Expected 1, received 2"), disabling join handling, statue/commander/lodestone clicks and spawn handling. Also dropped
+`beforeEvents.playerPlaceBlock`, which doesn't exist in current game versions (pumpkin builds use the `from_player` event,
+`playerInteractWithBlock` and the after-place event).

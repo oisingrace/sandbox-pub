@@ -22,7 +22,8 @@ const problems = [];
 const on = (sig, name, fn, opts) => {
   try {
     if (!sig?.subscribe) throw new Error("this event does not exist in this game version");
-    return sig.subscribe(safe(name, fn), opts);
+    // pass `opts` only when given: the game rejects an explicit 2nd argument ("Expected 1, received 2")
+    return opts ? sig.subscribe(safe(name, fn), opts) : sig.subscribe(safe(name, fn));
   } catch (e) { problems.push(`${name}: ${e?.message ?? e}`); }
 };
 const runInterval = (fn, n) => system.runInterval(safe("interval", fn), n);
@@ -373,7 +374,6 @@ function notePumpkin(player, loc, via) {
   dbg(`pumpkin seen (${via}) by ${player.name}`);
 }
 // Several signals, because the vanilla golem can appear before/after any single one of them fires.
-on(world.beforeEvents.playerPlaceBlock, "pumpkinPlace", (e) => { if (PUMPKINS.includes(e.itemStack?.typeId)) notePumpkin(e.player, e.block.location, "place"); });
 on(world.beforeEvents.playerInteractWithBlock, "pumpkinUse", (e) => { if (PUMPKINS.includes(e.itemStack?.typeId)) notePumpkin(e.player, e.block.location, "use"); });
 on(world.afterEvents.playerPlaceBlock, "pumpkinPlaced", (e) => {
   if (PUMPKINS.includes(e.block.typeId) || e.block.isAir) notePumpkin(e.player, e.block.location, "placed");

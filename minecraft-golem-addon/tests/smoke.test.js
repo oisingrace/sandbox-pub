@@ -124,7 +124,7 @@ assert.equal(isHostileTo(d, { typeId: "minecraft:player", name: "Zed" }), false,
 const built = dim.spawnEntity("minecraft:iron_golem", { x: 30.5, y: 64, z: 30.5 }); alice.location = { x: 30, y: 64, z: 31 };
 world.afterEvents.dataDrivenEntityTrigger.emit({ entity: built, eventId: "minecraft:from_player" });
 assert.equal(built.isValid, false); assert.equal(statues().length, 1);
-world.beforeEvents.playerPlaceBlock.emit({ itemStack: { typeId: "minecraft:carved_pumpkin" }, player: alice, block: { location: { x: 40, y: 66, z: 40 } } });
+world.beforeEvents.playerInteractWithBlock.emit({ itemStack: { typeId: "minecraft:carved_pumpkin" }, player: alice, block: { typeId: "minecraft:iron_block", location: { x: 40, y: 66, z: 40 } } });
 const built2 = dim.spawnEntity("minecraft:iron_golem", { x: 40.5, y: 64, z: 40.5 });
 world.afterEvents.entitySpawn.emit({ entity: built2, cause: "Spawned" });
 assert.equal(built2.isValid, false); assert.equal(statues().length, 2);

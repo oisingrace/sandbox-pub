@@ -1,13 +1,13 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Golem Commanders v0.9.5 (BP)",
+    "name": "Golem Commanders v0.9.6 (BP)",
     "description": "Statue golems you reawaken, command and program.",
     "uuid": "ca973b5c-1a2c-4a08-8478-bf4ccea06dc2",
     "version": [
       0,
       9,
-      5
+      6
     ],
     "min_engine_version": [
       1,
@@ -22,7 +22,7 @@
       "version": [
         0,
         9,
-        5
+        6
       ]
     },
     {
@@ -33,7 +33,7 @@
       "version": [
         0,
         9,
-        5
+        6
       ]
     }
   ],
@@ -43,7 +43,7 @@
       "version": [
         0,
         9,
-        5
+        6
       ]
     },
     {
