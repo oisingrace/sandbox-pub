@@ -1,0 +1,26 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "golem:statue",
+      "materials": {
+        "default": "iron_golem",
+        "marks": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/iron_golem/iron_golem",
+        "marks": "textures/entity/golem_statue_marks"
+      },
+      "geometry": {
+        "new": "geometry.iron_golem",
+        "dead": "geometry.golem_statue_dead",
+        "marks_new": "geometry.golem_marks_new",
+        "marks_dead": "geometry.golem_marks_dead"
+      },
+      "render_controllers": [
+        "controller.render.golem_statue",
+        "controller.render.golem_statue_marks"
+      ]
+    }
+  }
+}

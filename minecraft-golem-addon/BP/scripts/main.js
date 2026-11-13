@@ -1,11 +1,14 @@
-import { world, system, ItemStack, BlockPermutation, EntityComponentTypes } from "@minecraft/server";
+import { world, system, ItemStack, EntityComponentTypes } from "@minecraft/server";
 import * as S from "./store.js";
 import { awakenMenu, modeMenu, lodestoneMenu } from "./forms.js";
 import { isHostileTo, isFriendlyTo, isGolem } from "./relations.js";
 
 const GOLEM = "golem:golem";
+const STATUE = "golem:statue";
 const DIMS = ["overworld", "nether", "the_end"];
 const pendingAwake = new Set();   // ids of golems we spawned on purpose (not turned into statues)
+const pendingStatue = new Set();  // ids of statues we spawned on purpose (data already set)
+const statueCache = new Map();    // statue id -> data, so a destroyed statue can still drop its item with data
 const lastSeen = new Map();       // golem id -> {d, loc, dim}, cached for death handling
 const engaged = new Map();        // golem id -> {tid, tick}
 const returning = new Map();      // golem id -> {g, stuck} (sentries walking home)
@@ -13,7 +16,7 @@ const returning = new Map();      // golem id -> {g, stuck} (sentries walking ho
 const safe = (name, fn) => (...a) => {
   try { return fn(...a); } catch (e) { try { world.sendMessage(`§c[Golems] ${name} failed: ${e?.message ?? e}`); } catch { /* ignore */ } }
 };
-const on = (sig, name, fn) => sig.subscribe(safe(name, fn));
+const on = (sig, name, fn, opts) => sig.subscribe(safe(name, fn), opts);
 const runInterval = (fn, n) => system.runInterval(safe("interval", fn), n);
 const flag = (k) => world.getDynamicProperty(k) === true;
 const dbg = (m) => { if (flag("golem_debug")) world.sendMessage(`§7[Golems] ${m}`); };
@@ -36,15 +39,29 @@ function takeOne(player, slot) {
   if (it.amount > 1) { it.amount--; c.setItem(slot, it); } else c.setItem(slot, undefined);
 }
 
-// ---------- statue -> golem ----------
-function awaken(block, data, player) {
-  const dim = block.dimension;
-  const loc = { x: block.x + 0.5, y: block.y, z: block.z + 0.5 };
-  S.clearStatue(block);
-  block.setType("minecraft:air");
+// ---------- statues are entities (golem:statue): full-size model, data lives on the entity ----------
+const rot = (e) => { try { return e.getRotation(); } catch { return { x: 0, y: 0 }; } };
+
+// Create a statue entity (used for new-built golems and for dead golems).
+function makeStatue(dim, loc, rotation, data) {
+  const st = dim.spawnEntity(STATUE, loc);
+  pendingStatue.add(st.id);
+  S.setGolem(st, data);
+  st.setRotation?.({ x: 0, y: rotation.y });
+  st.triggerEvent(data.dead ? "golem:set_dead" : "golem:set_fresh");
+  statueCache.set(st.id, data);
+  return st;
+}
+
+// statue entity -> living golem
+function awaken(statue, data, player) {
+  const dim = statue.dimension, loc = { ...statue.location }, r = rot(statue);
+  statueCache.delete(statue.id);
+  statue.remove();
   const g = dim.spawnEntity(GOLEM, loc);
   pendingAwake.add(g.id);
-  data.dead = false;
+  g.setRotation?.({ x: 0, y: r.y });
+  data.dead = false; data.waxed = false;
   data.home = { x: loc.x, y: loc.y, z: loc.z, dim: dim.id };
   S.setGolem(g, data);
   setOwner(g, player);
@@ -54,71 +71,67 @@ function setOwner(g, player) {
   try { g.getComponent(EntityComponentTypes.Tameable)?.tame(player); } catch { /* owner already set */ }
 }
 
-const statueComponent = {
-  onPlayerInteract({ block, player }) {
-    const data = S.getStatue(block) ?? S.newGolemData({ id: "", name: "" }); // e.g. /setblock'd statue
+function statueInteract(statue, player, held) {
+  const data = S.getGolem(statue) ?? S.newGolemData({ id: "", name: "" });
+  if (held?.typeId === "minecraft:honeycomb" && !data.waxed) {
+    data.waxed = true; S.setGolem(statue, data); statueCache.set(statue.id, data);
     const inv = player.getComponent("inventory").container;
-    const held = inv.getItem(player.selectedSlotIndex);
-    if (held?.typeId === "minecraft:honeycomb" && !data.waxed) {
-      data.waxed = true; S.setStatue(block, data);
-      block.setPermutation(block.permutation.withState("golem:waxed", true));
-      if (held.amount > 1) { held.amount--; inv.setItem(player.selectedSlotIndex, held); }
-      else inv.setItem(player.selectedSlotIndex, undefined);
-      player.sendMessage("§eStatue waxed - it will no longer decay.");
-      return;
+    if (held.amount > 1) { held.amount--; inv.setItem(player.selectedSlotIndex, held); }
+    else inv.setItem(player.selectedSlotIndex, undefined);
+    player.sendMessage("§eStatue waxed - it will no longer decay.");
+    return;
+  }
+  const newOwner = data.owner !== player.id;
+  // The first programming is free; every later one (i.e. after the golem has died) costs an iron block.
+  const needIron = data.programmed;
+  if (needIron && findIron(player) < 0)
+    return player.sendMessage("§cThis statue has been programmed before - reawakening it needs an iron block.");
+  const base = newOwner ? { ...S.newGolemData(player), programmed: data.programmed, dead: data.dead, diedAt: data.diedAt } : data;
+  system.run(() => awakenMenu(player, base, (d) => {
+    if (!statue.isValid) return;
+    if (needIron) {
+      const slot = findIron(player);
+      if (slot < 0) return player.sendMessage("§cYou need an iron block.");
+      takeOne(player, slot);
     }
-    const newOwner = data.owner !== player.id;
-    // The first programming is free; every later one (i.e. after the golem has died) costs an iron block.
-    const needIron = data.programmed;
-    if (needIron && findIron(player) < 0)
-      return player.sendMessage("§cThis statue has been programmed before - reawakening it needs an iron block.");
-    const base = newOwner ? { ...S.newGolemData(player), programmed: data.programmed } : data;
-    system.run(() => awakenMenu(player, base, (d) => {
-      if (needIron) {
-        const slot = findIron(player);
-        if (slot < 0) return player.sendMessage("§cYou need an iron block.");
-        takeOne(player, slot);
-      }
-      d.owner = player.id; d.ownerName = player.name; d.programmed = true;
-      awaken(block, d, player);
-    }));
-  },
-};
+    d.owner = player.id; d.ownerName = player.name; d.programmed = true;
+    awaken(statue, d, player);
+  }));
+}
+on(world.afterEvents.playerInteractWithEntity, "statueInteract", (e) => {
+  if (e.target.typeId === STATUE) statueInteract(e.target, e.player, e.itemStack);
+});
 
 system.beforeEvents.startup.subscribe((ev) => {
-  ev.blockComponentRegistry.registerCustomComponent("golem:statue", statueComponent);
   ev.itemComponentRegistry.registerCustomComponent("golem:commander", {
     onUse(e) { system.run(() => modeMenu(e.source, (m) => commandGolems(e.source, m))); },
   });
 });
 
-// A silk-touched statue item carries its data (so breaking+placing can't skip the iron block rule).
-const carried = new Map(); // player id -> data JSON from the item being placed
-on(world.beforeEvents.playerPlaceBlock, "playerPlaceBlock", (e) => {
+// A silk-touched statue item carries its data (so break + place can't skip the iron block rule).
+const carried = new Map(); // player id -> data JSON from the statue item they just used
+on(world.beforeEvents.playerInteractWithBlock, "carry", (e) => {
   const j = e.itemStack?.typeId === "golem:statue_item" ? e.itemStack.getDynamicProperty("d") : undefined;
   if (j) carried.set(e.player.id, j); else carried.delete(e.player.id);
 });
-on(world.afterEvents.playerPlaceBlock, "playerPlaceBlock", (e) => {
-  if (e.block.typeId !== "golem:statue") return;
-  const j = carried.get(e.player.id); carried.delete(e.player.id);
-  let data = null; try { data = j ? JSON.parse(j) : null; } catch { /* ignore */ }
-  if (!data) return S.setStatue(e.block, S.newGolemData(e.player));
-  S.setStatue(e.block, data);
-  let p = e.block.permutation;
-  if (data.dead) p = p.withState("golem:dead", true);
-  if (data.waxed) p = p.withState("golem:waxed", true);
-  e.block.setPermutation(p);
-});
 
-on(world.afterEvents.playerBreakBlock, "playerBreakBlock", (e) => {
-  if (e.brokenBlockPermutation.type.id !== "golem:statue") return;
-  const data = S.getStatue(e.block);
-  S.clearStatue(e.block);
-  const silk = e.itemStackBeforeBreak?.getComponent("enchantable")?.hasEnchantment("silk_touch");
-  if (!silk) return;
+// Hitting a statue breaks it (it is invulnerable to everything else). Only silk touch keeps it as an item.
+on(world.afterEvents.entityHurt, "statueHurt", (ev) => {
+  const e = ev.hurtEntity;
+  if (e.typeId === STATUE) { const d = S.getGolem(e); if (d) statueCache.set(e.id, d); }
+});
+on(world.afterEvents.entityDie, "statueDie", (ev) => {
+  const e = ev.deadEntity;
+  let id, loc, dim, d = null;
+  try { if (e.typeId !== STATUE) return; id = e.id; loc = e.location; dim = e.dimension; d = S.getGolem(e); } catch { if (id === undefined) return; }
+  d = d ?? statueCache.get(id); statueCache.delete(id);
+  const by = ev.damageSource?.damagingEntity;
+  if (!d || !loc || !by || by.typeId !== "minecraft:player") return;
+  const held = by.getComponent("inventory")?.container?.getItem(by.selectedSlotIndex);
+  if (!held?.getComponent("enchantable")?.hasEnchantment("silk_touch")) return;
   const item = new ItemStack("golem:statue_item", 1);
-  if (data) item.setDynamicProperty("d", JSON.stringify(data));
-  e.dimension.spawnItem(item, e.block.center());
+  item.setDynamicProperty("d", JSON.stringify(d));
+  (dim ?? dimOf("overworld")).spawnItem(item, loc);
 });
 
 // ---------- modes ----------
@@ -141,24 +154,21 @@ function commandGolems(player, mode) {
   player.sendMessage(`§a${gs.length} golem(s) set to ${mode}.`);
 }
 
-// ---------- lodestone: program awakened golems in range (never statues), make teams ----------
+// ---------- lodestone ----------
 function statuesNear(player, radius) {
-  const out = [];
-  for (const r of S.allStatues()) {
-    if (r.dim !== player.dimension.id.replace("minecraft:", "")) continue;
-    if (Math.hypot(r.x - player.location.x, r.y - player.location.y, r.z - player.location.z) > radius) continue;
-    if (r.data.owner && r.data.owner !== player.id && r.data.programmed) continue; // others' used statues are off limits; never-programmed ones are fair game
-    const b = player.dimension.getBlock({ x: r.x, y: r.y, z: r.z });
-    if (b?.typeId === "golem:statue") out.push(b);
-  }
-  return out;
+  return player.dimension.getEntities({ type: STATUE, location: player.location, maxDistance: radius })
+    .filter((st) => {
+      const d = S.getGolem(st); if (!d) return false;
+      // others' used statues are off limits; never-programmed ones are fair game
+      return !d.owner || d.owner === player.id || !d.programmed;
+    });
 }
 
-// Living golems can't be edited; only statues are programmed, and a golem stays as programmed until it
-// dies. The lodestone is the exception: it re-programs living golems and reawakens statues in range,
-// Living golems are free; dead statues cost 1 iron block each (free if never programmed).
+// Living golems can't be edited by hand; their program is fixed until they die. The lodestone is the
+// exception: it reprograms living golems for free and reawakens statues in range with the chosen
+// program (dead/programmed statues cost 1 iron block each, never-programmed ones are free).
 // Teams edited at the lodestone take effect immediately: lists reference teams by name.
-on(world.afterEvents.playerInteractWithBlock, "playerInteractWithBlock", (e) => {
+on(world.afterEvents.playerInteractWithBlock, "lodestone", (e) => {
   if (e.block.typeId !== "minecraft:lodestone" || e.itemStack) return; // empty hand only, so building next to it still works
   const p = e.player;
   system.run(() => lodestoneMenu(p, () => {
@@ -171,13 +181,13 @@ on(world.afterEvents.playerInteractWithBlock, "playerInteractWithBlock", (e) => 
         takeOne(p, slot); return true;
       };
       for (const g of golemsNear(p, S.COMMAND_RADIUS)) {
-        const o = S.getGolem(g); // living golems are reprogrammed for free
+        const o = S.getGolem(g);
         S.setGolem(g, { ...o, hostile: d.hostile, friendly: d.friendly, programmed: true }); live++;
       }
-      for (const b of statuesNear(p, S.COMMAND_RADIUS)) {
-        const sd = S.getStatue(b); if (!sd) continue;
+      for (const st of statuesNear(p, S.COMMAND_RADIUS)) {
+        const sd = S.getGolem(st); if (!sd) continue;
         if (!pay(sd.programmed)) { skipped++; continue; }
-        awaken(b, { ...sd, owner: p.id, ownerName: p.name, hostile: d.hostile, friendly: d.friendly, programmed: true }, p);
+        awaken(st, { ...sd, owner: p.id, ownerName: p.name, hostile: d.hostile, friendly: d.friendly, programmed: true }, p);
         woken++;
       }
       p.sendMessage(`§aReprogrammed ${live} living golem(s) and reawakened ${woken} statue(s).` +
@@ -284,43 +294,34 @@ on(world.afterEvents.entityHurt, "entityHurt", (ev) => {
 });
 
 // ---------- death -> dead statue ----------
-on(world.afterEvents.entityDie, "entityDie", (ev) => {
+on(world.afterEvents.entityDie, "golemDie", (ev) => {
   const e = ev.deadEntity;
-  let id, live = null, loc = null;
-  try { if (e.typeId !== GOLEM) return; id = e.id; live = S.getGolem(e); loc = e.location; } catch { /* entity already invalid */ }
+  let id, live = null, loc = null, r = { x: 0, y: 0 };
+  try { if (e.typeId !== GOLEM) return; id = e.id; live = S.getGolem(e); loc = e.location; r = rot(e); } catch { /* entity already invalid */ }
   const cached = lastSeen.get(id);
   const data = live ?? cached?.d, where = loc ?? cached?.loc;
   const dimName = (cached?.dim) ?? (() => { try { return e.dimension.id.replace("minecraft:", ""); } catch { return "overworld"; } })();
   lastSeen.delete(id); engaged.delete(id); returning.delete(id);
   if (!data || !where) return;
-  const dim = dimOf(dimName);
-  const pos = { x: Math.floor(where.x), y: Math.floor(where.y), z: Math.floor(where.z) };
-  system.run(() => {
-    let b = dim.getBlock(pos);
-    for (let i = 0; b && !b.isAir && !b.isLiquid && i < 4; i++) b = b.above(); // find free spot
-    if (!b) return;
-    b.setPermutation(BlockPermutation.resolve("golem:statue", { "golem:dead": true, "golem:waxed": false }));
-    S.setStatue(b, { ...data, dead: true, programmed: true, waxed: false, diedAt: Date.now() });
-  });
+  system.run(() => makeStatue(dimOf(dimName), where, r,
+    { ...data, dead: true, programmed: true, waxed: false, diedAt: Date.now() }));
 });
 
-// ---------- decay of unwaxed dead statues ----------
+// ---------- decay of unwaxed dead statues (loaded chunks only; checked against wall clock) ----------
 runInterval(() => {
-  for (const r of S.allStatues()) {
-    const b = dimOf(r.dim).getBlock({ x: r.x, y: r.y, z: r.z });
-    if (!b) continue; // chunk not loaded: try again later
-    if (b.typeId !== "golem:statue") { S.dropStatueRecord(r); continue; } // orphaned record
-    const d = r.data;
-    if (!d.dead || d.waxed || Date.now() - d.diedAt < S.DECAY_MS) continue;
-    b.setType("minecraft:air");
-    S.dropStatueRecord(r);
+  for (const dimId of DIMS) {
+    for (const st of dimOf(dimId).getEntities({ type: STATUE })) {
+      const d = S.getGolem(st);
+      if (!d?.dead || d.waxed || Date.now() - d.diedAt < S.DECAY_MS) continue;
+      statueCache.delete(st.id);
+      st.remove();
+    }
   }
 }, 200);
 
-// ---------- freshly spawned golems become statues ----------
-// Covers our own golem (egg / summon / spawner) and the classic build (iron blocks + carved pumpkin),
+// ---------- new golems become statues ----------
+// Covers: our golem entity (egg / summon), and the classic build (iron blocks + carved pumpkin)
 // which would otherwise produce a plain vanilla iron golem.
-const CARD = ["south", "west", "north", "east"];
 const PUMPKINS = ["minecraft:carved_pumpkin", "minecraft:lit_pumpkin"];
 const pumpkinPlaced = []; // {player, tick, loc, dim}
 function notePumpkin(player, loc, via) {
@@ -346,35 +347,42 @@ system.afterEvents.scriptEventReceive.subscribe(safe("scriptEvent", (e) => {
 }));
 
 function toStatue(g, owner) {
-  const dim = g.dimension;
-  const data = S.newGolemData(owner ?? { id: "", name: "" });
-  let b = dim.getBlock(g.location);
-  if (b && !b.isAir && !b.isLiquid) b = b.above();
-  if (!b) return;
-  const yaw = ((g.getRotation().y % 360) + 360) % 360;
+  if (!g.isValid) return; // already converted via another signal
+  const dim = g.dimension, loc = { ...g.location }, r = rot(g);
   g.remove();
-  b.setPermutation(BlockPermutation.resolve("golem:statue",
-    { "golem:dead": false, "golem:waxed": false, "minecraft:cardinal_direction": CARD[Math.round(yaw / 90) % 4] }));
-  S.setStatue(b, data);
+  makeStatue(dim, loc, r, S.newGolemData(owner ?? { id: "", name: "" }));
 }
+const nearestPlayer = (g, d = 16) => g.dimension.getPlayers({ location: g.location, closest: 1, maxDistance: d })[0];
+
+// Most reliable signal: the vanilla iron golem fires "minecraft:from_player" when a player builds it.
+on(world.afterEvents.dataDrivenEntityTrigger, "fromPlayer", (ev) => {
+  dbg("vanilla iron golem fired from_player");
+  toStatue(ev.entity, nearestPlayer(ev.entity));
+}, { entityTypes: ["minecraft:iron_golem"], eventTypes: ["minecraft:from_player"] });
 
 on(world.afterEvents.entitySpawn, "entitySpawn", (ev) => {
   const g = ev.entity;
   if (!g.isValid || ev.cause === "Loaded") return;
   if (g.typeId === "minecraft:iron_golem") {
-    // player-built: a carved pumpkin was just placed nearby (a village-spawned golem has no such placement)
     dbg(`iron golem spawned (cause ${ev.cause}); recent pumpkins: ${pumpkinPlaced.length}`);
-    let i = pumpkinPlaced.findIndex((p) => system.currentTick - p.tick <= 20 && p.dim === g.dimension.id &&
+    const i = pumpkinPlaced.findIndex((p) => system.currentTick - p.tick <= 20 && p.dim === g.dimension.id &&
       Math.hypot(p.loc.x - g.location.x, p.loc.y - g.location.y, p.loc.z - g.location.z) <= 8);
-    if (i < 0 && flag("golem_convert_all")) { // fallback: nearest player takes ownership
-      const near = g.dimension.getPlayers({ location: g.location, closest: 1, maxDistance: 16 })[0];
-      if (near) { pumpkinPlaced.push({ player: near, tick: system.currentTick, loc: g.location, dim: g.dimension.id }); i = pumpkinPlaced.length - 1; }
-    }
-    if (i < 0) return;
-    const [rec] = pumpkinPlaced.splice(i, 1);
-    return toStatue(g, rec.player);
+    if (i >= 0) return toStatue(g, pumpkinPlaced.splice(i, 1)[0].player);
+    if (flag("golem_convert_all")) { const near = nearestPlayer(g); if (near) return toStatue(g, near); }
+    return;
   }
-  if (g.typeId !== GOLEM) return;
-  if (pendingAwake.delete(g.id) || S.getGolem(g)) return;
-  toStatue(g, g.dimension.getPlayers({ location: g.location, closest: 1, maxDistance: 16 })[0]);
+  if (g.typeId === GOLEM) {
+    if (pendingAwake.delete(g.id) || S.getGolem(g)) return;
+    return toStatue(g, nearestPlayer(g));
+  }
+  if (g.typeId === STATUE) { // placed from the item, spawn egg or /summon
+    if (pendingStatue.delete(g.id) || S.getGolem(g)) return;
+    const p = nearestPlayer(g, 8);
+    let data = null;
+    const j = p && carried.get(p.id); if (p) carried.delete(p.id);
+    try { data = j ? JSON.parse(j) : null; } catch { /* ignore */ }
+    data = data ?? S.newGolemData(p ?? { id: "", name: "" });
+    S.setGolem(g, data); statueCache.set(g.id, data);
+    g.triggerEvent(data.dead ? "golem:set_dead" : "golem:set_fresh");
+  }
 });

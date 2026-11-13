@@ -4,7 +4,7 @@ Behavior pack (`BP/`) + resource pack (`RP/`). Copy each into `development_behav
 Uses `@minecraft/server` 2.0.0 and `@minecraft/server-ui` 2.0.0. **Untested in-game so far** — only JSON/JS syntax checked.
 
 ## Implemented
-- **Statue block** (`golem:statue`, item `golem:statue_item`, stack size 1). Right-click opens the reawakening menu:
+- **Statue entity** (`golem:statue`, item `golem:statue_item`, stack size 1). Right-click opens the reawakening menu:
   hostile list (every player who has joined + free-text usernames) and friendly list (teams + players + free text).
 - **Golem** (`golem:golem`): iron-golem look, modes via entity component groups.
 - **Golem Commander** (`golem:commander`): right-click picks a mode for all your golems within 32 blocks.
@@ -12,12 +12,18 @@ Uses `@minecraft/server` 2.0.0 and `@minecraft/server-ui` 2.0.0. **Untested in-g
 - Follow: teleports to owner when >24 blocks away. Sentry: remembers its spot, engages within 100 blocks, walks home.
 - Hostility: golems are extensions of their owner (hostile to a player ⇒ hostile to their golems). Golems target golems first; assassin skips golems.
 - Death: golem becomes a dead statue (keeps data, `diedOnce`). Unwaxed dead statues decay after 1 h (wall clock); honeycomb waxes.
-  Mining gives nothing; silk touch drops the (unstackable) statue item.
+  Hitting a statue breaks it and drops nothing; breaking it with a silk touch tool drops the (unstackable) statue item carrying its data.
 - Reawakening a statue that has died once, or taking one over as a new owner, costs 1 iron block. First awakening is free.
 - **Lodestone**: program all golems in 32 blocks, and create/edit teams.
 
 ## Building
 `python3 build.py` stamps `VERSION` into both manifests (pack names show it in Minecraft) and writes `../golem-commanders-v<VERSION>.mcaddon`. Bump `VERSION` each build so Minecraft accepts the import as an upgrade.
+
+## Statues are entities (v0.9)
+Statues are now entities, not blocks: they use the real full-size iron golem model, store their data on the entity (no
+per-block records), keep their rotation, are invulnerable except to player hits, and don't need the block-model size hacks.
+New-built statues stand with vines; dead ones slump with cracks (overlay model + texture). Dead unwaxed statues decay after
+1 hour (checked in loaded chunks). Pumpkin builds are caught via the vanilla `minecraft:from_player` event as well as pumpkin placement.
 
 ## Programming rules (v0.4)
 - Programs are set in the reawakening menu (hostile to players/teams, friendly to teams/players, plus typed usernames). A living golem
@@ -32,7 +38,7 @@ Uses `@minecraft/server` 2.0.0 and `@minecraft/server-ui` 2.0.0. **Untested in-g
 - **Guard** follows its owner and attacks anything that hurts them (mobs, players, other golems) - except the owner's own golems and
   anyone on that golem's friendly list (teams included).
 - **Golem Commander recipe:** 4 iron nuggets (shapeless, crafting table).
-- **Building a golem the classic way** (iron blocks + carved pumpkin) makes a statue instead of a vanilla iron golem (detected by the pumpkin placement; village golems are untouched).
+- **Building a golem the classic way** (iron blocks + carved pumpkin) makes a statue instead of a vanilla iron golem (village golems are untouched).
 - First programming is free whether done by hand or with the lodestone (also for never-programmed statues placed by someone else).
 
 ## Review fixes (v0.4)
@@ -48,9 +54,8 @@ iron rule, decay, lodestone costs, live teams). It checks the add-on's logic, no
 
 ## Still unverified / limitations
 - Real-game behaviour is untested: the `applyDamage`-as-target trick, `tame()` + `follow_owner`, 128px texture in the terrain atlas,
-  and statue facing (if statues face away from you, swap the north/south and east/west rotations in `BP/blocks/statue.json`).
-- Statue block is scaled to fit Bedrock's block-size limit (about 1.8 blocks tall vs the golem's 2.7).
-- Statue looks: new-built statues stand upright with green vines; dead ones have a slumped head and dark cracks (generated marks texture, placeholder art).
+  that `dataDrivenEntityTrigger` fires `minecraft:from_player` for a pumpkin-built golem, and that `entity_placer` places the statue item.
+- Statue looks: new-built statues stand upright with green vines; dead ones have a slumped head and dark cracks (generated overlay texture, placeholder art). The dead/slumped model is reconstructed from the iron golem's geometry, so its proportions may be slightly off.
 - Sentry walk-home is stepped teleporting (no scripted pathfinding in Bedrock).
 
 ## In-game diagnostics (v0.8.1)

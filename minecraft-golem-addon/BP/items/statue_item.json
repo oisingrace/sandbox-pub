@@ -14,8 +14,8 @@
           "default": "golem_statue"
         }
       },
-      "minecraft:block_placer": {
-        "block": "golem:statue"
+      "minecraft:entity_placer": {
+        "entity": "golem:statue"
       }
     }
   }

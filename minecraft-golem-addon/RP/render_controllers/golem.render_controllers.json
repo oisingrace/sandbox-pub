@@ -11,6 +11,44 @@
       "textures": [
         "Texture.default"
       ]
+    },
+    "controller.render.golem_statue": {
+      "arrays": {
+        "geometries": {
+          "Array.geo": [
+            "Geometry.new",
+            "Geometry.dead"
+          ]
+        }
+      },
+      "geometry": "Array.geo[query.variant]",
+      "materials": [
+        {
+          "*": "Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default"
+      ]
+    },
+    "controller.render.golem_statue_marks": {
+      "arrays": {
+        "geometries": {
+          "Array.geo": [
+            "Geometry.marks_new",
+            "Geometry.marks_dead"
+          ]
+        }
+      },
+      "geometry": "Array.geo[query.variant]",
+      "materials": [
+        {
+          "*": "Material.marks"
+        }
+      ],
+      "textures": [
+        "Texture.marks"
+      ]
     }
   }
 }

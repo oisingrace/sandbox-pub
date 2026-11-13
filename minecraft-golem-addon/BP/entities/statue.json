@@ -1,0 +1,101 @@
+{
+  "format_version": "1.21.80",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "golem:statue",
+      "is_spawnable": false,
+      "is_summonable": true,
+      "is_experimental": false
+    },
+    "component_groups": {
+      "golem:fresh": {
+        "minecraft:variant": {
+          "value": 0
+        }
+      },
+      "golem:dead": {
+        "minecraft:variant": {
+          "value": 1
+        }
+      }
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": [
+          "golem_statue"
+        ]
+      },
+      "minecraft:health": {
+        "value": 10,
+        "max": 10
+      },
+      "minecraft:collision_box": {
+        "width": 1.4,
+        "height": 2.7
+      },
+      "minecraft:physics": {},
+      "minecraft:pushable": {
+        "is_pushable": false,
+        "is_pushable_by_piston": false
+      },
+      "minecraft:knockback_resistance": {
+        "value": 1.0
+      },
+      "minecraft:persistent": {},
+      "minecraft:variant": {
+        "value": 0
+      },
+      "minecraft:damage_sensor": {
+        "triggers": [
+          {
+            "on_damage": {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "player"
+              }
+            },
+            "deals_damage": "yes"
+          },
+          {
+            "cause": "all",
+            "deals_damage": "no"
+          }
+        ]
+      }
+    },
+    "events": {
+      "minecraft:entity_spawned": {
+        "add": {
+          "component_groups": [
+            "golem:fresh"
+          ]
+        }
+      },
+      "golem:set_fresh": {
+        "remove": {
+          "component_groups": [
+            "golem:dead"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "golem:fresh"
+          ]
+        }
+      },
+      "golem:set_dead": {
+        "remove": {
+          "component_groups": [
+            "golem:fresh"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "golem:dead"
+          ]
+        }
+      }
+    }
+  }
+}

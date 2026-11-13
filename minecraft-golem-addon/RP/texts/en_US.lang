@@ -1,4 +1,4 @@
-tile.golem:statue.name=Golem Statue
+entity.golem:statue.name=Golem Statue
 item.golem:statue_item=Golem Statue
 item.golem:statue_item.name=Golem Statue
 item.golem:commander=Golem Commander

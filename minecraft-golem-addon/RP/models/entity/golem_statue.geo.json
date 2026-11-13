@@ -1,0 +1,411 @@
+{
+ "format_version": "1.12.0",
+ "minecraft:geometry": [
+  {
+   "description": {
+    "identifier": "geometry.golem_statue_dead",
+    "texture_width": 128,
+    "texture_height": 128,
+    "visible_bounds_width": 4,
+    "visible_bounds_height": 4,
+    "visible_bounds_offset": [
+     0,
+     1.5,
+     0
+    ]
+   },
+   "bones": [
+    {
+     "name": "head",
+     "pivot": [
+      0,
+      0,
+      0
+     ],
+     "cubes": [
+      {
+       "origin": [
+        -4,
+        28,
+        -10.5
+       ],
+       "size": [
+        8,
+        10,
+        8
+       ],
+       "uv": [
+        0,
+        0
+       ]
+      }
+     ]
+    },
+    {
+     "name": "nose",
+     "pivot": [
+      0,
+      0,
+      0
+     ],
+     "cubes": [
+      {
+       "origin": [
+        -1,
+        27,
+        -12.5
+       ],
+       "size": [
+        2,
+        4,
+        2
+       ],
+       "uv": [
+        24,
+        0
+       ]
+      }
+     ]
+    },
+    {
+     "name": "body",
+     "pivot": [
+      0,
+      0,
+      0
+     ],
+     "cubes": [
+      {
+       "origin": [
+        -9,
+        21,
+        -6
+       ],
+       "size": [
+        18,
+        12,
+        11
+       ],
+       "uv": [
+        0,
+        40
+       ]
+      }
+     ]
+    },
+    {
+     "name": "waist",
+     "pivot": [
+      0,
+      0,
+      0
+     ],
+     "cubes": [
+      {
+       "origin": [
+        -4.5,
+        16,
+        -3
+       ],
+       "size": [
+        9,
+        5,
+        6
+       ],
+       "uv": [
+        0,
+        70
+       ],
+       "inflate": 0.5
+      }
+     ]
+    },
+    {
+     "name": "arm0",
+     "pivot": [
+      0,
+      0,
+      0
+     ],
+     "cubes": [
+      {
+       "origin": [
+        -13,
+        3.5,
+        -3
+       ],
+       "size": [
+        4,
+        30,
+        6
+       ],
+       "uv": [
+        60,
+        21
+       ]
+      }
+     ]
+    },
+    {
+     "name": "arm1",
+     "pivot": [
+      0,
+      0,
+      0
+     ],
+     "cubes": [
+      {
+       "origin": [
+        9,
+        3.5,
+        -3
+       ],
+       "size": [
+        4,
+        30,
+        6
+       ],
+       "uv": [
+        60,
+        58
+       ]
+      }
+     ]
+    },
+    {
+     "name": "leg0",
+     "pivot": [
+      0,
+      0,
+      0
+     ],
+     "cubes": [
+      {
+       "origin": [
+        -7.5,
+        0,
+        -3
+       ],
+       "size": [
+        6,
+        16,
+        5
+       ],
+       "uv": [
+        37,
+        0
+       ]
+      }
+     ]
+    },
+    {
+     "name": "leg1",
+     "pivot": [
+      0,
+      0,
+      0
+     ],
+     "cubes": [
+      {
+       "origin": [
+        1.5,
+        0,
+        -3
+       ],
+       "size": [
+        6,
+        16,
+        5
+       ],
+       "uv": [
+        60,
+        0
+       ],
+       "mirror": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "description": {
+    "identifier": "geometry.golem_marks_new",
+    "texture_width": 128,
+    "texture_height": 128,
+    "visible_bounds_width": 4,
+    "visible_bounds_height": 4,
+    "visible_bounds_offset": [
+     0,
+     1.5,
+     0
+    ]
+   },
+   "bones": [
+    {
+     "name": "marks",
+     "pivot": [
+      0,
+      0,
+      0
+     ],
+     "cubes": [
+      {
+       "origin": [
+        -6,
+        22,
+        -6.6
+       ],
+       "size": [
+        4,
+        10,
+        0.8
+       ],
+       "uv": [
+        0,
+        0
+       ]
+      },
+      {
+       "origin": [
+        2,
+        25,
+        -6.6
+       ],
+       "size": [
+        5,
+        6,
+        0.8
+       ],
+       "uv": [
+        0,
+        0
+       ]
+      },
+      {
+       "origin": [
+        -13.6,
+        24,
+        -3.5
+       ],
+       "size": [
+        1,
+        9,
+        7
+       ],
+       "uv": [
+        0,
+        0
+       ]
+      },
+      {
+       "origin": [
+        -4.5,
+        33,
+        -7.9
+       ],
+       "size": [
+        3,
+        1.2,
+        0.8
+       ],
+       "uv": [
+        0,
+        0
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "description": {
+    "identifier": "geometry.golem_marks_dead",
+    "texture_width": 128,
+    "texture_height": 128,
+    "visible_bounds_width": 4,
+    "visible_bounds_height": 4,
+    "visible_bounds_offset": [
+     0,
+     1.5,
+     0
+    ]
+   },
+   "bones": [
+    {
+     "name": "marks",
+     "pivot": [
+      0,
+      0,
+      0
+     ],
+     "cubes": [
+      {
+       "origin": [
+        -5,
+        23,
+        -6.6
+       ],
+       "size": [
+        3,
+        8,
+        0.8
+       ],
+       "uv": [
+        64,
+        0
+       ]
+      },
+      {
+       "origin": [
+        3,
+        27,
+        -6.6
+       ],
+       "size": [
+        4,
+        3,
+        0.8
+       ],
+       "uv": [
+        64,
+        0
+       ]
+      },
+      {
+       "origin": [
+        -9.6,
+        12,
+        -3.5
+       ],
+       "size": [
+        1,
+        10,
+        7
+       ],
+       "uv": [
+        64,
+        0
+       ]
+      },
+      {
+       "origin": [
+        -1,
+        17.5,
+        -3.6
+       ],
+       "size": [
+        2,
+        3,
+        0.8
+       ],
+       "uv": [
+        64,
+        0
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
