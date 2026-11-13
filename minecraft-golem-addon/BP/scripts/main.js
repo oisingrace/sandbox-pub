@@ -36,6 +36,7 @@ on(world.afterEvents.playerSpawn, "playerSpawn", (e) => {
   S.rememberPlayer(e.player.name);
   if (!e.initialSpawn) return;
   e.player.sendMessage(`§a[Golems] v${VERSION} script loaded.`);
+  try { e.player.onScreenDisplay.setActionBar(`§aGolem Commanders v${VERSION} running`); } catch { /* not available */ }
   if (problems.length) e.player.sendMessage(`§c[Golems] ${problems.length} feature(s) disabled:\n- ${problems.join("\n- ")}`);
 });
 system.run(() => { for (const p of world.getAllPlayers()) S.rememberPlayer(p.name); }); // not allowed during early execution
@@ -351,9 +352,27 @@ on(world.afterEvents.playerPlaceBlock, "pumpkinPlaced", (e) => {
   if (PUMPKINS.includes(e.block.typeId) || e.block.isAir) notePumpkin(e.player, e.block.location, "placed");
 });
 
+// /scriptevent golem:selftest     -> one-shot check of entities, events and menus (results in chat)
+async function selfTest(p) {
+  const say = (ok, m) => p.sendMessage(`${ok ? "§a✔" : "§c✘"} §f${m}`);
+  p.sendMessage(`§e[Golems] self-test, script v${VERSION}`);
+  say(problems.length === 0, problems.length ? `disabled features: ${problems.join("; ")}` : "all event hooks registered");
+  for (const [type, pend] of [[STATUE, pendingStatue], [GOLEM, pendingAwake]]) {
+    try { const e = p.dimension.spawnEntity(type, p.location); pend.add(e.id); S.setGolem(e, S.newGolemData(p)); e.remove(); say(true, `${type} can be spawned (definition accepted)`); }
+    catch (err) { say(false, `${type} cannot be spawned: ${err?.message ?? err}`); }
+  }
+  say(true, `item hook: use the Golem Commander and expect "commander used" with golem:debug on`);
+  say(true, `statues in range: ${p.dimension.getEntities({ type: STATUE, location: p.location, maxDistance: 32 }).length}, golems: ${p.dimension.getEntities({ type: GOLEM, location: p.location, maxDistance: 32 }).length}`);
+  say(true, "opening a test menu...");
+  const { ActionFormData } = await import("@minecraft/server-ui");
+  const r = await new ActionFormData().title("Golems self-test").body("Menus work. Close this.").button("OK").show(p);
+  say(!r.canceled || r.cancelationReason === "UserClosed", `menu result: ${r.canceled ? "canceled (" + r.cancelationReason + ")" : "submitted"}`);
+}
+
 // /scriptevent golem:debug        -> toggle chat diagnostics
 // /scriptevent golem:convert_all  -> toggle "every newly spawned vanilla iron golem near a player becomes a statue"
 on(system.afterEvents.scriptEventReceive, "scriptEvent", (e) => {
+  if (e.id === "golem:selftest" && e.sourceEntity?.typeId === "minecraft:player") { selfTest(e.sourceEntity).catch((err) => e.sourceEntity.sendMessage(`§c[Golems] self-test failed: ${err?.message ?? err}`)); return; }
   for (const [id, key, label] of [["golem:debug", "golem_debug", "debug"], ["golem:convert_all", "golem_convert_all", "convert-all"]]) {
     if (e.id !== id) continue;
     const v = !flag(key); world.setDynamicProperty(key, v);

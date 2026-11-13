@@ -71,3 +71,11 @@ they're listed as `feature(s) disabled` instead of crashing the whole add-on.
 ## Right-click diagnostics (v0.9.3)
 `/scriptevent golem:debug` now also reports: statue/entity interactions, commander use, lodestone clicks, and each form's result
 (submitted / canceled + reason). Menu errors print in chat as `[Golems] <menu> menu failed: ...`.
+
+## Updating a world & multiplayer (v0.9.4)
+- A world keeps using the pack version it was set up with. After importing a new version, open the world's settings, remove both
+  Golem Commanders packs (Behavior + Resource) from the world, and add the new ones again (or test in a fresh world).
+- Statues/golems are drawn by the **resource pack**. Players who join (LAN/Realm/server) must have it downloaded, otherwise the
+  entities are invisible for them. The host must have the RP active on the world.
+- `/scriptevent golem:selftest` checks event hooks, that both entities can be spawned, and that menus open; results in chat.
+  The version also shows briefly above the hotbar when you join.
