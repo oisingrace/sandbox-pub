@@ -9,11 +9,19 @@ const pendingAwake = new Set();   // ids of golems we spawned on purpose (not tu
 const lastSeen = new Map();       // golem id -> {d, loc, dim}, cached for death handling
 const engaged = new Map();        // golem id -> {tid, tick}
 const returning = new Map();      // golem id -> {g, stuck} (sentries walking home)
+// Errors in any handler are shown in chat (testing in-game is slow; this makes failures visible) instead of dying silently.
+const safe = (name, fn) => (...a) => {
+  try { return fn(...a); } catch (e) { try { world.sendMessage(`§c[Golems] ${name} failed: ${e?.message ?? e}`); } catch { /* ignore */ } }
+};
+const on = (sig, name, fn) => sig.subscribe(safe(name, fn));
+const runInterval = (fn, n) => system.runInterval(safe("interval", fn), n);
+const flag = (k) => world.getDynamicProperty(k) === true;
+const dbg = (m) => { if (flag("golem_debug")) world.sendMessage(`§7[Golems] ${m}`); };
 const dimOf = (id) => world.getDimension(id);
 const fighting = (m) => ["guard", "attack", "sentry", "assassin"].includes(m);
 
 // ---------- players ----------
-world.afterEvents.playerSpawn.subscribe((e) => S.rememberPlayer(e.player.name));
+on(world.afterEvents.playerSpawn, "playerSpawn", (e) => S.rememberPlayer(e.player.name));
 system.run(() => { for (const p of world.getAllPlayers()) S.rememberPlayer(p.name); }); // not allowed during early execution
 
 // ---------- inventory helpers ----------
@@ -86,11 +94,11 @@ system.beforeEvents.startup.subscribe((ev) => {
 
 // A silk-touched statue item carries its data (so breaking+placing can't skip the iron block rule).
 const carried = new Map(); // player id -> data JSON from the item being placed
-world.beforeEvents.playerPlaceBlock.subscribe((e) => {
+on(world.beforeEvents.playerPlaceBlock, "playerPlaceBlock", (e) => {
   const j = e.itemStack?.typeId === "golem:statue_item" ? e.itemStack.getDynamicProperty("d") : undefined;
   if (j) carried.set(e.player.id, j); else carried.delete(e.player.id);
 });
-world.afterEvents.playerPlaceBlock.subscribe((e) => {
+on(world.afterEvents.playerPlaceBlock, "playerPlaceBlock", (e) => {
   if (e.block.typeId !== "golem:statue") return;
   const j = carried.get(e.player.id); carried.delete(e.player.id);
   let data = null; try { data = j ? JSON.parse(j) : null; } catch { /* ignore */ }
@@ -102,7 +110,7 @@ world.afterEvents.playerPlaceBlock.subscribe((e) => {
   e.block.setPermutation(p);
 });
 
-world.afterEvents.playerBreakBlock.subscribe((e) => {
+on(world.afterEvents.playerBreakBlock, "playerBreakBlock", (e) => {
   if (e.brokenBlockPermutation.type.id !== "golem:statue") return;
   const data = S.getStatue(e.block);
   S.clearStatue(e.block);
@@ -150,7 +158,7 @@ function statuesNear(player, radius) {
 // dies. The lodestone is the exception: it re-programs living golems and reawakens statues in range,
 // Living golems are free; dead statues cost 1 iron block each (free if never programmed).
 // Teams edited at the lodestone take effect immediately: lists reference teams by name.
-world.afterEvents.playerInteractWithBlock.subscribe((e) => {
+on(world.afterEvents.playerInteractWithBlock, "playerInteractWithBlock", (e) => {
   if (e.block.typeId !== "minecraft:lodestone" || e.itemStack) return; // empty hand only, so building next to it still works
   const p = e.player;
   system.run(() => lodestoneMenu(p, () => {
@@ -205,7 +213,7 @@ function surfaceY(dim, x, y, z) { // nearest standable Y within a few blocks of 
 
 // Sentries walk home in short steps (stand-in for scripted pathfinding, which
 // Bedrock doesn't expose); teleport home if stuck for ~3 s.
-system.runInterval(() => {
+runInterval(() => {
   for (const [id, st] of [...returning]) {
     const g = st.g, d = g.isValid ? S.getGolem(g) : null;
     if (!d?.home || d.mode !== "sentry") { returning.delete(id); continue; }
@@ -224,7 +232,7 @@ system.runInterval(() => {
   }
 }, 2);
 
-system.runInterval(() => {
+runInterval(() => {
   const players = world.getAllPlayers();
   for (const dimId of DIMS) {
     const dim = dimOf(dimId);
@@ -262,7 +270,7 @@ const dist2 = (a, b) => (a.location.x - b.location.x) ** 2 + (a.location.y - b.l
 
 // ---------- guard: defend the owner against anything that hurts them ----------
 // Friendly-list members (teammates), the owner's own golems and the owner are exempt.
-world.afterEvents.entityHurt.subscribe((ev) => {
+on(world.afterEvents.entityHurt, "entityHurt", (ev) => {
   const victim = ev.hurtEntity;
   if (victim.typeId !== "minecraft:player") return;
   const attacker = ev.damageSource?.damagingEntity;
@@ -276,7 +284,7 @@ world.afterEvents.entityHurt.subscribe((ev) => {
 });
 
 // ---------- death -> dead statue ----------
-world.afterEvents.entityDie.subscribe((ev) => {
+on(world.afterEvents.entityDie, "entityDie", (ev) => {
   const e = ev.deadEntity;
   let id, live = null, loc = null;
   try { if (e.typeId !== GOLEM) return; id = e.id; live = S.getGolem(e); loc = e.location; } catch { /* entity already invalid */ }
@@ -297,7 +305,7 @@ world.afterEvents.entityDie.subscribe((ev) => {
 });
 
 // ---------- decay of unwaxed dead statues ----------
-system.runInterval(() => {
+runInterval(() => {
   for (const r of S.allStatues()) {
     const b = dimOf(r.dim).getBlock({ x: r.x, y: r.y, z: r.z });
     if (!b) continue; // chunk not loaded: try again later
@@ -314,12 +322,28 @@ system.runInterval(() => {
 // which would otherwise produce a plain vanilla iron golem.
 const CARD = ["south", "west", "north", "east"];
 const PUMPKINS = ["minecraft:carved_pumpkin", "minecraft:lit_pumpkin"];
-const pumpkinPlaced = []; // {player, tick, loc}
-world.beforeEvents.playerPlaceBlock.subscribe((e) => {
-  if (!PUMPKINS.includes(e.itemStack?.typeId)) return;
-  pumpkinPlaced.push({ player: e.player, tick: system.currentTick, loc: { ...e.block.location }, dim: e.player.dimension.id });
+const pumpkinPlaced = []; // {player, tick, loc, dim}
+function notePumpkin(player, loc, via) {
+  pumpkinPlaced.push({ player, tick: system.currentTick, loc: { ...loc }, dim: player.dimension.id });
   if (pumpkinPlaced.length > 8) pumpkinPlaced.shift();
+  dbg(`pumpkin seen (${via}) by ${player.name}`);
+}
+// Several signals, because the vanilla golem can appear before/after any single one of them fires.
+on(world.beforeEvents.playerPlaceBlock, "pumpkinPlace", (e) => { if (PUMPKINS.includes(e.itemStack?.typeId)) notePumpkin(e.player, e.block.location, "place"); });
+on(world.beforeEvents.playerInteractWithBlock, "pumpkinUse", (e) => { if (PUMPKINS.includes(e.itemStack?.typeId)) notePumpkin(e.player, e.block.location, "use"); });
+on(world.afterEvents.playerPlaceBlock, "pumpkinPlaced", (e) => {
+  if (PUMPKINS.includes(e.block.typeId) || e.block.isAir) notePumpkin(e.player, e.block.location, "placed");
 });
+
+// /scriptevent golem:debug        -> toggle chat diagnostics
+// /scriptevent golem:convert_all  -> toggle "every newly spawned vanilla iron golem near a player becomes a statue"
+system.afterEvents.scriptEventReceive.subscribe(safe("scriptEvent", (e) => {
+  for (const [id, key, label] of [["golem:debug", "golem_debug", "debug"], ["golem:convert_all", "golem_convert_all", "convert-all"]]) {
+    if (e.id !== id) continue;
+    const v = !flag(key); world.setDynamicProperty(key, v);
+    world.sendMessage(`§e[Golems] ${label} ${v ? "ON" : "OFF"}`);
+  }
+}));
 
 function toStatue(g, owner) {
   const dim = g.dimension;
@@ -334,13 +358,18 @@ function toStatue(g, owner) {
   S.setStatue(b, data);
 }
 
-world.afterEvents.entitySpawn.subscribe((ev) => {
+on(world.afterEvents.entitySpawn, "entitySpawn", (ev) => {
   const g = ev.entity;
   if (!g.isValid || ev.cause === "Loaded") return;
   if (g.typeId === "minecraft:iron_golem") {
     // player-built: a carved pumpkin was just placed nearby (a village-spawned golem has no such placement)
-    const i = pumpkinPlaced.findIndex((p) => system.currentTick - p.tick <= 5 && p.dim === g.dimension.id &&
-      Math.hypot(p.loc.x - g.location.x, p.loc.y - g.location.y, p.loc.z - g.location.z) <= 6);
+    dbg(`iron golem spawned (cause ${ev.cause}); recent pumpkins: ${pumpkinPlaced.length}`);
+    let i = pumpkinPlaced.findIndex((p) => system.currentTick - p.tick <= 20 && p.dim === g.dimension.id &&
+      Math.hypot(p.loc.x - g.location.x, p.loc.y - g.location.y, p.loc.z - g.location.z) <= 8);
+    if (i < 0 && flag("golem_convert_all")) { // fallback: nearest player takes ownership
+      const near = g.dimension.getPlayers({ location: g.location, closest: 1, maxDistance: 16 })[0];
+      if (near) { pumpkinPlaced.push({ player: near, tick: system.currentTick, loc: g.location, dim: g.dimension.id }); i = pumpkinPlaced.length - 1; }
+    }
     if (i < 0) return;
     const [rec] = pumpkinPlaced.splice(i, 1);
     return toStatue(g, rec.player);

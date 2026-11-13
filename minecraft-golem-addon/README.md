@@ -52,3 +52,8 @@ iron rule, decay, lodestone costs, live teams). It checks the add-on's logic, no
 - Statue block is scaled to fit Bedrock's block-size limit (about 1.8 blocks tall vs the golem's 2.7).
 - Statue looks: new-built statues stand upright with green vines; dead ones have a slumped head and dark cracks (generated marks texture, placeholder art).
 - Sentry walk-home is stepped teleporting (no scripted pathfinding in Bedrock).
+
+## In-game diagnostics (v0.8.1)
+- Errors in any handler now print in chat as `[Golems] <handler> failed: ...`.
+- `/scriptevent golem:debug` toggles chat diagnostics (pumpkin seen, iron golem spawned, ...).
+- `/scriptevent golem:convert_all` toggles a fallback: every newly spawned vanilla iron golem within 16 blocks of a player becomes a statue.
