@@ -246,8 +246,11 @@ on(world.beforeEvents.playerInteractWithBlock, "lodestoneBefore", onLodestone);
 // accepts tagged attackers) then locks onto exactly that entity.
 function engage(g, t) {
   const prev = engaged.get(g.id), now = system.currentTick;
-  const hasTarget = g.target?.id === t.id; // g.target may be undefined on older runtimes
-  if (hasTarget || (prev && prev.tid === t.id && now - prev.tick < 60)) return;
+  const d2 = dist2(g, t);
+  // The "hit" makes our golem flash and play a hurt sound, so do it as rarely as possible: once per target,
+  // again only if it has been a long time or the golem is clearly no longer on it (target far away).
+  if (prev && prev.tid === t.id && (now - prev.tick < 200 && !(d2 > 100 && now - prev.tick > 60))) return;
+  if (g.target?.id === t.id) { engaged.set(g.id, { tid: t.id, tick: now }); return; } // already locked on
   engaged.set(g.id, { tid: t.id, tick: now });
   t.addTag("golem_target");
   g.applyDamage(1, { cause: "entityAttack", damagingEntity: t });
@@ -421,6 +424,7 @@ const nearestPlayer = (g, d = 16) => g.dimension.getPlayers({ location: g.locati
 
 // Most reliable signal: the vanilla iron golem fires "minecraft:from_player" when a player builds it.
 on(world.afterEvents.dataDrivenEntityTrigger, "fromPlayer", (ev) => {
+  if (!ev.entity.isValid) return; // already converted via the spawn signal
   dbg("vanilla iron golem fired from_player");
   toStatue(ev.entity, nearestPlayer(ev.entity));
 }, { entityTypes: ["minecraft:iron_golem"], eventTypes: ["minecraft:from_player"] });

@@ -91,3 +91,9 @@ Fixed the bug found with `/scriptevent golem:selftest`: every event subscription
 rejects ("Expected 1, received 2"), disabling join handling, statue/commander/lodestone clicks and spawn handling. Also dropped
 `beforeEvents.playerPlaceBlock`, which doesn't exist in current game versions (pumpkin builds use the `from_player` event,
 `playerInteractWithBlock` and the after-place event).
+
+## v0.9.7
+- Walk animation reworked to match the vanilla golem (bigger leg/arm swing) and an arm-raise attack swing driven by `variable.attack_time`.
+- The "hit as target" trick that makes a golem lock on is now throttled (once per target, repeated only after ~10 s or if the golem lost it),
+  so golems no longer flash/hurt-sound every second while an enemy is in range.
+- Fixed `fromPlayer failed ... Entity being invalid` (the golem was already converted by the spawn signal).
