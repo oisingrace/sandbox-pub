@@ -4,6 +4,7 @@ import { awakenMenu, modeMenu, lodestoneMenu } from "./forms.js";
 import { isHostileTo, isGolem, principal } from "./relations.js";
 
 const GOLEM = "golem:golem";
+const pendingAwake = new Set(); // ids of golems we spawned on purpose
 const lastSeen = new Map(); // golem id -> {data, loc, dim}  (cached for death handling)
 const dimOf = (id) => world.getDimension(id);
 
@@ -18,6 +19,7 @@ function awaken(block, data, player) {
   S.clearStatue(block);
   block.setType("minecraft:air");
   const g = dim.spawnEntity(GOLEM, loc);
+  pendingAwake.add(g.id);
   const t = g.getComponent(EntityComponentTypes.Tameable);
   t?.tame(player);
   data.dead = false;
@@ -45,6 +47,7 @@ const statueComponent = {
       player.sendMessage("§eStatue waxed - it will no longer decay.");
       return;
     }
+    if (!data.owner) Object.assign(data, S.newGolemData(player)); // unclaimed statue: first to touch it owns it
     const newOwner = data.owner !== player.id;
     const needIron = data.diedOnce && (newOwner || data.dead);
     let slot = -1;
@@ -190,3 +193,22 @@ system.runInterval(() => {
     world.setDynamicProperty(k, undefined);
   }
 }, 200);
+
+// ---------- freshly spawned golems (egg / summon / spawner) become statues ----------
+const CARD = ["south", "west", "north", "east"];
+world.afterEvents.entitySpawn.subscribe((ev) => {
+  const g = ev.entity;
+  if (!g.isValid || g.typeId !== GOLEM || ev.cause === "Loaded") return;
+  if (pendingAwake.delete(g.id) || S.getGolem(g)) return;
+  const dim = g.dimension;
+  const p = dim.getPlayers({ location: g.location, closest: 1, maxDistance: 16 })[0];
+  const data = p ? S.newGolemData(p) : { ...S.newGolemData({ id: "", name: "" }) };
+  let b = dim.getBlock(g.location);
+  if (b && !b.isAir && !b.isLiquid) b = b.above();
+  if (!b) return;
+  const yaw = ((g.getRotation().y % 360) + 360) % 360;
+  const dir = CARD[Math.round(yaw / 90) % 4];
+  g.remove();
+  b.setPermutation(BlockPermutation.resolve("golem:statue", { "golem:dead": false, "golem:waxed": false, "minecraft:cardinal_direction": dir }));
+  S.setStatue(b, data);
+});

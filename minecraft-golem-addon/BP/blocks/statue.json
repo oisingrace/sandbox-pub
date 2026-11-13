@@ -4,20 +4,118 @@
     "description": {
       "identifier": "golem:statue",
       "states": {
-        "golem:dead": [false, true],
-        "golem:waxed": [false, true]
+        "golem:dead": [
+          false,
+          true
+        ],
+        "golem:waxed": [
+          false,
+          true
+        ]
       },
-      "menu_category": { "category": "items" }
+      "menu_category": {
+        "category": "items"
+      },
+      "traits": {
+        "minecraft:placement_direction": {
+          "enabled_states": [
+            "minecraft:cardinal_direction"
+          ]
+        }
+      }
     },
     "components": {
-      "minecraft:destructible_by_mining": { "seconds_to_destroy": 3 },
-      "minecraft:destructible_by_explosion": { "explosion_resistance": 30 },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 3
+      },
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 30
+      },
       "minecraft:geometry": "geometry.golem_statue",
-      "minecraft:material_instances": { "*": { "texture": "golem_statue", "render_method": "opaque" } },
-      "minecraft:collision_box": { "origin": [-6, 0, -6], "size": [12, 16, 12] },
-      "minecraft:selection_box": { "origin": [-6, 0, -6], "size": [12, 16, 12] },
+      "minecraft:material_instances": {
+        "*": {
+          "texture": "golem_statue",
+          "render_method": "opaque"
+        }
+      },
+      "minecraft:collision_box": {
+        "origin": [
+          -8,
+          0,
+          -8
+        ],
+        "size": [
+          16,
+          16,
+          16
+        ]
+      },
+      "minecraft:selection_box": {
+        "origin": [
+          -8,
+          0,
+          -8
+        ],
+        "size": [
+          16,
+          16,
+          16
+        ]
+      },
       "minecraft:loot": "loot_tables/empty.json",
-      "minecraft:custom_components": ["golem:statue"]
-    }
+      "minecraft:custom_components": [
+        "golem:statue"
+      ]
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state('minecraft:cardinal_direction') == 'north'",
+        "components": {
+          "minecraft:transformation": {
+            "rotation": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      },
+      {
+        "condition": "q.block_state('minecraft:cardinal_direction') == 'south'",
+        "components": {
+          "minecraft:transformation": {
+            "rotation": [
+              0,
+              180,
+              0
+            ]
+          }
+        }
+      },
+      {
+        "condition": "q.block_state('minecraft:cardinal_direction') == 'west'",
+        "components": {
+          "minecraft:transformation": {
+            "rotation": [
+              0,
+              90,
+              0
+            ]
+          }
+        }
+      },
+      {
+        "condition": "q.block_state('minecraft:cardinal_direction') == 'east'",
+        "components": {
+          "minecraft:transformation": {
+            "rotation": [
+              0,
+              270,
+              0
+            ]
+          }
+        }
+      }
+    ]
   }
 }

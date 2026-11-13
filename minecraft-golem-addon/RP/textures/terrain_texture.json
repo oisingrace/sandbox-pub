@@ -1,5 +1,9 @@
 {
   "resource_pack_name": "golem_commanders",
   "texture_name": "atlas.terrain",
-  "texture_data": { "golem_statue": { "textures": "textures/blocks/stone" } }
+  "texture_data": {
+    "golem_statue": {
+      "textures": "textures/entity/iron_golem/iron_golem"
+    }
+  }
 }
