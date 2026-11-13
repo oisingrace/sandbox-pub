@@ -4,7 +4,7 @@
     "description": {
       "identifier": "golem:statue",
       "materials": {
-        "default": "iron_golem",
+        "default": "entity_alphatest",
         "marks": "entity_alphatest"
       },
       "textures": {
@@ -12,7 +12,7 @@
         "marks": "textures/entity/golem_statue_marks"
       },
       "geometry": {
-        "new": "geometry.iron_golem",
+        "new": "geometry.golem_commander",
         "dead": "geometry.golem_statue_dead",
         "marks_new": "geometry.golem_marks_new",
         "marks_dead": "geometry.golem_marks_dead"

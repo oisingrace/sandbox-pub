@@ -4,13 +4,13 @@
     "description": {
       "identifier": "golem:golem",
       "materials": {
-        "default": "iron_golem"
+        "default": "entity_alphatest"
       },
       "textures": {
         "default": "textures/entity/iron_golem/iron_golem"
       },
       "geometry": {
-        "default": "geometry.iron_golem"
+        "default": "geometry.golem_commander"
       },
       "render_controllers": [
         "controller.render.golem_commander"

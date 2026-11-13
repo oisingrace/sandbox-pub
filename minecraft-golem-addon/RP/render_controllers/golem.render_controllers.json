@@ -13,15 +13,7 @@
       ]
     },
     "controller.render.golem_statue": {
-      "arrays": {
-        "geometries": {
-          "Array.geo": [
-            "Geometry.new",
-            "Geometry.dead"
-          ]
-        }
-      },
-      "geometry": "Array.geo[query.variant]",
+      "geometry": "query.variant == 1 ? Geometry.dead : Geometry.new",
       "materials": [
         {
           "*": "Material.default"
@@ -32,15 +24,7 @@
       ]
     },
     "controller.render.golem_statue_marks": {
-      "arrays": {
-        "geometries": {
-          "Array.geo": [
-            "Geometry.marks_new",
-            "Geometry.marks_dead"
-          ]
-        }
-      },
-      "geometry": "Array.geo[query.variant]",
+      "geometry": "query.variant == 1 ? Geometry.marks_dead : Geometry.marks_new",
       "materials": [
         {
           "*": "Material.marks"

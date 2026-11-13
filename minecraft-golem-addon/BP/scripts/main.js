@@ -362,8 +362,12 @@ on(system.afterEvents.scriptEventReceive, "scriptEvent", (e) => {
 function toStatue(g, owner) {
   if (!g.isValid) return; // already converted via another signal
   const dim = g.dimension, loc = { ...g.location }, r = rot(g);
+  // Spawn the statue FIRST: if that fails (e.g. entity definition rejected) the original golem stays and the error shows in chat.
+  const st = makeStatue(dim, loc, r, S.newGolemData(owner ?? { id: "", name: "" }));
   g.remove();
-  makeStatue(dim, loc, r, S.newGolemData(owner ?? { id: "", name: "" }));
+  const msg = `§e[Golems] Statue created at ${Math.floor(loc.x)} ${Math.floor(loc.y)} ${Math.floor(loc.z)}. (If you can't see it: /testfor @e[type=golem:statue])`;
+  (owner?.sendMessage ? owner : { sendMessage: (m) => world.sendMessage(m) }).sendMessage(msg);
+  return st;
 }
 const nearestPlayer = (g, d = 16) => g.dimension.getPlayers({ location: g.location, closest: 1, maxDistance: d })[0];
 
