@@ -1,7 +1,7 @@
 import { world, system, ItemStack, EntityComponentTypes } from "@minecraft/server";
 import * as S from "./store.js";
 import { VERSION } from "./version.js";
-import { awakenMenu, modeMenu, lodestoneMenu } from "./forms.js";
+import { awakenMenu, commanderMenu, lodestoneMenu } from "./forms.js";
 import { isHostileTo, isFriendlyTo, isGolem } from "./relations.js";
 
 const GOLEM = "golem:golem";
@@ -135,16 +135,49 @@ on(world.afterEvents.playerInteractWithEntity, "statueInteract", onEntityInterac
 on(world.beforeEvents.playerInteractWithEntity, "statueInteractBefore", onEntityInteract);
 
 // Commander: right-click opens the mode menu; sneak + right-click cycles the mode with no menu at all.
+const getRange = (p) => { const v = p.getDynamicProperty("cmdRange"); return typeof v === "number" ? v : S.COMMAND_RADIUS; };
+const ironCount = (p) => {
+  const c = p.getComponent("inventory").container; let n = 0;
+  for (let i = 0; i < c.size; i++) { const it = c.getItem(i); if (it?.typeId === "minecraft:iron_block") n += it.amount; }
+  return n;
+};
+const ownedGolems = (p) => [...new Map(DIMS.flatMap((d) => dimOf(d).getEntities({ type: GOLEM })).map((g) => [g.id, g])).values()]
+  .filter((g) => S.getGolem(g)?.owner === p.id);
+
+// Summon every loaded golem you own to your side. Costs SUMMON_COST iron blocks each; with too little iron only as many
+// golems as you can pay for come (closest ones first).
+function summonGolems(p) {
+  const all = ownedGolems(p);
+  if (!all.length) return p.sendMessage("§cYou have no golems to summon.");
+  const here = p.dimension.id;
+  all.sort((a, b) => (a.dimension.id === here ? 0 : 1e9) + dist2(a, p) - ((b.dimension.id === here ? 0 : 1e9) + dist2(b, p)));
+  const n = Math.min(all.length, Math.floor(ironCount(p) / S.SUMMON_COST));
+  if (n === 0) return p.sendMessage(`§cSummoning costs ${S.SUMMON_COST} iron blocks per golem and you don't have enough.`);
+  for (let i = 0; i < n * S.SUMMON_COST; i++) takeOne(p, findIron(p));
+  all.slice(0, n).forEach((g, i) => {
+    const ang = (i / n) * Math.PI * 2;
+    g.teleport({ x: p.location.x + Math.cos(ang) * 2.5, y: p.location.y, z: p.location.z + Math.sin(ang) * 2.5 }, { dimension: p.dimension });
+    engaged.delete(g.id); returning.delete(g.id);
+  });
+  p.sendMessage(`§aSummoned ${n} of ${all.length} golem(s) for ${n * S.SUMMON_COST} iron blocks.` + (n < all.length ? ` §e${all.length - n} stayed behind (not enough iron).` : ""));
+}
+
 function useCommander(player) {
   if (!once(`cmd:${player.id}`)) return;
   dbg("commander used");
   hint(player, "§aGolem Commander");
-  if (player.isSneaking) {
-    const gs = golemsNear(player, S.COMMAND_RADIUS);
+  if (player.isSneaking) { // shortcut with no menu: cycle the mode of golems in range
+    const gs = golemsNear(player, getRange(player));
     const cur = gs.length ? S.getGolem(gs[0]).mode : "passive";
     return commandGolems(player, S.MODES[(S.MODES.indexOf(cur) + 1) % S.MODES.length]);
   }
-  system.run(() => modeMenu(player, (m) => commandGolems(player, m)));
+  system.run(() => commanderMenu(player,
+    { range: getRange(player), owned: ownedGolems(player).length, iron: ironCount(player), cost: S.SUMMON_COST },
+    {
+      onMode: (m) => commandGolems(player, m),
+      onRange: (n) => { player.setDynamicProperty("cmdRange", n); player.sendMessage(`§aCommand range set to ${n} blocks.`); },
+      onSummon: () => summonGolems(player),
+    }));
 }
 // (No custom item component: the commander is handled by the itemUse event below, which fires for any right-click use.)
 on(world.afterEvents.itemUse, "commanderItemUse", (e) => { if (e.itemStack?.typeId === "golem:commander") useCommander(e.source); });
@@ -190,9 +223,9 @@ function golemsNear(player, radius) {
     .filter((g) => S.getGolem(g)?.owner === player.id);
 }
 function commandGolems(player, mode) {
-  const gs = golemsNear(player, S.COMMAND_RADIUS);
+  const gs = golemsNear(player, getRange(player));
   gs.forEach((g) => { setOwner(g, player); applyMode(g, mode); });
-  player.sendMessage(`§a${gs.length} golem(s) set to ${mode}.`);
+  player.sendMessage(`§a${gs.length} golem(s) within ${getRange(player)} blocks set to ${mode}.`);
 }
 
 // ---------- lodestone ----------

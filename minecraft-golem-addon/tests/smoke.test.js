@@ -14,7 +14,7 @@ const statues = () => H.ents.filter((e) => e.typeId === "golem:statue" && e.isVa
 const golems = () => H.ents.filter((e) => e.typeId === "golem:golem" && e.isValid);
 function player(name, items = {}) {
   const p = { id: "p-" + name, name, typeId: "minecraft:player", location: { x: 0, y: 64, z: 0 }, dimension: dim, selectedSlotIndex: 0, msgs: [], tags: new Set(),
-    sendMessage(m) { this.msgs.push(m); }, getGameMode: () => "Survival", isValid: true, addTag(t) { this.tags.add(t); }, removeTag(t) { this.tags.delete(t); },
+    dynProps: {}, getDynamicProperty(k) { return this.dynProps[k]; }, setDynamicProperty(k, v) { this.dynProps[k] = v; }, sendMessage(m) { this.msgs.push(m); }, getGameMode: () => "Survival", isValid: true, addTag(t) { this.tags.add(t); }, removeTag(t) { this.tags.delete(t); },
     getComponent: () => ({ container: { size: 9, getItem: (i) => items[i], setItem: (i, v) => (items[i] = v) } }), items };
   H.players.push(p); return p;
 }
@@ -143,5 +143,21 @@ assert.equal(F.shown.length - shown, 1, "one menu for one click");
 // commander via itemUse event path and sneak-cycle without a menu
 system.currentTick++; alice.isSneaking = true; alice.msgs.length = 0;
 world.afterEvents.itemUse.emit({ source: alice, itemStack: { typeId: "golem:commander" } });
-assert.ok(alice.msgs.at(-1)?.includes("golem(s) set to"), "sneak-use cycles mode: " + alice.msgs.at(-1));
+assert.ok(alice.msgs.at(-1)?.includes("set to"), "sneak-use cycles mode: " + alice.msgs.at(-1));
+// commander: range setting persists, summon costs 2 iron blocks per golem and stops when iron runs out
+const carol = player("Carol"); carol.id = "p-Carol"; carol.location = { x: 0, y: 64, z: 0 }; 
+const mkg = (x) => { const g = dim.spawnEntity("golem:golem", { x, y: 64, z: 0 }); g.props.g = JSON.stringify({ owner: carol.id, ownerName: "Alice", hostile: [], friendly: [], mode: "passive", programmed: true }); return g; };
+const far = [mkg(100), mkg(200), mkg(300)];
+carol.items[0] = { typeId: "minecraft:iron_block", amount: 5 }; carol.isSneaking = false;
+let call = 0;
+F.next = (els) => (call++ === 0 ? { canceled: false, selection: 7 } : { canceled: true });
+system.currentTick++; commander(carol); await flush();
+assert.equal(carol.items[0].amount, 1, "2 golems x 2 iron = 4 iron blocks spent");
+assert.equal(far.filter((g) => Math.hypot(g.location.x, g.location.z) < 5).length, 2, "only 2 golems summoned (closest first)");
+assert.ok(Math.abs(far[0].location.x) < 5 && Math.abs(far[1].location.x) < 5 && far[2].location.x === 300);
+// range slider stores the value
+F.next = (els) => (els.length > 1 ? { canceled: false, selection: 6 } : { canceled: false, formValues: [60] });
+let n2 = 0; F.next = (els) => (n2++ === 0 ? { canceled: false, selection: 6 } : { canceled: false, formValues: [60] });
+system.currentTick++; commander(carol); await flush();
+assert.equal(carol.dynProps.cmdRange, 60, "range saved");
 console.log("smoke test OK");

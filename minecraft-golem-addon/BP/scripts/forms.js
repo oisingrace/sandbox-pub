@@ -50,11 +50,24 @@ async function awakenMenu_(player, data, onDone) {
   onDone({ ...data, hostile, friendly });
 }
 
-async function modeMenu_(player, onPick) {
-  const f = new ActionFormData().title("Golem Commander").body("Set mode for all your golems nearby");
+// Commander main menu. `info` = { range, owned, iron, cost }; callbacks: onMode(mode), onRange(n), onSummon().
+async function commanderMenu_(player, info, cb) {
+  const f = new ActionFormData().title("Golem Commander")
+    .body(`Range: ${info.range} blocks\nYour golems: ${info.owned}\nIron blocks held: ${info.iron}\nSet the mode of your golems within range:`);
   MODES.forEach((m) => f.button(m[0].toUpperCase() + m.slice(1)));
+  f.button(`Set range (now ${info.range})`);
+  f.button(`Summon all golems to me\n(${info.cost} iron blocks each)`);
   const r = await show(f, player);
-  if (!r.canceled) onPick(MODES[r.selection]);
+  if (r.canceled) return;
+  if (r.selection < MODES.length) return cb.onMode(MODES[r.selection]);
+  if (r.selection === MODES.length) {
+    const g = new ModalFormData().title("Command range")
+      .slider("Blocks (applies to modes and the sneak shortcut)", 4, 128, { valueStep: 4, defaultValue: Math.min(128, Math.max(4, info.range)) });
+    const rr = await show(g, player);
+    if (!rr.canceled) cb.onRange(Math.round(rr.formValues[0]));
+    return;
+  }
+  cb.onSummon();
 }
 
 // Lodestone: program every golem in radius + manage teams.
@@ -75,5 +88,5 @@ async function lodestoneMenu_(player, onProgram) {
 }
 
 export const awakenMenu = guarded("program", awakenMenu_);
-export const modeMenu = guarded("mode", modeMenu_);
+export const commanderMenu = guarded("commander", commanderMenu_);
 export const lodestoneMenu = guarded("lodestone", lodestoneMenu_);

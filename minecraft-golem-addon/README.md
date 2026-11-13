@@ -108,3 +108,10 @@ Mojang's bedrock-samples. Dead statues use the real vanilla model with the head 
   The vanilla controllers are still used via the `animations` + `scripts.animate` entries.
 - The commander no longer uses a custom item component (the game reported it as not registered); it works through the `itemUse` event
   instead. Handler errors are also written to the content log with `console.error`.
+
+## v0.10.0 - commander upgrades
+- **Crafting:** the Golem Commander is crafted with 4 iron nuggets (shapeless, any arrangement; recipe `golem:commander_recipe`).
+- **Range:** the commander menu has "Set range" (slider, 4-128 blocks, remembered per player). Modes and the sneak shortcut use it.
+- **Summon all golems:** button in the commander menu teleports every loaded golem you own to you, costing **2 iron blocks per golem**
+  (`SUMMON_COST` in `BP/scripts/store.js`). With too little iron only as many golems as you can pay for come, closest first.
+  Golems in unloaded chunks can't be found.
