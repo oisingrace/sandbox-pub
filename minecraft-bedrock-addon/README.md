@@ -22,6 +22,7 @@ Turn on in the wand menu or `/scriptevent wb:end on`: eyes of ender can't be pla
 /scriptevent wb:enable nether on
 /scriptevent wb:radius nether 250
 /scriptevent wb:bundles on|off             (on = bundles blocked)
+/scriptevent wb:show on|off                (visible particle wall at the border)
 /scriptevent wb:end on|off                 (on = The End disabled)
 /scriptevent wb:golems on|off              (on = golems blocked)
 ```

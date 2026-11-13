@@ -14,6 +14,7 @@ import { ModalFormData } from "@minecraft/server-ui";
 const DEFAULTS = {
   noBundles: true,
   noGolems: true,
+  showBorder: true, // draw a visible particle wall when you are near the border
   noEnd: false, // true = The End is disabled (portals won't open, anyone inside is sent home)
   scanRadius: 16, // how far around each player containers are scanned for bundles
   border: {
@@ -250,6 +251,39 @@ system.runInterval(() => {
 }, 5);
 
 /* ------------------------------------------------------------------ *
+ *  VISIBLE BORDER (particle wall, shown within 24 blocks of an edge)
+ * ------------------------------------------------------------------ */
+const WALL_PARTICLE = "minecraft:blue_flame_particle";
+system.runInterval(() => {
+  if (!config.showBorder) return;
+  for (const player of world.getAllPlayers()) {
+    const b = borderFor(player.dimension);
+    if (!b || !b.enabled) continue;
+    const { x, y, z } = player.location;
+    const dim = player.dimension;
+    const x0 = b.centerX - b.radius, x1 = b.centerX + b.radius;
+    const z0 = b.centerZ - b.radius, z1 = b.centerZ + b.radius;
+    const R = 24, SPAN = 16;
+    const y0 = Math.floor(y) - 6, y1 = Math.floor(y) + 10;
+    const alongZ = Math.max(z0, Math.floor(z) - SPAN), alongZ1 = Math.min(z1, Math.floor(z) + SPAN);
+    const alongX = Math.max(x0, Math.floor(x) - SPAN), alongX1 = Math.min(x1, Math.floor(x) + SPAN);
+    const spawn = (px, py, pz) => {
+      try { dim.spawnParticle(WALL_PARTICLE, { x: px, y: py, z: pz }); } catch (e) {}
+    };
+    // walls at x = x0 / x1 (run along z)
+    for (const wx of [x0, x1]) {
+      if (Math.abs(x - wx) > R) continue;
+      for (let pz = alongZ; pz <= alongZ1; pz += 2) for (let py = y0; py <= y1; py += 2) spawn(wx, py, pz);
+    }
+    // walls at z = z0 / z1 (run along x)
+    for (const wz of [z0, z1]) {
+      if (Math.abs(z - wz) > R) continue;
+      for (let px = alongX; px <= alongX1; px += 2) for (let py = y0; py <= y1; py += 2) spawn(px, py, wz);
+    }
+  }
+}, 8);
+
+/* ------------------------------------------------------------------ *
  *  DISABLE THE END
  * ------------------------------------------------------------------ */
 // Stop portals being opened
@@ -307,6 +341,7 @@ function openSettings(player, tries = 0) {
     .textField("Nether centre X", "0", String(n.centerX))
     .textField("Nether centre Z", "0", String(n.centerZ))
     .toggle("Set Nether centre to my position", false)
+    .toggle("Show visible border wall (particles)", config.showBorder)
     .show(player)
     .then((res) => {
       if (res.canceled) {
@@ -332,6 +367,7 @@ function openSettings(player, tries = 0) {
           b.centerZ = Math.floor(player.location.z);
         } else player.sendMessage(`§eYou must be in the ${key} to centre its border on yourself.`);
       };
+      config.showBorder = v[13];
       here("overworld", o, v[7]);
       here("nether", n, v[12]);
       saveConfig();
@@ -400,6 +436,10 @@ system.afterEvents.scriptEventReceive.subscribe((ev) => {
     case "wb:end":
       if (args[0] === undefined) return reply("§cUsage: /scriptevent wb:end <on|off>  (on = The End disabled)");
       config.noEnd = onOff(args[0]);
+      break;
+    case "wb:show":
+      if (args[0] === undefined) return reply("§cUsage: /scriptevent wb:show <on|off>");
+      config.showBorder = onOff(args[0]);
       break;
     case "wb:status":
       return reply(status());
