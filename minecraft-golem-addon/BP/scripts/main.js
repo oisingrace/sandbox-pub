@@ -117,20 +117,7 @@ function commandGolems(player, mode) {
   player.sendMessage(`§a${gs.length} golem(s) set to ${mode}.`);
 }
 
-// ---------- lodestone: program golems + statues in range, make teams ----------
-function statuesNear(player, radius) {
-  const out = [];
-  for (const k of S.allStatueKeys()) {
-    const [, dimId, xyz] = k.split("|");
-    if (dimId !== player.dimension.id) continue;
-    const [x, y, z] = xyz.split(",").map(Number);
-    if (Math.hypot(x - player.location.x, y - player.location.y, z - player.location.z) > radius) continue;
-    const b = player.dimension.getBlock({ x, y, z });
-    if (b?.typeId === "golem:statue") out.push(b);
-  }
-  return out;
-}
-
+// ---------- lodestone: program awakened golems in range (never statues), make teams ----------
 world.afterEvents.playerInteractWithBlock.subscribe((e) => {
   if (e.block.typeId !== "minecraft:lodestone") return;
   const p = e.player;
@@ -138,20 +125,7 @@ world.afterEvents.playerInteractWithBlock.subscribe((e) => {
     awakenMenu(p, S.newGolemData(p), (d) => {
       const gs = golemsNear(p, S.COMMAND_RADIUS);
       gs.forEach((g) => { const o = S.getGolem(g); S.setGolem(g, { ...o, hostile: d.hostile, friendly: d.friendly }); });
-      let free = 0, paid = 0, skipped = 0;
-      for (const b of statuesNear(p, S.COMMAND_RADIUS)) {
-        const sd = S.getStatue(b); if (!sd) continue;
-        const mine = sd.owner === p.id;
-        if (mine && !sd.diedOnce) { // never died: free
-          S.setStatue(b, { ...sd, hostile: d.hostile, friendly: d.friendly }); free++; continue;
-        }
-        const slot = findIron(p); // died once or someone else's: iron block each
-        if (slot < 0) { skipped++; continue; }
-        takeOne(p, slot);
-        S.setStatue(b, { ...sd, owner: p.id, ownerName: p.name, hostile: d.hostile, friendly: d.friendly }); paid++;
-      }
-      p.sendMessage(`§aProgrammed ${gs.length} golem(s), ${free} statue(s), ${paid} used-statue(s) (1 iron block each).` +
-        (skipped ? ` §c${skipped} skipped - not enough iron blocks.` : ""));
+      p.sendMessage(`§aProgrammed ${gs.length} awakened golem(s). Statues can only be programmed when reawakened.`);
     });
   }));
 });

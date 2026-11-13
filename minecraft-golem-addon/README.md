@@ -20,7 +20,7 @@ Uses `@minecraft/server` 2.0.0 and `@minecraft/server-ui` 2.0.0. **Untested in-g
 - **Per-golem targeting:** the script picks each golem's target (nearest foe, golems first, assassin skips golems), tags it briefly and
   "hits" the golem as that target so its `hurt_by_target` locks on. No more global target tag.
 - **Sentry:** home point is set when made sentry; it walks home in short steps and teleports home if stuck (Bedrock has no scripted pathfinding).
-- **Lodestone:** also reprograms statues in range. Never-died statues of yours are free; died-once or other people's cost 1 iron block each.
+- **Lodestone:** programs awakened golems only. Statues (including dead ones) can only be programmed through the reawakening menu, which still costs an iron block if the golem has died.
 - **Assassin:** own component group (faster), ignores golems.
 - **Art:** generated item icons, and dead statues use a slumped-head model.
 - Owner is re-applied with `tame()` whenever a mode is set.
