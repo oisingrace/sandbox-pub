@@ -7,6 +7,7 @@ const { isHostileTo } = await import("./_run/relations.js");
 
 const comps = {};
 H.startup.emit({ itemComponentRegistry: { registerCustomComponent: (n, c) => (comps[n] = c) } });
+const commander = (p) => world.afterEvents.itemUse.emit({ source: p, itemStack: { typeId: "golem:commander" } });
 const tick = () => H.tickJobs.forEach((j) => j.fn());
 const flush = () => new Promise((r) => setImmediate(r));
 const statues = () => H.ents.filter((e) => e.typeId === "golem:statue" && e.isValid);
@@ -42,7 +43,7 @@ assert.ok(d1.hostile.includes("Mallory") && d1.hostile.includes("Bob")); assert.
 // 3. commander -> guard; hostile player gets tagged by that golem
 F.next = () => ({ canceled: false, selection: 2 });
 alice.location = { x: 10, y: 64, z: 10 };
-system.currentTick++; comps["golem:commander"].onUse({ source: alice }); await flush();
+system.currentTick++; commander(alice); await flush();
 assert.equal(JSON.parse(g1.props.g).mode, "guard"); assert.ok(g1.events.includes("golem:set_guard"));
 const mallory = player("Mallory"); mallory.location = { x: 12, y: 64, z: 10 };
 tick(); assert.ok(mallory.tags.has("golem_target"));

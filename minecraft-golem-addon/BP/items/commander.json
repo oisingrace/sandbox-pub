@@ -13,10 +13,7 @@
         "textures": {
           "default": "golem_commander"
         }
-      },
-      "minecraft:custom_components": [
-        "golem:commander"
-      ]
+      }
     }
   }
 }

@@ -15,7 +15,10 @@ const engaged = new Map();        // golem id -> {tid, tick}
 const returning = new Map();      // golem id -> {g, stuck} (sentries walking home)
 // Errors in any handler are shown in chat (testing in-game is slow; this makes failures visible) instead of dying silently.
 const safe = (name, fn) => (...a) => {
-  try { return fn(...a); } catch (e) { try { world.sendMessage(`§c[Golems] ${name} failed: ${e?.message ?? e}`); } catch { /* ignore */ } }
+  try { return fn(...a); } catch (e) {
+    console.error(`[Golems] ${name} failed: ${e?.message ?? e}`); // content log, works even before chat exists
+    try { world.sendMessage(`§c[Golems] ${name} failed: ${e?.message ?? e}`); } catch { /* ignore */ }
+  }
 };
 // One missing/renamed API must not take the whole add-on down: failures are collected and shown on join.
 const problems = [];
@@ -143,9 +146,7 @@ function useCommander(player) {
   }
   system.run(() => modeMenu(player, (m) => commandGolems(player, m)));
 }
-on(system.beforeEvents.startup, "startup", (ev) => {
-  ev.itemComponentRegistry.registerCustomComponent("golem:commander", { onUse(e) { useCommander(e.source); } });
-});
+// (No custom item component: the commander is handled by the itemUse event below, which fires for any right-click use.)
 on(world.afterEvents.itemUse, "commanderItemUse", (e) => { if (e.itemStack?.typeId === "golem:commander") useCommander(e.source); });
 
 // A silk-touched statue item carries its data (so break + place can't skip the iron block rule).

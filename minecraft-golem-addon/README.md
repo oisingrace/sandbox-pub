@@ -102,3 +102,9 @@ rejects ("Expected 1, received 2"), disabling join handling, statue/commander/lo
 The living golem now uses the vanilla iron golem client definition (vanilla geometry `geometry.irongolem`, animations, animation
 controllers, crack textures) and the vanilla `melee_box_attack` / `move_towards_target` behaviours and component values, taken from
 Mojang's bedrock-samples. Dead statues use the real vanilla model with the head tilted forward.
+
+## v0.9.9
+- Removed the invalid `animation_controllers` entry from the golem client file (it made the game reject the whole file, so awakened golems were invisible).
+  The vanilla controllers are still used via the `animations` + `scripts.animate` entries.
+- The commander no longer uses a custom item component (the game reported it as not registered); it works through the `itemUse` event
+  instead. Handler errors are also written to the content log with `console.error`.

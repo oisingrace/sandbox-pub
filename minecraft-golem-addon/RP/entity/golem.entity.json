@@ -27,14 +27,6 @@
         "move_controller": "controller.animation.iron_golem.move",
         "arm_controller": "controller.animation.iron_golem.arm_movement"
       },
-      "animation_controllers": [
-        {
-          "move": "controller.animation.iron_golem.move"
-        },
-        {
-          "arm": "controller.animation.iron_golem.arm_movement"
-        }
-      ],
       "render_controllers": [
         "controller.render.iron_golem",
         "controller.render.iron_golem_cracks"
