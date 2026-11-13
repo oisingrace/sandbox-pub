@@ -28,6 +28,15 @@ const on = (sig, name, fn, opts) => {
 const runInterval = (fn, n) => system.runInterval(safe("interval", fn), n);
 const flag = (k) => world.getDynamicProperty(k) === true;
 const dbg = (m) => { if (flag("golem_debug")) world.sendMessage(`§7[Golems] ${m}`); };
+// Right-click handling is registered through several event paths (they differ between game versions); `once` dedupes them.
+const seen = new Set();
+const once = (key) => {
+  const k = `${system.currentTick}:${key}`;
+  if (seen.has(k)) return false;
+  seen.add(k); if (seen.size > 64) seen.delete(seen.values().next().value);
+  return true;
+};
+const hint = (p, m) => { try { p.onScreenDisplay.setActionBar(m); } catch { /* ignore */ } };
 const dimOf = (id) => world.getDimension(id);
 const fighting = (m) => ["guard", "attack", "sentry", "assassin"].includes(m);
 
@@ -112,16 +121,31 @@ function statueInteract(statue, player, held) {
     awaken(statue, d, player);
   }));
 }
-on(world.afterEvents.playerInteractWithEntity, "statueInteract", (e) => {
-  dbg(`interact with ${e.target.typeId}`);
-  if (e.target.typeId === STATUE) statueInteract(e.target, e.player, e.itemStack);
-});
+function onEntityInteract(e) {
+  if (e.target.typeId !== STATUE || !once(`ent:${e.player.id}:${e.target.id}`)) return;
+  dbg("interact with golem:statue");
+  hint(e.player, "§eGolem statue");
+  statueInteract(e.target, e.player, e.itemStack);
+}
+on(world.afterEvents.playerInteractWithEntity, "statueInteract", onEntityInteract);
+on(world.beforeEvents.playerInteractWithEntity, "statueInteractBefore", onEntityInteract);
 
+// Commander: right-click opens the mode menu; sneak + right-click cycles the mode with no menu at all.
+function useCommander(player) {
+  if (!once(`cmd:${player.id}`)) return;
+  dbg("commander used");
+  hint(player, "§aGolem Commander");
+  if (player.isSneaking) {
+    const gs = golemsNear(player, S.COMMAND_RADIUS);
+    const cur = gs.length ? S.getGolem(gs[0]).mode : "passive";
+    return commandGolems(player, S.MODES[(S.MODES.indexOf(cur) + 1) % S.MODES.length]);
+  }
+  system.run(() => modeMenu(player, (m) => commandGolems(player, m)));
+}
 on(system.beforeEvents.startup, "startup", (ev) => {
-  ev.itemComponentRegistry.registerCustomComponent("golem:commander", {
-    onUse(e) { dbg("commander used"); system.run(() => modeMenu(e.source, (m) => commandGolems(e.source, m))); },
-  });
+  ev.itemComponentRegistry.registerCustomComponent("golem:commander", { onUse(e) { useCommander(e.source); } });
 });
+on(world.afterEvents.itemUse, "commanderItemUse", (e) => { if (e.itemStack?.typeId === "golem:commander") useCommander(e.source); });
 
 // A silk-touched statue item carries its data (so break + place can't skip the iron block rule).
 const carried = new Map(); // player id -> data JSON from the statue item they just used
@@ -183,7 +207,8 @@ function statuesNear(player, radius) {
 // exception: it reprograms living golems for free and reawakens statues in range with the chosen
 // program (dead/programmed statues cost 1 iron block each, never-programmed ones are free).
 // Teams edited at the lodestone take effect immediately: lists reference teams by name.
-on(world.afterEvents.playerInteractWithBlock, "lodestone", (e) => {
+function onLodestone(e) {
+  if (e.block.typeId === "minecraft:lodestone" && !once(`lode:${e.player.id}`)) return;
   if (e.block.typeId === "minecraft:lodestone") dbg(`lodestone clicked${e.itemStack ? " (hand not empty: ignored)" : ""}`);
   if (e.block.typeId !== "minecraft:lodestone" || e.itemStack) return; // empty hand only, so building next to it still works
   const p = e.player;
@@ -210,7 +235,9 @@ on(world.afterEvents.playerInteractWithBlock, "lodestone", (e) => {
         (skipped ? ` §c${skipped} skipped - out of iron blocks.` : ""));
     });
   }));
-});
+}
+on(world.afterEvents.playerInteractWithBlock, "lodestone", onLodestone);
+on(world.beforeEvents.playerInteractWithBlock, "lodestoneBefore", onLodestone);
 
 // ---------- AI ----------
 // Per-golem targeting: the script picks this golem's target, tags it for a few ticks,

@@ -79,3 +79,9 @@ they're listed as `feature(s) disabled` instead of crashing the whole add-on.
   entities are invisible for them. The host must have the RP active on the world.
 - `/scriptevent golem:selftest` checks event hooks, that both entities can be spawned, and that menus open; results in chat.
   The version also shows briefly above the hotbar when you join.
+
+## Right-click hardening (v0.9.5)
+Right-clicks are now picked up through several event paths at once (deduplicated): statues via before+after `playerInteractWithEntity`,
+the commander via the item component and `itemUse`, the lodestone via before+after `playerInteractWithBlock`. Each shows an action-bar
+hint immediately (so you can tell the click arrived even if the menu doesn't open). **Sneak + right-click with the commander cycles the
+mode without any menu.**

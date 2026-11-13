@@ -19,7 +19,7 @@ function player(name, items = {}) {
 }
 const form = (fn) => (F.next = (els) => ({ canceled: false, formValues: els.map((e, i) => (e === "label" ? undefined : fn(e, i))) }));
 const noop = (e) => (e.startsWith("Extra") ? "" : false);
-const interact = (st, p) => world.afterEvents.playerInteractWithEntity.emit({ target: st, player: p, itemStack: p.items[0] });
+const interact = (st, p) => (system.currentTick++, world.afterEvents.playerInteractWithEntity.emit({ target: st, player: p, itemStack: p.items[0] }));
 
 const alice = player("Alice"), bob = player("Bob");
 world.afterEvents.playerSpawn.emit({ player: alice, initialSpawn: true }); world.afterEvents.playerSpawn.emit({ player: bob });
@@ -42,7 +42,7 @@ assert.ok(d1.hostile.includes("Mallory") && d1.hostile.includes("Bob")); assert.
 // 3. commander -> guard; hostile player gets tagged by that golem
 F.next = () => ({ canceled: false, selection: 2 });
 alice.location = { x: 10, y: 64, z: 10 };
-comps["golem:commander"].onUse({ source: alice }); await flush();
+system.currentTick++; comps["golem:commander"].onUse({ source: alice }); await flush();
 assert.equal(JSON.parse(g1.props.g).mode, "guard"); assert.ok(g1.events.includes("golem:set_guard"));
 const mallory = player("Mallory"); mallory.location = { x: 12, y: 64, z: 10 };
 tick(); assert.ok(mallory.tags.has("golem_target"));
@@ -111,7 +111,7 @@ alice.items[0] = { typeId: "minecraft:iron_block", amount: 3 };
 let n = 0;
 F.next = (els) => (n++ === 0 ? { canceled: false, selection: 0 }
   : { canceled: false, formValues: (() => { let seen = false; return els.map((e) => (e === "label" ? undefined : e.startsWith("Extra") ? "" : e === "Team: Red" && !seen ? (seen = true) : false)); })() });
-world.afterEvents.playerInteractWithBlock.emit({ block: { typeId: "minecraft:lodestone" }, player: alice, itemStack: undefined }); await flush();
+system.currentTick++; world.afterEvents.playerInteractWithBlock.emit({ block: { typeId: "minecraft:lodestone" }, player: alice, itemStack: undefined }); await flush();
 assert.equal(alice.items[0].amount, 2, "only the dead statue cost iron: " + alice.msgs.at(-1));
 assert.ok(JSON.parse(live.props.g).hostile.includes("team:Red"));
 assert.equal(statues().length, 0); assert.equal(golems().length, 3, "both statues reawakened");
@@ -131,4 +131,16 @@ assert.equal(built2.isValid, false); assert.equal(statues().length, 2);
 const village = dim.spawnEntity("minecraft:iron_golem", { x: 80.5, y: 64, z: 80.5 });
 world.afterEvents.entitySpawn.emit({ entity: village, cause: "Spawned" });
 assert.equal(village.isValid, true, "natural golem untouched");
+// dedupe: the same click delivered via after+before events only acts once
+const shown = F.shown.length;
+const st3 = dim.spawnEntity("golem:statue", { x: 90, y: 64, z: 90 }); st3.props.g = JSON.stringify(S.newGolemData(alice));
+form(noop); system.currentTick++;
+world.afterEvents.playerInteractWithEntity.emit({ target: st3, player: alice, itemStack: undefined });
+world.beforeEvents.playerInteractWithEntity.emit({ target: st3, player: alice, itemStack: undefined });
+await flush();
+assert.equal(F.shown.length - shown, 1, "one menu for one click");
+// commander via itemUse event path and sneak-cycle without a menu
+system.currentTick++; alice.isSneaking = true; alice.msgs.length = 0;
+world.afterEvents.itemUse.emit({ source: alice, itemStack: { typeId: "golem:commander" } });
+assert.ok(alice.msgs.at(-1)?.includes("golem(s) set to"), "sneak-use cycles mode: " + alice.msgs.at(-1));
 console.log("smoke test OK");
