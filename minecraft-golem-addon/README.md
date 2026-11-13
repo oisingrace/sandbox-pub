@@ -16,6 +16,9 @@ Uses `@minecraft/server` 2.0.0 and `@minecraft/server-ui` 2.0.0. **Untested in-g
 - Reawakening a statue that has died once, or taking one over as a new owner, costs 1 iron block. First awakening is free.
 - **Lodestone**: program all golems in 32 blocks, and create/edit teams.
 
+## Building
+`python3 build.py` stamps `VERSION` into both manifests (pack names show it in Minecraft) and writes `../golem-commanders-v<VERSION>.mcaddon`. Bump `VERSION` each build so Minecraft accepts the import as an upgrade.
+
 ## Programming rules (v0.4)
 - Programs are set in the reawakening menu (hostile to players/teams, friendly to teams/players, plus typed usernames). A living golem
   keeps its program until the lodestone changes it (free) or it dies; the commander only changes its *mode*.
